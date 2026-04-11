@@ -124,6 +124,7 @@ export default function Editor(props: EditorProps) {
               <textarea
                 ref={textareaRef}
                 value={draft()}
+                aria-label="Note editor"
                 spellcheck={false}
                 placeholder="Start writing..."
                 class="min-h-[320px] w-full resize-none rounded-md border border-border bg-bg px-4 py-3 text-base text-text-primary outline-none focus:border-accent"

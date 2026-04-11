@@ -62,12 +62,32 @@ function applyTheme(theme: ThemeName) {
   document.documentElement.setAttribute("data-theme", theme);
 }
 
-export function initializeTheme() {
+function readStoredTheme() {
   if (typeof window === "undefined") {
-    return uiState.theme;
+    return null;
   }
 
-  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+  try {
+    return window.localStorage.getItem(THEME_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredTheme(theme: ThemeName) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    // Storage can be unavailable in constrained browser sessions.
+  }
+}
+
+export function initializeTheme() {
+  const storedTheme = readStoredTheme();
   const theme: ThemeName = storedTheme === "dark" ? "dark" : "light";
 
   setUiState("theme", theme);
@@ -83,10 +103,7 @@ export function useUi() {
 export function setTheme(theme: ThemeName) {
   setUiState("theme", theme);
   applyTheme(theme);
-
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-  }
+  writeStoredTheme(theme);
 }
 
 export function toggleTheme() {

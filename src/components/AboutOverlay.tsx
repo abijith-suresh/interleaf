@@ -1,6 +1,7 @@
-import { Show } from "solid-js";
+import { Show, createEffect } from "solid-js";
 
 import { appMeta } from "@/utils/meta";
+import { trapFocus } from "@/utils/focusTrap";
 
 type AboutOverlayProps = {
   open: boolean;
@@ -15,17 +16,40 @@ const links = [
 ];
 
 export default function AboutOverlay(props: AboutOverlayProps) {
+  let closeButtonRef: HTMLButtonElement | undefined;
+  let dialogRef: HTMLDivElement | undefined;
+
+  createEffect(() => {
+    if (!props.open) {
+      return;
+    }
+
+    queueMicrotask(() => {
+      closeButtonRef?.focus();
+    });
+  });
+
   return (
     <Show when={props.open}>
-      <div class="fixed inset-0 z-30 flex items-center justify-center px-4">
-        <div class="w-full max-w-[420px] rounded-lg border border-border bg-surface p-5 shadow-lg">
+      <div class="fixed inset-0 z-30 flex items-center justify-center px-4" role="presentation">
+        <div
+          ref={dialogRef}
+          class="w-full max-w-[420px] rounded-lg border border-border bg-surface p-5 shadow-lg"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="about-overlay-title"
+          onKeyDown={(event) => {
+            trapFocus(dialogRef, event);
+          }}
+        >
           <div class="flex items-start justify-between gap-4">
             <div>
-              <h2 class="text-base font-medium text-text-primary">About brev</h2>
+              <h2 id="about-overlay-title" class="text-base font-medium text-text-primary">About brev</h2>
               <p class="mt-1 text-sm text-text-secondary">Version {appMeta.version}</p>
             </div>
 
             <button
+              ref={closeButtonRef}
               type="button"
               aria-label="Close about"
               class="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover hover:text-text-primary"

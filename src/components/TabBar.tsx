@@ -27,6 +27,7 @@ export default function TabBar(props: TabBarProps) {
             <button
               type="button"
               disabled={props.isBootstrapping}
+              aria-label={`Open ${deriveTitle(note.body)}`}
               class="min-w-0 flex-1 truncate text-left text-sm"
               onClick={() => props.onSelectTab(note.id)}
             >

@@ -2,6 +2,7 @@ import Fuse from "fuse.js";
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 
 import type { NoteRecord } from "@/types/note";
+import { trapFocus } from "@/utils/focusTrap";
 import { deriveTitle } from "@/utils/deriveTitle";
 
 type SearchOverlayProps = {
@@ -68,6 +69,7 @@ function highlightSnippet(snippet: string, query: string) {
 
 export default function SearchOverlay(props: SearchOverlayProps) {
   let inputRef: HTMLInputElement | undefined;
+  let dialogRef: HTMLDivElement | undefined;
 
   const [query, setQuery] = createSignal("");
   const [selectedIndex, setSelectedIndex] = createSignal(0);
@@ -134,6 +136,10 @@ export default function SearchOverlay(props: SearchOverlayProps) {
   }
 
   function handleKeyDown(event: KeyboardEvent) {
+    if (trapFocus(dialogRef, event)) {
+      return;
+    }
+
     if (event.key === "Escape") {
       event.preventDefault();
       props.onClose();
@@ -160,20 +166,28 @@ export default function SearchOverlay(props: SearchOverlayProps) {
 
   return (
     <Show when={props.open}>
-      <div class="fixed inset-0 z-30 flex items-start justify-center px-4 pt-[12vh]">
-        <div class="w-full max-w-[640px] rounded-lg border border-border bg-surface shadow-lg">
+      <div class="fixed inset-0 z-30 flex items-start justify-center px-4 pt-[12vh]" role="presentation">
+        <div
+          ref={dialogRef}
+          class="w-full max-w-[640px] rounded-lg border border-border bg-surface shadow-lg"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="search-overlay-title"
+          onKeyDown={handleKeyDown}
+        >
+          <h2 id="search-overlay-title" class="sr-only">Search notes</h2>
           <div class="border-b border-border p-3">
             <input
               ref={inputRef}
               type="text"
               value={query()}
+              aria-label="Search notes"
               placeholder="Search notes..."
               class="w-full rounded-md border border-border bg-bg px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-tertiary"
               onInput={(event) => {
                 setQuery(event.currentTarget.value);
                 setSelectedIndex(0);
               }}
-              onKeyDown={handleKeyDown}
             />
           </div>
 

@@ -98,6 +98,7 @@ export default function Sidebar(props: SidebarProps) {
                     <button
                       type="button"
                       disabled={props.isBootstrapping}
+                      aria-label={`Open ${deriveTitle(note.body)}`}
                       class={`flex w-full items-center truncate rounded-sm border-l-2 px-3 py-2 text-left text-sm ${
                         props.activeNoteId === note.id
                           ? "border-l-accent bg-accent-subtle text-text-primary"

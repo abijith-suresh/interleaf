@@ -55,6 +55,7 @@ export default function AppShell() {
 
     return noteId ? notesById().get(noteId) : undefined;
   });
+  const hasModalOverlay = createMemo(() => ui.deleteModal.open || ui.overlays.about || ui.overlays.search || ui.overlays.exportAll);
 
   function requestEditorFocus() {
     setFocusToken((value) => value + 1);
@@ -178,6 +179,7 @@ export default function AppShell() {
     }
 
     closeDeleteModal();
+    requestEditorFocus();
   }
 
   function handleOverlayBackdropClick(event: MouseEvent) {
@@ -244,7 +246,7 @@ export default function AppShell() {
       const hasFallbackTabModifier = event.altKey && !event.ctrlKey && !event.metaKey;
 
       if (event.key === "Escape") {
-        if (hasTransientUi) {
+        if (ui.contextMenu.open || ui.deleteModal.open || ui.overlays.about || ui.overlays.search || ui.overlays.exportAll) {
           event.preventDefault();
           closeTransientUi();
           requestEditorFocus();
@@ -332,37 +334,51 @@ export default function AppShell() {
   });
 
   return (
-      <div class="flex min-h-screen bg-bg text-text-primary">
-      <Sidebar
-        groups={noteGroups()}
-        activeNoteId={ui.activeNoteId}
-        theme={ui.theme}
-        isLoading={notes.isLoading}
-        isBootstrapping={isBootstrapping()}
-        onCreateNote={() => void handleCreateNote()}
-        onSelectNote={openNote}
-        onNoteContextMenu={handleNoteContextMenu}
-        onOpenSearch={openSearch}
-        onToggleTheme={toggleTheme}
-        onExportAll={openExportAllMenu}
-        onOpenAbout={openAbout}
-      />
+      <div class={`flex min-h-screen bg-bg text-text-primary ${notes.storageError ? "pt-[49px]" : ""}`}>
+      <Show when={notes.storageError}>
+        {(message) => (
+          <div
+            class="fixed inset-x-0 top-0 z-50 border-b border-danger bg-surface px-4 py-3 text-sm text-danger"
+            role="alert"
+            aria-live="assertive"
+          >
+            <div class="mx-auto max-w-[1200px]">{message()}</div>
+          </div>
+        )}
+      </Show>
 
-      <main class="flex min-w-0 flex-1 flex-col bg-bg">
-        <TabBar
-          tabs={openTabs()}
+      <div class="flex min-h-screen flex-1" aria-hidden={hasModalOverlay() ? "true" : undefined}>
+        <Sidebar
+          groups={noteGroups()}
           activeNoteId={ui.activeNoteId}
+          theme={ui.theme}
+          isLoading={notes.isLoading}
           isBootstrapping={isBootstrapping()}
           onCreateNote={() => void handleCreateNote()}
-          onSelectTab={openNote}
-          onCloseTab={handleCloseTab}
+          onSelectNote={openNote}
+          onNoteContextMenu={handleNoteContextMenu}
+          onOpenSearch={openSearch}
+          onToggleTheme={toggleTheme}
+          onExportAll={openExportAllMenu}
+          onOpenAbout={openAbout}
         />
 
-        <Editor note={activeNote()} focusToken={focusToken()} onSave={handleSave} />
-      </main>
+        <main class="flex min-w-0 flex-1 flex-col bg-bg">
+          <TabBar
+            tabs={openTabs()}
+            activeNoteId={ui.activeNoteId}
+            isBootstrapping={isBootstrapping()}
+            onCreateNote={() => void handleCreateNote()}
+            onSelectTab={openNote}
+            onCloseTab={handleCloseTab}
+          />
+
+          <Editor note={activeNote()} focusToken={focusToken()} onSave={handleSave} />
+        </main>
+      </div>
 
       <Show when={ui.contextMenu.open || ui.deleteModal.open || ui.overlays.about || ui.overlays.search || ui.overlays.exportAll}>
-        <div class="fixed inset-0 z-20 bg-overlay" onMouseDown={handleOverlayBackdropClick} />
+        <div class="fixed inset-0 z-20 bg-overlay" role="presentation" onMouseDown={handleOverlayBackdropClick} />
       </Show>
 
       <SearchOverlay
@@ -378,6 +394,10 @@ export default function AppShell() {
         y={ui.contextMenu.y}
         exportOpen={ui.contextMenu.exportOpen}
         noteTitle={deriveTitle(contextNote()?.body ?? "")}
+        onClose={() => {
+          closeContextMenu();
+          requestEditorFocus();
+        }}
         onToggleExport={() => setContextMenuExportOpen(!ui.contextMenu.exportOpen)}
         onExport={handleExport}
         onDelete={handleDeleteRequest}
@@ -386,7 +406,10 @@ export default function AppShell() {
       <DeleteModal
         open={ui.deleteModal.open}
         noteTitle={deriveTitle(deleteNote()?.body ?? "")}
-        onCancel={closeDeleteModal}
+        onCancel={() => {
+          closeDeleteModal();
+          requestEditorFocus();
+        }}
         onConfirm={() => void handleDeleteConfirm()}
       />
 
