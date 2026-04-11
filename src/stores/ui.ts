@@ -84,14 +84,33 @@ export function openTab(noteId: string) {
 }
 
 export function closeTab(noteId: string) {
+  const currentTabs = uiState.openTabs;
+  const tabIndex = currentTabs.indexOf(noteId);
   const nextTabs = uiState.openTabs.filter((tabId) => tabId !== noteId);
 
   setUiState("openTabs", nextTabs);
 
   if (uiState.activeNoteId === noteId) {
-    const nextTab = nextTabs[0] ?? null;
+    const nextTab = (tabIndex > 0 ? currentTabs[tabIndex - 1] : currentTabs[tabIndex + 1]) ?? null;
     setUiState("activeNoteId", nextTab);
   }
+}
+
+export function cycleTabs(direction: 1 | -1) {
+  const tabs = uiState.openTabs;
+
+  if (tabs.length === 0) {
+    return null;
+  }
+
+  const activeIndex = uiState.activeNoteId ? tabs.indexOf(uiState.activeNoteId) : -1;
+  const startIndex = activeIndex >= 0 ? activeIndex : direction > 0 ? -1 : 0;
+  const nextIndex = (startIndex + direction + tabs.length) % tabs.length;
+  const nextTab = tabs[nextIndex] ?? null;
+
+  setUiState("activeNoteId", nextTab);
+
+  return nextTab;
 }
 
 export function setOverlay(name: keyof OverlayState, open: boolean) {

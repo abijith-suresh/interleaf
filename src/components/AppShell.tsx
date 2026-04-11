@@ -1,103 +1,173 @@
-import { appMeta } from "@/utils/meta";
+import { createMemo, createSignal, onCleanup, onMount } from "solid-js";
 
-const noteGroups = [
-  {
-    label: "Today",
-    items: ["Untitled note", "Project handoff"]
-  },
-  {
-    label: "Apr 10",
-    items: ["Meeting notes"]
-  },
-  {
-    label: "Apr 9",
-    items: ["Launch checklist", "Ideas"]
-  }
-];
-
-const tabs = ["Untitled note", "Project handoff", "Meeting notes"];
-const toolbarItems = ["Search", "Theme", "Export", "About"];
+import Editor from "@/components/Editor";
+import Sidebar, { groupNotesByDay } from "@/components/Sidebar";
+import TabBar from "@/components/TabBar";
+import { createStoredNote, refreshNotes, upsertStoredNote, useNotes } from "@/stores/notes";
+import { closeTab, cycleTabs, setActiveNote, useUi } from "@/stores/ui";
 
 export default function AppShell() {
+  const notes = useNotes();
+  const ui = useUi();
+  const [focusToken, setFocusToken] = createSignal(0);
+  const [isBootstrapping, setIsBootstrapping] = createSignal(true);
+
+  const notesById = createMemo(() => new Map(notes.items.map((note) => [note.id, note])));
+  const noteGroups = createMemo(() => groupNotesByDay(notes.items));
+  const openTabs = createMemo(() =>
+    ui.openTabs
+      .map((noteId) => notesById().get(noteId))
+      .filter((note): note is NonNullable<typeof note> => note !== undefined)
+  );
+  const activeNote = createMemo(() => {
+    const activeNoteId = ui.activeNoteId;
+
+    return activeNoteId ? notesById().get(activeNoteId) : undefined;
+  });
+
+  function requestEditorFocus() {
+    setFocusToken((value) => value + 1);
+  }
+
+  function activateNote(noteId: string) {
+    setActiveNote(noteId);
+    requestEditorFocus();
+  }
+
+  function openNote(noteId: string) {
+    if (isBootstrapping()) {
+      return;
+    }
+
+    activateNote(noteId);
+  }
+
+  async function handleCreateNote() {
+    if (isBootstrapping()) {
+      return;
+    }
+
+    const note = await createStoredNote();
+    activateNote(note.id);
+  }
+
+  async function handleSave(noteId: string, body: string) {
+    await upsertStoredNote(noteId, { body });
+  }
+
+  function handleCloseTab(noteId: string) {
+    closeTab(noteId);
+    requestEditorFocus();
+  }
+
+  onMount(() => {
+    const handleInitialLoad = async () => {
+      try {
+        const loadedNotes = await refreshNotes();
+
+        if (loadedNotes.length === 0) {
+          const note = await createStoredNote();
+          activateNote(note.id);
+          return;
+        }
+
+        activateNote(loadedNotes[0].id);
+      } finally {
+        setIsBootstrapping(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const hasPrimaryModifier = event.metaKey || event.ctrlKey;
+      const canSwitchTabs = hasPrimaryModifier && !event.metaKey;
+      const hasFallbackTabModifier = event.altKey && !event.ctrlKey && !event.metaKey;
+
+      if (hasPrimaryModifier && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+
+        if (!isBootstrapping()) {
+          void handleCreateNote();
+        }
+
+        return;
+      }
+
+      if (hasPrimaryModifier && event.key.toLowerCase() === "w") {
+        event.preventDefault();
+
+        if (ui.activeNoteId) {
+          handleCloseTab(ui.activeNoteId);
+        }
+
+        return;
+      }
+
+      if (isBootstrapping()) {
+        return;
+      }
+
+      if (canSwitchTabs && event.key === "Tab") {
+        event.preventDefault();
+        const nextTab = cycleTabs(event.shiftKey ? -1 : 1);
+
+        if (nextTab) {
+          requestEditorFocus();
+        }
+
+        return;
+      }
+
+      if (canSwitchTabs && (event.key === "PageDown" || event.key === "PageUp")) {
+        event.preventDefault();
+        const nextTab = cycleTabs(event.key === "PageUp" ? -1 : 1);
+
+        if (nextTab) {
+          requestEditorFocus();
+        }
+
+        return;
+      }
+
+      if (hasFallbackTabModifier && (event.key === "]" || event.key === "[")) {
+        event.preventDefault();
+        const nextTab = cycleTabs(event.key === "[" ? -1 : 1);
+
+        if (nextTab) {
+          requestEditorFocus();
+        }
+      }
+    };
+
+    void handleInitialLoad();
+    window.addEventListener("keydown", handleKeyDown);
+
+    onCleanup(() => {
+      window.removeEventListener("keydown", handleKeyDown);
+    });
+  });
+
   return (
     <div class="flex min-h-screen bg-bg text-text-primary">
-      <aside class="flex w-[220px] shrink-0 flex-col border-r border-border bg-surface">
-        <div class="px-5 pt-5">
-          <div class="text-md font-medium text-text-primary">brev</div>
-        </div>
-
-        <div class="flex-1 overflow-y-auto px-2 py-4">
-          {noteGroups.map((group) => (
-            <section class="mb-5">
-              <div class="px-2 pb-2 text-xs font-medium uppercase tracking-[0.08em] text-text-tertiary">
-                {group.label}
-              </div>
-              <div class="space-y-1">
-                {group.items.map((item, index) => (
-                  <button
-                    type="button"
-                    class={`flex w-full items-center truncate rounded-sm border-l-2 px-4 py-2 text-left text-sm ${
-                      group.label === "Today" && index === 0
-                        ? "border-l-accent bg-accent-subtle text-accent"
-                        : "border-l-transparent text-text-primary hover:bg-surface-hover"
-                    }`}
-                  >
-                    <span class="truncate">{item}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-
-        <div class="border-t border-border px-4 py-3">
-          <div class="flex items-center gap-2">
-            {toolbarItems.map((item) => (
-              <button
-                type="button"
-                aria-label={item}
-                class="inline-flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-xs text-text-secondary hover:bg-surface-hover hover:text-text-primary"
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        </div>
-      </aside>
+        <Sidebar
+          groups={noteGroups()}
+          activeNoteId={ui.activeNoteId}
+          isLoading={notes.isLoading}
+          isBootstrapping={isBootstrapping()}
+          onCreateNote={() => void handleCreateNote()}
+          onSelectNote={openNote}
+        />
 
       <main class="flex min-w-0 flex-1 flex-col bg-bg">
-        <div class="flex h-10 items-center gap-1 overflow-x-auto border-b border-border bg-surface px-2">
-          <div class="flex min-w-0 items-center gap-1">
-            {tabs.map((tab, index) => (
-              <button
-                type="button"
-                class={`flex h-8 max-w-[160px] items-center rounded-md px-4 text-sm ${
-                  index === 0
-                    ? "bg-accent-subtle text-text-primary border-b-2 border-accent"
-                    : "text-text-secondary hover:bg-surface-hover"
-                }`}
-              >
-                <span class="truncate">{tab}</span>
-              </button>
-            ))}
-            <button
-              type="button"
-              aria-label="New note"
-              class="inline-flex h-8 w-8 items-center justify-center rounded-md text-sm text-text-secondary hover:bg-surface-hover hover:text-text-primary"
-            >
-              +
-            </button>
-          </div>
-        </div>
+        <TabBar
+          tabs={openTabs()}
+          activeNoteId={ui.activeNoteId}
+          isBootstrapping={isBootstrapping()}
+          onCreateNote={() => void handleCreateNote()}
+          onSelectTab={openNote}
+          onCloseTab={handleCloseTab}
+        />
 
-        <div class="flex flex-1 bg-bg">
-          <div class="mx-auto flex w-full max-w-[680px] flex-1 items-center justify-center px-8 py-12">
-            <div class="text-center text-sm text-text-tertiary">
-              <p>Press Ctrl+N to start a new note</p>
-              <p class="mt-3 text-xs text-text-secondary">brev v{appMeta.version}</p>
-            </div>
-          </div>
-        </div>
+        <Editor note={activeNote()} focusToken={focusToken()} onSave={handleSave} />
       </main>
     </div>
   );
