@@ -8,7 +8,4 @@ import { initializeTheme } from "@/stores/ui";
 
 initializeTheme();
 
-render(
-  () => <App />,
-  document.getElementById("root") as HTMLElement
-);
+render(() => <App />, document.getElementById("root") as HTMLElement);

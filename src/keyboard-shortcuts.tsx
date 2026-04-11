@@ -8,4 +8,7 @@ import { initializeTheme } from "@/stores/ui";
 
 initializeTheme();
 
-render(() => <KeyboardShortcuts />, document.getElementById("root") as HTMLElement);
+render(
+  () => <KeyboardShortcuts />,
+  document.getElementById("root") as HTMLElement,
+);

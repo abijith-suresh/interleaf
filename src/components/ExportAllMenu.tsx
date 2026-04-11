@@ -1,7 +1,11 @@
 import { Show, createEffect } from "solid-js";
 
 import type { NoteExportFormat } from "@/utils/exportNote";
-import { focusFirstDescendant, getFocusableElements, trapFocus } from "@/utils/focusTrap";
+import {
+  focusFirstDescendant,
+  getFocusableElements,
+  trapFocus,
+} from "@/utils/focusTrap";
 
 type ExportAllMenuProps = {
   open: boolean;
@@ -39,7 +43,9 @@ export default function ExportAllMenu(props: ExportAllMenuProps) {
 
           event.preventDefault();
           const items = getFocusableElements(menuRef);
-          const currentIndex = items.findIndex((element) => element === document.activeElement);
+          const currentIndex = items.findIndex(
+            (element) => element === document.activeElement,
+          );
           const nextIndex =
             event.key === "ArrowDown"
               ? (currentIndex + 1 + items.length) % items.length

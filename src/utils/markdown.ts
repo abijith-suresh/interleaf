@@ -5,14 +5,14 @@ function escapeHtml(value: string) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
+    .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
 
 marked.setOptions({
   async: false,
   breaks: true,
-  gfm: true
+  gfm: true,
 });
 
 const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
@@ -46,9 +46,12 @@ function sanitizeUrlAttribute(attribute: "href" | "src", value: string) {
 }
 
 function sanitizeAttributes(html: string) {
-  return html.replace(/(href|src)="([^"]*)"/gi, (_match, attribute: "href" | "src", value: string) => {
-    return sanitizeUrlAttribute(attribute, value);
-  });
+  return html.replace(
+    /(href|src)="([^"]*)"/gi,
+    (_match, attribute: "href" | "src", value: string) => {
+      return sanitizeUrlAttribute(attribute, value);
+    },
+  );
 }
 
 function sanitizeLinks(html: string) {

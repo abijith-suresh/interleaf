@@ -25,7 +25,10 @@ export default function DeleteModal(props: DeleteModalProps) {
 
   return (
     <Show when={props.open}>
-      <div class="fixed inset-0 z-30 flex items-center justify-center px-4" role="presentation">
+      <div
+        class="fixed inset-0 z-30 flex items-center justify-center px-4"
+        role="presentation"
+      >
         <div
           ref={dialogRef}
           class="w-full max-w-[360px] rounded-lg border border-border bg-surface p-5 shadow-lg"
@@ -37,9 +40,19 @@ export default function DeleteModal(props: DeleteModalProps) {
             trapFocus(dialogRef, event);
           }}
         >
-          <h2 id="delete-modal-title" class="text-base font-medium text-text-primary">Delete note?</h2>
-          <p id="delete-modal-description" class="mt-2 text-sm text-text-secondary">
-            This removes <span class="text-text-primary">{props.noteTitle}</span> from local storage.
+          <h2
+            id="delete-modal-title"
+            class="text-base font-medium text-text-primary"
+          >
+            Delete note?
+          </h2>
+          <p
+            id="delete-modal-description"
+            class="mt-2 text-sm text-text-secondary"
+          >
+            This removes{" "}
+            <span class="text-text-primary">{props.noteTitle}</span> from local
+            storage.
           </p>
 
           <div class="mt-5 flex justify-end gap-2">

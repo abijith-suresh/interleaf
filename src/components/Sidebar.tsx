@@ -34,7 +34,8 @@ function formatDayLabel(dayKey: string) {
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "numeric",
-    year: date.getFullYear() === new Date().getFullYear() ? undefined : "numeric"
+    year:
+      date.getFullYear() === new Date().getFullYear() ? undefined : "numeric",
   }).format(date);
 }
 
@@ -55,7 +56,7 @@ export function groupNotesByDay(notes: NoteRecord[]): NoteGroup[] {
   return [...groups.entries()].map(([dayKey, dayNotes]) => ({
     dayKey,
     label: formatDayLabel(dayKey),
-    notes: dayNotes
+    notes: dayNotes,
   }));
 }
 
@@ -79,7 +80,9 @@ export default function Sidebar(props: SidebarProps) {
 
       <div class="flex-1 overflow-y-auto px-2 py-3">
         <Show when={props.isLoading}>
-          <div class="px-2 py-2 text-sm text-text-secondary">Loading notes...</div>
+          <div class="px-2 py-2 text-sm text-text-secondary">
+            Loading notes...
+          </div>
         </Show>
 
         <Show when={!props.isLoading && props.groups.length === 0}>
@@ -104,9 +107,11 @@ export default function Sidebar(props: SidebarProps) {
                         props.activeNoteId === note.id
                           ? "border-l-accent bg-accent-subtle text-text-primary"
                           : "border-l-transparent text-text-secondary hover:bg-surface-hover hover:text-text-primary"
-                       } disabled:cursor-not-allowed disabled:opacity-60`}
+                      } disabled:cursor-not-allowed disabled:opacity-60`}
                       onClick={() => props.onSelectNote(note.id)}
-                      onContextMenu={(event) => props.onNoteContextMenu(note.id, event)}
+                      onContextMenu={(event) =>
+                        props.onNoteContextMenu(note.id, event)
+                      }
                     >
                       <span class="truncate">{deriveTitle(note.body)}</span>
                     </button>

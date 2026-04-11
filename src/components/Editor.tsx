@@ -1,4 +1,11 @@
-import { createEffect, createMemo, createSignal, on, onCleanup, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  on,
+  onCleanup,
+  Show,
+} from "solid-js";
 
 import type { NoteRecord } from "@/types/note";
 import { renderMarkdown } from "@/utils/markdown";
@@ -44,8 +51,8 @@ export default function Editor(props: EditorProps) {
         }
 
         setDraft(props.note?.body ?? "");
-      }
-    )
+      },
+    ),
   );
 
   createEffect(() => {
@@ -74,7 +81,7 @@ export default function Editor(props: EditorProps) {
 
     pendingSave = {
       noteId: note.id,
-      body
+      body,
     };
 
     if (saveTimer) {
@@ -97,8 +104,8 @@ export default function Editor(props: EditorProps) {
         queueMicrotask(() => {
           textareaRef?.focus();
         });
-      }
-    )
+      },
+    ),
   );
 
   onCleanup(() => {
@@ -112,12 +119,14 @@ export default function Editor(props: EditorProps) {
         <div class="mx-auto flex w-full max-w-[720px] flex-1 items-center justify-center px-8 py-12">
           <div class="text-center text-sm text-text-secondary">
             <p>No note open.</p>
-            <p class="mt-2 text-xs text-text-tertiary">Create a note or open one from the sidebar.</p>
+            <p class="mt-2 text-xs text-text-tertiary">
+              Create a note or open one from the sidebar.
+            </p>
           </div>
         </div>
       }
     >
-      {(note) => (
+      {(_note) => (
         <div class="flex min-h-0 flex-1 flex-col">
           <div class="flex-1 overflow-y-auto px-6 py-6">
             <div class="mx-auto flex w-full max-w-[720px] flex-col gap-4">
@@ -133,8 +142,14 @@ export default function Editor(props: EditorProps) {
 
               <Show when={draft().trim().length > 0}>
                 <section class="rounded-md border border-border bg-surface px-4 py-3">
-                  <div class="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-text-tertiary">Preview</div>
-                  <div class="prose prose-sm max-w-none text-text-primary" innerHTML={renderedMarkdown()} />
+                  <div class="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-text-tertiary">
+                    Preview
+                  </div>
+                  {/* renderMarkdown escapes content and sanitizes output before preview injection */}
+                  <div
+                    class="prose prose-sm max-w-none text-text-primary"
+                    innerHTML={renderedMarkdown()}
+                  />
                 </section>
               </Show>
             </div>

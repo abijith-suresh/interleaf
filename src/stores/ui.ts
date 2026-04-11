@@ -41,19 +41,19 @@ const [uiState, setUiState] = createStore<UiState>({
     commandPalette: false,
     settings: false,
     search: false,
-    exportAll: false
+    exportAll: false,
   },
   contextMenu: {
     noteId: null,
     x: 0,
     y: 0,
     open: false,
-    exportOpen: false
+    exportOpen: false,
   },
   deleteModal: {
     noteId: null,
-    open: false
-  }
+    open: false,
+  },
 });
 
 function applyTheme(theme: ThemeName) {
@@ -112,12 +112,16 @@ export function setActiveNote(noteId: string | null) {
   setUiState("activeNoteId", noteId);
 
   if (noteId) {
-    setUiState("openTabs", (tabs) => (tabs.includes(noteId) ? tabs : [...tabs, noteId]));
+    setUiState("openTabs", (tabs) =>
+      tabs.includes(noteId) ? tabs : [...tabs, noteId],
+    );
   }
 }
 
 export function openTab(noteId: string) {
-  setUiState("openTabs", (tabs) => (tabs.includes(noteId) ? tabs : [...tabs, noteId]));
+  setUiState("openTabs", (tabs) =>
+    tabs.includes(noteId) ? tabs : [...tabs, noteId],
+  );
 }
 
 export function closeTab(noteId: string) {
@@ -128,7 +132,9 @@ export function closeTab(noteId: string) {
   setUiState("openTabs", nextTabs);
 
   if (uiState.activeNoteId === noteId) {
-    const nextTab = (tabIndex > 0 ? currentTabs[tabIndex - 1] : currentTabs[tabIndex + 1]) ?? null;
+    const nextTab =
+      (tabIndex > 0 ? currentTabs[tabIndex - 1] : currentTabs[tabIndex + 1]) ??
+      null;
     setUiState("activeNoteId", nextTab);
   }
 }
@@ -140,7 +146,9 @@ export function cycleTabs(direction: 1 | -1) {
     return null;
   }
 
-  const activeIndex = uiState.activeNoteId ? tabs.indexOf(uiState.activeNoteId) : -1;
+  const activeIndex = uiState.activeNoteId
+    ? tabs.indexOf(uiState.activeNoteId)
+    : -1;
   const startIndex = activeIndex >= 0 ? activeIndex : direction > 0 ? -1 : 0;
   const nextIndex = (startIndex + direction + tabs.length) % tabs.length;
   const nextTab = tabs[nextIndex] ?? null;
@@ -160,7 +168,7 @@ export function openContextMenu(noteId: string | null, x: number, y: number) {
     x,
     y,
     open: true,
-    exportOpen: false
+    exportOpen: false,
   });
 }
 
@@ -174,21 +182,21 @@ export function closeContextMenu() {
     x: 0,
     y: 0,
     open: false,
-    exportOpen: false
+    exportOpen: false,
   });
 }
 
 export function openDeleteModal(noteId: string) {
   setUiState("deleteModal", {
     noteId,
-    open: true
+    open: true,
   });
 }
 
 export function closeDeleteModal() {
   setUiState("deleteModal", {
     noteId: null,
-    open: false
+    open: false,
   });
 }
 

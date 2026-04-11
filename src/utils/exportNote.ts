@@ -19,7 +19,7 @@ export function getExportFilename(note: NoteRecord, format: NoteExportFormat) {
 export function getDedupedExportFilename(
   note: NoteRecord,
   format: NoteExportFormat,
-  usedFilenames: Set<string>
+  usedFilenames: Set<string>,
 ) {
   const baseName = `${formatDateStamp(note.createdAt)}-${deriveSlug(note.body)}`;
 

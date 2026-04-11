@@ -4,7 +4,7 @@ const FOCUSABLE_SELECTOR = [
   "input:not([disabled])",
   "textarea:not([disabled])",
   "select:not([disabled])",
-  "[tabindex]:not([tabindex='-1'])"
+  "[tabindex]:not([tabindex='-1'])",
 ].join(", ");
 
 export function getFocusableElements(container: HTMLElement | undefined) {
@@ -12,8 +12,13 @@ export function getFocusableElements(container: HTMLElement | undefined) {
     return [];
   }
 
-  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) => {
-    return !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true";
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+  ).filter((element) => {
+    return (
+      !element.hasAttribute("disabled") &&
+      element.getAttribute("aria-hidden") !== "true"
+    );
   });
 }
 
@@ -22,7 +27,10 @@ export function focusFirstDescendant(container: HTMLElement | undefined) {
   firstElement?.focus();
 }
 
-export function trapFocus(container: HTMLElement | undefined, event: KeyboardEvent) {
+export function trapFocus(
+  container: HTMLElement | undefined,
+  event: KeyboardEvent,
+) {
   if (!container || event.key !== "Tab") {
     return false;
   }
@@ -37,7 +45,10 @@ export function trapFocus(container: HTMLElement | undefined, event: KeyboardEve
   const lastElement = focusableElements[focusableElements.length - 1];
   const activeElement = document.activeElement;
 
-  if (!(activeElement instanceof HTMLElement) || !container.contains(activeElement)) {
+  if (
+    !(activeElement instanceof HTMLElement) ||
+    !container.contains(activeElement)
+  ) {
     event.preventDefault();
     firstElement?.focus();
     return true;

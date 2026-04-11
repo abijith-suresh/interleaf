@@ -21,7 +21,10 @@ interface InterleafDatabase extends DBSchema {
 let databasePromise: Promise<IDBPDatabase<InterleafDatabase>> | undefined;
 
 function createId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
 
@@ -33,7 +36,7 @@ function getDatabase() {
     upgrade(database, _oldVersion, _newVersion, transaction) {
       if (!database.objectStoreNames.contains(NOTES_STORE)) {
         const notesStore = database.createObjectStore(NOTES_STORE, {
-          keyPath: "id"
+          keyPath: "id",
         });
 
         notesStore.createIndex("dayKey", "dayKey");
@@ -54,7 +57,7 @@ function getDatabase() {
       if (!notesStore.indexNames.contains("updatedAt")) {
         notesStore.createIndex("updatedAt", "updatedAt");
       }
-    }
+    },
   });
 
   return databasePromise;
@@ -73,7 +76,7 @@ export async function createNote(input: NoteInput = { body: "" }) {
     createdAt,
     updatedAt,
     body: input.body,
-    dayKey: toLocalDayKey(updatedAt)
+    dayKey: toLocalDayKey(updatedAt),
   };
 
   await database.put(NOTES_STORE, note);
@@ -107,7 +110,7 @@ export async function updateNote(id: string, update: NoteUpdate) {
     ...existingNote,
     ...update,
     updatedAt,
-    dayKey: toLocalDayKey(updatedAt)
+    dayKey: toLocalDayKey(updatedAt),
   };
 
   await database.put(NOTES_STORE, nextNote);

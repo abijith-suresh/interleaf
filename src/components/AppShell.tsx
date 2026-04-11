@@ -8,7 +8,13 @@ import ExportAllMenu from "@/components/ExportAllMenu";
 import SearchOverlay from "@/components/SearchOverlay";
 import Sidebar, { groupNotesByDay } from "@/components/Sidebar";
 import TabBar from "@/components/TabBar";
-import { createStoredNote, refreshNotes, removeStoredNote, upsertStoredNote, useNotes } from "@/stores/notes";
+import {
+  createStoredNote,
+  refreshNotes,
+  removeStoredNote,
+  upsertStoredNote,
+  useNotes,
+} from "@/stores/notes";
 import {
   closeContextMenu,
   closeTransientUi,
@@ -21,9 +27,14 @@ import {
   setContextMenuExportOpen,
   setOverlay,
   toggleTheme,
-  useUi
+  useUi,
 } from "@/stores/ui";
-import { type NoteExportFormat, exportNote, formatDateStamp, getDedupedExportFilename } from "@/utils/exportNote";
+import {
+  type NoteExportFormat,
+  exportNote,
+  formatDateStamp,
+  getDedupedExportFilename,
+} from "@/utils/exportNote";
 import { deriveTitle } from "@/utils/deriveTitle";
 
 export default function AppShell() {
@@ -32,12 +43,14 @@ export default function AppShell() {
   const [focusToken, setFocusToken] = createSignal(0);
   const [isBootstrapping, setIsBootstrapping] = createSignal(true);
 
-  const notesById = createMemo(() => new Map(notes.items.map((note) => [note.id, note])));
+  const notesById = createMemo(
+    () => new Map(notes.items.map((note) => [note.id, note])),
+  );
   const noteGroups = createMemo(() => groupNotesByDay(notes.items));
   const openTabs = createMemo(() =>
     ui.openTabs
       .map((noteId) => notesById().get(noteId))
-      .filter((note): note is NonNullable<typeof note> => note !== undefined)
+      .filter((note): note is NonNullable<typeof note> => note !== undefined),
   );
   const activeNote = createMemo(() => {
     const activeNoteId = ui.activeNoteId;
@@ -54,7 +67,9 @@ export default function AppShell() {
 
     return noteId ? notesById().get(noteId) : undefined;
   });
-  const hasModalOverlay = createMemo(() => ui.deleteModal.open || ui.overlays.search || ui.overlays.exportAll);
+  const hasModalOverlay = createMemo(
+    () => ui.deleteModal.open || ui.overlays.search || ui.overlays.exportAll,
+  );
 
   function requestEditorFocus() {
     setFocusToken((value) => value + 1);
@@ -185,7 +200,10 @@ export default function AppShell() {
     const usedFilenames = new Set<string>();
 
     for (const note of notes.items) {
-      zip.file(getDedupedExportFilename(note, format, usedFilenames), note.body);
+      zip.file(
+        getDedupedExportFilename(note, format, usedFilenames),
+        note.body,
+      );
     }
 
     const blob = await zip.generateAsync({ type: "blob" });
@@ -231,10 +249,16 @@ export default function AppShell() {
         ui.overlays.exportAll;
       const hasPrimaryModifier = event.metaKey || event.ctrlKey;
       const canSwitchTabs = hasPrimaryModifier && !event.metaKey;
-      const hasFallbackTabModifier = event.altKey && !event.ctrlKey && !event.metaKey;
+      const hasFallbackTabModifier =
+        event.altKey && !event.ctrlKey && !event.metaKey;
 
       if (event.key === "Escape") {
-        if (ui.contextMenu.open || ui.deleteModal.open || ui.overlays.search || ui.overlays.exportAll) {
+        if (
+          ui.contextMenu.open ||
+          ui.deleteModal.open ||
+          ui.overlays.search ||
+          ui.overlays.exportAll
+        ) {
           event.preventDefault();
           closeTransientUi();
           requestEditorFocus();
@@ -281,7 +305,10 @@ export default function AppShell() {
         return;
       }
 
-      if (canSwitchTabs && (event.key === "PageDown" || event.key === "PageUp")) {
+      if (
+        canSwitchTabs &&
+        (event.key === "PageDown" || event.key === "PageUp")
+      ) {
         event.preventDefault();
         const nextTab = cycleTabs(event.key === "PageUp" ? -1 : 1);
 
@@ -311,7 +338,9 @@ export default function AppShell() {
   });
 
   return (
-      <div class={`flex min-h-screen bg-bg text-text-primary ${notes.storageError ? "pt-[49px]" : ""}`}>
+    <div
+      class={`flex min-h-screen bg-bg text-text-primary ${notes.storageError ? "pt-[49px]" : ""}`}
+    >
       <Show when={notes.storageError}>
         {(message) => (
           <div
@@ -324,7 +353,10 @@ export default function AppShell() {
         )}
       </Show>
 
-      <div class="flex min-h-screen flex-1" aria-hidden={hasModalOverlay() ? "true" : undefined}>
+      <div
+        class="flex min-h-screen flex-1"
+        aria-hidden={hasModalOverlay() ? "true" : undefined}
+      >
         <Sidebar
           groups={noteGroups()}
           activeNoteId={ui.activeNoteId}
@@ -349,12 +381,27 @@ export default function AppShell() {
             onCloseTab={handleCloseTab}
           />
 
-          <Editor note={activeNote()} focusToken={focusToken()} onSave={handleSave} />
+          <Editor
+            note={activeNote()}
+            focusToken={focusToken()}
+            onSave={handleSave}
+          />
         </main>
       </div>
 
-      <Show when={ui.contextMenu.open || ui.deleteModal.open || ui.overlays.search || ui.overlays.exportAll}>
-        <div class="fixed inset-0 z-20 bg-overlay" role="presentation" onMouseDown={handleOverlayBackdropClick} />
+      <Show
+        when={
+          ui.contextMenu.open ||
+          ui.deleteModal.open ||
+          ui.overlays.search ||
+          ui.overlays.exportAll
+        }
+      >
+        <div
+          class="fixed inset-0 z-20 bg-overlay"
+          role="presentation"
+          onMouseDown={handleOverlayBackdropClick}
+        />
       </Show>
 
       <SearchOverlay
@@ -374,7 +421,9 @@ export default function AppShell() {
           closeContextMenu();
           requestEditorFocus();
         }}
-        onToggleExport={() => setContextMenuExportOpen(!ui.contextMenu.exportOpen)}
+        onToggleExport={() =>
+          setContextMenuExportOpen(!ui.contextMenu.exportOpen)
+        }
         onExport={handleExport}
         onDelete={handleDeleteRequest}
       />
@@ -391,7 +440,10 @@ export default function AppShell() {
 
       <div class="pointer-events-none fixed bottom-0 left-0 z-30 w-[240px] px-2 pb-14">
         <div class="pointer-events-auto relative">
-          <ExportAllMenu open={ui.overlays.exportAll} onExport={(format) => void handleExportAll(format)} />
+          <ExportAllMenu
+            open={ui.overlays.exportAll}
+            onExport={(format) => void handleExportAll(format)}
+          />
         </div>
       </div>
     </div>

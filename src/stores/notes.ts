@@ -4,12 +4,13 @@ import {
   createNote as createNoteRecord,
   deleteNote as deleteNoteRecord,
   getAllNotes,
-  updateNote as updateNoteRecord
+  updateNote as updateNoteRecord,
 } from "@/db";
 import type { NoteRecord, NoteUpdate } from "@/types/note";
 import { toLocalDayKey } from "@/utils/dayKey";
 
-const STORAGE_UNAVAILABLE_MESSAGE = "Notes cannot be saved in this browser session. Storage is unavailable.";
+const STORAGE_UNAVAILABLE_MESSAGE =
+  "Notes cannot be saved in this browser session. Storage is unavailable.";
 
 type NotesState = {
   items: NoteRecord[];
@@ -22,11 +23,14 @@ const [notesState, setNotesState] = createStore<NotesState>({
   items: [],
   isLoaded: false,
   isLoading: false,
-  storageError: null
+  storageError: null,
 });
 
 function createId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
 
@@ -41,7 +45,7 @@ function setStorageUnavailable() {
   setNotesState({
     isLoaded: true,
     isLoading: false,
-    storageError: STORAGE_UNAVAILABLE_MESSAGE
+    storageError: STORAGE_UNAVAILABLE_MESSAGE,
   });
 }
 
@@ -53,14 +57,14 @@ function createLocalNote(body = "") {
     body,
     createdAt,
     updatedAt: createdAt,
-    dayKey: toLocalDayKey(createdAt)
+    dayKey: toLocalDayKey(createdAt),
   } satisfies NoteRecord;
 }
 
 function replaceNote(note: NoteRecord) {
   const nextItems = sortByUpdatedAt([
     note,
-    ...notesState.items.filter((item) => item.id !== note.id)
+    ...notesState.items.filter((item) => item.id !== note.id),
   ]);
 
   setNotesState("items", nextItems);
@@ -77,7 +81,12 @@ export async function refreshNotes() {
 
   try {
     const notes = await getAllNotes();
-    setNotesState({ items: notes, isLoaded: true, isLoading: false, storageError: null });
+    setNotesState({
+      items: notes,
+      isLoaded: true,
+      isLoading: false,
+      storageError: null,
+    });
 
     return notes;
   } catch (error) {
@@ -130,7 +139,7 @@ export async function upsertStoredNote(id: string, update: NoteUpdate) {
       ...existingNote,
       ...update,
       updatedAt,
-      dayKey: toLocalDayKey(updatedAt)
+      dayKey: toLocalDayKey(updatedAt),
     };
 
     setStorageUnavailable();
@@ -148,5 +157,8 @@ export async function removeStoredNote(id: string) {
     setStorageUnavailable();
   }
 
-  setNotesState("items", notesState.items.filter((note) => note.id !== id));
+  setNotesState(
+    "items",
+    notesState.items.filter((note) => note.id !== id),
+  );
 }

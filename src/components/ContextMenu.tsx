@@ -1,6 +1,10 @@
 import { Show, createEffect } from "solid-js";
 
-import { focusFirstDescendant, getFocusableElements, trapFocus } from "@/utils/focusTrap";
+import {
+  focusFirstDescendant,
+  getFocusableElements,
+  trapFocus,
+} from "@/utils/focusTrap";
 
 type ContextMenuProps = {
   open: boolean;
@@ -34,7 +38,7 @@ export default function ContextMenu(props: ContextMenuProps) {
         class="fixed z-40 min-w-[168px] rounded-md border border-border bg-surface p-1 shadow-md"
         style={{
           left: `${props.x}px`,
-          top: `${props.y}px`
+          top: `${props.y}px`,
         }}
         role="menu"
         aria-label={`Actions for ${props.noteTitle}`}
@@ -55,7 +59,9 @@ export default function ContextMenu(props: ContextMenuProps) {
 
           event.preventDefault();
           const items = getFocusableElements(menuRef);
-          const currentIndex = items.findIndex((element) => element === document.activeElement);
+          const currentIndex = items.findIndex(
+            (element) => element === document.activeElement,
+          );
           const nextIndex =
             event.key === "ArrowDown"
               ? (currentIndex + 1 + items.length) % items.length
@@ -72,7 +78,9 @@ export default function ContextMenu(props: ContextMenuProps) {
           onClick={() => props.onToggleExport()}
         >
           <span>Export note</span>
-          <span class="text-xs text-text-tertiary">{props.exportOpen ? "-" : "+"}</span>
+          <span class="text-xs text-text-tertiary">
+            {props.exportOpen ? "-" : "+"}
+          </span>
         </button>
 
         <Show when={props.exportOpen}>

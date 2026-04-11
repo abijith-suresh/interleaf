@@ -8,7 +8,8 @@ import pkg from "./package.json";
 const appManifest: Partial<ManifestOptions> = {
   name: "interleaf",
   short_name: "interleaf",
-  description: "A local-first notes app for fast writing, search, tabbed notes, and export.",
+  description:
+    "A local-first notes app for fast writing, search, tabbed notes, and export.",
   start_url: "/",
   scope: "/",
   display: "standalone",
@@ -20,15 +21,15 @@ const appManifest: Partial<ManifestOptions> = {
       src: "/pwa-icon.svg",
       sizes: "any",
       type: "image/svg+xml",
-      purpose: "any"
+      purpose: "any",
     },
     {
       src: "/pwa-icon-maskable.svg",
       sizes: "any",
       type: "image/svg+xml",
-      purpose: "maskable"
-    }
-  ]
+      purpose: "maskable",
+    },
+  ],
 };
 
 export default defineConfig({
@@ -41,24 +42,24 @@ export default defineConfig({
       includeAssets: ["pwa-icon.svg", "pwa-icon-maskable.svg"],
       manifest: appManifest,
       devOptions: {
-        enabled: false
+        enabled: false,
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"]
-      }
-    })
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"],
+      },
+    }),
   ],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
-    "import.meta.env.APP_VERSION": JSON.stringify(pkg.version)
+    "import.meta.env.APP_VERSION": JSON.stringify(pkg.version),
   },
   resolve: {
     alias: {
-      "@": "/src"
-    }
+      "@": "/src",
+    },
   },
   server: {
-    port: 3000
+    port: 3000,
   },
   build: {
     target: "esnext",
@@ -66,11 +67,19 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL("./index.html", import.meta.url)),
         about: fileURLToPath(new URL("./about/index.html", import.meta.url)),
-        features: fileURLToPath(new URL("./features/index.html", import.meta.url)),
-        privacy: fileURLToPath(new URL("./privacy/index.html", import.meta.url)),
-        changelog: fileURLToPath(new URL("./changelog/index.html", import.meta.url)),
-        "keyboard-shortcuts": fileURLToPath(new URL("./keyboard-shortcuts/index.html", import.meta.url))
-      }
-    }
-  }
+        features: fileURLToPath(
+          new URL("./features/index.html", import.meta.url),
+        ),
+        privacy: fileURLToPath(
+          new URL("./privacy/index.html", import.meta.url),
+        ),
+        changelog: fileURLToPath(
+          new URL("./changelog/index.html", import.meta.url),
+        ),
+        "keyboard-shortcuts": fileURLToPath(
+          new URL("./keyboard-shortcuts/index.html", import.meta.url),
+        ),
+      },
+    },
+  },
 });
