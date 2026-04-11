@@ -1,0 +1,35 @@
+name: PR Title
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  pr-title:
+    name: pr-title
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9][a-z0-9./-]*\))?(!)?: .+$'
+
+          if [[ ! "$PR_TITLE" =~ $pattern ]]; then
+            printf 'PR title must match Conventional Commits: type(optional-scope): subject\n' >&2
+            exit 1
+          fi
+
+          if (( ${#PR_TITLE} > 72 )); then
+            printf 'PR title must be 72 characters or fewer\n' >&2
+            exit 1
+          fi
+
+          if [[ "$PR_TITLE" == *. ]]; then
+            printf 'PR title subject must not end with a period\n' >&2
+            exit 1
+          fi

@@ -64,7 +64,13 @@ bun run typecheck:node
 ## Verification
 
 ```bash
+bun run verify
 bun run build
-bun run typecheck
-bun run typecheck:node
 ```
+
+## GitHub Workflows
+
+- Pull requests to `main` run CI with Bun using `bun run verify` and `bun run build`.
+- Pull request titles must follow Conventional Commit style, for example `feat(notes): add export action`.
+- Releases are managed with Release Please on pushes to `main`, using the version tracked in `package.json` and `.release-please-manifest.json`.
+- Dependabot opens monthly updates for Bun packages and GitHub Actions.
