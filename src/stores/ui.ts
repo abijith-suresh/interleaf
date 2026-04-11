@@ -7,12 +7,19 @@ export type ThemeName = "light" | "dark";
 type OverlayState = {
   commandPalette: boolean;
   settings: boolean;
+  about: boolean;
 };
 
 type ContextState = {
   noteId: string | null;
   x: number;
   y: number;
+  open: boolean;
+  exportOpen: boolean;
+};
+
+type DeleteState = {
+  noteId: string | null;
   open: boolean;
 };
 
@@ -22,6 +29,7 @@ type UiState = {
   theme: ThemeName;
   overlays: OverlayState;
   contextMenu: ContextState;
+  deleteModal: DeleteState;
 };
 
 const [uiState, setUiState] = createStore<UiState>({
@@ -30,12 +38,18 @@ const [uiState, setUiState] = createStore<UiState>({
   theme: "light",
   overlays: {
     commandPalette: false,
-    settings: false
+    settings: false,
+    about: false
   },
   contextMenu: {
     noteId: null,
     x: 0,
     y: 0,
+    open: false,
+    exportOpen: false
+  },
+  deleteModal: {
+    noteId: null,
     open: false
   }
 });
@@ -69,6 +83,10 @@ export function setTheme(theme: ThemeName) {
   if (typeof window !== "undefined") {
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }
+}
+
+export function toggleTheme() {
+  setTheme(uiState.theme === "light" ? "dark" : "light");
 }
 
 export function setActiveNote(noteId: string | null) {
@@ -122,10 +140,41 @@ export function openContextMenu(noteId: string | null, x: number, y: number) {
     noteId,
     x,
     y,
+    open: true,
+    exportOpen: false
+  });
+}
+
+export function setContextMenuExportOpen(open: boolean) {
+  setUiState("contextMenu", "exportOpen", open);
+}
+
+export function closeContextMenu() {
+  setUiState("contextMenu", {
+    noteId: null,
+    x: 0,
+    y: 0,
+    open: false,
+    exportOpen: false
+  });
+}
+
+export function openDeleteModal(noteId: string) {
+  setUiState("deleteModal", {
+    noteId,
     open: true
   });
 }
 
-export function closeContextMenu() {
-  setUiState("contextMenu", "open", false);
+export function closeDeleteModal() {
+  setUiState("deleteModal", {
+    noteId: null,
+    open: false
+  });
+}
+
+export function closeTransientUi() {
+  closeContextMenu();
+  closeDeleteModal();
+  setOverlay("about", false);
 }

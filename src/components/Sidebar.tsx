@@ -13,10 +13,15 @@ type NoteGroup = {
 type SidebarProps = {
   groups: NoteGroup[];
   activeNoteId: string | null;
+  theme: "light" | "dark";
   isLoading: boolean;
   isBootstrapping: boolean;
   onCreateNote: () => void;
   onSelectNote: (noteId: string) => void;
+  onNoteContextMenu: (noteId: string, event: MouseEvent) => void;
+  onToggleTheme: () => void;
+  onExportAll: () => void;
+  onOpenAbout: () => void;
 };
 
 function formatDayLabel(dayKey: string) {
@@ -96,8 +101,9 @@ export default function Sidebar(props: SidebarProps) {
                         props.activeNoteId === note.id
                           ? "border-l-accent bg-accent-subtle text-text-primary"
                           : "border-l-transparent text-text-secondary hover:bg-surface-hover hover:text-text-primary"
-                      } disabled:cursor-not-allowed disabled:opacity-60`}
+                       } disabled:cursor-not-allowed disabled:opacity-60`}
                       onClick={() => props.onSelectNote(note.id)}
+                      onContextMenu={(event) => props.onNoteContextMenu(note.id, event)}
                     >
                       <span class="truncate">{deriveTitle(note.body)}</span>
                     </button>
@@ -107,6 +113,37 @@ export default function Sidebar(props: SidebarProps) {
             </section>
           )}
         </For>
+      </div>
+
+      <div class="border-t border-border px-2 py-2">
+        <div class="grid grid-cols-3 gap-1">
+          <button
+            type="button"
+            aria-label={`Switch to ${props.theme === "light" ? "dark" : "light"} theme`}
+            class="rounded-md px-2 py-2 text-sm text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+            onClick={() => props.onToggleTheme()}
+          >
+            {props.theme === "light" ? "Dark" : "Light"}
+          </button>
+          <button
+            type="button"
+            aria-label="Export all notes"
+            disabled
+            title="Export all is deferred"
+            class="rounded-md px-2 py-2 text-sm text-text-secondary opacity-50 disabled:cursor-not-allowed"
+            onClick={() => props.onExportAll()}
+          >
+            Export
+          </button>
+          <button
+            type="button"
+            aria-label="About brev"
+            class="rounded-md px-2 py-2 text-sm text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+            onClick={() => props.onOpenAbout()}
+          >
+            About
+          </button>
+        </div>
       </div>
     </aside>
   );

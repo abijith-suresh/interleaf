@@ -1,10 +1,27 @@
-import { createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 
+import AboutOverlay from "@/components/AboutOverlay";
+import ContextMenu from "@/components/ContextMenu";
+import DeleteModal from "@/components/DeleteModal";
 import Editor from "@/components/Editor";
 import Sidebar, { groupNotesByDay } from "@/components/Sidebar";
 import TabBar from "@/components/TabBar";
-import { createStoredNote, refreshNotes, upsertStoredNote, useNotes } from "@/stores/notes";
-import { closeTab, cycleTabs, setActiveNote, useUi } from "@/stores/ui";
+import { createStoredNote, refreshNotes, removeStoredNote, upsertStoredNote, useNotes } from "@/stores/notes";
+import {
+  closeContextMenu,
+  closeDeleteModal,
+  closeTab,
+  cycleTabs,
+  openContextMenu,
+  openDeleteModal,
+  setActiveNote,
+  setContextMenuExportOpen,
+  setOverlay,
+  toggleTheme,
+  useUi
+} from "@/stores/ui";
+import { type NoteExportFormat, exportNote } from "@/utils/exportNote";
+import { deriveTitle } from "@/utils/deriveTitle";
 
 export default function AppShell() {
   const notes = useNotes();
@@ -23,6 +40,16 @@ export default function AppShell() {
     const activeNoteId = ui.activeNoteId;
 
     return activeNoteId ? notesById().get(activeNoteId) : undefined;
+  });
+  const contextNote = createMemo(() => {
+    const noteId = ui.contextMenu.noteId;
+
+    return noteId ? notesById().get(noteId) : undefined;
+  });
+  const deleteNote = createMemo(() => {
+    const noteId = ui.deleteModal.noteId;
+
+    return noteId ? notesById().get(noteId) : undefined;
   });
 
   function requestEditorFocus() {
@@ -60,6 +87,68 @@ export default function AppShell() {
     requestEditorFocus();
   }
 
+  function handleNoteContextMenu(noteId: string, event: MouseEvent) {
+    if (isBootstrapping()) {
+      return;
+    }
+
+    event.preventDefault();
+    const menuWidth = 168;
+    const menuHeight = 132;
+    const x = Math.min(event.clientX + 8, window.innerWidth - menuWidth - 8);
+    const y = Math.min(event.clientY + 8, window.innerHeight - menuHeight - 8);
+
+    openContextMenu(noteId, Math.max(8, x), Math.max(8, y));
+  }
+
+  function handleExport(format: NoteExportFormat) {
+    const note = contextNote();
+
+    if (!note) {
+      return;
+    }
+
+    exportNote(note, format);
+    closeContextMenu();
+  }
+
+  function handleDeleteRequest() {
+    const note = contextNote();
+
+    if (!note) {
+      return;
+    }
+
+    openDeleteModal(note.id);
+    closeContextMenu();
+  }
+
+  async function handleDeleteConfirm() {
+    const note = deleteNote();
+
+    if (!note) {
+      return;
+    }
+
+    await removeStoredNote(note.id);
+
+    if (ui.openTabs.includes(note.id)) {
+      handleCloseTab(note.id);
+    }
+
+    closeDeleteModal();
+  }
+
+  function handleOverlayBackdropClick(event: MouseEvent) {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    closeContextMenu();
+    closeDeleteModal();
+    setOverlay("about", false);
+  }
+
   onMount(() => {
     const handleInitialLoad = async () => {
       try {
@@ -78,9 +167,21 @@ export default function AppShell() {
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      const hasTransientUi = ui.contextMenu.open || ui.deleteModal.open || ui.overlays.about;
       const hasPrimaryModifier = event.metaKey || event.ctrlKey;
       const canSwitchTabs = hasPrimaryModifier && !event.metaKey;
       const hasFallbackTabModifier = event.altKey && !event.ctrlKey && !event.metaKey;
+
+      if (event.key === "Escape") {
+        closeContextMenu();
+        closeDeleteModal();
+        setOverlay("about", false);
+        return;
+      }
+
+      if (hasTransientUi) {
+        return;
+      }
 
       if (hasPrimaryModifier && event.key.toLowerCase() === "n") {
         event.preventDefault();
@@ -147,15 +248,20 @@ export default function AppShell() {
   });
 
   return (
-    <div class="flex min-h-screen bg-bg text-text-primary">
-        <Sidebar
-          groups={noteGroups()}
-          activeNoteId={ui.activeNoteId}
-          isLoading={notes.isLoading}
-          isBootstrapping={isBootstrapping()}
-          onCreateNote={() => void handleCreateNote()}
-          onSelectNote={openNote}
-        />
+      <div class="flex min-h-screen bg-bg text-text-primary">
+      <Sidebar
+        groups={noteGroups()}
+        activeNoteId={ui.activeNoteId}
+        theme={ui.theme}
+        isLoading={notes.isLoading}
+        isBootstrapping={isBootstrapping()}
+        onCreateNote={() => void handleCreateNote()}
+        onSelectNote={openNote}
+        onNoteContextMenu={handleNoteContextMenu}
+        onToggleTheme={toggleTheme}
+        onExportAll={() => undefined}
+        onOpenAbout={() => setOverlay("about", true)}
+      />
 
       <main class="flex min-w-0 flex-1 flex-col bg-bg">
         <TabBar
@@ -169,6 +275,30 @@ export default function AppShell() {
 
         <Editor note={activeNote()} focusToken={focusToken()} onSave={handleSave} />
       </main>
+
+      <Show when={ui.contextMenu.open || ui.deleteModal.open || ui.overlays.about}>
+        <div class="fixed inset-0 z-20 bg-overlay" onMouseDown={handleOverlayBackdropClick} />
+      </Show>
+
+      <ContextMenu
+        open={ui.contextMenu.open}
+        x={ui.contextMenu.x}
+        y={ui.contextMenu.y}
+        exportOpen={ui.contextMenu.exportOpen}
+        noteTitle={deriveTitle(contextNote()?.body ?? "")}
+        onToggleExport={() => setContextMenuExportOpen(!ui.contextMenu.exportOpen)}
+        onExport={handleExport}
+        onDelete={handleDeleteRequest}
+      />
+
+      <DeleteModal
+        open={ui.deleteModal.open}
+        noteTitle={deriveTitle(deleteNote()?.body ?? "")}
+        onCancel={closeDeleteModal}
+        onConfirm={() => void handleDeleteConfirm()}
+      />
+
+      <AboutOverlay open={ui.overlays.about} onClose={() => setOverlay("about", false)} />
     </div>
   );
 }

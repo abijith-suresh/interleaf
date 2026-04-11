@@ -4,7 +4,8 @@ import "@fontsource/geist/500.css";
 import "@fontsource/geist/600.css";
 import "./index.css";
 import About from "./pages/About";
+import { initializeTheme } from "@/stores/ui";
 
-document.documentElement.setAttribute("data-theme", "light");
+initializeTheme();
 
 render(() => <About />, document.getElementById("root") as HTMLElement);

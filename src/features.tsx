@@ -4,7 +4,8 @@ import "@fontsource/geist/500.css";
 import "@fontsource/geist/600.css";
 import "./index.css";
 import Features from "./pages/Features";
+import { initializeTheme } from "@/stores/ui";
 
-document.documentElement.setAttribute("data-theme", "light");
+initializeTheme();
 
 render(() => <Features />, document.getElementById("root") as HTMLElement);

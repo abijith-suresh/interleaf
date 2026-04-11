@@ -1,19 +1,23 @@
 const UNTITLED_NOTE = "Untitled note";
 
-function normalizeWhitespace(value: string) {
-  return value.replace(/\s+/g, " ").trim();
+function getFirstLine(body: string) {
+  const firstNewlineIndex = body.search(/\r?\n/);
+
+  return firstNewlineIndex === -1 ? body : body.slice(0, firstNewlineIndex);
+}
+
+function stripLeadingMarkdown(value: string) {
+  return value.replace(/^[#*\->_ ]+/, "");
 }
 
 export function deriveTitle(body: string) {
-  for (const line of body.split(/\r?\n/)) {
-    const title = normalizeWhitespace(line.replace(/^#+\s*/, ""));
+  const title = stripLeadingMarkdown(getFirstLine(body)).trim();
 
-    if (title) {
-      return title.slice(0, 80);
-    }
+  if (!title) {
+    return UNTITLED_NOTE;
   }
 
-  return UNTITLED_NOTE;
+  return title.slice(0, 40);
 }
 
 export { UNTITLED_NOTE };
