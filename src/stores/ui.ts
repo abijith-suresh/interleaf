@@ -8,6 +8,8 @@ type OverlayState = {
   commandPalette: boolean;
   settings: boolean;
   about: boolean;
+  search: boolean;
+  exportAll: boolean;
 };
 
 type ContextState = {
@@ -39,7 +41,9 @@ const [uiState, setUiState] = createStore<UiState>({
   overlays: {
     commandPalette: false,
     settings: false,
-    about: false
+    about: false,
+    search: false,
+    exportAll: false
   },
   contextMenu: {
     noteId: null,
@@ -177,4 +181,6 @@ export function closeTransientUi() {
   closeContextMenu();
   closeDeleteModal();
   setOverlay("about", false);
+  setOverlay("search", false);
+  setOverlay("exportAll", false);
 }

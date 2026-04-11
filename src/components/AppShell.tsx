@@ -1,14 +1,18 @@
+import JSZip from "jszip";
 import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 
 import AboutOverlay from "@/components/AboutOverlay";
 import ContextMenu from "@/components/ContextMenu";
 import DeleteModal from "@/components/DeleteModal";
 import Editor from "@/components/Editor";
+import ExportAllMenu from "@/components/ExportAllMenu";
+import SearchOverlay from "@/components/SearchOverlay";
 import Sidebar, { groupNotesByDay } from "@/components/Sidebar";
 import TabBar from "@/components/TabBar";
 import { createStoredNote, refreshNotes, removeStoredNote, upsertStoredNote, useNotes } from "@/stores/notes";
 import {
   closeContextMenu,
+  closeTransientUi,
   closeDeleteModal,
   closeTab,
   cycleTabs,
@@ -20,7 +24,7 @@ import {
   toggleTheme,
   useUi
 } from "@/stores/ui";
-import { type NoteExportFormat, exportNote } from "@/utils/exportNote";
+import { type NoteExportFormat, exportNote, formatDateStamp, getDedupedExportFilename } from "@/utils/exportNote";
 import { deriveTitle } from "@/utils/deriveTitle";
 
 export default function AppShell() {
@@ -67,6 +71,43 @@ export default function AppShell() {
     }
 
     activateNote(noteId);
+  }
+
+  function closeOverlay(name: "about" | "search" | "exportAll") {
+    setOverlay(name, false);
+    requestEditorFocus();
+  }
+
+  function openSearch() {
+    if (isBootstrapping()) {
+      return;
+    }
+
+    closeContextMenu();
+    closeDeleteModal();
+    setOverlay("about", false);
+    setOverlay("exportAll", false);
+    setOverlay("search", true);
+  }
+
+  function openExportAllMenu() {
+    if (isBootstrapping()) {
+      return;
+    }
+
+    closeContextMenu();
+    closeDeleteModal();
+    setOverlay("about", false);
+    setOverlay("search", false);
+    setOverlay("exportAll", true);
+  }
+
+  function openAbout() {
+    closeContextMenu();
+    closeDeleteModal();
+    setOverlay("search", false);
+    setOverlay("exportAll", false);
+    setOverlay("about", true);
   }
 
   async function handleCreateNote() {
@@ -144,9 +185,34 @@ export default function AppShell() {
       return;
     }
 
-    closeContextMenu();
-    closeDeleteModal();
-    setOverlay("about", false);
+    closeTransientUi();
+    requestEditorFocus();
+  }
+
+  async function handleExportAll(format: NoteExportFormat) {
+    const zip = new JSZip();
+    const usedFilenames = new Set<string>();
+
+    for (const note of notes.items) {
+      zip.file(getDedupedExportFilename(note, format, usedFilenames), note.body);
+    }
+
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const today = formatDateStamp(Date.now());
+
+    link.href = url;
+    link.download = `brev-export-${today}.zip`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 0);
+
+    closeOverlay("exportAll");
   }
 
   onMount(() => {
@@ -167,15 +233,33 @@ export default function AppShell() {
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      const hasTransientUi = ui.contextMenu.open || ui.deleteModal.open || ui.overlays.about;
+      const hasTransientUi =
+        ui.contextMenu.open ||
+        ui.deleteModal.open ||
+        ui.overlays.about ||
+        ui.overlays.search ||
+        ui.overlays.exportAll;
       const hasPrimaryModifier = event.metaKey || event.ctrlKey;
       const canSwitchTabs = hasPrimaryModifier && !event.metaKey;
       const hasFallbackTabModifier = event.altKey && !event.ctrlKey && !event.metaKey;
 
       if (event.key === "Escape") {
-        closeContextMenu();
-        closeDeleteModal();
-        setOverlay("about", false);
+        if (hasTransientUi) {
+          event.preventDefault();
+          closeTransientUi();
+          requestEditorFocus();
+        }
+
+        return;
+      }
+
+      if (hasPrimaryModifier && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+
+        if (!ui.overlays.search) {
+          openSearch();
+        }
+
         return;
       }
 
@@ -258,9 +342,10 @@ export default function AppShell() {
         onCreateNote={() => void handleCreateNote()}
         onSelectNote={openNote}
         onNoteContextMenu={handleNoteContextMenu}
+        onOpenSearch={openSearch}
         onToggleTheme={toggleTheme}
-        onExportAll={() => undefined}
-        onOpenAbout={() => setOverlay("about", true)}
+        onExportAll={openExportAllMenu}
+        onOpenAbout={openAbout}
       />
 
       <main class="flex min-w-0 flex-1 flex-col bg-bg">
@@ -276,9 +361,16 @@ export default function AppShell() {
         <Editor note={activeNote()} focusToken={focusToken()} onSave={handleSave} />
       </main>
 
-      <Show when={ui.contextMenu.open || ui.deleteModal.open || ui.overlays.about}>
+      <Show when={ui.contextMenu.open || ui.deleteModal.open || ui.overlays.about || ui.overlays.search || ui.overlays.exportAll}>
         <div class="fixed inset-0 z-20 bg-overlay" onMouseDown={handleOverlayBackdropClick} />
       </Show>
+
+      <SearchOverlay
+        open={ui.overlays.search}
+        notes={notes.items}
+        onClose={() => closeOverlay("search")}
+        onOpenNote={openNote}
+      />
 
       <ContextMenu
         open={ui.contextMenu.open}
@@ -298,7 +390,13 @@ export default function AppShell() {
         onConfirm={() => void handleDeleteConfirm()}
       />
 
-      <AboutOverlay open={ui.overlays.about} onClose={() => setOverlay("about", false)} />
+      <AboutOverlay open={ui.overlays.about} onClose={() => closeOverlay("about")} />
+
+      <div class="pointer-events-none fixed bottom-0 left-0 z-30 w-[240px] px-2 pb-14">
+        <div class="pointer-events-auto relative">
+          <ExportAllMenu open={ui.overlays.exportAll} onExport={(format) => void handleExportAll(format)} />
+        </div>
+      </div>
     </div>
   );
 }

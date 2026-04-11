@@ -3,7 +3,7 @@ import { deriveSlug } from "@/utils/deriveSlug";
 
 export type NoteExportFormat = "txt" | "md";
 
-function formatCreatedDate(timestamp: number) {
+export function formatDateStamp(timestamp: number) {
   const date = new Date(timestamp);
   const year = String(date.getFullYear());
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -13,7 +13,33 @@ function formatCreatedDate(timestamp: number) {
 }
 
 export function getExportFilename(note: NoteRecord, format: NoteExportFormat) {
-  return `${formatCreatedDate(note.createdAt)}-${deriveSlug(note.body)}.${format}`;
+  return `${formatDateStamp(note.createdAt)}-${deriveSlug(note.body)}.${format}`;
+}
+
+export function getDedupedExportFilename(
+  note: NoteRecord,
+  format: NoteExportFormat,
+  usedFilenames: Set<string>
+) {
+  const baseName = `${formatDateStamp(note.createdAt)}-${deriveSlug(note.body)}`;
+
+  if (!usedFilenames.has(`${baseName}.${format}`)) {
+    const filename = `${baseName}.${format}`;
+    usedFilenames.add(filename);
+    return filename;
+  }
+
+  let count = 2;
+  let filename = `${baseName}-${count}.${format}`;
+
+  while (usedFilenames.has(filename)) {
+    count += 1;
+    filename = `${baseName}-${count}.${format}`;
+  }
+
+  usedFilenames.add(filename);
+
+  return filename;
 }
 
 export function exportNote(note: NoteRecord, format: NoteExportFormat) {
