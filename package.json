@@ -1,0 +1,29 @@
+{
+  "name": "brev",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@fontsource/geist": "^5.1.0",
+    "fuse.js": "^7.1.0",
+    "idb": "^8.0.3",
+    "jszip": "^3.10.1",
+    "marked": "^15.0.12",
+    "solid-js": "^1.9.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.4",
+    "@types/node": "^25.6.0",
+    "@vite-pwa/assets-generator": "^1.0.2",
+    "tailwindcss": "^4.1.4",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.2",
+    "vite-plugin-pwa": "^1.0.0",
+    "vite-plugin-solid": "^2.11.6"
+  }
+}
