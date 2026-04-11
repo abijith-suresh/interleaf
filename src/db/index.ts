@@ -3,11 +3,11 @@ import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import type { NoteInput, NoteRecord, NoteUpdate } from "@/types/note";
 import { toLocalDayKey } from "@/utils/dayKey";
 
-const DB_NAME = "brev-db";
+const DB_NAME = "interleaf-db";
 const DB_VERSION = 1;
 const NOTES_STORE = "notes";
 
-interface BrevDatabase extends DBSchema {
+interface InterleafDatabase extends DBSchema {
   notes: {
     key: string;
     value: NoteRecord;
@@ -18,7 +18,7 @@ interface BrevDatabase extends DBSchema {
   };
 }
 
-let databasePromise: Promise<IDBPDatabase<BrevDatabase>> | undefined;
+let databasePromise: Promise<IDBPDatabase<InterleafDatabase>> | undefined;
 
 function createId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -29,7 +29,7 @@ function createId() {
 }
 
 function getDatabase() {
-  databasePromise ??= openDB<BrevDatabase>(DB_NAME, DB_VERSION, {
+  databasePromise ??= openDB<InterleafDatabase>(DB_NAME, DB_VERSION, {
     upgrade(database, _oldVersion, _newVersion, transaction) {
       if (!database.objectStoreNames.contains(NOTES_STORE)) {
         const notesStore = database.createObjectStore(NOTES_STORE, {

@@ -22,7 +22,6 @@ type SidebarProps = {
   onOpenSearch: () => void;
   onToggleTheme: () => void;
   onExportAll: () => void;
-  onOpenAbout: () => void;
 };
 
 function formatDayLabel(dayKey: string) {
@@ -64,7 +63,9 @@ export default function Sidebar(props: SidebarProps) {
   return (
     <aside class="flex w-[240px] shrink-0 flex-col border-r border-border bg-surface">
       <div class="flex items-center justify-between border-b border-border px-4 py-3">
-        <div class="text-md font-medium text-text-primary">brev</div>
+        <a href="/" class="text-md font-medium text-text-primary">
+          interleaf
+        </a>
         <button
           type="button"
           aria-label="New note"
@@ -144,14 +145,13 @@ export default function Sidebar(props: SidebarProps) {
           >
             Export
           </button>
-          <button
-            type="button"
-            aria-label="About brev"
-            class="rounded-md px-2 py-2 text-sm text-text-secondary hover:bg-surface-hover hover:text-text-primary"
-            onClick={() => props.onOpenAbout()}
+          <a
+            href="/about/"
+            aria-label="About interleaf"
+            class="rounded-md px-2 py-2 text-center text-sm text-text-secondary hover:bg-surface-hover hover:text-text-primary"
           >
             About
-          </button>
+          </a>
         </div>
       </div>
     </aside>

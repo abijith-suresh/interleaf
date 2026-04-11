@@ -1,13 +1,12 @@
 import { createStore } from "solid-js/store";
 
-const THEME_STORAGE_KEY = "brev-theme";
+const THEME_STORAGE_KEY = "interleaf-theme";
 
 export type ThemeName = "light" | "dark";
 
 type OverlayState = {
   commandPalette: boolean;
   settings: boolean;
-  about: boolean;
   search: boolean;
   exportAll: boolean;
 };
@@ -41,7 +40,6 @@ const [uiState, setUiState] = createStore<UiState>({
   overlays: {
     commandPalette: false,
     settings: false,
-    about: false,
     search: false,
     exportAll: false
   },
@@ -197,7 +195,6 @@ export function closeDeleteModal() {
 export function closeTransientUi() {
   closeContextMenu();
   closeDeleteModal();
-  setOverlay("about", false);
   setOverlay("search", false);
   setOverlay("exportAll", false);
 }

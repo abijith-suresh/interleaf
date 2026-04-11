@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "brev",
+      "name": "interleaf",
       "dependencies": {
         "@fontsource/geist": "^5.1.0",
         "fuse.js": "^7.1.0",

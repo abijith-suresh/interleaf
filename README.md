@@ -1,4 +1,4 @@
-# brev
+# interleaf
 
 Local-first notes for quick writing, search, tabbed editing, and simple export.
 

@@ -1,7 +1,6 @@
 import JSZip from "jszip";
 import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 
-import AboutOverlay from "@/components/AboutOverlay";
 import ContextMenu from "@/components/ContextMenu";
 import DeleteModal from "@/components/DeleteModal";
 import Editor from "@/components/Editor";
@@ -55,7 +54,7 @@ export default function AppShell() {
 
     return noteId ? notesById().get(noteId) : undefined;
   });
-  const hasModalOverlay = createMemo(() => ui.deleteModal.open || ui.overlays.about || ui.overlays.search || ui.overlays.exportAll);
+  const hasModalOverlay = createMemo(() => ui.deleteModal.open || ui.overlays.search || ui.overlays.exportAll);
 
   function requestEditorFocus() {
     setFocusToken((value) => value + 1);
@@ -74,7 +73,7 @@ export default function AppShell() {
     activateNote(noteId);
   }
 
-  function closeOverlay(name: "about" | "search" | "exportAll") {
+  function closeOverlay(name: "search" | "exportAll") {
     setOverlay(name, false);
     requestEditorFocus();
   }
@@ -86,7 +85,6 @@ export default function AppShell() {
 
     closeContextMenu();
     closeDeleteModal();
-    setOverlay("about", false);
     setOverlay("exportAll", false);
     setOverlay("search", true);
   }
@@ -98,17 +96,8 @@ export default function AppShell() {
 
     closeContextMenu();
     closeDeleteModal();
-    setOverlay("about", false);
     setOverlay("search", false);
     setOverlay("exportAll", true);
-  }
-
-  function openAbout() {
-    closeContextMenu();
-    closeDeleteModal();
-    setOverlay("search", false);
-    setOverlay("exportAll", false);
-    setOverlay("about", true);
   }
 
   async function handleCreateNote() {
@@ -205,7 +194,7 @@ export default function AppShell() {
     const today = formatDateStamp(Date.now());
 
     link.href = url;
-    link.download = `brev-export-${today}.zip`;
+    link.download = `interleaf-export-${today}.zip`;
     document.body.append(link);
     link.click();
     link.remove();
@@ -238,7 +227,6 @@ export default function AppShell() {
       const hasTransientUi =
         ui.contextMenu.open ||
         ui.deleteModal.open ||
-        ui.overlays.about ||
         ui.overlays.search ||
         ui.overlays.exportAll;
       const hasPrimaryModifier = event.metaKey || event.ctrlKey;
@@ -246,7 +234,7 @@ export default function AppShell() {
       const hasFallbackTabModifier = event.altKey && !event.ctrlKey && !event.metaKey;
 
       if (event.key === "Escape") {
-        if (ui.contextMenu.open || ui.deleteModal.open || ui.overlays.about || ui.overlays.search || ui.overlays.exportAll) {
+        if (ui.contextMenu.open || ui.deleteModal.open || ui.overlays.search || ui.overlays.exportAll) {
           event.preventDefault();
           closeTransientUi();
           requestEditorFocus();
@@ -290,17 +278,6 @@ export default function AppShell() {
       }
 
       if (isBootstrapping()) {
-        return;
-      }
-
-      if (canSwitchTabs && event.key === "Tab") {
-        event.preventDefault();
-        const nextTab = cycleTabs(event.shiftKey ? -1 : 1);
-
-        if (nextTab) {
-          requestEditorFocus();
-        }
-
         return;
       }
 
@@ -360,7 +337,6 @@ export default function AppShell() {
           onOpenSearch={openSearch}
           onToggleTheme={toggleTheme}
           onExportAll={openExportAllMenu}
-          onOpenAbout={openAbout}
         />
 
         <main class="flex min-w-0 flex-1 flex-col bg-bg">
@@ -377,7 +353,7 @@ export default function AppShell() {
         </main>
       </div>
 
-      <Show when={ui.contextMenu.open || ui.deleteModal.open || ui.overlays.about || ui.overlays.search || ui.overlays.exportAll}>
+      <Show when={ui.contextMenu.open || ui.deleteModal.open || ui.overlays.search || ui.overlays.exportAll}>
         <div class="fixed inset-0 z-20 bg-overlay" role="presentation" onMouseDown={handleOverlayBackdropClick} />
       </Show>
 
@@ -412,8 +388,6 @@ export default function AppShell() {
         }}
         onConfirm={() => void handleDeleteConfirm()}
       />
-
-      <AboutOverlay open={ui.overlays.about} onClose={() => closeOverlay("about")} />
 
       <div class="pointer-events-none fixed bottom-0 left-0 z-30 w-[240px] px-2 pb-14">
         <div class="pointer-events-auto relative">

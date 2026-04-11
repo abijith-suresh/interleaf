@@ -6,9 +6,9 @@ import { VitePWA, type ManifestOptions } from "vite-plugin-pwa";
 import pkg from "./package.json";
 
 const appManifest: Partial<ManifestOptions> = {
-  name: "brev",
-  short_name: "brev",
-  description: "A local-first notes app for fast writing, search, and export.",
+  name: "interleaf",
+  short_name: "interleaf",
+  description: "A local-first notes app for fast writing, search, tabbed notes, and export.",
   start_url: "/",
   scope: "/",
   display: "standalone",
@@ -68,7 +68,8 @@ export default defineConfig({
         about: fileURLToPath(new URL("./about/index.html", import.meta.url)),
         features: fileURLToPath(new URL("./features/index.html", import.meta.url)),
         privacy: fileURLToPath(new URL("./privacy/index.html", import.meta.url)),
-        changelog: fileURLToPath(new URL("./changelog/index.html", import.meta.url))
+        changelog: fileURLToPath(new URL("./changelog/index.html", import.meta.url)),
+        "keyboard-shortcuts": fileURLToPath(new URL("./keyboard-shortcuts/index.html", import.meta.url))
       }
     }
   }

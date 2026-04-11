@@ -33,7 +33,7 @@ function sanitizeUrlAttribute(attribute: "href" | "src", value: string) {
       return `${attribute}="${normalized}"`;
     }
 
-    const url = new URL(normalized, "https://brev.invalid");
+    const url = new URL(normalized, "https://interleaf.invalid");
 
     if (!SAFE_PROTOCOLS.has(url.protocol)) {
       return `${attribute}="#"`;
@@ -60,7 +60,7 @@ function sanitizeLinks(html: string) {
         return `href="${normalized}"`;
       }
 
-      const url = new URL(normalized, "https://brev.invalid");
+      const url = new URL(normalized, "https://interleaf.invalid");
 
       if (!SAFE_PROTOCOLS.has(url.protocol)) {
         return 'href="#"';
