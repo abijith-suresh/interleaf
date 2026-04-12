@@ -438,7 +438,7 @@ export default function AppShell() {
         onConfirm={() => void handleDeleteConfirm()}
       />
 
-      <div class="pointer-events-none fixed bottom-0 left-0 z-30 w-[240px] px-2 pb-14">
+      <div class="pointer-events-none fixed bottom-0 left-0 z-30 w-[232px] px-2 pb-14">
         <div class="pointer-events-auto relative">
           <ExportAllMenu
             open={ui.overlays.exportAll}
