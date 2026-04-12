@@ -18,11 +18,16 @@ export default function TabBar(props: TabBarProps) {
       <For each={props.tabs}>
         {(note) => (
           <div
-            class={`flex h-8 max-w-[220px] shrink-0 items-center gap-1 rounded-md border px-2 ${
+            class={`flex h-8 max-w-[220px] shrink-0 items-center gap-1 rounded-md px-2 ${
               props.activeNoteId === note.id
-                ? "border-border bg-accent-subtle text-text-primary"
-                : "border-transparent text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+                ? "text-text-primary"
+                : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
             }`}
+            style={
+              props.activeNoteId === note.id
+                ? { "box-shadow": "inset 0 -2px 0 var(--color-accent)" }
+                : {}
+            }
           >
             <button
               type="button"
@@ -41,7 +46,7 @@ export default function TabBar(props: TabBarProps) {
               class="inline-flex h-6 w-6 items-center justify-center rounded text-xs text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => props.onCloseTab(note.id)}
             >
-              x
+              ×
             </button>
           </div>
         )}
