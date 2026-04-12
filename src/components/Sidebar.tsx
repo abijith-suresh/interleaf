@@ -62,16 +62,19 @@ export function groupNotesByDay(notes: NoteRecord[]): NoteGroup[] {
 
 export default function Sidebar(props: SidebarProps) {
   return (
-    <aside class="flex w-[240px] shrink-0 flex-col border-r border-border bg-surface">
+    <aside class="flex w-[232px] shrink-0 flex-col border-r border-border bg-surface">
       <div class="flex items-center justify-between border-b border-border px-4 py-3">
-        <a href="/" class="text-md font-medium text-text-primary">
+        <a
+          href="/"
+          class="font-serif text-lg italic font-normal text-text-primary"
+        >
           interleaf
         </a>
         <button
           type="button"
           aria-label="New note"
           disabled={props.isBootstrapping}
-          class="inline-flex h-8 w-8 items-center justify-center rounded-md text-base text-text-secondary hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          class="inline-flex h-8 w-8 items-center justify-center text-base text-tertiary hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
           onClick={() => props.onCreateNote()}
         >
           +
@@ -92,7 +95,7 @@ export default function Sidebar(props: SidebarProps) {
         <For each={props.groups}>
           {(group) => (
             <section class="mb-5 last:mb-0">
-              <div class="px-2 pb-2 text-xs font-medium uppercase tracking-[0.08em] text-text-tertiary">
+              <div class="px-2 pb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-text-tertiary">
                 {group.label}
               </div>
 
@@ -103,10 +106,10 @@ export default function Sidebar(props: SidebarProps) {
                       type="button"
                       disabled={props.isBootstrapping}
                       aria-label={`Open ${deriveTitle(note.body)}`}
-                      class={`flex w-full items-center truncate rounded-sm border-l-2 px-3 py-2 text-left text-sm ${
+                      class={`note-item-hover flex w-full items-center truncate px-3 py-1.5 text-left text-sm ${
                         props.activeNoteId === note.id
-                          ? "border-l-accent bg-accent-subtle text-text-primary"
-                          : "border-l-transparent text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+                          ? "text-accent font-medium"
+                          : "text-text-secondary"
                       } disabled:cursor-not-allowed disabled:opacity-60`}
                       onClick={() => props.onSelectNote(note.id)}
                       onContextMenu={(event) =>
@@ -128,34 +131,34 @@ export default function Sidebar(props: SidebarProps) {
           <button
             type="button"
             aria-label="Search notes"
-            class="rounded-md px-2 py-2 text-sm text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+            class="px-2 py-2 text-[11px] text-text-tertiary hover:text-accent"
             onClick={() => props.onOpenSearch()}
           >
-            Search
+            search
           </button>
           <button
             type="button"
             aria-label={`Switch to ${props.theme === "light" ? "dark" : "light"} theme`}
-            class="rounded-md px-2 py-2 text-sm text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+            class="px-2 py-2 text-[11px] text-text-tertiary hover:text-accent"
             onClick={() => props.onToggleTheme()}
           >
-            {props.theme === "light" ? "Dark" : "Light"}
+            theme
           </button>
           <button
             type="button"
             aria-label="Export all notes"
             disabled={props.isBootstrapping}
-            class="rounded-md px-2 py-2 text-sm text-text-secondary hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            class="px-2 py-2 text-[11px] text-text-tertiary hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => props.onExportAll()}
           >
-            Export
+            export
           </button>
           <a
             href="/about/"
             aria-label="About interleaf"
-            class="rounded-md px-2 py-2 text-center text-sm text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+            class="px-2 py-2 text-center text-[11px] text-text-tertiary hover:text-accent"
           >
-            About
+            about
           </a>
         </div>
       </div>

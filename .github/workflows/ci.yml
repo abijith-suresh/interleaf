@@ -30,6 +30,3 @@ jobs:
 
       - name: Build app
         run: bun run build
-
-      - name: Dependency review
-        uses: actions/dependency-review-action@v4

@@ -15,31 +15,29 @@ const pageLinks = [
 
 export default function SimplePage(props: SimplePageProps) {
   return (
-    <main class="min-h-screen bg-bg px-6 py-10 text-text-primary">
+    <main class="min-h-screen bg-bg px-8 py-16 text-text-primary">
       <div class="mx-auto max-w-[680px]">
         <a href="/" class="text-md font-medium text-text-primary">
           interleaf
         </a>
-        <div class="mt-8 rounded-lg border border-border bg-surface p-6 shadow-sm">
-          <a
-            href="/"
-            class="text-sm text-text-secondary underline underline-offset-4"
-          >
-            ← Back to app
-          </a>
-          <h1 class="mt-4 text-lg font-medium">{props.title}</h1>
-          <nav class="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-text-secondary">
-            <For each={pageLinks}>
-              {(link) => (
-                <a href={link.href} class="underline underline-offset-4">
-                  {link.label}
-                </a>
-              )}
-            </For>
-          </nav>
-          <div class="mt-4 space-y-4 text-sm leading-relaxed text-text-secondary">
-            {props.children}
-          </div>
+        <a
+          href="/"
+          class="mt-8 block text-[13px] text-tertiary hover:text-accent"
+        >
+          ← Back to app
+        </a>
+        <h1 class="mb-8 mt-4 font-serif text-lg font-normal">{props.title}</h1>
+        <nav class="mb-8 flex flex-wrap gap-x-4 gap-y-2 text-[13px] text-tertiary">
+          <For each={pageLinks}>
+            {(link) => (
+              <a href={link.href} class="hover:text-accent">
+                {link.label}
+              </a>
+            )}
+          </For>
+        </nav>
+        <div class="space-y-4 font-serif text-md font-light leading-relaxed text-text-primary">
+          {props.children}
         </div>
       </div>
     </main>

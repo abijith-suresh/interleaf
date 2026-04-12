@@ -17,7 +17,9 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@fontsource-variable/outfit": "^5.2.8",
     "@fontsource/geist": "^5.1.0",
+    "@fontsource/newsreader": "^5.2.10",
     "fuse.js": "^7.1.0",
     "idb": "^8.0.3",
     "jszip": "^3.10.1",
