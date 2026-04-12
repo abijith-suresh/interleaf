@@ -136,18 +136,18 @@ export default function Editor(props: EditorProps) {
                 aria-label="Note editor"
                 spellcheck={false}
                 placeholder="Start writing..."
-                class="min-h-[320px] w-full resize-none rounded-md border border-border bg-bg px-4 py-3 text-base text-text-primary outline-none focus:border-accent"
+                class="min-h-[320px] w-full resize-none bg-transparent p-8 font-serif text-md font-light leading-relaxed text-text-primary outline-none"
                 onInput={(event) => setDraft(event.currentTarget.value)}
               />
 
               <Show when={draft().trim().length > 0}>
-                <section class="rounded-md border border-border bg-surface px-4 py-3">
+                <section class="px-8">
                   <div class="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-text-tertiary">
                     Preview
                   </div>
                   {/* renderMarkdown escapes content and sanitizes output before preview injection */}
                   <div
-                    class="prose prose-sm max-w-none text-text-primary"
+                    class="prose prose-sm max-w-none font-serif text-md font-light leading-relaxed text-text-primary"
                     innerHTML={renderedMarkdown()}
                   />
                 </section>
