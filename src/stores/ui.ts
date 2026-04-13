@@ -26,7 +26,7 @@ type DeleteState = {
 
 type UiState = {
   activeNoteId: string | null;
-  openTabs: string[];
+  sidebarOpen: boolean;
   theme: ThemeName;
   overlays: OverlayState;
   contextMenu: ContextState;
@@ -35,7 +35,7 @@ type UiState = {
 
 const [uiState, setUiState] = createStore<UiState>({
   activeNoteId: null,
-  openTabs: [],
+  sidebarOpen: false,
   theme: "light",
   overlays: {
     commandPalette: false,
@@ -110,52 +110,18 @@ export function toggleTheme() {
 
 export function setActiveNote(noteId: string | null) {
   setUiState("activeNoteId", noteId);
-
-  if (noteId) {
-    setUiState("openTabs", (tabs) =>
-      tabs.includes(noteId) ? tabs : [...tabs, noteId],
-    );
-  }
 }
 
-export function openTab(noteId: string) {
-  setUiState("openTabs", (tabs) =>
-    tabs.includes(noteId) ? tabs : [...tabs, noteId],
-  );
+export function openSidebar() {
+  setUiState("sidebarOpen", true);
 }
 
-export function closeTab(noteId: string) {
-  const currentTabs = uiState.openTabs;
-  const tabIndex = currentTabs.indexOf(noteId);
-  const nextTabs = uiState.openTabs.filter((tabId) => tabId !== noteId);
-
-  setUiState("openTabs", nextTabs);
-
-  if (uiState.activeNoteId === noteId) {
-    const nextTab =
-      (tabIndex > 0 ? currentTabs[tabIndex - 1] : currentTabs[tabIndex + 1]) ??
-      null;
-    setUiState("activeNoteId", nextTab);
-  }
+export function closeSidebar() {
+  setUiState("sidebarOpen", false);
 }
 
-export function cycleTabs(direction: 1 | -1) {
-  const tabs = uiState.openTabs;
-
-  if (tabs.length === 0) {
-    return null;
-  }
-
-  const activeIndex = uiState.activeNoteId
-    ? tabs.indexOf(uiState.activeNoteId)
-    : -1;
-  const startIndex = activeIndex >= 0 ? activeIndex : direction > 0 ? -1 : 0;
-  const nextIndex = (startIndex + direction + tabs.length) % tabs.length;
-  const nextTab = tabs[nextIndex] ?? null;
-
-  setUiState("activeNoteId", nextTab);
-
-  return nextTab;
+export function toggleSidebar() {
+  setUiState("sidebarOpen", (v) => !v);
 }
 
 export function setOverlay(name: keyof OverlayState, open: boolean) {
@@ -205,4 +171,5 @@ export function closeTransientUi() {
   closeDeleteModal();
   setOverlay("search", false);
   setOverlay("exportAll", false);
+  closeSidebar();
 }

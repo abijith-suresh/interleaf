@@ -1,4 +1,5 @@
 import { Show, createEffect } from "solid-js";
+import { HiOutlineChevronDown, HiOutlineChevronRight } from "solid-icons/hi";
 
 import {
   focusFirstDescendant,
@@ -78,8 +79,12 @@ export default function ContextMenu(props: ContextMenuProps) {
           onClick={() => props.onToggleExport()}
         >
           <span>Export note</span>
-          <span class="text-xs text-text-tertiary">
-            {props.exportOpen ? "-" : "+"}
+          <span class="text-text-tertiary">
+            {props.exportOpen ? (
+              <HiOutlineChevronDown class="h-3.5 w-3.5" />
+            ) : (
+              <HiOutlineChevronRight class="h-3.5 w-3.5" />
+            )}
           </span>
         </button>
 

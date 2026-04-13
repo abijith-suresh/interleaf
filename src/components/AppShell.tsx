@@ -1,5 +1,11 @@
 import JSZip from "jszip";
 import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
+import {
+  HiOutlineBars3,
+  HiOutlinePlus,
+  HiOutlineSun,
+  HiOutlineMoon,
+} from "solid-icons/hi";
 
 import ContextMenu from "@/components/ContextMenu";
 import DeleteModal from "@/components/DeleteModal";
@@ -7,7 +13,6 @@ import Editor from "@/components/Editor";
 import ExportAllMenu from "@/components/ExportAllMenu";
 import SearchOverlay from "@/components/SearchOverlay";
 import Sidebar, { groupNotesByDay } from "@/components/Sidebar";
-import TabBar from "@/components/TabBar";
 import {
   createStoredNote,
   refreshNotes,
@@ -19,13 +24,13 @@ import {
   closeContextMenu,
   closeTransientUi,
   closeDeleteModal,
-  closeTab,
-  cycleTabs,
+  closeSidebar,
   openContextMenu,
   openDeleteModal,
   setActiveNote,
   setContextMenuExportOpen,
   setOverlay,
+  toggleSidebar,
   toggleTheme,
   useUi,
 } from "@/stores/ui";
@@ -47,11 +52,6 @@ export default function AppShell() {
     () => new Map(notes.items.map((note) => [note.id, note])),
   );
   const noteGroups = createMemo(() => groupNotesByDay(notes.items));
-  const openTabs = createMemo(() =>
-    ui.openTabs
-      .map((noteId) => notesById().get(noteId))
-      .filter((note): note is NonNullable<typeof note> => note !== undefined),
-  );
   const activeNote = createMemo(() => {
     const activeNoteId = ui.activeNoteId;
 
@@ -128,11 +128,6 @@ export default function AppShell() {
     await upsertStoredNote(noteId, { body });
   }
 
-  function handleCloseTab(noteId: string) {
-    closeTab(noteId);
-    requestEditorFocus();
-  }
-
   function handleNoteContextMenu(noteId: string, event: MouseEvent) {
     if (isBootstrapping()) {
       return;
@@ -177,11 +172,6 @@ export default function AppShell() {
     }
 
     await removeStoredNote(note.id);
-
-    if (ui.openTabs.includes(note.id)) {
-      handleCloseTab(note.id);
-    }
-
     closeDeleteModal();
     requestEditorFocus();
   }
@@ -227,15 +217,9 @@ export default function AppShell() {
   onMount(() => {
     const handleInitialLoad = async () => {
       try {
-        const loadedNotes = await refreshNotes();
-
-        if (loadedNotes.length === 0) {
-          const note = await createStoredNote();
-          activateNote(note.id);
-          return;
-        }
-
-        activateNote(loadedNotes[0].id);
+        await refreshNotes();
+        const note = await createStoredNote();
+        activateNote(note.id);
       } finally {
         setIsBootstrapping(false);
       }
@@ -248,11 +232,13 @@ export default function AppShell() {
         ui.overlays.search ||
         ui.overlays.exportAll;
       const hasPrimaryModifier = event.metaKey || event.ctrlKey;
-      const canSwitchTabs = hasPrimaryModifier && !event.metaKey;
-      const hasFallbackTabModifier =
-        event.altKey && !event.ctrlKey && !event.metaKey;
 
       if (event.key === "Escape") {
+        if (ui.sidebarOpen) {
+          event.preventDefault();
+          closeSidebar();
+          return;
+        }
         if (
           ui.contextMenu.open ||
           ui.deleteModal.open ||
@@ -263,7 +249,6 @@ export default function AppShell() {
           closeTransientUi();
           requestEditorFocus();
         }
-
         return;
       }
 
@@ -291,41 +276,8 @@ export default function AppShell() {
         return;
       }
 
-      if (hasPrimaryModifier && event.key.toLowerCase() === "w") {
-        event.preventDefault();
-
-        if (ui.activeNoteId) {
-          handleCloseTab(ui.activeNoteId);
-        }
-
-        return;
-      }
-
       if (isBootstrapping()) {
         return;
-      }
-
-      if (
-        canSwitchTabs &&
-        (event.key === "PageDown" || event.key === "PageUp")
-      ) {
-        event.preventDefault();
-        const nextTab = cycleTabs(event.key === "PageUp" ? -1 : 1);
-
-        if (nextTab) {
-          requestEditorFocus();
-        }
-
-        return;
-      }
-
-      if (hasFallbackTabModifier && (event.key === "]" || event.key === "[")) {
-        event.preventDefault();
-        const nextTab = cycleTabs(event.key === "[" ? -1 : 1);
-
-        if (nextTab) {
-          requestEditorFocus();
-        }
       }
     };
 
@@ -353,33 +305,72 @@ export default function AppShell() {
         )}
       </Show>
 
+      <Sidebar
+        open={ui.sidebarOpen}
+        onClose={closeSidebar}
+        groups={noteGroups()}
+        activeNoteId={ui.activeNoteId}
+        theme={ui.theme}
+        isLoading={notes.isLoading}
+        isBootstrapping={isBootstrapping()}
+        onCreateNote={() => void handleCreateNote()}
+        onSelectNote={openNote}
+        onNoteContextMenu={handleNoteContextMenu}
+        onOpenSearch={openSearch}
+        onToggleTheme={toggleTheme}
+        onExportAll={openExportAllMenu}
+      />
+
       <div
         class="flex min-h-screen flex-1"
         aria-hidden={hasModalOverlay() ? "true" : undefined}
       >
-        <Sidebar
-          groups={noteGroups()}
-          activeNoteId={ui.activeNoteId}
-          theme={ui.theme}
-          isLoading={notes.isLoading}
-          isBootstrapping={isBootstrapping()}
-          onCreateNote={() => void handleCreateNote()}
-          onSelectNote={openNote}
-          onNoteContextMenu={handleNoteContextMenu}
-          onOpenSearch={openSearch}
-          onToggleTheme={toggleTheme}
-          onExportAll={openExportAllMenu}
-        />
-
         <main class="flex min-w-0 flex-1 flex-col bg-bg">
-          <TabBar
-            tabs={openTabs()}
-            activeNoteId={ui.activeNoteId}
-            isBootstrapping={isBootstrapping()}
-            onCreateNote={() => void handleCreateNote()}
-            onSelectTab={openNote}
-            onCloseTab={handleCloseTab}
-          />
+          {/* Top bar */}
+          <header class="relative flex h-10 shrink-0 items-center border-b border-border bg-surface px-4">
+            {/* Left: sidebar toggle */}
+            <button
+              type="button"
+              aria-label="Toggle sidebar"
+              class="mr-2 inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors duration-150 hover:text-text-primary"
+              onClick={() => toggleSidebar()}
+            >
+              <HiOutlineBars3 size={18} />
+            </button>
+
+            {/* Center: wordmark — absolutely centered */}
+            <div class="absolute left-1/2 -translate-x-1/2">
+              <a
+                href="/"
+                class="font-serif text-lg italic font-normal text-text-primary"
+              >
+                interleaf
+              </a>
+            </div>
+
+            {/* Right: new note + theme toggle */}
+            <button
+              type="button"
+              aria-label="New note"
+              disabled={isBootstrapping()}
+              class="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors duration-150 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => void handleCreateNote()}
+            >
+              <HiOutlinePlus size={16} />
+            </button>
+            <button
+              type="button"
+              aria-label={`Switch to ${ui.theme === "light" ? "dark" : "light"} theme`}
+              class="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors duration-150 hover:text-text-primary"
+              onClick={() => toggleTheme()}
+            >
+              {ui.theme === "light" ? (
+                <HiOutlineMoon size={16} />
+              ) : (
+                <HiOutlineSun size={16} />
+              )}
+            </button>
+          </header>
 
           <Editor
             note={activeNote()}
