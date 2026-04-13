@@ -1,14 +1,6 @@
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  on,
-  onCleanup,
-  Show,
-} from "solid-js";
+import { createEffect, createSignal, on, onCleanup, Show } from "solid-js";
 
 import type { NoteRecord } from "@/types/note";
-import { renderMarkdown } from "@/utils/markdown";
 
 type EditorProps = {
   note: NoteRecord | undefined;
@@ -20,7 +12,6 @@ export default function Editor(props: EditorProps) {
   let textareaRef: HTMLTextAreaElement | undefined;
 
   const [draft, setDraft] = createSignal("");
-  const renderedMarkdown = createMemo(() => renderMarkdown(draft()));
 
   let saveTimer: number | undefined;
   let pendingSave: { noteId: string; body: string } | null = null;
@@ -139,19 +130,6 @@ export default function Editor(props: EditorProps) {
                 class="min-h-[320px] w-full resize-none bg-transparent p-8 font-serif text-md font-light leading-relaxed text-text-primary outline-none"
                 onInput={(event) => setDraft(event.currentTarget.value)}
               />
-
-              <Show when={draft().trim().length > 0}>
-                <section class="px-8">
-                  <div class="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-text-tertiary">
-                    Preview
-                  </div>
-                  {/* renderMarkdown escapes content and sanitizes output before preview injection */}
-                  <div
-                    class="prose prose-sm max-w-none font-serif text-md font-light leading-relaxed text-text-primary"
-                    innerHTML={renderedMarkdown()}
-                  />
-                </section>
-              </Show>
             </div>
           </div>
         </div>
