@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.vercel/
 .husky/_/
 .DS_Store
 *.tsbuildinfo
