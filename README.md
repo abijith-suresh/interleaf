@@ -2,6 +2,9 @@
 
 Local-first notes for quick writing, search, tabbed editing, and simple export.
 
+- Live app: https://interleaf-app.vercel.app
+- GitHub: https://github.com/abijith-suresh/interleaf
+
 ## Requirements
 
 - Bun
@@ -56,6 +59,7 @@ bun run typecheck:node
 
 ## Deploy
 
+- Production is deployed on Vercel at https://interleaf-app.vercel.app.
 - The current deployment model is static hosting.
 - Build output is written to `dist/`.
 - Any host that can serve the built files and service worker from the site root should work.
