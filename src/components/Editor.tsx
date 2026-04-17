@@ -1,5 +1,13 @@
-import { createEffect, createSignal, on, onCleanup, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  on,
+  onCleanup,
+  Show,
+} from "solid-js";
 
+import CodeMirrorEditor from "@/components/CodeMirrorEditor";
 import type { NoteRecord } from "@/types/note";
 
 type EditorProps = {
@@ -9,8 +17,6 @@ type EditorProps = {
 };
 
 export default function Editor(props: EditorProps) {
-  let textareaRef: HTMLTextAreaElement | undefined;
-
   const [draft, setDraft] = createSignal("");
 
   let saveTimer: number | undefined;
@@ -33,6 +39,8 @@ export default function Editor(props: EditorProps) {
     await props.onSave(nextSave.noteId, nextSave.body);
   }
 
+  // When the active note changes, flush the previous note's pending save and
+  // reset the draft to the new note's body.
   createEffect(
     on(
       () => props.note?.id,
@@ -40,12 +48,12 @@ export default function Editor(props: EditorProps) {
         if (previousNoteId && previousNoteId !== noteId) {
           void flushPendingSave();
         }
-
         setDraft(props.note?.body ?? "");
       },
     ),
   );
 
+  // Debounced save — fires 500 ms after the last keystroke.
   createEffect(() => {
     const note = props.note;
     const body = draft();
@@ -55,7 +63,6 @@ export default function Editor(props: EditorProps) {
         window.clearTimeout(saveTimer);
         saveTimer = undefined;
       }
-
       pendingSave = null;
       return;
     }
@@ -65,15 +72,11 @@ export default function Editor(props: EditorProps) {
         window.clearTimeout(saveTimer);
         saveTimer = undefined;
       }
-
       pendingSave = null;
       return;
     }
 
-    pendingSave = {
-      noteId: note.id,
-      body,
-    };
+    pendingSave = { noteId: note.id, body };
 
     if (saveTimer) {
       window.clearTimeout(saveTimer);
@@ -84,24 +87,14 @@ export default function Editor(props: EditorProps) {
     }, 500);
   });
 
-  createEffect(
-    on(
-      () => [props.focusToken, props.note?.id],
-      ([, noteId]) => {
-        if (!noteId) {
-          return;
-        }
-
-        queueMicrotask(() => {
-          textareaRef?.focus();
-        });
-      },
-    ),
-  );
-
   onCleanup(() => {
     void flushPendingSave();
   });
+
+  // resetToken — derived from the note id so CodeMirrorEditor knows when to
+  // replace the full document (note switched) rather than treating it as a
+  // regular keystroke edit.
+  const resetToken = createMemo(() => props.note?.id ?? "");
 
   return (
     <Show
@@ -119,19 +112,12 @@ export default function Editor(props: EditorProps) {
     >
       {(_note) => (
         <div class="flex min-h-0 flex-1 flex-col">
-          <div class="flex-1 overflow-y-auto px-6 py-6">
-            <div class="mx-auto flex w-full max-w-[720px] flex-col gap-4">
-              <textarea
-                ref={textareaRef}
-                value={draft()}
-                aria-label="Note editor"
-                spellcheck={false}
-                placeholder="Start writing..."
-                class="min-h-[320px] w-full resize-none bg-transparent p-8 font-serif text-md font-light leading-relaxed text-text-primary outline-none"
-                onInput={(event) => setDraft(event.currentTarget.value)}
-              />
-            </div>
-          </div>
+          <CodeMirrorEditor
+            value={draft()}
+            resetToken={resetToken()}
+            focusToken={props.focusToken}
+            onChange={(value) => setDraft(value)}
+          />
         </div>
       )}
     </Show>

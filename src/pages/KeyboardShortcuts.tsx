@@ -15,6 +15,16 @@ export default function KeyboardShortcuts() {
           <code>Ctrl/Cmd+K</code>: open search
         </li>
         <li>
+          <code>Ctrl/Cmd+B</code>: toggle <strong>bold</strong> on selected text
+        </li>
+        <li>
+          <code>Ctrl/Cmd+I</code>: toggle <em>italic</em> on selected text
+        </li>
+        <li>
+          <code>Ctrl/Cmd+L</code>: insert link (wraps selection as{" "}
+          <code>[text]()</code>)
+        </li>
+        <li>
           <code>Ctrl/Cmd+W</code>: close the active tab
         </li>
         <li>
