@@ -1,57 +1,81 @@
 import SimplePage from "@/components/SimplePage";
 
+const categories = [
+  {
+    heading: "Note management",
+    shortcuts: [
+      { keys: "Ctrl/Cmd + N", description: "Create a new note" },
+      { keys: "Ctrl/Cmd + K", description: "Open search" },
+      { keys: "Ctrl/Cmd + W", description: "Close the active tab" },
+    ],
+  },
+  {
+    heading: "Text formatting",
+    shortcuts: [
+      { keys: "Ctrl/Cmd + B", description: "Toggle bold on selected text" },
+      { keys: "Ctrl/Cmd + I", description: "Toggle italic on selected text" },
+      {
+        keys: "Ctrl/Cmd + L",
+        description: "Insert link (wraps selection as [text]())",
+      },
+    ],
+  },
+  {
+    heading: "Navigation",
+    shortcuts: [
+      { keys: "Ctrl + PageDown", description: "Switch to the next open tab" },
+      {
+        keys: "Ctrl + PageUp",
+        description: "Switch to the previous open tab",
+      },
+      { keys: "Alt + ]", description: "Switch to the next open tab" },
+      { keys: "Alt + [", description: "Switch to the previous open tab" },
+      { keys: "Escape", description: "Close search, menus, or dialogs" },
+    ],
+  },
+];
+
 export default function KeyboardShortcuts() {
   return (
     <SimplePage title="Keyboard Shortcuts">
-      <p>
-        interleaf keeps shortcuts focused on combinations that work more
-        reliably in the browser.
+      <p class="mb-8 text-text-secondary">
+        interleaf keeps shortcuts focused on combinations that work reliably in
+        the browser.
       </p>
-      <ul class="m-0 pl-5">
-        <li>
-          <code>Ctrl/Cmd+N</code>: create a new note
-        </li>
-        <li>
-          <code>Ctrl/Cmd+K</code>: open search
-        </li>
-        <li>
-          <code>Ctrl/Cmd+B</code>: toggle <strong>bold</strong> on selected text
-        </li>
-        <li>
-          <code>Ctrl/Cmd+I</code>: toggle <em>italic</em> on selected text
-        </li>
-        <li>
-          <code>Ctrl/Cmd+L</code>: insert link (wraps selection as{" "}
-          <code>[text]()</code>)
-        </li>
-        <li>
-          <code>Ctrl/Cmd+W</code>: close the active tab
-        </li>
-        <li>
-          <code>Ctrl+PageDown</code>: switch to the next open tab
-        </li>
-        <li>
-          <code>Ctrl+PageUp</code>: switch to the previous open tab
-        </li>
-        <li>
-          <code>Alt+]</code>: switch to the next open tab
-        </li>
-        <li>
-          <code>Alt+[</code>: switch to the previous open tab
-        </li>
-        <li>
-          <code>Escape</code>: close search, menus, or dialogs
-        </li>
-      </ul>
-      <p>
-        <code>Ctrl+Tab</code> and <code>Ctrl+Shift+Tab</code> are intentionally
-        not supported because browsers commonly reserve them for browser tab
-        switching.
-      </p>
-      <p>
-        Use <code>Ctrl+PageDown</code> and <code>Ctrl+PageUp</code>, or{" "}
-        <code>Alt+[</code> and <code>Alt+]</code>, as the in-app alternatives.
-      </p>
+
+      <div class="divide-y divide-border">
+        {categories.map((category) => (
+          <section class="py-7 first:pt-0 last:pb-0">
+            <h2 class="mb-4 font-sans text-[11px] font-medium uppercase tracking-[0.12em] text-text-tertiary">
+              {category.heading}
+            </h2>
+            <div class="divide-y divide-border-subtle">
+              {category.shortcuts.map((shortcut) => (
+                <div class="flex items-center gap-6 py-2.5 first:pt-0 last:pb-0">
+                  <div class="w-[160px] shrink-0">
+                    <kbd>{shortcut.keys}</kbd>
+                  </div>
+                  <span class="text-sm text-text-primary">
+                    {shortcut.description}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+
+      <div class="mt-8 space-y-3 border-t border-border pt-8 text-sm text-text-secondary">
+        <p>
+          <kbd>Ctrl+Tab</kbd> and <kbd>Ctrl+Shift+Tab</kbd> are intentionally
+          not supported because browsers commonly reserve them for browser tab
+          switching.
+        </p>
+        <p>
+          Use <kbd>Ctrl+PageDown</kbd> and <kbd>Ctrl+PageUp</kbd>, or{" "}
+          <kbd>Alt+[</kbd> and <kbd>Alt+]</kbd>, as the in-app alternatives.
+        </p>
+      </div>
     </SimplePage>
   );
 }
