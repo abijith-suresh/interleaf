@@ -174,10 +174,13 @@ export default function SearchOverlay(props: SearchOverlayProps) {
       <div
         class="fixed inset-0 z-30 flex items-start justify-center px-4 pt-[12vh]"
         role="presentation"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) props.onClose();
+        }}
       >
         <div
           ref={dialogRef}
-          class="w-full max-w-[640px] rounded-lg border border-border bg-surface shadow-lg"
+          class="animate-modal-in w-full max-w-[640px] rounded-lg border border-border bg-surface shadow-lg"
           role="dialog"
           aria-modal="true"
           aria-labelledby="search-overlay-title"

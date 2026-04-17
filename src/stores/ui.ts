@@ -9,14 +9,12 @@ type OverlayState = {
   settings: boolean;
   search: boolean;
   exportAll: boolean;
+  noteActions: boolean;
 };
 
-type ContextState = {
+type NoteActionsState = {
   noteId: string | null;
-  x: number;
-  y: number;
   open: boolean;
-  exportOpen: boolean;
 };
 
 type DeleteState = {
@@ -29,7 +27,7 @@ type UiState = {
   sidebarOpen: boolean;
   theme: ThemeName;
   overlays: OverlayState;
-  contextMenu: ContextState;
+  noteActionsMenu: NoteActionsState;
   deleteModal: DeleteState;
 };
 
@@ -42,13 +40,11 @@ const [uiState, setUiState] = createStore<UiState>({
     settings: false,
     search: false,
     exportAll: false,
+    noteActions: false,
   },
-  contextMenu: {
+  noteActionsMenu: {
     noteId: null,
-    x: 0,
-    y: 0,
     open: false,
-    exportOpen: false,
   },
   deleteModal: {
     noteId: null,
@@ -128,27 +124,17 @@ export function setOverlay(name: keyof OverlayState, open: boolean) {
   setUiState("overlays", name, open);
 }
 
-export function openContextMenu(noteId: string | null, x: number, y: number) {
-  setUiState("contextMenu", {
+export function openNoteActionsMenu(noteId: string) {
+  setUiState("noteActionsMenu", {
     noteId,
-    x,
-    y,
     open: true,
-    exportOpen: false,
   });
 }
 
-export function setContextMenuExportOpen(open: boolean) {
-  setUiState("contextMenu", "exportOpen", open);
-}
-
-export function closeContextMenu() {
-  setUiState("contextMenu", {
+export function closeNoteActionsMenu() {
+  setUiState("noteActionsMenu", {
     noteId: null,
-    x: 0,
-    y: 0,
     open: false,
-    exportOpen: false,
   });
 }
 
@@ -167,7 +153,7 @@ export function closeDeleteModal() {
 }
 
 export function closeTransientUi() {
-  closeContextMenu();
+  closeNoteActionsMenu();
   closeDeleteModal();
   setOverlay("search", false);
   setOverlay("exportAll", false);

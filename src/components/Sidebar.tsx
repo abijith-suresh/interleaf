@@ -1,9 +1,9 @@
 import { For, Show } from "solid-js";
 import {
   HiOutlinePlus,
-  HiOutlineMagnifyingGlass,
   HiOutlineArrowDownOnSquare,
   HiOutlineInformationCircle,
+  HiOutlineTrash,
 } from "solid-icons/hi";
 
 import type { NoteRecord } from "@/types/note";
@@ -21,14 +21,12 @@ type SidebarProps = {
   onClose: () => void;
   groups: NoteGroup[];
   activeNoteId: string | null;
-  theme: "light" | "dark";
   isLoading: boolean;
   isBootstrapping: boolean;
   onCreateNote: () => void;
   onSelectNote: (noteId: string) => void;
-  onNoteContextMenu: (noteId: string, event: MouseEvent) => void;
-  onOpenSearch: () => void;
-  onToggleTheme: () => void;
+  onDeleteNote: (noteId: string) => void;
+  onExportNote: (noteId: string) => void;
   onExportAll: () => void;
 };
 
@@ -99,7 +97,7 @@ export default function Sidebar(props: SidebarProps) {
             type="button"
             aria-label="New note"
             disabled={props.isBootstrapping}
-            class="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors duration-150 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            class="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-all duration-150 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50 active:scale-95"
             onClick={() => {
               props.onCreateNote();
               props.onClose();
@@ -129,27 +127,72 @@ export default function Sidebar(props: SidebarProps) {
                 </div>
                 <div class="space-y-1">
                   <For each={group.notes}>
-                    {(note) => (
-                      <button
-                        type="button"
-                        disabled={props.isBootstrapping}
-                        aria-label={`Open ${deriveTitle(note.body)}`}
-                        class={`flex w-full items-center truncate rounded-md py-1.5 text-left text-sm transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${
-                          props.activeNoteId === note.id
-                            ? "border-l-2 border-accent bg-accent-subtle pl-[10px] pr-3 text-accent font-medium"
-                            : "border-l-2 border-transparent px-3 text-text-secondary hover:bg-surface-hover"
-                        }`}
-                        onClick={() => {
-                          props.onSelectNote(note.id);
-                          props.onClose();
-                        }}
-                        onContextMenu={(event) =>
-                          props.onNoteContextMenu(note.id, event)
-                        }
-                      >
-                        <span class="truncate">{deriveTitle(note.body)}</span>
-                      </button>
-                    )}
+                    {(note) => {
+                      const isActive = () => props.activeNoteId === note.id;
+
+                      return (
+                        <div class="group relative">
+                          <button
+                            type="button"
+                            disabled={props.isBootstrapping}
+                            aria-label={`Open ${deriveTitle(note.body)}`}
+                            class={`flex w-full items-center truncate rounded-md py-1.5 pr-[60px] text-left text-sm transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${
+                              isActive()
+                                ? "border-l-2 border-accent bg-accent-subtle pl-[10px] text-accent font-medium"
+                                : "border-l-2 border-transparent px-3 text-text-secondary hover:bg-surface-hover"
+                            }`}
+                            onClick={() => {
+                              props.onSelectNote(note.id);
+                              props.onClose();
+                            }}
+                          >
+                            <span class="truncate">
+                              {deriveTitle(note.body)}
+                            </span>
+                          </button>
+
+                          {/* Hover action icons */}
+                          <span
+                            class="pointer-events-none absolute inset-y-0 right-1 flex items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto"
+                            aria-hidden="true"
+                          >
+                            {/* Export icon */}
+                            <button
+                              type="button"
+                              aria-label={`Export ${deriveTitle(note.body)}`}
+                              tabIndex={-1}
+                              disabled={props.isBootstrapping}
+                              class={`inline-flex h-6 w-6 items-center justify-center rounded text-text-tertiary transition-all duration-100 disabled:cursor-not-allowed disabled:opacity-40 active:scale-90 ${
+                                isActive()
+                                  ? "hover:bg-accent-subtle hover:text-accent"
+                                  : "hover:bg-surface-hover hover:text-text-primary"
+                              }`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                props.onExportNote(note.id);
+                              }}
+                            >
+                              <HiOutlineArrowDownOnSquare size={13} />
+                            </button>
+
+                            {/* Delete icon */}
+                            <button
+                              type="button"
+                              aria-label={`Delete ${deriveTitle(note.body)}`}
+                              tabIndex={-1}
+                              disabled={props.isBootstrapping}
+                              class="inline-flex h-6 w-6 items-center justify-center rounded text-text-tertiary transition-all duration-100 hover:bg-surface-hover hover:text-danger disabled:cursor-not-allowed disabled:opacity-40 active:scale-90"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                props.onDeleteNote(note.id);
+                              }}
+                            >
+                              <HiOutlineTrash size={13} />
+                            </button>
+                          </span>
+                        </div>
+                      );
+                    }}
                   </For>
                 </div>
               </section>
@@ -157,20 +200,9 @@ export default function Sidebar(props: SidebarProps) {
           </For>
         </div>
 
-        {/* Footer */}
+        {/* Footer — Export All + About */}
         <div class="border-t border-border px-2 py-3">
           <div class="flex justify-around">
-            <button
-              type="button"
-              aria-label="Search notes"
-              class="flex flex-col items-center gap-1 rounded-md px-3 py-2 text-text-tertiary transition-colors duration-150 hover:bg-surface-hover hover:text-accent"
-              onClick={() => props.onOpenSearch()}
-            >
-              <HiOutlineMagnifyingGlass size={16} />
-              <span class="text-[10px] font-medium uppercase tracking-wide">
-                search
-              </span>
-            </button>
             <button
               type="button"
               aria-label="Export all notes"
@@ -180,7 +212,7 @@ export default function Sidebar(props: SidebarProps) {
             >
               <HiOutlineArrowDownOnSquare size={16} />
               <span class="text-[10px] font-medium uppercase tracking-wide">
-                export
+                export all
               </span>
             </button>
             <a
