@@ -26,12 +26,12 @@ export default function DeleteModal(props: DeleteModalProps) {
   return (
     <Show when={props.open}>
       <div
-        class="fixed inset-0 z-30 flex items-center justify-center px-4"
+        class="fixed inset-0 z-50 flex items-center justify-center px-4"
         role="presentation"
       >
         <div
           ref={dialogRef}
-          class="w-full max-w-[360px] rounded-lg border border-border bg-surface p-5 shadow-lg"
+          class="animate-modal-in w-full max-w-[360px] rounded-lg border border-border bg-surface p-5 shadow-lg"
           role="dialog"
           aria-modal="true"
           aria-labelledby="delete-modal-title"

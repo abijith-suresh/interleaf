@@ -137,3 +137,57 @@ textarea::placeholder {
   text-decoration-color: var(--color-border);
   text-underline-offset: 3px;
 }
+
+/* ─── Animations ─────────────────────────────────────────────────────────── */
+
+@keyframes interleaf-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes interleaf-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes interleaf-slide-down-fade {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes interleaf-spin-in {
+  from {
+    opacity: 0;
+    transform: rotate(-30deg) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+.animate-modal-in {
+  animation: interleaf-scale-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-dropdown-in {
+  animation: interleaf-slide-down-fade 150ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-icon-in {
+  animation: interleaf-spin-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}

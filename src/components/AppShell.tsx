@@ -5,12 +5,14 @@ import {
   HiOutlinePlus,
   HiOutlineSun,
   HiOutlineMoon,
+  HiOutlineMagnifyingGlass,
+  HiOutlineArrowDownOnSquare,
 } from "solid-icons/hi";
 
-import ContextMenu from "@/components/ContextMenu";
 import DeleteModal from "@/components/DeleteModal";
 import Editor from "@/components/Editor";
-import ExportAllMenu from "@/components/ExportAllMenu";
+import ExportAllModal from "@/components/ExportAllModal";
+import NoteActionsMenu from "@/components/NoteActionsMenu";
 import SearchOverlay from "@/components/SearchOverlay";
 import Sidebar, { groupNotesByDay } from "@/components/Sidebar";
 import {
@@ -21,14 +23,13 @@ import {
   useNotes,
 } from "@/stores/notes";
 import {
-  closeContextMenu,
-  closeTransientUi,
+  closeNoteActionsMenu,
   closeDeleteModal,
   closeSidebar,
-  openContextMenu,
+  closeTransientUi,
+  openNoteActionsMenu,
   openDeleteModal,
   setActiveNote,
-  setContextMenuExportOpen,
   setOverlay,
   toggleSidebar,
   toggleTheme,
@@ -40,7 +41,6 @@ import {
   formatDateStamp,
   getDedupedExportFilename,
 } from "@/utils/exportNote";
-import { deriveTitle } from "@/utils/deriveTitle";
 
 export default function AppShell() {
   const notes = useNotes();
@@ -54,17 +54,14 @@ export default function AppShell() {
   const noteGroups = createMemo(() => groupNotesByDay(notes.items));
   const activeNote = createMemo(() => {
     const activeNoteId = ui.activeNoteId;
-
     return activeNoteId ? notesById().get(activeNoteId) : undefined;
   });
-  const contextNote = createMemo(() => {
-    const noteId = ui.contextMenu.noteId;
-
+  const actionsNote = createMemo(() => {
+    const noteId = ui.noteActionsMenu.noteId;
     return noteId ? notesById().get(noteId) : undefined;
   });
   const deleteNote = createMemo(() => {
     const noteId = ui.deleteModal.noteId;
-
     return noteId ? notesById().get(noteId) : undefined;
   });
   const hasModalOverlay = createMemo(
@@ -84,7 +81,6 @@ export default function AppShell() {
     if (isBootstrapping()) {
       return;
     }
-
     activateNote(noteId);
   }
 
@@ -97,8 +93,7 @@ export default function AppShell() {
     if (isBootstrapping()) {
       return;
     }
-
-    closeContextMenu();
+    closeNoteActionsMenu();
     closeDeleteModal();
     setOverlay("exportAll", false);
     setOverlay("search", true);
@@ -108,11 +103,31 @@ export default function AppShell() {
     if (isBootstrapping()) {
       return;
     }
-
-    closeContextMenu();
+    closeSidebar();
+    closeNoteActionsMenu();
     closeDeleteModal();
     setOverlay("search", false);
     setOverlay("exportAll", true);
+  }
+
+  /** Open the export dropdown for a specific note. */
+  function openNoteActions(noteId: string) {
+    if (isBootstrapping()) {
+      return;
+    }
+    closeDeleteModal();
+    setOverlay("search", false);
+    setOverlay("exportAll", false);
+    openNoteActionsMenu(noteId);
+  }
+
+  /** Open the export dropdown for the active note. */
+  function openActiveNoteActions() {
+    const note = activeNote();
+    if (!note || isBootstrapping()) {
+      return;
+    }
+    openNoteActions(note.id);
   }
 
   async function handleCreateNote() {
@@ -120,6 +135,20 @@ export default function AppShell() {
       return;
     }
 
+    // If the current note is already empty, just focus it
+    if (activeNote()?.body.trim() === "") {
+      requestEditorFocus();
+      return;
+    }
+
+    // Look for any existing empty note and reuse it
+    const emptyNote = notes.items.find((n) => n.body.trim() === "");
+    if (emptyNote) {
+      activateNote(emptyNote.id);
+      return;
+    }
+
+    // No empty note exists — create a fresh one
     const note = await createStoredNote();
     activateNote(note.id);
   }
@@ -128,49 +157,33 @@ export default function AppShell() {
     await upsertStoredNote(noteId, { body });
   }
 
-  function handleNoteContextMenu(noteId: string, event: MouseEvent) {
-    if (isBootstrapping()) {
-      return;
-    }
-
-    event.preventDefault();
-    const menuWidth = 168;
-    const menuHeight = 132;
-    const x = Math.min(event.clientX + 8, window.innerWidth - menuWidth - 8);
-    const y = Math.min(event.clientY + 8, window.innerHeight - menuHeight - 8);
-
-    openContextMenu(noteId, Math.max(8, x), Math.max(8, y));
-  }
-
-  function handleExport(format: NoteExportFormat) {
-    const note = contextNote();
-
+  /** Handle export triggered from the NoteActionsMenu (sidebar or topbar). */
+  function handleExportNote(format: NoteExportFormat) {
+    const note = actionsNote() ?? activeNote();
     if (!note) {
       return;
     }
-
     exportNote(note, format);
-    closeContextMenu();
+    closeNoteActionsMenu();
   }
 
-  function handleDeleteRequest() {
-    const note = contextNote();
+  /** Triggered by the sidebar trash icon: close sidebar, then open delete modal. */
+  function handleDeleteNoteRequest(noteId: string) {
+    closeSidebar();
+    openDeleteModal(noteId);
+  }
 
-    if (!note) {
-      return;
-    }
-
-    openDeleteModal(note.id);
-    closeContextMenu();
+  /** Triggered by the sidebar export icon: close sidebar, then open NoteActionsMenu. */
+  function handleSidebarExportNote(noteId: string) {
+    closeSidebar();
+    openNoteActions(noteId);
   }
 
   async function handleDeleteConfirm() {
     const note = deleteNote();
-
     if (!note) {
       return;
     }
-
     await removeStoredNote(note.id);
     closeDeleteModal();
     requestEditorFocus();
@@ -180,7 +193,6 @@ export default function AppShell() {
     if (event.target !== event.currentTarget) {
       return;
     }
-
     closeTransientUi();
     requestEditorFocus();
   }
@@ -217,9 +229,17 @@ export default function AppShell() {
   onMount(() => {
     const handleInitialLoad = async () => {
       try {
-        await refreshNotes();
-        const note = await createStoredNote();
-        activateNote(note.id);
+        const loadedNotes = await refreshNotes();
+
+        // Reuse an existing empty note if one exists — avoid creating a new
+        // untitled note every time a tab is opened.
+        const emptyNote = loadedNotes.find((n) => n.body.trim() === "");
+        if (emptyNote) {
+          activateNote(emptyNote.id);
+        } else {
+          const note = await createStoredNote();
+          activateNote(note.id);
+        }
       } finally {
         setIsBootstrapping(false);
       }
@@ -227,7 +247,7 @@ export default function AppShell() {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       const hasTransientUi =
-        ui.contextMenu.open ||
+        ui.noteActionsMenu.open ||
         ui.deleteModal.open ||
         ui.overlays.search ||
         ui.overlays.exportAll;
@@ -240,7 +260,7 @@ export default function AppShell() {
           return;
         }
         if (
-          ui.contextMenu.open ||
+          ui.noteActionsMenu.open ||
           ui.deleteModal.open ||
           ui.overlays.search ||
           ui.overlays.exportAll
@@ -254,11 +274,9 @@ export default function AppShell() {
 
       if (hasPrimaryModifier && event.key.toLowerCase() === "k") {
         event.preventDefault();
-
         if (!ui.overlays.search) {
           openSearch();
         }
-
         return;
       }
 
@@ -268,11 +286,9 @@ export default function AppShell() {
 
       if (hasPrimaryModifier && event.key.toLowerCase() === "n") {
         event.preventDefault();
-
         if (!isBootstrapping()) {
           void handleCreateNote();
         }
-
         return;
       }
 
@@ -310,14 +326,12 @@ export default function AppShell() {
         onClose={closeSidebar}
         groups={noteGroups()}
         activeNoteId={ui.activeNoteId}
-        theme={ui.theme}
         isLoading={notes.isLoading}
         isBootstrapping={isBootstrapping()}
         onCreateNote={() => void handleCreateNote()}
         onSelectNote={openNote}
-        onNoteContextMenu={handleNoteContextMenu}
-        onOpenSearch={openSearch}
-        onToggleTheme={toggleTheme}
+        onDeleteNote={handleDeleteNoteRequest}
+        onExportNote={handleSidebarExportNote}
         onExportAll={openExportAllMenu}
       />
 
@@ -332,7 +346,7 @@ export default function AppShell() {
             <button
               type="button"
               aria-label="Toggle sidebar"
-              class="mr-2 inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors duration-150 hover:text-text-primary"
+              class="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-all duration-150 hover:text-text-primary active:scale-95"
               onClick={() => toggleSidebar()}
             >
               <HiOutlineBars3 size={18} />
@@ -348,28 +362,60 @@ export default function AppShell() {
               </a>
             </div>
 
-            {/* Right: new note + theme toggle */}
-            <button
-              type="button"
-              aria-label="New note"
-              disabled={isBootstrapping()}
-              class="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors duration-150 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={() => void handleCreateNote()}
-            >
-              <HiOutlinePlus size={16} />
-            </button>
-            <button
-              type="button"
-              aria-label={`Switch to ${ui.theme === "light" ? "dark" : "light"} theme`}
-              class="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors duration-150 hover:text-text-primary"
-              onClick={() => toggleTheme()}
-            >
-              {ui.theme === "light" ? (
-                <HiOutlineMoon size={16} />
-              ) : (
-                <HiOutlineSun size={16} />
-              )}
-            </button>
+            {/* Right: action cluster */}
+            <div class="ml-auto flex items-center gap-1">
+              {/* Search */}
+              <button
+                type="button"
+                aria-label="Search notes (Cmd+K)"
+                disabled={isBootstrapping()}
+                class="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-all duration-150 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50 active:scale-95"
+                onClick={() => openSearch()}
+              >
+                <HiOutlineMagnifyingGlass size={16} />
+              </button>
+
+              {/* Export current note (only when a note is active) */}
+              <Show when={activeNote()}>
+                <button
+                  type="button"
+                  aria-label="Export current note"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-all duration-150 hover:text-text-primary active:scale-95"
+                  onClick={() => openActiveNoteActions()}
+                >
+                  <HiOutlineArrowDownOnSquare size={16} />
+                </button>
+              </Show>
+
+              {/* New note */}
+              <button
+                type="button"
+                aria-label="New note"
+                disabled={isBootstrapping()}
+                class="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-all duration-150 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50 active:scale-95"
+                onClick={() => void handleCreateNote()}
+              >
+                <HiOutlinePlus size={16} />
+              </button>
+
+              {/* Theme toggle */}
+              <button
+                type="button"
+                aria-label={`Switch to ${ui.theme === "light" ? "dark" : "light"} theme`}
+                class="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-all duration-150 hover:text-text-primary active:scale-95"
+                onClick={() => toggleTheme()}
+              >
+                {ui.theme === "light" ? (
+                  <span class="animate-icon-in inline-flex">
+                    <HiOutlineMoon size={16} />
+                  </span>
+                ) : (
+                  <span class="animate-icon-in inline-flex">
+                    <HiOutlineSun size={16} />
+                  </span>
+                )}
+              </button>
+            </div>
           </header>
 
           <Editor
@@ -380,20 +426,19 @@ export default function AppShell() {
         </main>
       </div>
 
-      <Show
-        when={
-          ui.contextMenu.open ||
+      {/* Global overlay backdrop — always rendered so it can fade out as well as in */}
+      <div
+        class={`fixed inset-0 z-20 bg-overlay transition-opacity duration-200 ${
+          ui.noteActionsMenu.open ||
           ui.deleteModal.open ||
           ui.overlays.search ||
           ui.overlays.exportAll
-        }
-      >
-        <div
-          class="fixed inset-0 z-20 bg-overlay"
-          role="presentation"
-          onMouseDown={handleOverlayBackdropClick}
-        />
-      </Show>
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none"
+        }`}
+        role="presentation"
+        onMouseDown={handleOverlayBackdropClick}
+      />
 
       <SearchOverlay
         open={ui.overlays.search}
@@ -402,26 +447,24 @@ export default function AppShell() {
         onOpenNote={openNote}
       />
 
-      <ContextMenu
-        open={ui.contextMenu.open}
-        x={ui.contextMenu.x}
-        y={ui.contextMenu.y}
-        exportOpen={ui.contextMenu.exportOpen}
-        noteTitle={deriveTitle(contextNote()?.body ?? "")}
+      {/* Note export menu — for both topbar and sidebar hover */}
+      <NoteActionsMenu
+        open={ui.noteActionsMenu.open}
         onClose={() => {
-          closeContextMenu();
+          closeNoteActionsMenu();
           requestEditorFocus();
         }}
-        onToggleExport={() =>
-          setContextMenuExportOpen(!ui.contextMenu.exportOpen)
-        }
-        onExport={handleExport}
-        onDelete={handleDeleteRequest}
+        onExport={handleExportNote}
       />
 
       <DeleteModal
         open={ui.deleteModal.open}
-        noteTitle={deriveTitle(deleteNote()?.body ?? "")}
+        noteTitle={
+          deleteNote()
+            ? deleteNote()!.body.trim().split(/\r?\n/)[0]?.slice(0, 40) ||
+              "Untitled note"
+            : "Untitled note"
+        }
         onCancel={() => {
           closeDeleteModal();
           requestEditorFocus();
@@ -429,14 +472,11 @@ export default function AppShell() {
         onConfirm={() => void handleDeleteConfirm()}
       />
 
-      <div class="pointer-events-none fixed bottom-0 left-0 z-30 w-[232px] px-2 pb-14">
-        <div class="pointer-events-auto relative">
-          <ExportAllMenu
-            open={ui.overlays.exportAll}
-            onExport={(format) => void handleExportAll(format)}
-          />
-        </div>
-      </div>
+      <ExportAllModal
+        open={ui.overlays.exportAll}
+        onClose={() => closeOverlay("exportAll")}
+        onExport={(format) => void handleExportAll(format)}
+      />
     </div>
   );
 }
