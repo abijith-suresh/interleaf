@@ -1,45 +1,78 @@
-import { For, type JSX } from "solid-js";
+import type { JSX } from "solid-js";
+import { HiOutlineSun, HiOutlineMoon } from "solid-icons/hi";
+import SiteFooter from "./SiteFooter";
+import { toggleTheme, useUi } from "@/stores/ui";
 
 type SimplePageProps = {
   title: string;
   children: JSX.Element;
 };
 
-const pageLinks = [
-  { href: "/about/", label: "About" },
-  { href: "/features/", label: "Features" },
-  { href: "/privacy/", label: "Privacy" },
-  { href: "/changelog/", label: "Changelog" },
-  { href: "/keyboard-shortcuts/", label: "Keyboard Shortcuts" },
-];
-
 export default function SimplePage(props: SimplePageProps) {
+  const ui = useUi();
+
   return (
-    <main class="min-h-screen bg-bg px-8 py-16 text-text-primary">
-      <div class="mx-auto max-w-[680px]">
-        <a href="/" class="text-md font-medium text-text-primary">
-          interleaf
-        </a>
+    <div class="flex min-h-screen flex-col bg-bg text-text-primary">
+      {/* Header bar */}
+      <header class="relative flex h-10 shrink-0 items-center border-b border-border bg-surface px-4">
+        {/* Left: back to app */}
         <a
           href="/"
-          class="mt-8 block text-[13px] text-tertiary hover:text-accent"
+          class="back-arrow flex items-center gap-1 text-[13px] text-text-secondary transition-colors duration-150 hover:text-accent"
         >
-          ← Back to app
+          <span class="back-arrow-icon">←</span>
+          <span>App</span>
         </a>
-        <h1 class="mb-8 mt-4 font-serif text-lg font-normal">{props.title}</h1>
-        <nav class="mb-8 flex flex-wrap gap-x-4 gap-y-2 text-[13px] text-tertiary">
-          <For each={pageLinks}>
-            {(link) => (
-              <a href={link.href} class="hover:text-accent">
-                {link.label}
-              </a>
+
+        {/* Center: wordmark */}
+        <div class="absolute left-1/2 -translate-x-1/2">
+          <a
+            href="/"
+            class="font-serif text-lg italic font-normal text-text-primary"
+          >
+            interleaf
+          </a>
+        </div>
+
+        {/* Right: theme toggle */}
+        <div class="ml-auto flex items-center">
+          <button
+            type="button"
+            aria-label={`Switch to ${ui.theme === "light" ? "dark" : "light"} theme`}
+            class="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-all duration-150 hover:text-text-primary active:scale-95"
+            onClick={() => toggleTheme()}
+          >
+            {ui.theme === "light" ? (
+              <span class="animate-icon-in inline-flex">
+                <HiOutlineMoon size={16} />
+              </span>
+            ) : (
+              <span class="animate-icon-in inline-flex">
+                <HiOutlineSun size={16} />
+              </span>
             )}
-          </For>
-        </nav>
-        <div class="space-y-4 font-serif text-md font-light leading-relaxed text-text-primary">
+          </button>
+        </div>
+      </header>
+
+      {/* Page title */}
+      <div class="animate-page-title border-b border-border px-6 pb-8 pt-10 sm:px-10 sm:pb-10 sm:pt-12">
+        <h1 class="mx-auto max-w-[680px] font-serif text-2xl font-normal leading-tight text-text-primary">
+          {props.title}
+        </h1>
+      </div>
+
+      {/* Content */}
+      <div class="animate-page-content flex-1 px-6 py-10 sm:px-10">
+        <div class="mx-auto max-w-[680px] font-serif text-md font-light leading-relaxed text-text-primary">
           {props.children}
         </div>
       </div>
-    </main>
+
+      {/* Footer */}
+      <div class="animate-page-footer border-t border-border bg-surface px-6 py-10 sm:px-10">
+        <SiteFooter />
+      </div>
+    </div>
   );
 }
