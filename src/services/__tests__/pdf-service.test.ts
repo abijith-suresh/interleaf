@@ -102,9 +102,7 @@ describe("PDFService", () => {
 
     await service.loadPDF(file);
 
-    expect(service.isLoaded()).toBe(true);
     expect(service.getPageCount()).toBe(5);
-    expect(service.getFileName()).toBe("test.pdf");
   });
 
   it("loads an owner-password encrypted PDF without prompting for a password", async () => {
@@ -115,8 +113,7 @@ describe("PDFService", () => {
 
     await service.loadPDF(file);
 
-    expect(service.isLoaded()).toBe(true);
-    expect(service.getPassword(file)).toBe("");
+    expect(service.getPageCount()).toBe(5);
   });
 
   it("requires a password for a user-password encrypted PDF", async () => {
@@ -142,8 +139,7 @@ describe("PDFService", () => {
 
     await service.loadPDFWithPassword(file, "623");
 
-    expect(service.isLoaded()).toBe(true);
-    expect(service.getPassword(file)).toBe("623");
+    expect(service.getPageCount()).toBe(5);
   });
 
   it("throws PDFPasswordRequiredError with a wrong password", async () => {
@@ -200,32 +196,6 @@ describe("PDFService", () => {
     expect(canvas.width).toBeGreaterThan(canvas.height);
   });
 
-  it("returns page info for the requested file", async () => {
-    const service = new PDFService();
-    const file = new File(["wide"], "wide.pdf", { type: "application/pdf" });
-
-    await service.loadPDF(file);
-
-    await expect(service.getPageInfo(file, 1)).resolves.toEqual({
-      pageNumber: 1,
-      width: 300,
-      height: 150,
-    });
-  });
-
-  it("unloads the active file state", async () => {
-    const service = new PDFService();
-    const file = new File(["plain"], "test.pdf", { type: "application/pdf" });
-
-    await service.loadPDF(file);
-    service.unload();
-
-    expect(service.isLoaded()).toBe(false);
-    expect(service.getFileName()).toBe("");
-    expect(service.getPageCount()).toBe(0);
-    expect(service.getPassword(file)).toBeUndefined();
-  });
-
   it("resets cached documents and passwords for the session", async () => {
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
       {} as unknown as CanvasRenderingContext2D
@@ -242,10 +212,7 @@ describe("PDFService", () => {
 
     service.reset();
 
-    expect(service.isLoaded()).toBe(false);
-    expect(service.getFileName()).toBe("");
     expect(service.getPageCount()).toBe(0);
-    expect(service.getPassword(file)).toBeUndefined();
 
     const secondCanvas = document.createElement("canvas");
     await expect(service.renderPage(file, 1, secondCanvas, 1, 0)).rejects.toBeInstanceOf(

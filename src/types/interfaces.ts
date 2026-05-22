@@ -1,4 +1,4 @@
-export type EncryptionReason = "needs-password" | "wrong-password";
+type EncryptionReason = "needs-password" | "wrong-password";
 
 export class PDFPasswordRequiredError extends Error {
   readonly file: File;
@@ -10,12 +10,6 @@ export class PDFPasswordRequiredError extends Error {
     this.file = file;
     this.reason = reason;
   }
-}
-
-export interface PDFPageInfo {
-  pageNumber: number;
-  width: number;
-  height: number;
 }
 
 export interface PageState {

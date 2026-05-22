@@ -1,15 +1,12 @@
 import { PDFDocument } from "pdf-lib";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import type { PDFPageInfo } from "../types/interfaces";
 import { PDFPasswordRequiredError } from "../types/interfaces";
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 interface LoadedPDFRecord {
-  file: File;
-  fileName: string;
   pdfDocument: PDFDocument;
   pdfjsDocument: pdfjsLib.PDFDocumentProxy;
 }
@@ -28,8 +25,8 @@ export class PDFService {
    * @throws {PDFPasswordRequiredError} When the PDF is user-password protected.
    */
   async loadPDF(file: File): Promise<void> {
-    const record = await this.getOrLoadDocument(file, () => this.loadDocument(file));
-    this.activeFile = record.file;
+    await this.getOrLoadDocument(file, () => this.loadDocument(file));
+    this.activeFile = file;
   }
 
   /**
@@ -41,28 +38,9 @@ export class PDFService {
    * @throws {PDFPasswordRequiredError} When the password is missing or incorrect.
    */
   async loadPDFWithPassword(file: File, password: string): Promise<void> {
-    const record = await this.getOrLoadDocument(file, () => this.loadDocument(file, password));
+    await this.getOrLoadDocument(file, () => this.loadDocument(file, password));
     this.passwordRegistry.set(file, password);
-    this.activeFile = record.file;
-  }
-
-  /**
-   * Returns the cached password previously used for a file in this session.
-   *
-   * @param file - The PDF file whose cached password should be read.
-   * @returns The cached password, or `undefined` when none is stored.
-   */
-  getPassword(file: File): string | undefined {
-    return this.passwordRegistry.get(file);
-  }
-
-  /**
-   * Clears all cached passwords for the current session.
-   *
-   * @returns Nothing.
-   */
-  clearPasswordRegistry(): void {
-    this.passwordRegistry.clear();
+    this.activeFile = file;
   }
 
   /**
@@ -76,19 +54,6 @@ export class PDFService {
     }
 
     return this.documentCache.get(this.activeFile)?.pdfDocument.getPageCount() ?? 0;
-  }
-
-  /**
-   * Returns the filename for the active PDF.
-   *
-   * @returns The active filename, or an empty string when no PDF is loaded.
-   */
-  getFileName(): string {
-    if (!this.activeFile) {
-      return "";
-    }
-
-    return this.documentCache.get(this.activeFile)?.fileName ?? "";
   }
 
   /**
@@ -130,58 +95,13 @@ export class PDFService {
   }
 
   /**
-   * Returns the natural dimensions of a page from the requested PDF.
-   *
-   * @param file - The source PDF file to inspect.
-   * @param pageNumber - The 1-based page number to inspect.
-   * @returns The page number and viewport dimensions at scale 1.
-   * @throws {PDFPasswordRequiredError} When the source PDF requires a password.
-   */
-  async getPageInfo(file: File, pageNumber: number): Promise<PDFPageInfo> {
-    const record = await this.getOrLoadDocument(file);
-    const page = await record.pdfjsDocument.getPage(pageNumber);
-    const viewport = page.getViewport({ scale: 1 });
-
-    return {
-      pageNumber,
-      width: viewport.width,
-      height: viewport.height,
-    };
-  }
-
-  /**
-   * Reports whether an active PDF session is currently loaded.
-   *
-   * @returns `true` when an active document is loaded, otherwise `false`.
-   */
-  isLoaded(): boolean {
-    return this.activeFile !== null && this.documentCache.has(this.activeFile);
-  }
-
-  /**
-   * Unloads the active PDF and clears its session-specific password entry.
-   *
-   * @returns Nothing.
-   */
-  unload(): void {
-    if (!this.activeFile) {
-      return;
-    }
-
-    const activeFile = this.activeFile;
-    this.activeFile = null;
-    this.passwordRegistry.delete(activeFile);
-    this.disposeDocument(activeFile);
-  }
-
-  /**
    * Clears the full PDF session, including cached documents and passwords.
    *
    * @returns Nothing.
    */
   reset(): void {
     this.activeFile = null;
-    this.clearPasswordRegistry();
+    this.passwordRegistry.clear();
 
     for (const file of this.documentCache.keys()) {
       this.disposeDocument(file);
@@ -242,8 +162,6 @@ export class PDFService {
       const pdfjsDocument = await pdfjsLib.getDocument({ data: typedArray }).promise;
 
       return {
-        file,
-        fileName: file.name,
         pdfDocument,
         pdfjsDocument,
       };
@@ -272,8 +190,6 @@ export class PDFService {
       }
 
       return {
-        file,
-        fileName: file.name,
         pdfDocument,
         pdfjsDocument,
       };
