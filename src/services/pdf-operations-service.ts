@@ -1,13 +1,8 @@
 import { PDFDocument, degrees } from "pdf-lib";
 import { EXTRACT_FILENAME, OUTPUT_FILENAME } from "../constants";
-import type {
-  PageState,
-  PDFOperationResult,
-  IPDFOperationsService,
-  PDFBuildProgress,
-} from "../types/interfaces";
+import type { PageState, PDFOperationResult, PDFBuildProgress } from "../types/interfaces";
 
-export class PDFOperationsService implements IPDFOperationsService {
+export class PDFOperationsService {
   // Class-level cache: avoids re-reading the same File on multiple build/extract
   // calls within one session. Cleared on session reset via clearCache().
   private sourceDocCache = new Map<File, PDFDocument>();

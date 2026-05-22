@@ -1,7 +1,7 @@
 import { PDFDocument } from "pdf-lib";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import type { PDFPageInfo, IPDFService } from "../types/interfaces";
+import type { PDFPageInfo } from "../types/interfaces";
 import { PDFPasswordRequiredError } from "../types/interfaces";
 
 // Configure PDF.js worker
@@ -14,7 +14,7 @@ interface LoadedPDFRecord {
   pdfjsDocument: pdfjsLib.PDFDocumentProxy;
 }
 
-export class PDFService implements IPDFService {
+export class PDFService {
   private activeFile: File | null = null;
   private passwordRegistry = new Map<File, string>();
   private documentCache = new Map<File, LoadedPDFRecord>();
