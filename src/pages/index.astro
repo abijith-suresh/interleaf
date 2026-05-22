@@ -12,7 +12,7 @@ const base = import.meta.env.BASE_URL;
   description="Edit, merge, split, reorder, rotate, and delete PDF files entirely in your browser. No uploads, no servers, no privacy compromises."
 >
   <div class="page" transition:animate={contentSlide}>
-    <Nav base={base} currentPage="home" />
+    <Nav currentPage="home" />
     <main>
       <section class="hero">
         <div class="hero-grid">
@@ -104,7 +104,7 @@ const base = import.meta.env.BASE_URL;
       </section>
     </main>
 
-    <Footer base={base} />
+    <Footer />
   </div>
 </Layout>
 
