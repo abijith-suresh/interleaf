@@ -5,8 +5,6 @@ import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
 import { contentSlide } from "../utils/transitions";
 
-const base = import.meta.env.BASE_URL;
-
 type ReleaseSection = { title: string; items: string[] };
 type Release = { version: string; date: string; sections: ReleaseSection[] };
 
@@ -66,7 +64,7 @@ function formatDate(date: string) {
   description="A complete history of every Interleaf release derived from the canonical changelog."
 >
   <div class="font-body bg-white text-primary min-h-screen" transition:animate={contentSlide}>
-    <Nav base={base} />
+    <Nav />
 
     <main>
       <section class="px-6 md:px-16 lg:px-24 pt-24 pb-16 border-b border-border">
@@ -120,6 +118,6 @@ function formatDate(date: string) {
       </section>
     </main>
 
-    <Footer base={base} />
+    <Footer />
   </div>
 </Layout>

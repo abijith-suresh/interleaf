@@ -3,6 +3,7 @@ import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
 import { contentSlide } from "../utils/transitions";
+
 const base = import.meta.env.BASE_URL;
 
 const features = [
@@ -52,7 +53,7 @@ const features = [
   description="Merge, split, reorder, rotate, and delete PDFs. Five powerful operations, all running client-side in your browser."
 >
   <div class="font-body bg-white text-primary min-h-screen" transition:animate={contentSlide}>
-    <Nav base={base} currentPage="features" />
+    <Nav currentPage="features" />
 
     <main>
       <section class="px-6 md:px-16 lg:px-24 pt-24 pb-16 border-b border-border">
@@ -134,6 +135,6 @@ const features = [
       </section>
     </main>
 
-    <Footer base={base} />
+    <Footer />
   </div>
 </Layout>

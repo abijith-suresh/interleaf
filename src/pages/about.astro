@@ -3,7 +3,6 @@ import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
 import { contentSlide } from "../utils/transitions";
-const base = import.meta.env.BASE_URL;
 
 const stack = [
   { name: "Astro", desc: "Static site framework" },
@@ -27,7 +26,7 @@ const values = [
   description="Interleaf was built on one idea: every PDF operation should run in your browser. No accounts, no uploads, no servers. Open source and fully transparent."
 >
   <div class="font-body bg-white text-primary min-h-screen" transition:animate={contentSlide}>
-    <Nav base={base} currentPage="about" />
+    <Nav currentPage="about" />
 
     <main>
       <section class="px-6 md:px-16 lg:px-24 pt-24 pb-16 border-b border-border">
@@ -142,6 +141,6 @@ const values = [
       </section>
     </main>
 
-    <Footer base={base} />
+    <Footer />
   </div>
 </Layout>
