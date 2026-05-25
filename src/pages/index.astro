@@ -2,6 +2,8 @@
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
+import NumberedRow from "../components/shared/NumberedRow.astro";
+import BottomCTA from "../components/shared/BottomCTA.astro";
 import { contentSlide } from "../utils/transitions";
 
 const base = import.meta.env.BASE_URL;
@@ -11,7 +13,7 @@ const base = import.meta.env.BASE_URL;
   title="Interleaf - Client-Side PDF Editor"
   description="Edit, merge, split, reorder, rotate, and delete PDF files entirely in your browser. No uploads, no servers, no privacy compromises."
 >
-  <div class="page" transition:animate={contentSlide}>
+  <div class="font-body bg-white text-primary min-h-screen" transition:animate={contentSlide}>
     <Nav currentPage="home" />
     <main>
       <section class="hero">
@@ -43,7 +45,7 @@ const base = import.meta.env.BASE_URL;
             <p class="features-subtitle">Five core operations, zero compromises.</p>
           </div>
 
-          <div class="feature-list">
+          <div class="border-t-2 border-primary">
             {
               [
                 {
@@ -77,31 +79,26 @@ const base = import.meta.env.BASE_URL;
                   accent: true,
                 },
               ].map((f, i) => (
-                <div
-                  class:list={[
-                    "feature-row animate-on-scroll",
-                    { "feature-row-last": f.accent },
-                    `stagger-${Math.min(i + 1, 8)}`,
-                  ]}
+                <NumberedRow
+                  num={f.num}
+                  title={f.title}
+                  titleClass={f.accent ? "text-accent text-[1.75rem]" : "text-[1.75rem]"}
+                  isLast={f.accent}
+                  staggerClass={`stagger-${Math.min(i + 1, 8)}`}
                 >
-                  <span class="feature-num">{f.num}</span>
-                  <h3 class:list={["feature-name", { "feature-name-red": f.accent }]}>{f.title}</h3>
-                  <p class="feature-desc">{f.text}</p>
-                </div>
+                  <p>{f.text}</p>
+                </NumberedRow>
               ))
             }
           </div>
         </div>
       </section>
 
-      <section class="bottom-cta animate-on-scroll">
-        <div class="bottom-cta-inner">
-          <h2 class="bottom-title">Start<br />editing.</h2>
-          <div class="bottom-action">
-            <a href={`${base}app`} class="cta-filled press-feedback">Launch Interleaf</a>
-          </div>
-        </div>
-      </section>
+      <BottomCTA
+        heading="Start<br />editing."
+        buttonText="Launch Interleaf"
+        buttonHref={`${base}app`}
+      />
     </main>
 
     <Footer />
@@ -109,13 +106,6 @@ const base = import.meta.env.BASE_URL;
 </Layout>
 
 <style>
-  .page {
-    font-family: var(--font-body);
-    background-color: #ffffff;
-    color: var(--color-primary);
-    min-height: 100vh;
-  }
-
   /* Hero entrance animations */
   .hero-title {
     animation: var(--animate-slide-up);
@@ -296,119 +286,5 @@ const base = import.meta.env.BASE_URL;
   .features-subtitle {
     font-weight: 300;
     color: var(--color-muted);
-  }
-
-  .feature-list {
-    border-top: 2px solid var(--color-primary);
-  }
-
-  .feature-row {
-    display: grid;
-    grid-template-columns: 3rem 1fr;
-    gap: 1rem;
-    padding: 2rem 0;
-    border-bottom: 1px solid var(--color-border);
-    align-items: baseline;
-  }
-
-  @media (min-width: 768px) {
-    .feature-row {
-      grid-template-columns: 3rem 8rem 1fr;
-    }
-    .feature-desc {
-      grid-column: auto;
-    }
-  }
-
-  .feature-row-last {
-    border-bottom: 2px solid var(--color-primary);
-  }
-
-  .feature-num {
-    font-size: 0.75rem;
-    color: var(--color-muted);
-  }
-
-  .feature-name {
-    font-family: var(--font-display);
-    font-size: 1.75rem;
-    color: var(--color-primary);
-  }
-
-  .feature-name-red {
-    color: var(--color-accent);
-  }
-
-  .feature-desc {
-    grid-column: 1 / -1;
-    font-weight: 300;
-    color: var(--color-body);
-    line-height: 1.6;
-  }
-
-  /* Bottom CTA */
-  .bottom-cta {
-    padding: 8rem 1.5rem;
-  }
-
-  @media (min-width: 768px) {
-    .bottom-cta {
-      padding: 8rem 4rem;
-    }
-  }
-  @media (min-width: 1024px) {
-    .bottom-cta {
-      padding: 8rem 6rem;
-    }
-  }
-
-  .bottom-cta-inner {
-    max-width: 80rem;
-    margin: 0 auto;
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 2rem;
-    align-items: end;
-  }
-
-  @media (min-width: 1024px) {
-    .bottom-cta-inner {
-      grid-template-columns: 2fr 1fr;
-    }
-  }
-
-  .bottom-title {
-    font-family: var(--font-display);
-    font-size: clamp(3.5rem, 8vw, 6rem);
-    color: var(--color-primary);
-    line-height: 0.9;
-  }
-
-  .bottom-action {
-    display: flex;
-    align-items: flex-end;
-  }
-
-  .cta-filled {
-    display: inline-block;
-    padding: 1.25rem 3rem;
-    background-color: var(--color-accent);
-    color: white;
-    font-family: var(--font-body);
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-label);
-    text-decoration: none;
-    transition: background-color 0.2s;
-  }
-
-  .cta-filled:hover {
-    background-color: var(--color-primary);
-  }
-
-  .cta-filled:focus-visible {
-    outline: 2px solid white;
-    outline-offset: 4px;
   }
 </style>
