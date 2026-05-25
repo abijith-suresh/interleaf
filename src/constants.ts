@@ -21,3 +21,12 @@ export const EXTRACT_FILENAME = "interleaf-extract.pdf";
 
 /** Title shown in the password prompt modal for encrypted PDFs */
 export const PASSWORD_MODAL_TITLE = "PASSWORD REQUIRED";
+
+/** Design system colors (keep in sync with @theme in src/styles/global.css) */
+export const COLOR = {
+  PRIMARY: "#111",
+  ACCENT: "#ff0000",
+  MUTED: "#757575",
+  BODY: "#555",
+  WHITE: "#ffffff",
+} as const;
