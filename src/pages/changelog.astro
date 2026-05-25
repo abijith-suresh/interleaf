@@ -69,16 +69,8 @@ function formatDate(date: string) {
     <main>
       <section class="px-6 md:px-16 lg:px-24 pt-24 pb-16 border-b border-border">
         <div class="max-w-7xl mx-auto">
-          <p
-            class="text-xs font-light text-muted uppercase tracking-[0.2em] mb-4 animate-on-scroll"
-          >
-            History
-          </p>
-          <h1
-            class="font-display text-[clamp(3rem,7vw,6rem)] leading-[0.9] text-primary animate-on-scroll stagger-1"
-          >
-            Changelog.
-          </h1>
+          <p class="section-heading animate-on-scroll">History</p>
+          <h1 class="page-heading animate-on-scroll stagger-1">Changelog.</h1>
         </div>
       </section>
 
@@ -105,7 +97,7 @@ function formatDate(date: string) {
                       </h2>
                       <ul class="space-y-2">
                         {section.items.map((item) => (
-                          <li class="text-body font-light leading-relaxed">{item}</li>
+                          <li class="body-text">{item}</li>
                         ))}
                       </ul>
                     </section>

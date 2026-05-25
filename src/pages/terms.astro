@@ -54,14 +54,8 @@ const sections = [
     <main>
       <section class="px-6 md:px-16 lg:px-24 pt-24 pb-16 border-b border-border">
         <div class="max-w-7xl mx-auto">
-          <p
-            class="text-xs font-light text-muted uppercase tracking-[0.2em] mb-4 animate-on-scroll"
-          >
-            Legal
-          </p>
-          <h1
-            class="font-display text-[clamp(3rem,7vw,6rem)] leading-[0.9] text-primary animate-on-scroll stagger-1"
-          >
+          <p class="section-heading animate-on-scroll">Legal</p>
+          <h1 class="page-heading animate-on-scroll stagger-1">
             Terms of<br />Service.
           </h1>
         </div>
@@ -73,16 +67,14 @@ const sections = [
             sections.map((s, i) => (
               <div
                 class:list={[
-                  "grid grid-cols-[3rem_1fr] md:grid-cols-[3rem_10rem_1fr] gap-4 py-8 border-b animate-on-scroll",
-                  i === sections.length - 1 ? "border-primary border-b-2" : "border-border",
+                  "numbered-row animate-on-scroll",
+                  i === sections.length - 1 && "numbered-row-last",
                   `stagger-${Math.min(i + 1, 8)}`,
                 ]}
               >
-                <span class="text-xs text-muted">{s.num}</span>
-                <h2 class="font-display text-xl text-primary">{s.title}</h2>
-                <p class="col-span-full md:col-auto text-body font-light leading-relaxed">
-                  {s.content}
-                </p>
+                <span class="numbered-row-num">{s.num}</span>
+                <h2 class="numbered-row-title">{s.title}</h2>
+                <p class="numbered-row-desc">{s.content}</p>
               </div>
             ))
           }
