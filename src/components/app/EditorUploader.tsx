@@ -34,7 +34,7 @@ export default function EditorUploader(props: Props) {
             props.busy
               ? "border-primary bg-hover cursor-wait"
               : `cursor-pointer ${isDragOver() ? "border-primary bg-hover" : "border-border hover:border-primary"}`
-          }`}
+          } focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2`}
           onClick={pickFile}
           onKeyDown={(e) => {
             if (props.busy) return;

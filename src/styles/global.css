@@ -148,6 +148,12 @@
   transform: scale(0.97);
 }
 
+.press-feedback:focus-visible {
+  transform: scale(0.97);
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 .link-slide {
   position: relative;
 }
@@ -164,6 +170,14 @@
 }
 
 .link-slide:hover::after {
+  width: 100%;
+}
+
+.link-slide:focus-visible {
+  outline: none;
+}
+
+.link-slide:focus-visible::after {
   width: 100%;
 }
 
@@ -189,5 +203,10 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.01ms !important;
   }
 }
