@@ -349,7 +349,7 @@ export default function Editor() {
   }
 
   return (
-    <div class="font-['Work_Sans',sans-serif] bg-white text-[#111] h-dvh flex flex-col overflow-hidden">
+    <div class="font-body bg-white text-[#111] h-dvh flex flex-col overflow-hidden">
       <div
         data-testid="editor-toast-region"
         role="status"
@@ -383,10 +383,7 @@ export default function Editor() {
       >
         {/* Dark header */}
         <header class="bg-[#111] text-white h-14 flex items-center px-6 flex-shrink-0">
-          <a
-            href={base}
-            class="font-['Bebas_Neue',sans-serif] text-2xl tracking-wide text-white no-underline"
-          >
+          <a href={base} class="font-display text-2xl tracking-wide text-white no-underline">
             Pasta
           </a>
           <span class="w-px h-6 bg-[#555] mx-5" />

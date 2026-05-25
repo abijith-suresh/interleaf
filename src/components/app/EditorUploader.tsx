@@ -56,7 +56,7 @@ export default function EditorUploader(props: Props) {
             handleFile(e.dataTransfer?.files[0]);
           }}
         >
-          <p class="font-['Bebas_Neue',sans-serif] text-4xl text-[#111] mb-2">
+          <p class="font-display text-4xl text-[#111] mb-2">
             {props.busy ? "Working..." : "Drop PDF here"}
           </p>
           <p class="text-[11px] uppercase tracking-[0.15em] text-[#888]">
