@@ -384,7 +384,7 @@ export default function Editor() {
         {/* Dark header */}
         <header class="bg-primary text-white h-14 flex items-center px-6 flex-shrink-0">
           <a href={base} class="font-display text-2xl tracking-wide text-white no-underline">
-            Pasta
+            Interleaf
           </a>
           <span class="w-px h-6 bg-body mx-5" />
           <Show when={phase() === "edit"}>

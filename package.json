@@ -22,7 +22,6 @@
   "dependencies": {
     "@astrojs/solid-js": "^6.0.0",
     "@resvg/resvg-js": "^2.6.2",
-    "@tailwindcss/typography": "^0.5.19",
     "astro": "^6.2.1",
     "file-saver": "^2.0.5",
     "pdf-lib": "^1.17.1",
