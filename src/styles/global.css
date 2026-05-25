@@ -4,8 +4,10 @@
   --font-display: "Bebas Neue", sans-serif;
   --font-body: "Work Sans", sans-serif;
   --text-micro: 0.6875rem;
+  --text-nano: 0.65rem;
   --tracking-label: 0.15em;
   --tracking-section: 0.2em;
+  --color-white: #fff;
   --color-primary: #111;
   --color-accent: #ff0000;
   --color-muted: #888;
