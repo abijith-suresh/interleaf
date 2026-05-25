@@ -110,36 +110,31 @@ const base = import.meta.env.BASE_URL;
 
 <style>
   .page {
-    font-family: "Work Sans", sans-serif;
+    font-family: var(--font-body);
     background-color: #ffffff;
-    color: #111;
+    color: var(--color-primary);
     min-height: 100vh;
   }
 
   /* Hero entrance animations */
   .hero-label {
-    animation: slideUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+    animation: var(--animate-slide-up);
+    animation-delay: 0.1s;
   }
 
   .hero-title {
-    animation: slideUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+    animation: var(--animate-slide-up);
+    animation-delay: 0.2s;
   }
 
   .hero-tagline {
-    animation: slideUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+    animation: var(--animate-slide-up);
+    animation-delay: 0.3s;
   }
 
   .hero-right-inner {
-    animation: fadeIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .hero-label,
-    .hero-title,
-    .hero-tagline,
-    .hero-right-inner {
-      animation: none;
-    }
+    animation: var(--animate-fade-in);
+    animation-delay: 0.4s;
   }
 
   /* Hero */
@@ -181,17 +176,17 @@ const base = import.meta.env.BASE_URL;
   .hero-label {
     font-size: 0.8rem;
     font-weight: 300;
-    color: #888;
+    color: var(--color-muted);
     text-transform: uppercase;
-    letter-spacing: 0.2em;
+    letter-spacing: var(--tracking-section);
     margin-bottom: 1.5rem;
   }
 
   .hero-title {
-    font-family: "Bebas Neue", sans-serif;
+    font-family: var(--font-display);
     font-size: clamp(5rem, 12vw, 10rem);
     line-height: 0.85;
-    color: #111;
+    color: var(--color-primary);
     letter-spacing: -0.01em;
   }
 
@@ -206,14 +201,14 @@ const base = import.meta.env.BASE_URL;
     display: block;
     width: 3rem;
     height: 4px;
-    background-color: #ff0000;
+    background-color: var(--color-accent);
     flex-shrink: 0;
   }
 
   .hero-tagline-text {
     font-size: 1.05rem;
     font-weight: 300;
-    color: #888;
+    color: var(--color-muted);
   }
 
   .hero-right {
@@ -222,14 +217,14 @@ const base = import.meta.env.BASE_URL;
   }
 
   .hero-right-inner {
-    border-left: 4px solid #ff0000;
+    border-left: 4px solid var(--color-accent);
     padding-left: 1.5rem;
     max-width: 20rem;
   }
 
   .hero-right-text {
     font-size: 0.95rem;
-    color: #555;
+    color: var(--color-body);
     line-height: 1.7;
   }
 
@@ -238,11 +233,11 @@ const base = import.meta.env.BASE_URL;
     margin-top: 1.5rem;
     font-size: 0.8rem;
     font-weight: 600;
-    color: #111;
+    color: var(--color-primary);
     text-transform: uppercase;
-    letter-spacing: 0.15em;
+    letter-spacing: var(--tracking-label);
     text-decoration: none;
-    border-bottom: 2px solid #111;
+    border-bottom: 2px solid var(--color-primary);
     padding-bottom: 4px;
     transition:
       color 0.2s,
@@ -250,8 +245,8 @@ const base = import.meta.env.BASE_URL;
   }
 
   .cta-underline:hover {
-    color: #ff0000;
-    border-color: #ff0000;
+    color: var(--color-accent);
+    border-color: var(--color-accent);
   }
 
   .cta-underline:focus-visible {
@@ -261,7 +256,7 @@ const base = import.meta.env.BASE_URL;
 
   /* Features */
   .features {
-    border-top: 1px solid #ddd;
+    border-top: 1px solid var(--color-border);
     padding: 6rem 1.5rem;
   }
 
@@ -296,18 +291,18 @@ const base = import.meta.env.BASE_URL;
   }
 
   .features-title {
-    font-family: "Bebas Neue", sans-serif;
+    font-family: var(--font-display);
     font-size: clamp(2.5rem, 5vw, 3.75rem);
-    color: #111;
+    color: var(--color-primary);
   }
 
   .features-subtitle {
     font-weight: 300;
-    color: #888;
+    color: var(--color-muted);
   }
 
   .feature-list {
-    border-top: 2px solid #111;
+    border-top: 2px solid var(--color-primary);
   }
 
   .feature-row {
@@ -315,7 +310,7 @@ const base = import.meta.env.BASE_URL;
     grid-template-columns: 3rem 1fr;
     gap: 1rem;
     padding: 2rem 0;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--color-border);
     align-items: baseline;
   }
 
@@ -329,28 +324,28 @@ const base = import.meta.env.BASE_URL;
   }
 
   .feature-row-last {
-    border-bottom: 2px solid #111;
+    border-bottom: 2px solid var(--color-primary);
   }
 
   .feature-num {
     font-size: 0.75rem;
-    color: #888;
+    color: var(--color-muted);
   }
 
   .feature-name {
-    font-family: "Bebas Neue", sans-serif;
+    font-family: var(--font-display);
     font-size: 1.75rem;
-    color: #111;
+    color: var(--color-primary);
   }
 
   .feature-name-red {
-    color: #ff0000;
+    color: var(--color-accent);
   }
 
   .feature-desc {
     grid-column: 1 / -1;
     font-weight: 300;
-    color: #555;
+    color: var(--color-body);
     line-height: 1.6;
   }
 
@@ -386,9 +381,9 @@ const base = import.meta.env.BASE_URL;
   }
 
   .bottom-title {
-    font-family: "Bebas Neue", sans-serif;
+    font-family: var(--font-display);
     font-size: clamp(3.5rem, 8vw, 6rem);
-    color: #111;
+    color: var(--color-primary);
     line-height: 0.9;
   }
 
@@ -400,19 +395,19 @@ const base = import.meta.env.BASE_URL;
   .cta-filled {
     display: inline-block;
     padding: 1.25rem 3rem;
-    background-color: #ff0000;
+    background-color: var(--color-accent);
     color: white;
-    font-family: "Work Sans", sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.15em;
+    letter-spacing: var(--tracking-label);
     text-decoration: none;
     transition: background-color 0.2s;
   }
 
   .cta-filled:hover {
-    background-color: #111;
+    background-color: var(--color-primary);
   }
 
   .cta-filled:focus-visible {
