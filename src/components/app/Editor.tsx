@@ -449,7 +449,7 @@ export default function Editor() {
                   data-testid="editor-select-all-button-mobile"
                   disabled={isBusy()}
                   onClick={handleSelectAll}
-                  class="text-micro uppercase tracking-wider text-body bg-transparent border border-border px-3 py-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                  class="text-micro uppercase tracking-wider text-body bg-transparent border border-border px-3 py-1.5 cursor-pointer interactive-focus"
                 >
                   Select All
                 </button>
@@ -457,7 +457,7 @@ export default function Editor() {
                   data-testid="editor-rotate-button-mobile"
                   disabled={isBusy()}
                   onClick={handleRotateSelected}
-                  class="text-micro uppercase tracking-wider text-body bg-transparent border border-border px-3 py-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                  class="text-micro uppercase tracking-wider text-body bg-transparent border border-border px-3 py-1.5 cursor-pointer interactive-focus"
                 >
                   Rotate
                 </button>
@@ -465,7 +465,7 @@ export default function Editor() {
                   data-testid="editor-delete-button-mobile"
                   disabled={isBusy()}
                   onClick={handleDeleteSelected}
-                  class="text-micro uppercase tracking-wider text-accent bg-transparent border border-border px-3 py-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                  class="text-micro uppercase tracking-wider text-accent bg-transparent border border-border px-3 py-1.5 cursor-pointer interactive-focus"
                 >
                   Delete
                 </button>
@@ -483,7 +483,7 @@ export default function Editor() {
                     };
                     input.click();
                   }}
-                  class="text-micro uppercase tracking-wider text-body bg-transparent border border-border px-3 py-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                  class="text-micro uppercase tracking-wider text-body bg-transparent border border-border px-3 py-1.5 cursor-pointer interactive-focus"
                 >
                   Add PDF
                 </button>
@@ -491,7 +491,7 @@ export default function Editor() {
                   data-testid="editor-extract-button-mobile"
                   disabled={isBusy()}
                   onClick={handleExtract}
-                  class="text-micro uppercase tracking-wider text-body bg-transparent border border-border px-3 py-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                  class="text-micro uppercase tracking-wider text-body bg-transparent border border-border px-3 py-1.5 cursor-pointer interactive-focus"
                 >
                   Extract
                 </button>
@@ -499,7 +499,7 @@ export default function Editor() {
                   data-testid="editor-download-button-mobile"
                   disabled={isBusy()}
                   onClick={handleDownload}
-                  class="text-micro uppercase tracking-wider bg-accent text-white border-none px-4 py-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                  class="text-micro uppercase tracking-wider bg-accent text-white border-none px-4 py-1.5 cursor-pointer interactive-focus"
                 >
                   {isBusy() ? "Working..." : "Download"}
                 </button>
