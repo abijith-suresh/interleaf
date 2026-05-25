@@ -2,6 +2,8 @@
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
+import PageHeader from "../components/shared/PageHeader.astro";
+import NumberedRow from "../components/shared/NumberedRow.astro";
 import { contentSlide } from "../utils/transitions";
 
 const sections = [
@@ -52,30 +54,20 @@ const sections = [
     <Nav />
 
     <main>
-      <section class="px-6 md:px-16 lg:px-24 pt-24 pb-16 border-b border-border">
-        <div class="max-w-7xl mx-auto">
-          <p class="section-heading animate-on-scroll">Legal</p>
-          <h1 class="page-heading animate-on-scroll stagger-1">
-            Privacy<br />Policy.
-          </h1>
-        </div>
-      </section>
+      <PageHeader label="Legal" title="Privacy<br />Policy." />
 
       <section class="px-6 md:px-16 lg:px-24 py-16">
         <div class="max-w-7xl mx-auto border-t-2 border-primary">
           {
             sections.map((s, i) => (
-              <div
-                class:list={[
-                  "numbered-row animate-on-scroll",
-                  i === sections.length - 1 && "numbered-row-last",
-                  `stagger-${Math.min(i + 1, 8)}`,
-                ]}
+              <NumberedRow
+                num={s.num}
+                title={s.title}
+                isLast={i === sections.length - 1}
+                staggerClass={`stagger-${Math.min(i + 1, 8)}`}
               >
-                <span class="numbered-row-num">{s.num}</span>
-                <h2 class="numbered-row-title">{s.title}</h2>
-                <p class="numbered-row-desc">{s.content}</p>
-              </div>
+                <p>{s.content}</p>
+              </NumberedRow>
             ))
           }
         </div>

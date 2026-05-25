@@ -1,0 +1,19 @@
+---
+const { heading, buttonText, buttonHref } = Astro.props;
+---
+
+<section class="cta-section">
+  <div class="cta-section-inner animate-on-scroll">
+    <h2 class="font-display text-[clamp(3.5rem,8vw,6rem)] leading-[0.9] text-primary">{heading}</h2>
+    <div class="flex items-end">
+      <a
+        href={buttonHref}
+        class="inline-block py-5 px-12 bg-accent text-white font-body text-xs font-semibold uppercase tracking-label no-underline transition-colors duration-200 hover:bg-primary press-feedback"
+        target={buttonHref.startsWith("http") ? "_blank" : undefined}
+        rel={buttonHref.startsWith("http") ? "noopener noreferrer" : undefined}
+      >
+        {buttonText}
+      </a>
+    </div>
+  </div>
+</section>

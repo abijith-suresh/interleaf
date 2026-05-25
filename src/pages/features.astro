@@ -2,6 +2,9 @@
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
+import PageHeader from "../components/shared/PageHeader.astro";
+import NumberedRow from "../components/shared/NumberedRow.astro";
+import BottomCTA from "../components/shared/BottomCTA.astro";
 import { contentSlide } from "../utils/transitions";
 
 const base = import.meta.env.BASE_URL;
@@ -56,42 +59,27 @@ const features = [
     <Nav currentPage="features" />
 
     <main>
-      <section class="px-6 md:px-16 lg:px-24 pt-24 pb-16 border-b border-border">
-        <div class="max-w-7xl mx-auto">
-          <p class="section-heading animate-on-scroll">Product</p>
-          <h1 class="page-heading animate-on-scroll stagger-1">
-            Everything<br />you need.
-          </h1>
-        </div>
-      </section>
+      <PageHeader label="Product" title="Everything<br />you need." />
 
       <section class="px-6 md:px-16 lg:px-24 py-16">
         <div class="max-w-7xl mx-auto">
           <div class="border-t-2 border-primary">
             {
               features.map((f, i) => (
-                <div
-                  class:list={[
-                    "numbered-row animate-on-scroll",
-                    i === features.length - 1 && "numbered-row-last",
-                    `stagger-${Math.min(i + 1, 8)}`,
-                  ]}
+                <NumberedRow
+                  num={f.num}
+                  title={f.title}
+                  titleClass={i === features.length - 1 ? "text-accent" : ""}
+                  isLast={i === features.length - 1}
+                  staggerClass={`stagger-${Math.min(i + 1, 8)}`}
                 >
-                  <span class="numbered-row-num">{f.num}</span>
-                  <h2
-                    class:list={["numbered-row-title", i === features.length - 1 && "text-accent"]}
-                  >
-                    {f.title}
-                  </h2>
-                  <div class="col-span-full md:col-auto">
-                    <p class="numbered-row-desc">{f.desc}</p>
-                    <ul class="mt-3 space-y-1">
-                      {f.details.map((d) => (
-                        <li class="text-sm text-muted font-light">{d}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
+                  <p>{f.desc}</p>
+                  <ul class="mt-3 space-y-1">
+                    {f.details.map((d) => (
+                      <li class="text-sm text-muted font-light">{d}</li>
+                    ))}
+                  </ul>
+                </NumberedRow>
               ))
             }
           </div>
@@ -107,21 +95,7 @@ const features = [
         </div>
       </section>
 
-      <section class="cta-section">
-        <div class="cta-section-inner animate-on-scroll">
-          <h2 class="font-display text-[clamp(3rem,7vw,5rem)] leading-[0.9] text-primary">
-            Try it<br />now.
-          </h2>
-          <div>
-            <a
-              href={`${base}app`}
-              class="inline-block px-8 py-4 bg-accent text-white text-xs font-semibold uppercase tracking-[0.15em] no-underline hover:bg-primary transition-colors press-feedback"
-            >
-              Open Editor
-            </a>
-          </div>
-        </div>
-      </section>
+      <BottomCTA heading="Try it now." buttonText="Open Editor" buttonHref={`${base}app`} />
     </main>
 
     <Footer />

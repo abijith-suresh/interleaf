@@ -3,6 +3,7 @@ import changelogSource from "../../CHANGELOG.md?raw";
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
+import PageHeader from "../components/shared/PageHeader.astro";
 import { contentSlide } from "../utils/transitions";
 
 type ReleaseSection = { title: string; items: string[] };
@@ -67,12 +68,7 @@ function formatDate(date: string) {
     <Nav />
 
     <main>
-      <section class="px-6 md:px-16 lg:px-24 pt-24 pb-16 border-b border-border">
-        <div class="max-w-7xl mx-auto">
-          <p class="section-heading animate-on-scroll">History</p>
-          <h1 class="page-heading animate-on-scroll stagger-1">Changelog.</h1>
-        </div>
-      </section>
+      <PageHeader label="History" title="Changelog." />
 
       <section class="px-6 md:px-16 lg:px-24 py-16">
         <div class="max-w-7xl mx-auto border-t-2 border-primary">
