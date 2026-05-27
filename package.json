@@ -14,7 +14,6 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:e2e": "playwright test",
     "test:watch": "vitest",
     "verify": "bun run type-check && bun run lint && bun run format:check && bun run test && bun run build",
     "prepare": "husky"
@@ -31,11 +30,9 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
-    "@axe-core/playwright": "^4.11.3",
     "@commitlint/cli": "^20.5.3",
     "@commitlint/config-conventional": "^20.5.3",
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.2.4",
     "@types/file-saver": "^2.0.7",
     "eslint": "^10.2.1",

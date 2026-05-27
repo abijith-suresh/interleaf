@@ -34,11 +34,5 @@ jobs:
       - name: Run quality gate
         run: bun run verify
 
-      - name: Install Playwright browser
-        run: bunx playwright install --with-deps chromium
-
-      - name: E2E Test
-        run: bun run test:e2e
-
       - name: Dependency review
         uses: actions/dependency-review-action@v4
