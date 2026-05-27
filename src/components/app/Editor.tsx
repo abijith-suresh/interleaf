@@ -349,7 +349,7 @@ export default function Editor() {
   }
 
   return (
-    <div class="font-['Work_Sans',sans-serif] bg-white text-[#111] h-dvh flex flex-col overflow-hidden">
+    <div class="font-body bg-white text-primary h-dvh flex flex-col overflow-hidden">
       <div
         data-testid="editor-toast-region"
         role="status"
@@ -363,10 +363,10 @@ export default function Editor() {
               data-testid="editor-toast"
               class={`rounded-sm border px-4 py-3 text-sm shadow-sm ${
                 toast.tone === "error"
-                  ? "border-[#ffb3b3] bg-[#fff5f5] text-[#8a1111]"
+                  ? "border-toast-error-border bg-toast-error-bg text-toast-error-text"
                   : toast.tone === "success"
-                    ? "border-[#d7e7d7] bg-[#f5fbf5] text-[#1f5f1f]"
-                    : "border-[#ddd] bg-white text-[#555]"
+                    ? "border-toast-success-border bg-toast-success-bg text-toast-success-text"
+                    : "border-border bg-white text-body"
               }`}
             >
               {toast.message}
@@ -382,28 +382,22 @@ export default function Editor() {
         class="contents"
       >
         {/* Dark header */}
-        <header class="bg-[#111] text-white h-14 flex items-center px-6 flex-shrink-0">
-          <a
-            href={base}
-            class="font-['Bebas_Neue',sans-serif] text-2xl tracking-wide text-white no-underline"
-          >
-            Pasta
+        <header class="bg-primary text-white h-14 flex items-center px-6 flex-shrink-0">
+          <a href={base} class="font-display text-2xl tracking-wide text-white no-underline">
+            Interleaf
           </a>
-          <span class="w-px h-6 bg-[#555] mx-5" />
+          <span class="w-px h-6 bg-body mx-5" />
           <Show when={phase() === "edit"}>
-            <span class="text-sm text-[#888]">
+            <span class="text-sm text-muted">
               {pages.length} pages ({activePageCount()} active)
             </span>
           </Show>
           <span class="flex-1" />
           <Show when={phase() === "edit" && selectedIndices().size > 0}>
-            <span class="text-sm text-[#888]">{selectedIndices().size} selected</span>
-            <span class="w-px h-6 bg-[#555] mx-5" />
+            <span class="text-sm text-muted">{selectedIndices().size} selected</span>
+            <span class="w-px h-6 bg-body mx-5" />
           </Show>
-          <a
-            href={base}
-            class="text-sm text-[#888] hover:text-white no-underline transition-colors"
-          >
+          <a href={base} class="text-sm text-muted hover:text-white no-underline transition-colors">
             &#8592; Back
           </a>
         </header>
@@ -450,12 +444,12 @@ export default function Editor() {
               />
 
               {/* Mobile toolbar */}
-              <div class="md:hidden border-t border-[#ddd] p-2.5 flex items-center gap-2 flex-wrap justify-center">
+              <div class="md:hidden border-t border-border p-2.5 flex items-center gap-2 flex-wrap justify-center">
                 <button
                   data-testid="editor-select-all-button-mobile"
                   disabled={isBusy()}
                   onClick={handleSelectAll}
-                  class="text-[11px] uppercase tracking-wider text-[#555] bg-transparent border border-[#ddd] px-3 py-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                  class="btn-toolbar interactive-focus"
                 >
                   Select All
                 </button>
@@ -463,7 +457,7 @@ export default function Editor() {
                   data-testid="editor-rotate-button-mobile"
                   disabled={isBusy()}
                   onClick={handleRotateSelected}
-                  class="text-[11px] uppercase tracking-wider text-[#555] bg-transparent border border-[#ddd] px-3 py-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                  class="btn-toolbar interactive-focus"
                 >
                   Rotate
                 </button>
@@ -471,7 +465,7 @@ export default function Editor() {
                   data-testid="editor-delete-button-mobile"
                   disabled={isBusy()}
                   onClick={handleDeleteSelected}
-                  class="text-[11px] uppercase tracking-wider text-[#ff0000] bg-transparent border border-[#ddd] px-3 py-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                  class="btn-toolbar text-accent interactive-focus"
                 >
                   Delete
                 </button>
@@ -489,7 +483,7 @@ export default function Editor() {
                     };
                     input.click();
                   }}
-                  class="text-[11px] uppercase tracking-wider text-[#555] bg-transparent border border-[#ddd] px-3 py-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                  class="btn-toolbar interactive-focus"
                 >
                   Add PDF
                 </button>
@@ -497,7 +491,7 @@ export default function Editor() {
                   data-testid="editor-extract-button-mobile"
                   disabled={isBusy()}
                   onClick={handleExtract}
-                  class="text-[11px] uppercase tracking-wider text-[#555] bg-transparent border border-[#ddd] px-3 py-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                  class="btn-toolbar interactive-focus"
                 >
                   Extract
                 </button>
@@ -505,7 +499,7 @@ export default function Editor() {
                   data-testid="editor-download-button-mobile"
                   disabled={isBusy()}
                   onClick={handleDownload}
-                  class="text-[11px] uppercase tracking-wider bg-[#ff0000] text-white border-none px-4 py-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                  class="text-micro uppercase tracking-wider bg-accent text-white border-none px-4 py-1.5 cursor-pointer interactive-focus"
                 >
                   {isBusy() ? "Working..." : "Download"}
                 </button>
@@ -517,7 +511,7 @@ export default function Editor() {
                 aria-live="polite"
                 aria-atomic="true"
                 data-testid="editor-status-bar"
-                class="h-8 bg-[#f5f5f5] border-t border-[#ddd] flex items-center px-5 text-[11px] text-[#888] flex-shrink-0"
+                class="h-8 bg-hover border-t border-border flex items-center px-5 text-micro text-muted flex-shrink-0"
               >
                 <span>
                   {pages.length} pages ({activePageCount()} active)
@@ -526,7 +520,7 @@ export default function Editor() {
                   {selectedIndices().size > 0 ? `${selectedIndices().size} selected` : ""}
                 </span>
                 <span class="flex items-center gap-1.5" data-testid="editor-status-message">
-                  <span class="w-1.5 h-1.5 bg-[#ff0000] inline-block" />
+                  <span class="w-1.5 h-1.5 bg-accent inline-block" />
                   {statusMessage()}
                 </span>
               </div>

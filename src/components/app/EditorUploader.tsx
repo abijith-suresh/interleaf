@@ -32,9 +32,9 @@ export default function EditorUploader(props: Props) {
           aria-label="Click or drag a PDF file here to upload"
           class={`border-2 border-dashed transition-colors py-20 text-center ${
             props.busy
-              ? "border-[#111] bg-[#f5f5f5] cursor-wait"
-              : `cursor-pointer ${isDragOver() ? "border-[#111] bg-[#f5f5f5]" : "border-[#ddd] hover:border-[#111]"}`
-          }`}
+              ? "border-primary bg-hover cursor-wait"
+              : `cursor-pointer ${isDragOver() ? "border-primary bg-hover" : "border-border hover:border-primary"}`
+          } interactive-focus`}
           onClick={pickFile}
           onKeyDown={(e) => {
             if (props.busy) return;
@@ -56,10 +56,10 @@ export default function EditorUploader(props: Props) {
             handleFile(e.dataTransfer?.files[0]);
           }}
         >
-          <p class="font-['Bebas_Neue',sans-serif] text-4xl text-[#111] mb-2">
+          <p class="font-display text-4xl text-primary mb-2">
             {props.busy ? "Working..." : "Drop PDF here"}
           </p>
-          <p class="text-[11px] uppercase tracking-[0.15em] text-[#888]">
+          <p class="text-micro uppercase tracking-label text-muted">
             {props.busy ? props.statusMessage : "or click to browse"}
           </p>
         </div>
@@ -76,7 +76,7 @@ export default function EditorUploader(props: Props) {
           }}
         />
         <p
-          class="text-[#888] text-xs mt-3 text-center min-h-[1em]"
+          class="text-muted text-xs mt-3 text-center min-h-[1em]"
           data-testid="editor-upload-status"
         >
           {props.busy ? props.statusMessage : "Private by default. Files stay in your browser."}

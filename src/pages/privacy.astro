@@ -2,6 +2,8 @@
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
+import PageHeader from "../components/shared/PageHeader.astro";
+import NumberedRow from "../components/shared/NumberedRow.astro";
 import { contentSlide } from "../utils/transitions";
 
 const sections = [
@@ -48,42 +50,26 @@ const sections = [
   title="Privacy Policy — Interleaf"
   description="Interleaf collects no data, uses no cookies, and never uploads your files. Your documents stay in your browser. Always."
 >
-  <div class="font-body bg-white text-primary min-h-screen" transition:animate={contentSlide}>
+  <div class="page-wrapper" transition:animate={contentSlide}>
     <Nav />
 
     <main>
-      <section class="px-6 md:px-16 lg:px-24 pt-24 pb-16 border-b border-border">
-        <div class="max-w-7xl mx-auto">
-          <p
-            class="text-xs font-light text-muted uppercase tracking-[0.2em] mb-4 animate-on-scroll"
-          >
-            Legal
-          </p>
-          <h1
-            class="font-display text-[clamp(3rem,7vw,6rem)] leading-[0.9] text-primary animate-on-scroll stagger-1"
-          >
-            Privacy<br />Policy.
-          </h1>
-        </div>
-      </section>
+      <PageHeader label="Legal">
+        <Fragment slot="title">Privacy<br />Policy.</Fragment>
+      </PageHeader>
 
-      <section class="px-6 md:px-16 lg:px-24 py-16">
-        <div class="max-w-7xl mx-auto border-t-2 border-primary">
+      <section class="section py-16">
+        <div class="border-t-2 border-primary">
           {
             sections.map((s, i) => (
-              <div
-                class:list={[
-                  "grid grid-cols-[3rem_1fr] md:grid-cols-[3rem_10rem_1fr] gap-4 py-8 border-b animate-on-scroll",
-                  i === sections.length - 1 ? "border-primary border-b-2" : "border-border",
-                  `stagger-${Math.min(i + 1, 8)}`,
-                ]}
+              <NumberedRow
+                num={s.num}
+                title={s.title}
+                isLast={i === sections.length - 1}
+                staggerClass={`stagger-${Math.min(i + 1, 8)}`}
               >
-                <span class="text-xs text-muted">{s.num}</span>
-                <h2 class="font-display text-xl text-primary">{s.title}</h2>
-                <p class="col-span-full md:col-auto text-body font-light leading-relaxed">
-                  {s.content}
-                </p>
-              </div>
+                <p>{s.content}</p>
+              </NumberedRow>
             ))
           }
         </div>

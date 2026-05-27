@@ -17,8 +17,7 @@ export function promptForPassword(fileName: string, isRetry: boolean): Promise<s
 
     // Modal panel
     const modal = document.createElement("div");
-    modal.className =
-      "bg-white p-8 min-w-[320px] max-w-[420px] w-[90%] font-['Bebas_Neue',sans-serif]";
+    modal.className = "bg-white p-8 min-w-[320px] max-w-[420px] w-[90%] font-display";
     modal.setAttribute("role", "dialog");
     modal.setAttribute("aria-modal", "true");
     modal.setAttribute("aria-labelledby", "password-modal-title");
@@ -27,19 +26,19 @@ export function promptForPassword(fileName: string, isRetry: boolean): Promise<s
     const title = document.createElement("div");
     title.id = "password-modal-title";
     title.textContent = PASSWORD_MODAL_TITLE;
-    title.className = "text-2xl tracking-[0.05em] text-[#111] mb-1.5";
+    title.className = "text-2xl tracking-[0.05em] text-primary mb-1.5";
 
     // File name
     const fileLabel = document.createElement("div");
     fileLabel.textContent = fileName;
     fileLabel.className =
-      "text-[11px] tracking-[0.1em] uppercase text-[#888] mb-4 font-mono whitespace-nowrap overflow-hidden text-ellipsis";
+      "text-[11px] tracking-[0.1em] uppercase text-muted mb-4 font-mono whitespace-nowrap overflow-hidden text-ellipsis";
 
     // Error message (only when retrying)
     const errorMsg = document.createElement("div");
     errorMsg.textContent = "Incorrect password. Try again.";
     errorMsg.setAttribute("aria-live", "polite");
-    errorMsg.className = `text-[#ff0000] text-xs tracking-[0.05em] mb-3 font-mono${isRetry ? "" : " hidden"}`;
+    errorMsg.className = `text-accent text-xs tracking-[0.05em] mb-3 font-mono${isRetry ? "" : " hidden"}`;
 
     // Password input
     const input = document.createElement("input");
@@ -48,7 +47,7 @@ export function promptForPassword(fileName: string, isRetry: boolean): Promise<s
     input.setAttribute("aria-label", "PDF password");
     input.autocomplete = "current-password";
     input.className =
-      "w-full box-border px-3 py-2.5 border border-[#ddd] outline-none text-sm font-mono mb-5 focus:border-[#111]";
+      "w-full box-border px-3 py-2.5 border border-border outline-none text-sm font-mono mb-5 focus:border-primary";
 
     // Button row
     const buttonRow = document.createElement("div");
@@ -57,12 +56,12 @@ export function promptForPassword(fileName: string, isRetry: boolean): Promise<s
     const cancelBtn = document.createElement("button");
     cancelBtn.textContent = "Cancel";
     cancelBtn.className =
-      "py-2 px-5 border border-[#111] bg-white text-[#111] cursor-pointer font-['Bebas_Neue',sans-serif] text-sm tracking-[0.05em]";
+      "py-2 px-5 border border-primary bg-white text-primary cursor-pointer font-display text-sm tracking-[0.05em] focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2";
 
     const unlockBtn = document.createElement("button");
     unlockBtn.textContent = "Unlock";
     unlockBtn.className =
-      "py-2 px-5 border border-[#111] bg-[#111] text-white cursor-pointer font-['Bebas_Neue',sans-serif] text-sm tracking-[0.05em]";
+      "py-2 px-5 border border-primary bg-primary text-white cursor-pointer font-display text-sm tracking-[0.05em] focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2";
 
     buttonRow.appendChild(cancelBtn);
     buttonRow.appendChild(unlockBtn);

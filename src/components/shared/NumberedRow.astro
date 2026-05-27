@@ -1,0 +1,13 @@
+---
+const { num, title, titleClass = "", isLast = false, staggerClass = "" } = Astro.props;
+---
+
+<div
+  class={`numbered-row animate-on-scroll ${staggerClass} ${isLast ? "numbered-row-last" : ""}`.trim()}
+>
+  <span class="numbered-row-num">{num}</span>
+  <h2 class={`numbered-row-title ${titleClass}`.trim()}>{title}</h2>
+  <div class="numbered-row-desc">
+    <slot />
+  </div>
+</div>

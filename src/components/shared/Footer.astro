@@ -2,10 +2,7 @@
 const base = import.meta.env.BASE_URL;
 ---
 
-<footer
-  class="border-t-2 border-primary px-6 md:px-16 lg:px-24 pt-16 pb-8"
-  transition:animate="fade"
->
+<footer class="section-padding border-t-2 border-primary pt-16 pb-8" transition:animate="fade">
   <div class="max-w-7xl mx-auto">
     <div class="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-12">
       <div>
@@ -16,59 +13,30 @@ const base = import.meta.env.BASE_URL;
       </div>
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-8">
         <div>
-          <p class="text-[0.65rem] uppercase tracking-[0.2em] text-muted mb-3">Project</p>
-          <a
-            href={`${base}about`}
-            class="block text-sm text-body no-underline hover:text-primary transition-colors mb-2 link-slide"
-            >About</a
-          >
-          <a
-            href={`${base}changelog`}
-            class="block text-sm text-body no-underline hover:text-primary transition-colors mb-2 link-slide"
-            >Changelog</a
-          >
+          <p class="text-nano uppercase tracking-section text-muted mb-3">Project</p>
+          <a href={`${base}about`} class="footer-link link-slide">About</a>
+          <a href={`${base}changelog`} class="footer-link link-slide">Changelog</a>
           <a
             href="https://github.com/abijith-suresh/interleaf"
             target="_blank"
             rel="noopener"
-            class="block text-sm text-body no-underline hover:text-primary transition-colors mb-2 link-slide"
-            >GitHub</a
+            class="footer-link link-slide">GitHub</a
           >
         </div>
         <div>
-          <p class="text-[0.65rem] uppercase tracking-[0.2em] text-muted mb-3">Docs</p>
-          <a
-            href={`${base}features`}
-            class="block text-sm text-body no-underline hover:text-primary transition-colors mb-2 link-slide"
-            >Features</a
-          >
-          <a
-            href={`${base}app`}
-            class="block text-sm text-body no-underline hover:text-primary transition-colors mb-2 link-slide"
-            >Open Editor</a
-          >
-          <a
-            href={`${base}faq`}
-            class="block text-sm text-body no-underline hover:text-primary transition-colors mb-2 link-slide"
-            >FAQ</a
-          >
+          <p class="text-nano uppercase tracking-section text-muted mb-3">Docs</p>
+          <a href={`${base}features`} class="footer-link link-slide">Features</a>
+          <a href={`${base}app`} class="footer-link link-slide">Open Editor</a>
+          <a href={`${base}faq`} class="footer-link link-slide">FAQ</a>
         </div>
         <div>
-          <p class="text-[0.65rem] uppercase tracking-[0.2em] text-muted mb-3">Legal</p>
-          <a
-            href={`${base}privacy`}
-            class="block text-sm text-body no-underline hover:text-primary transition-colors mb-2 link-slide"
-            >Privacy</a
-          >
-          <a
-            href={`${base}terms`}
-            class="block text-sm text-body no-underline hover:text-primary transition-colors mb-2 link-slide"
-            >Terms</a
-          >
+          <p class="text-nano uppercase tracking-section text-muted mb-3">Legal</p>
+          <a href={`${base}privacy`} class="footer-link link-slide">Privacy</a>
+          <a href={`${base}terms`} class="footer-link link-slide">Terms</a>
         </div>
       </div>
     </div>
-    <div class="border-t border-border mt-12 pt-6 flex justify-center text-[0.65rem] text-muted">
+    <div class="border-t border-border mt-12 pt-6 flex justify-center text-nano text-muted">
       <span>&copy; 2026 Interleaf</span>
     </div>
   </div>

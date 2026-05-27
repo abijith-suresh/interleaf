@@ -103,7 +103,7 @@ export const GET: APIRoute = async ({ params }) => {
                 props: {
                   style: {
                     fontSize: "18px",
-                    color: "#888888",
+                    color: "#888",
                     letterSpacing: "0.05em",
                   },
                   children: "Client-side PDF Editor",
@@ -153,7 +153,7 @@ export const GET: APIRoute = async ({ params }) => {
                 props: {
                   style: {
                     fontSize: "28px",
-                    color: "#888888",
+                    color: "#888",
                     lineHeight: 1.5,
                     maxWidth: "800px",
                   },
