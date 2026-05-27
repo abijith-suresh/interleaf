@@ -29,10 +29,6 @@ const pages: Record<string, { title: string; description: string }> = {
     title: "Terms",
     description: "Simple, honest terms for a tool you can trust.",
   },
-  changelog: {
-    title: "Changelog",
-    description: "A complete history of every Interleaf release.",
-  },
   faq: {
     title: "FAQ",
     description: "Everything you need to know about Interleaf.",
