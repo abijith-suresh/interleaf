@@ -3,7 +3,6 @@ import { join } from "node:path";
 import type { APIRoute } from "astro";
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
-import { COLOR } from "../../constants";
 
 const pages: Record<string, { title: string; description: string }> = {
   index: {
@@ -58,7 +57,7 @@ export const GET: APIRoute = async ({ params }) => {
         flexDirection: "column",
         width: "1200px",
         height: "630px",
-        backgroundColor: COLOR.WHITE,
+        backgroundColor: "#ffffff",
         padding: "60px",
         fontFamily: "WorkSans",
       },
@@ -81,7 +80,7 @@ export const GET: APIRoute = async ({ params }) => {
                   style: {
                     fontSize: "28px",
                     fontWeight: 600,
-                    color: COLOR.PRIMARY,
+                    color: "#111",
                     letterSpacing: "0.15em",
                     textTransform: "uppercase",
                   },
@@ -94,7 +93,7 @@ export const GET: APIRoute = async ({ params }) => {
                   style: {
                     width: "4px",
                     height: "28px",
-                    backgroundColor: COLOR.ACCENT,
+                    backgroundColor: "#ff0000",
                   },
                   children: "",
                 },
@@ -104,7 +103,7 @@ export const GET: APIRoute = async ({ params }) => {
                 props: {
                   style: {
                     fontSize: "18px",
-                    color: COLOR.MUTED,
+                    color: "#888",
                     letterSpacing: "0.05em",
                   },
                   children: "Client-side PDF Editor",
@@ -131,7 +130,7 @@ export const GET: APIRoute = async ({ params }) => {
                   style: {
                     fontSize: "104px",
                     fontWeight: 600,
-                    color: COLOR.PRIMARY,
+                    color: "#111",
                     lineHeight: 1,
                     letterSpacing: "-0.02em",
                   },
@@ -144,7 +143,7 @@ export const GET: APIRoute = async ({ params }) => {
                   style: {
                     width: "80px",
                     height: "4px",
-                    backgroundColor: COLOR.ACCENT,
+                    backgroundColor: "#ff0000",
                   },
                   children: "",
                 },
@@ -154,7 +153,7 @@ export const GET: APIRoute = async ({ params }) => {
                 props: {
                   style: {
                     fontSize: "28px",
-                    color: COLOR.MUTED,
+                    color: "#888",
                     lineHeight: 1.5,
                     maxWidth: "800px",
                   },
@@ -178,7 +177,7 @@ export const GET: APIRoute = async ({ params }) => {
                 props: {
                   style: {
                     fontSize: "18px",
-                    color: COLOR.BODY,
+                    color: "#555",
                     letterSpacing: "0.05em",
                   },
                   children: "interleaf.page",

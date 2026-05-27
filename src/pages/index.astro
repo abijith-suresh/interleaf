@@ -110,6 +110,11 @@ const base = import.meta.env.BASE_URL;
   .hero-title {
     animation: var(--animate-slide-up);
     animation-delay: 0.2s;
+    font-family: var(--font-display);
+    font-size: clamp(5rem, 12vw, 10rem);
+    line-height: 0.85;
+    color: var(--color-primary);
+    letter-spacing: -0.01em;
   }
 
   .hero-tagline {
@@ -167,14 +172,6 @@ const base = import.meta.env.BASE_URL;
     text-transform: uppercase;
     letter-spacing: var(--tracking-section);
     margin-bottom: 1.5rem;
-  }
-
-  .hero-title {
-    font-family: var(--font-display);
-    font-size: clamp(5rem, 12vw, 10rem);
-    line-height: 0.85;
-    color: var(--color-primary);
-    letter-spacing: -0.01em;
   }
 
   .hero-tagline {
