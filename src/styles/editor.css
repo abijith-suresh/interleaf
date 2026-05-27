@@ -11,7 +11,7 @@ body:has([data-page="editor"]) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: #fff;
+  background: var(--color-white);
   user-select: none;
 }
 

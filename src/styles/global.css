@@ -21,7 +21,6 @@
   --color-toast-success-bg: #f5fbf5;
   --color-toast-success-text: #1f5f1f;
   --color-placeholder: #f0f0f0;
-  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
 
   --animate-fade-in: fadeIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-slide-up: slideUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -179,7 +178,7 @@
 
 .page-wrapper {
   font-family: var(--font-body);
-  background: #fff;
+  background: var(--color-white);
   color: var(--color-primary);
   min-height: 100vh;
 }
