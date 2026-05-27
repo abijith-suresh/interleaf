@@ -26,7 +26,7 @@ export const PASSWORD_MODAL_TITLE = "PASSWORD REQUIRED";
 export const COLOR = {
   PRIMARY: "#111",
   ACCENT: "#ff0000",
-  MUTED: "#757575",
+  MUTED: "#888",
   BODY: "#555",
   WHITE: "#ffffff",
 } as const;

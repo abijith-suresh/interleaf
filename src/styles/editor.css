@@ -135,6 +135,7 @@ body:has([data-page="editor"]) {
 
 .page-controls .page-label {
   font-size: 9px;
+  color: var(--color-muted);
 }
 
 .btn-page-rotate {
