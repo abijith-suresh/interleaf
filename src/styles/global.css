@@ -319,7 +319,8 @@
     transition: none;
   }
 
-  .press-feedback:active {
+  .press-feedback:active,
+  .press-feedback:focus-visible {
     transform: none;
   }
 
@@ -338,5 +339,14 @@
   ::view-transition-old(root),
   ::view-transition-new(root) {
     animation-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  nav,
+  footer,
+  .editor-page-controls,
+  [data-page="editor"] aside {
+    display: none !important;
   }
 }

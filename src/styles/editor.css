@@ -12,6 +12,7 @@ body:has([data-page="editor"]) {
   flex-direction: column;
   align-items: center;
   background: var(--color-white);
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -143,7 +144,12 @@ body:has([data-page="editor"]) {
   border: none;
   cursor: pointer;
   font-size: 10px;
-  padding: 0;
+  padding: 2px;
+  min-width: 24px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--color-border);
   opacity: 0;
   transition:

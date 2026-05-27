@@ -18,7 +18,12 @@ const animationPair = {
   ],
 };
 
-export const contentSlide = {
-  forwards: animationPair,
-  backwards: animationPair,
-};
+const prefersReducedMotion =
+  typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+export const contentSlide = prefersReducedMotion
+  ? undefined
+  : {
+      forwards: animationPair,
+      backwards: animationPair,
+    };
