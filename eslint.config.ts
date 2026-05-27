@@ -11,7 +11,7 @@ export default [
   jsxA11y.flatConfigs.recommended,
   prettier,
   {
-    ignores: ["dist/", "node_modules/", ".astro/", "test-results/", "playwright-report/"],
+    ignores: ["dist/", "node_modules/", ".astro/"],
   },
   {
     files: ["**/*.ts", "**/*.tsx", "**/*.astro"],
