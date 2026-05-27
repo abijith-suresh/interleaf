@@ -12,14 +12,13 @@
 - Tailwind CSS v4
 - TypeScript
 - Bun
-- Vitest and Playwright
+- Vitest
 
 ## Commands
 
 - Install deps: `bun install`
 - Dev server: `bun run dev`
 - Quality gate: `bun run verify`
-- E2E tests: `bun run test:e2e`
 - Individual steps: `bun run type-check`, `bun run lint`, `bun run format:check`, `bun run test`, `bun run build`
 
 ## Project Map
@@ -29,15 +28,13 @@
 - `src/services/`: PDF load, render, and manipulation logic
 - `src/pages/`: marketing, legal, editor, and OG routes
 - `src/utils/`: download, password prompt, toast, transitions, and helpers
-- `tests/e2e/`: Playwright coverage for core editor flows
-- `tests/fixtures/`: sample PDFs used by browser tests
+- `tests/__tests__/`: unit tests for services and controllers
 
 ## Hard Rules
 
 - Preserve the browser-only privacy model.
-- Keep editor behavior covered by unit tests and, when relevant, Playwright E2E tests.
+- Keep editor behavior covered by unit tests.
 - Use the existing controller/service split instead of pushing business logic into page components.
-- If you change core upload, edit, unlock, or download flows, review `tests/e2e/core-app.spec.ts`.
 
 ## Git And CI
 
@@ -47,5 +44,5 @@
 - Before push, run `bun run verify`.
 - `pre-commit` runs `lint-staged`, `commit-msg` runs `commitlint`, and `pre-push` runs `bun run verify`.
 - CI enforces `quality` and `pr-title` checks on pull requests.
-- Playwright E2E runs in CI and should also be run locally when changing the editor workflow.
+
 - Squash merge is the expected merge strategy.

@@ -19,7 +19,6 @@ Interleaf is a fully client-side PDF editor for the core tasks people reach for 
 - [Tailwind CSS v4](https://tailwindcss.com) for styling
 - [pdf-lib](https://pdf-lib.js.org) and [pdf.js](https://mozilla.github.io/pdf.js/) for PDF processing/rendering
 - [Vitest](https://vitest.dev/) for unit tests
-- [Playwright](https://playwright.dev/) for browser E2E coverage
 - [Bun](https://bun.sh) for package management and scripts
 
 ## Development
@@ -44,7 +43,6 @@ bun run type-check
 bun run lint
 bun run format:check
 bun run test
-bun run test:e2e
 bun run build
 ```
 
@@ -62,8 +60,7 @@ src/
   styles/              Global styles and motion primitives
   utils/               Download, password, toast, and transition helpers
 tests/
-  e2e/                 Playwright coverage for the core editor flow
-  fixtures/            PDF fixtures used by browser tests
+  unit/                Unit tests for services, controllers, and utilities
 ```
 
 ## Release Notes
@@ -77,4 +74,4 @@ tests/
 - Open an issue for bugs, polish work, or roadmap ideas
 - Keep changes atomic and follow Conventional Commits
 - Preserve the browser-only privacy model: do not add uploads or server-side PDF handling
-- Run `bun run verify` before opening a PR, and run `bun run test:e2e` when changing core editor workflows
+- Run `bun run verify` before opening a PR
