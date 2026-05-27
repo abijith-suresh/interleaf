@@ -1,9 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { PDFOperationResult } from "../../types/interfaces";
-
-vi.mock("file-saver", () => ({
-  saveAs: vi.fn(),
-}));
 
 const mockPDFOperationResult: PDFOperationResult = {
   data: new Uint8Array([1, 2, 3, 4, 5]),
@@ -12,60 +8,52 @@ const mockPDFOperationResult: PDFOperationResult = {
 
 describe("download utility", () => {
   let downloadPDF: typeof import("../download").downloadPDF;
-  let saveAsMock: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
-    vi.clearAllMocks();
     const module = await import("../download");
     downloadPDF = module.downloadPDF;
-    const fileSaver = await import("file-saver");
-    saveAsMock = fileSaver.saveAs as unknown as ReturnType<typeof vi.fn>;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("should create blob with correct MIME type", () => {
+    const urlSpy = vi.spyOn(URL, "createObjectURL");
+
     downloadPDF(mockPDFOperationResult);
 
-    expect(saveAsMock).toHaveBeenCalledWith(
-      expect.any(Blob),
-      mockPDFOperationResult.suggestedFileName
-    );
-
-    const blobArg = saveAsMock.mock.calls[0][0] as Blob;
+    const blobArg = urlSpy.mock.calls[0][0] as Blob;
     expect(blobArg.type).toBe("application/pdf");
   });
 
-  it("should call saveAs with expected filename", () => {
-    const result: PDFOperationResult = {
-      data: new Uint8Array([1, 2, 3]),
-      suggestedFileName: "custom-name.pdf",
-    };
+  it("should create anchor with correct download filename", () => {
+    const appendSpy = vi.spyOn(document.body, "appendChild");
 
-    downloadPDF(result);
+    downloadPDF({ ...mockPDFOperationResult, suggestedFileName: "custom-name.pdf" });
 
-    expect(saveAsMock).toHaveBeenCalledWith(expect.any(Blob), "custom-name.pdf");
+    const anchor = appendSpy.mock.calls[0][0] as HTMLAnchorElement;
+    expect(anchor.tagName).toBe("A");
+    expect(anchor.download).toBe("custom-name.pdf");
+    expect(anchor.href).toBeTruthy();
   });
 
   it("should handle empty data", () => {
-    const emptyResult: PDFOperationResult = {
-      data: new Uint8Array(0),
-      suggestedFileName: "empty.pdf",
-    };
+    const urlSpy = vi.spyOn(URL, "createObjectURL");
 
-    downloadPDF(emptyResult);
+    downloadPDF({ data: new Uint8Array(0), suggestedFileName: "empty.pdf" });
 
-    expect(saveAsMock).toHaveBeenCalledWith(expect.any(Blob), "empty.pdf");
+    const blobArg = urlSpy.mock.calls[0][0] as Blob;
+    expect(blobArg.size).toBe(0);
   });
 
-  it("should pass data to saveAs", () => {
+  it("should pass data through to blob", () => {
+    const urlSpy = vi.spyOn(URL, "createObjectURL");
+
     const testData = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
-    const result: PDFOperationResult = {
-      data: testData,
-      suggestedFileName: "test.pdf",
-    };
+    downloadPDF({ data: testData, suggestedFileName: "test.pdf" });
 
-    downloadPDF(result);
-
-    const blobArg = saveAsMock.mock.calls[0][0] as Blob;
+    const blobArg = urlSpy.mock.calls[0][0] as Blob;
     expect(blobArg.size).toBe(4);
   });
 });
