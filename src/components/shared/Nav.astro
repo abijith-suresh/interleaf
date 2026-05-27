@@ -13,8 +13,8 @@ const links = [
 ];
 ---
 
-<nav class="border-b border-border px-6 md:px-16 lg:px-24" transition:persist>
-  <div class="max-w-7xl mx-auto h-14 flex items-center justify-between">
+<nav class="section border-b border-border" transition:persist>
+  <div class="h-14 flex items-center justify-between">
     <a href={base} class="font-display text-2xl text-primary no-underline tracking-wide"
       >Interleaf</a
     >
@@ -32,12 +32,7 @@ const links = [
           </a>
         ))
       }
-      <a
-        href={`${base}app`}
-        class="text-nano font-semibold uppercase tracking-label text-white bg-accent hover:bg-primary px-5 py-2 no-underline transition-colors press-feedback"
-      >
-        Open Editor
-      </a>
+      <a href={`${base}app`} class="btn-primary px-5 py-2 press-feedback"> Open Editor </a>
     </div>
   </div>
 </nav>

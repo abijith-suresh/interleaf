@@ -158,3 +158,32 @@ body:has([data-page="editor"]) {
 .btn-page-rotate:hover {
   color: var(--color-muted);
 }
+
+.btn-toolbar {
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-body);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  padding: 0.375rem 0.75rem;
+  cursor: pointer;
+}
+
+.btn-sidebar-action {
+  width: 100%;
+  text-align: left;
+  font-size: var(--text-xs);
+  color: var(--color-body);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem 0.5rem;
+  transition:
+    color 0.15s,
+    background-color 0.15s;
+}
+.btn-sidebar-action:hover {
+  color: var(--color-primary);
+  background: var(--color-hover);
+}

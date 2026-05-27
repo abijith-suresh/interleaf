@@ -52,7 +52,7 @@ export default function EditorSidebar(props: Props) {
             onClick={props.onSelectAll}
             aria-label="Select all pages"
             disabled={props.busy}
-            class="w-full text-left text-xs text-body hover:text-primary hover:bg-hover bg-transparent border-none cursor-pointer py-2 px-2 transition-colors interactive-focus"
+            class="btn-sidebar-action interactive-focus"
           >
             Select All
           </button>
@@ -66,7 +66,7 @@ export default function EditorSidebar(props: Props) {
             onClick={props.onRotate}
             aria-label="Rotate selected pages 90 degrees"
             disabled={props.busy}
-            class="w-full text-left text-xs text-body hover:text-primary hover:bg-hover bg-transparent border-none cursor-pointer py-2 px-2 transition-colors interactive-focus"
+            class="btn-sidebar-action interactive-focus"
           >
             Rotate
           </button>
@@ -84,7 +84,7 @@ export default function EditorSidebar(props: Props) {
             onClick={props.onExtract}
             aria-label="Extract selected pages to a new PDF"
             disabled={props.busy}
-            class="w-full text-left text-xs text-body hover:text-primary hover:bg-hover bg-transparent border-none cursor-pointer py-2 px-2 transition-colors interactive-focus"
+            class="btn-sidebar-action interactive-focus"
           >
             Extract
           </button>
@@ -98,7 +98,7 @@ export default function EditorSidebar(props: Props) {
           data-testid="editor-download-button"
           onClick={props.onDownload}
           disabled={props.busy}
-          class="w-full bg-accent text-white text-micro uppercase tracking-label font-semibold py-3 border-none cursor-pointer hover:bg-primary transition-colors interactive-focus"
+          class="w-full btn-primary text-micro py-3 border-none cursor-pointer transition-colors interactive-focus"
         >
           {props.busy ? "Working..." : "Download"}
         </button>

@@ -176,6 +176,26 @@
   color: var(--color-primary);
 }
 
+.section {
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+@media (min-width: 768px) {
+  .section {
+    padding-left: 4rem;
+    padding-right: 4rem;
+  }
+}
+@media (min-width: 1024px) {
+  .section {
+    padding-left: 6rem;
+    padding-right: 6rem;
+  }
+}
+
 .page-wrapper {
   font-family: var(--font-body);
   background: var(--color-white);
@@ -246,6 +266,18 @@
   .numbered-row-desc {
     grid-column: auto;
   }
+}
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--color-white);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.15s;
+}
+.btn-primary:hover {
+  background: var(--color-primary);
 }
 
 .cta-section {

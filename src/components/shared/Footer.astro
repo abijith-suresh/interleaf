@@ -2,11 +2,8 @@
 const base = import.meta.env.BASE_URL;
 ---
 
-<footer
-  class="border-t-2 border-primary px-6 md:px-16 lg:px-24 pt-16 pb-8"
-  transition:animate="fade"
->
-  <div class="max-w-7xl mx-auto">
+<footer class="section border-t-2 border-primary pt-16 pb-8" transition:animate="fade">
+  <div>
     <div class="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-12">
       <div>
         <span class="font-display text-2xl text-primary">Interleaf</span>
@@ -17,26 +14,25 @@ const base = import.meta.env.BASE_URL;
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-8">
         <div>
           <p class="text-nano uppercase tracking-section text-muted mb-3">Project</p>
-          <a href={`${base}about`} class="footer-link transition-colors link-slide">About</a>
-          <a href={`${base}changelog`} class="footer-link transition-colors link-slide">Changelog</a
-          >
+          <a href={`${base}about`} class="footer-link link-slide">About</a>
+          <a href={`${base}changelog`} class="footer-link link-slide">Changelog</a>
           <a
             href="https://github.com/abijith-suresh/interleaf"
             target="_blank"
             rel="noopener"
-            class="footer-link transition-colors link-slide">GitHub</a
+            class="footer-link link-slide">GitHub</a
           >
         </div>
         <div>
           <p class="text-nano uppercase tracking-section text-muted mb-3">Docs</p>
-          <a href={`${base}features`} class="footer-link transition-colors link-slide">Features</a>
-          <a href={`${base}app`} class="footer-link transition-colors link-slide">Open Editor</a>
-          <a href={`${base}faq`} class="footer-link transition-colors link-slide">FAQ</a>
+          <a href={`${base}features`} class="footer-link link-slide">Features</a>
+          <a href={`${base}app`} class="footer-link link-slide">Open Editor</a>
+          <a href={`${base}faq`} class="footer-link link-slide">FAQ</a>
         </div>
         <div>
           <p class="text-nano uppercase tracking-section text-muted mb-3">Legal</p>
-          <a href={`${base}privacy`} class="footer-link transition-colors link-slide">Privacy</a>
-          <a href={`${base}terms`} class="footer-link transition-colors link-slide">Terms</a>
+          <a href={`${base}privacy`} class="footer-link link-slide">Privacy</a>
+          <a href={`${base}terms`} class="footer-link link-slide">Terms</a>
         </div>
       </div>
     </div>
