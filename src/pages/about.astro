@@ -31,7 +31,9 @@ const values = [
     <Nav currentPage="about" />
 
     <main>
-      <PageHeader label="Company" title="Why Interleaf." />
+      <PageHeader label="Company">
+        <Fragment slot="title">Why Interleaf.</Fragment>
+      </PageHeader>
 
       <section class="section py-16">
         <div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-12 animate-on-scroll">
@@ -100,10 +102,11 @@ const values = [
       </section>
 
       <BottomCTA
-        heading="Open source."
         buttonText="View on GitHub"
         buttonHref="https://github.com/abijith-suresh/interleaf"
-      />
+      >
+        <Fragment slot="heading">Open source.</Fragment>
+      </BottomCTA>
     </main>
 
     <Footer />

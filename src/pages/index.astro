@@ -38,67 +38,63 @@ const base = import.meta.env.BASE_URL;
         </div>
       </section>
 
-      <section class="features">
-        <div class="features-inner">
-          <div class="features-header animate-on-scroll">
-            <h2 class="features-title">Features</h2>
-            <p class="features-subtitle">Five core operations, zero compromises.</p>
-          </div>
+      <section class="section py-16">
+        <div class="features-header animate-on-scroll">
+          <h2 class="features-title">Features</h2>
+          <p class="features-subtitle">Five core operations, zero compromises.</p>
+        </div>
 
-          <div class="border-t-2 border-primary">
-            {
-              [
-                {
-                  num: "01",
-                  title: "Merge",
-                  text: "Combine multiple PDF files into one cohesive document.",
-                  accent: false,
-                },
-                {
-                  num: "02",
-                  title: "Split",
-                  text: "Extract specific pages into separate PDF files.",
-                  accent: false,
-                },
-                {
-                  num: "03",
-                  title: "Reorder",
-                  text: "Drag and drop pages to arrange them in any order you need.",
-                  accent: false,
-                },
-                {
-                  num: "04",
-                  title: "Rotate",
-                  text: "Rotate any page to 90, 180, or 270 degrees.",
-                  accent: false,
-                },
-                {
-                  num: "05",
-                  title: "Delete",
-                  text: "Remove unwanted pages cleanly from any PDF.",
-                  accent: true,
-                },
-              ].map((f, i) => (
-                <NumberedRow
-                  num={f.num}
-                  title={f.title}
-                  titleClass={f.accent ? "text-accent" : ""}
-                  isLast={f.accent}
-                  staggerClass={`stagger-${Math.min(i + 1, 8)}`}
-                >
-                  <p>{f.text}</p>
-                </NumberedRow>
-              ))
-            }
-          </div>
+        <div class="border-t-2 border-primary">
+          {
+            [
+              {
+                num: "01",
+                title: "Merge",
+                text: "Combine multiple PDF files into one cohesive document.",
+                accent: false,
+              },
+              {
+                num: "02",
+                title: "Split",
+                text: "Extract specific pages into separate PDF files.",
+                accent: false,
+              },
+              {
+                num: "03",
+                title: "Reorder",
+                text: "Drag and drop pages to arrange them in any order you need.",
+                accent: false,
+              },
+              {
+                num: "04",
+                title: "Rotate",
+                text: "Rotate any page to 90, 180, or 270 degrees.",
+                accent: false,
+              },
+              {
+                num: "05",
+                title: "Delete",
+                text: "Remove unwanted pages cleanly from any PDF.",
+                accent: true,
+              },
+            ].map((f, i) => (
+              <NumberedRow
+                num={f.num}
+                title={f.title}
+                titleClass={f.accent ? "text-accent" : ""}
+                isLast={f.accent}
+                staggerClass={`stagger-${Math.min(i + 1, 8)}`}
+              >
+                <p>{f.text}</p>
+              </NumberedRow>
+            ))
+          }
         </div>
       </section>
 
-      <BottomCTA
-        heading="Start<br />editing."
-        buttonText="Launch Interleaf"
-        buttonHref={`${base}app`}
-      />
+      <BottomCTA buttonText="Launch Interleaf" buttonHref={`${base}app`}>
+        <Fragment slot="heading">Start<br />editing.</Fragment>
+      </BottomCTA>
     </main>
 
     <Footer />
@@ -238,28 +234,7 @@ const base = import.meta.env.BASE_URL;
     outline-offset: 2px;
   }
 
-  /* Features */
-  .features {
-    border-top: 1px solid var(--color-border);
-    padding: 6rem 1.5rem;
-  }
-
-  @media (min-width: 768px) {
-    .features {
-      padding: 6rem 4rem;
-    }
-  }
-  @media (min-width: 1024px) {
-    .features {
-      padding: 6rem;
-    }
-  }
-
-  .features-inner {
-    max-width: 80rem;
-    margin: 0 auto;
-  }
-
+  /* Features layout */
   .features-header {
     display: grid;
     grid-template-columns: 1fr;

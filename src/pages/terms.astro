@@ -54,7 +54,9 @@ const sections = [
     <Nav />
 
     <main>
-      <PageHeader label="Legal" title="Terms of<br />Service." />
+      <PageHeader label="Legal">
+        <Fragment slot="title">Terms of<br />Service.</Fragment>
+      </PageHeader>
 
       <section class="section py-16">
         <div class="border-t-2 border-primary">

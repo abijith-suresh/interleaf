@@ -59,7 +59,9 @@ const features = [
     <Nav currentPage="features" />
 
     <main>
-      <PageHeader label="Product" title="Everything<br />you need." />
+      <PageHeader label="Product">
+        <Fragment slot="title">Everything<br />you need.</Fragment>
+      </PageHeader>
 
       <section class="section py-16">
         <div>
@@ -95,7 +97,9 @@ const features = [
         </div>
       </section>
 
-      <BottomCTA heading="Try it now." buttonText="Open Editor" buttonHref={`${base}app`} />
+      <BottomCTA buttonText="Open Editor" buttonHref={`${base}app`}>
+        <Fragment slot="heading">Try it now.</Fragment>
+      </BottomCTA>
     </main>
 
     <Footer />

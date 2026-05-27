@@ -196,6 +196,23 @@
   }
 }
 
+.section-padding {
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+@media (min-width: 768px) {
+  .section-padding {
+    padding-left: 4rem;
+    padding-right: 4rem;
+  }
+}
+@media (min-width: 1024px) {
+  .section-padding {
+    padding-left: 6rem;
+    padding-right: 6rem;
+  }
+}
+
 .page-wrapper {
   font-family: var(--font-body);
   background: var(--color-white);

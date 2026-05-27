@@ -58,7 +58,9 @@ const questions = [
     <Nav currentPage="faq" />
 
     <main>
-      <PageHeader label="Support" title="Questions<br />& Answers." />
+      <PageHeader label="Support">
+        <Fragment slot="title">Questions<br />& Answers.</Fragment>
+      </PageHeader>
 
       <section class="section py-16">
         <div class="border-t-2 border-primary">

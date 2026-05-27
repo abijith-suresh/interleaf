@@ -68,7 +68,9 @@ function formatDate(date: string) {
     <Nav />
 
     <main>
-      <PageHeader label="History" title="Changelog." />
+      <PageHeader label="History">
+        <Fragment slot="title">Changelog.</Fragment>
+      </PageHeader>
 
       <section class="section py-16">
         <div class="border-t-2 border-primary">
