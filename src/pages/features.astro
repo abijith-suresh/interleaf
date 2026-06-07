@@ -22,7 +22,7 @@ const features = [
   },
   {
     num: "02",
-    title: "Split",
+    title: "Extract",
     desc: "Extract selected pages into a new PDF.",
     details: ["Select any subset of pages", "Exports a separate PDF", "Preserves your page order"],
   },
@@ -48,12 +48,22 @@ const features = [
     desc: "Remove unwanted pages cleanly from any PDF.",
     details: ["Click to select pages", "Bulk deletion"],
   },
+  {
+    num: "06",
+    title: "Unlock",
+    desc: "Open password-protected PDFs without any server involvement.",
+    details: [
+      "In-browser password prompt",
+      "Handles owner and user passwords",
+      "No data leaves your device",
+    ],
+  },
 ];
 ---
 
 <Layout
   title="Features — Interleaf"
-  description="Merge, split, reorder, rotate, and delete PDFs. Five powerful operations, all running client-side in your browser."
+  description="Merge, extract, reorder, rotate, delete, and unlock PDFs. Six powerful operations, all running client-side in your browser."
 >
   <div class="page-wrapper" transition:animate={contentSlide}>
     <Nav currentPage="features" />
