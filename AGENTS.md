@@ -28,13 +28,23 @@
 - `src/services/`: PDF load, render, and manipulation logic
 - `src/pages/`: marketing, legal, editor, and OG routes
 - `src/utils/`: download, password prompt, toast, transitions, and helpers
-- `tests/__tests__/`: unit tests for services and controllers
+- `src/**/__tests__/`: unit tests co-located with source (services, controllers, utils)
 
 ## Hard Rules
 
 - Preserve the browser-only privacy model.
 - Keep editor behavior covered by unit tests.
 - Use the existing controller/service split instead of pushing business logic into page components.
+
+## Document Ownership
+
+- `README.md` — user-facing only. Product scope, stack, development quickstart.
+- `docs/CONTEXT.md` — product truth. Goals, non-goals, constraints, success criteria.
+- `docs/ARCHITECTURE.md` — technical truth. Architecture, data flow, design decisions.
+- `docs/CONTRIBUTING.md` — development workflow. Setup, conventions, testing, CI.
+- `AGENTS.md` — this file. Agent instructions and document ownership.
+
+When the product vision, architecture, or workflow changes, update the corresponding document. Keep these files as the single source of truth.
 
 ## Git And CI
 
