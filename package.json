@@ -23,7 +23,7 @@
     "@resvg/resvg-js": "^2.6.2",
     "astro": "^6.4.2",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^5.7.284",
+    "pdfjs-dist": "^6.0.227",
     "satori": "^0.26.0",
     "solid-js": "^1.9.13"
   },
