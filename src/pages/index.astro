@@ -11,7 +11,7 @@ const base = import.meta.env.BASE_URL;
 
 <Layout
   title="Interleaf - Client-Side PDF Editor"
-  description="Edit, merge, split, reorder, rotate, and delete PDF files entirely in your browser. No uploads, no servers, no privacy compromises."
+  description="Edit, merge, extract, reorder, rotate, delete, and unlock PDF files entirely in your browser. No uploads, no servers, no privacy compromises."
 >
   <div class="page-wrapper" transition:animate={contentSlide}>
     <Nav currentPage="home" />
@@ -23,7 +23,7 @@ const base = import.meta.env.BASE_URL;
             <h1 class="hero-title">Interleaf</h1>
             <div class="hero-tagline">
               <span class="red-bar"></span>
-              <p class="hero-tagline-text">Edit, merge, split — all in your browser.</p>
+              <p class="hero-tagline-text">Edit, merge, extract — all in your browser.</p>
             </div>
           </div>
           <div class="hero-right">
@@ -41,7 +41,7 @@ const base = import.meta.env.BASE_URL;
       <section class="section py-16">
         <div class="features-header animate-on-scroll">
           <h2 class="features-title">Features</h2>
-          <p class="features-subtitle">Five core operations, zero compromises.</p>
+          <p class="features-subtitle">Six core operations, zero compromises.</p>
         </div>
 
         <div class="border-t-2 border-primary">
@@ -55,7 +55,7 @@ const base = import.meta.env.BASE_URL;
               },
               {
                 num: "02",
-                title: "Split",
+                title: "Extract",
                 text: "Extract specific pages into separate PDF files.",
                 accent: false,
               },
@@ -75,6 +75,12 @@ const base = import.meta.env.BASE_URL;
                 num: "05",
                 title: "Delete",
                 text: "Remove unwanted pages cleanly from any PDF.",
+                accent: false,
+              },
+              {
+                num: "06",
+                title: "Unlock",
+                text: "Open password-protected PDFs with an in-browser prompt.",
                 accent: true,
               },
             ].map((f, i) => (

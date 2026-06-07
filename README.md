@@ -53,14 +53,15 @@ src/
   components/app/      Solid editor UI and page tiles/canvases
   components/shared/   Shared marketing-site chrome
   controllers/         Editor page-state helpers and orchestration logic
-  fonts/               Self-hosted application assets
   layouts/             Shared page layout and SEO tags
   pages/               Marketing, legal, editor, and OG routes
   services/            PDF load, render, and build services
   styles/              Global styles and motion primitives
   utils/               Download, password, toast, and transition helpers
-tests/
-  unit/                Unit tests for services, controllers, and utilities
+docs/
+  CONTEXT.md           Product truth, goals, and constraints
+  ARCHITECTURE.md      Technical architecture and design decisions
+  CONTRIBUTING.md      Development setup and workflow
 ```
 
 ## Release Notes
