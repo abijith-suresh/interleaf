@@ -2,47 +2,55 @@
 
 ## Overview
 
-- Interleaf is a client-side PDF editor for merge, extract, reorder, rotate, delete, and unlock flows.
-- Keep PDF processing in the browser. Do not add uploads or server-side document handling.
+Interleaf is a client-side PDF editor for merge, extract, reorder, rotate, delete, and unlock flows. PDF processing stays in the browser. See `docs/CONTEXT.md` for the full product truth.
 
 ## Stack
 
-- Astro 6
-- SolidJS editor UI
-- Tailwind CSS v4
-- TypeScript
-- Bun
-- Vitest
+- Astro 6, SolidJS, Tailwind CSS v4, TypeScript, Bun, Vitest
+- pdf-lib (manipulation), pdf.js (rendering)
 
-## Commands
+## Quick Commands
 
-- Install deps: `bun install`
-- Dev server: `bun run dev`
-- Quality gate: `bun run verify`
-- Individual steps: `bun run type-check`, `bun run lint`, `bun run format:check`, `bun run test`, `bun run build`
+```sh
+bun install          # Install deps
+bun run dev          # Dev server at localhost:4321
+bun run verify       # Full quality gate (type-check, lint, format, test, build)
+```
+
+Full workflow details in `docs/CONTRIBUTING.md`.
 
 ## Project Map
 
-- `src/components/app/`: editor UI, tiles, canvases, sidebar, and uploader
-- `src/controllers/`: editor page-state helpers and orchestration utilities
-- `src/services/`: PDF load, render, and manipulation logic
-- `src/pages/`: marketing, legal, editor, and OG routes
-- `src/utils/`: download, password prompt, toast, transitions, and helpers
-- `tests/__tests__/`: unit tests for services and controllers
+```
+src/components/app/    SolidJS editor UI (Editor, Sidebar, PageGrid, PageTile, PageCanvas, Uploader)
+src/components/shared/ Astro chrome (Nav, Footer, BottomCTA, PageHeader, NumberedRow)
+src/controllers/       Page-state helpers (no DOM, no rendering)
+src/services/          PDF load, render, and build (PDFService, PDFOperationsService)
+src/pages/             Marketing, legal, editor, and OG routes
+src/utils/             Download, password prompt, toast, transitions
+src/**/__tests__/      Co-located unit tests
+```
+
+Full architecture in `docs/ARCHITECTURE.md`.
 
 ## Hard Rules
 
-- Preserve the browser-only privacy model.
-- Keep editor behavior covered by unit tests.
-- Use the existing controller/service split instead of pushing business logic into page components.
+- **Never add server-side PDF handling.** All processing stays in the browser.
+- **Never add uploads.** Files are read into browser memory only.
+- **Never add analytics, tracking, or cookies.** Privacy is absolute.
+- **Keep business logic in services/controllers**, not in page components.
+- **Cover editor behavior with unit tests.**
 
-## Git And CI
+Full constraints in `docs/CONTEXT.md`.
 
-- Branch from the latest `main` before starting changes.
-- Never commit directly to `main`.
-- Commit and PR titles must use Conventional Commits: `feat`, `fix`, `docs`, `refactor`, `chore`, `test`, `ci`.
-- Before push, run `bun run verify`.
-- `pre-commit` runs `lint-staged`, `commit-msg` runs `commitlint`, and `pre-push` runs `bun run verify`.
-- CI enforces `quality` and `pr-title` checks on pull requests.
+## Document Ownership
 
-- Squash merge is the expected merge strategy.
+| File                   | Purpose                                                         |
+| ---------------------- | --------------------------------------------------------------- |
+| `README.md`            | User-facing. Product scope, stack, dev quickstart.              |
+| `docs/CONTEXT.md`      | Product truth. Goals, non-goals, constraints, success criteria. |
+| `docs/ARCHITECTURE.md` | Technical truth. Architecture, data flow, design decisions.     |
+| `docs/CONTRIBUTING.md` | Dev workflow. Setup, conventions, testing, CI, git process.     |
+| `AGENTS.md`            | This file. Agent instructions and document ownership.           |
+
+When the product vision, architecture, or workflow changes, update the corresponding document. Keep these files as the single source of truth.
