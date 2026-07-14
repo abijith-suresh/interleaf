@@ -4,10 +4,11 @@ updates:
   - package-ecosystem: "bun"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
+      day: "monday"
       time: "09:00"
       timezone: "Asia/Kolkata"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     labels:
       - "dependencies"
     commit-message:
@@ -20,14 +21,16 @@ updates:
         update-types:
           - "minor"
           - "patch"
+        auto-merge: "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
+      day: "monday"
       time: "09:30"
       timezone: "Asia/Kolkata"
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "github-actions"
@@ -41,3 +44,4 @@ updates:
         update-types:
           - "minor"
           - "patch"
+        auto-merge: "*"
