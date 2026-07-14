@@ -7,15 +7,14 @@
     "vscode": {
       "extensions": [
         "astro-build.astro-vscode",
-        "dbaeumer.vscode-eslint",
-        "esbenp.prettier-vscode",
         "bradlc.vscode-tailwindcss",
         "editorconfig.editorconfig",
         "unifiedjs.vscode-mdx",
         "christian-kohler.path-intellisense",
         "formulahendry.auto-rename-tag",
         "streetsidesoftware.code-spell-checker",
-        "vitest.explorer"
+        "vitest.explorer",
+        "biomejs.biome"
       ],
       "settings": {
         "editor.formatOnSave": true,

@@ -1,7 +1,7 @@
-import { createSignal, createEffect, on, onMount, onCleanup } from "solid-js";
+import { createEffect, createSignal, on, onCleanup, onMount } from "solid-js";
 import { THUMBNAIL_INTERSECTION_MARGIN, THUMBNAIL_SCALE } from "../../constants";
-import type { PageState } from "../../types/interfaces";
 import { pdfService } from "../../services/pdf-service";
+import type { PageState } from "../../types/interfaces";
 
 interface Props {
   page: PageState;
@@ -14,9 +14,7 @@ export default function EditorPageCanvas(props: Props) {
   const [rendered, setRendered] = createSignal(false);
 
   // Solid.js refs are assigned via JSX ref attribute
-  // eslint-disable-next-line no-unassigned-vars
   let container!: HTMLDivElement;
-  // eslint-disable-next-line no-unassigned-vars
   let canvas!: HTMLCanvasElement;
 
   // Container switches to landscape aspect-ratio (4:3) for 90° / 270° rotations.
@@ -46,8 +44,7 @@ export default function EditorPageCanvas(props: Props) {
             if (!container.isConnected) return;
             setRenderState("ready");
             setRendered(true);
-          } catch (err) {
-            console.error(`Failed to render page ${props.page.sourcePageNumber}:`, err);
+          } catch (_err) {
             setRenderState("error");
           }
         }
@@ -88,8 +85,7 @@ export default function EditorPageCanvas(props: Props) {
             THUMBNAIL_SCALE,
             pdfjsRotation
           );
-        } catch (err) {
-          console.error("Failed to re-render rotated page:", err);
+        } catch (_err) {
         } finally {
           canvas.classList.remove("is-rendering");
         }

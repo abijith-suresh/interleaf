@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { Resvg } from "@resvg/resvg-js";
 import type { APIRoute } from "astro";
 import satori from "satori";
-import { Resvg } from "@resvg/resvg-js";
 
 const pages: Record<string, { title: string; description: string }> = {
   index: {

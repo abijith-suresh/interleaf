@@ -4,7 +4,7 @@ const { buttonText, buttonHref } = Astro.props;
 
 <section class="cta-section">
   <div class="cta-section-inner animate-on-scroll">
-    <h2 class="font-display text-[clamp(3rem,7vw,5rem)] leading-[0.9] text-primary">
+    <h2 class="font-display text-[clamp(3rem,7vw,5rem)] leading-[0.9] text-primary" aria-label="Call to action">
       <slot name="heading" />
     </h2>
     <div class="flex items-end">

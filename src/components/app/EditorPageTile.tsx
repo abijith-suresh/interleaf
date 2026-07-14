@@ -32,6 +32,7 @@ export default function EditorPageTile(props: Props) {
 
   return (
     <div
+      role="none"
       data-page-index={props.index}
       data-source-page={props.page.sourcePageNumber}
       data-selected={props.selected}

@@ -10,7 +10,6 @@ interface Props {
 }
 
 export default function EditorSidebar(props: Props) {
-  // eslint-disable-next-line no-unassigned-vars
   let addPdfInput!: HTMLInputElement;
 
   return (
@@ -20,6 +19,7 @@ export default function EditorSidebar(props: Props) {
         <div class="p-4 border-b border-border">
           <p class="text-micro uppercase tracking-wider text-muted mb-2">Upload</p>
           <button
+            type="button"
             data-testid="editor-add-pdf-button"
             onClick={() => addPdfInput.click()}
             disabled={props.busy}
@@ -48,6 +48,7 @@ export default function EditorSidebar(props: Props) {
         <div class="p-4 border-b border-border">
           <p class="text-micro uppercase tracking-wider text-muted mb-3">Selection</p>
           <button
+            type="button"
             data-testid="editor-select-all-button"
             onClick={props.onSelectAll}
             aria-label="Select all pages"
@@ -62,6 +63,7 @@ export default function EditorSidebar(props: Props) {
         <div class="p-4 border-b border-border">
           <p class="text-micro uppercase tracking-wider text-muted mb-3">Actions</p>
           <button
+            type="button"
             data-testid="editor-rotate-button"
             onClick={props.onRotate}
             aria-label="Rotate selected pages 90 degrees"
@@ -71,6 +73,7 @@ export default function EditorSidebar(props: Props) {
             Rotate
           </button>
           <button
+            type="button"
             data-testid="editor-delete-button"
             onClick={props.onDelete}
             aria-label="Mark selected pages for deletion"
@@ -80,6 +83,7 @@ export default function EditorSidebar(props: Props) {
             Delete
           </button>
           <button
+            type="button"
             data-testid="editor-extract-button"
             onClick={props.onExtract}
             aria-label="Extract selected pages to a new PDF"
@@ -95,6 +99,7 @@ export default function EditorSidebar(props: Props) {
       <div class="p-4 border-t border-border flex-shrink-0">
         <p class="text-micro uppercase tracking-wider text-muted mb-3">Export</p>
         <button
+          type="button"
           data-testid="editor-download-button"
           onClick={props.onDownload}
           disabled={props.busy}

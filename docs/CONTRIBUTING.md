@@ -23,8 +23,8 @@ bun run verify
 This runs, in order:
 
 1. `type-check` — `astro check && tsc --noEmit`
-2. `lint` — `eslint .`
-3. `format:check` — `prettier --check .`
+2. `lint` — `biome lint .`
+3. `format:check` — `biome format .`
 4. `test` — `vitest run`
 5. `build` — `astro build`
 

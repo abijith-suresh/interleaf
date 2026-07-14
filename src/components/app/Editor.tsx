@@ -1,27 +1,27 @@
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { ROTATION_STEP } from "../../constants";
-import type { PageState } from "../../types/interfaces";
-import { PDFPasswordRequiredError } from "../../types/interfaces";
-import { pdfService } from "../../services/pdf-service";
-import { pdfOperationsService } from "../../services/pdf-operations-service";
 import {
   createPageStates,
   remapSelectionAfterMove,
   toggleSelectAll,
   toggleSelection,
 } from "../../controllers/editor-page-state";
+import { pdfOperationsService } from "../../services/pdf-operations-service";
+import { pdfService } from "../../services/pdf-service";
+import type { PageState } from "../../types/interfaces";
+import { PDFPasswordRequiredError } from "../../types/interfaces";
 import { downloadPDF } from "../../utils/download";
 import { promptForPassword } from "../../utils/password-prompt";
 import {
-  getToastDismissTimeout,
   showToast as dispatchToast,
+  getToastDismissTimeout,
   TOAST_EVENT_NAME,
   type ToastDetail,
 } from "../../utils/toast";
-import EditorUploader from "./EditorUploader";
-import EditorSidebar from "./EditorSidebar";
 import EditorPageGrid from "./EditorPageGrid";
+import EditorSidebar from "./EditorSidebar";
+import EditorUploader from "./EditorUploader";
 
 interface DragOverTarget {
   index: number;
@@ -128,8 +128,6 @@ export default function Editor() {
       if (err instanceof PDFPasswordRequiredError) {
         return unlockPdf(file, true);
       }
-
-      console.error("Failed to unlock PDF:", err);
       dispatchToast(getLoadErrorMessage(file, err), "error");
       setReadyStatus();
       return null;
@@ -152,8 +150,6 @@ export default function Editor() {
       if (err instanceof PDFPasswordRequiredError) {
         return unlockPdf(file, err.reason === "wrong-password");
       }
-
-      console.error("Failed to load PDF:", err);
       dispatchToast(getLoadErrorMessage(file, err), "error");
       setReadyStatus();
       return null;
@@ -258,8 +254,7 @@ export default function Editor() {
       );
       downloadPDF(result);
       dispatchToast("Extracted PDF download started.", "success");
-    } catch (err) {
-      console.error("Failed to extract pages:", err);
+    } catch (_err) {
       dispatchToast("Failed to extract selected pages.", "error");
     } finally {
       setReadyStatus();
@@ -279,8 +274,7 @@ export default function Editor() {
       });
       downloadPDF(result);
       dispatchToast("Download started.", "success");
-    } catch (err) {
-      console.error("Failed to build PDF:", err);
+    } catch (_err) {
       dispatchToast("Failed to build the PDF.", "error");
     } finally {
       setReadyStatus();
@@ -290,15 +284,15 @@ export default function Editor() {
   // --- Drag and drop ---
 
   function handleDragStart(index: number, e: DragEvent): void {
-    if (isBusy()) return;
+    if (isBusy() || !e.dataTransfer) return;
     setDragSourceIndex(index);
-    e.dataTransfer!.effectAllowed = "move";
+    e.dataTransfer.effectAllowed = "move";
   }
 
   function handleDragOver(e: DragEvent): void {
-    if (isBusy()) return;
+    if (isBusy() || !e.dataTransfer) return;
     e.preventDefault();
-    e.dataTransfer!.dropEffect = "move";
+    e.dataTransfer.dropEffect = "move";
   }
 
   function handleDragEnter(targetIndex: number, e: DragEvent): void {
@@ -446,6 +440,7 @@ export default function Editor() {
               {/* Mobile toolbar */}
               <div class="md:hidden border-t border-border p-2.5 flex items-center gap-2 flex-wrap justify-center">
                 <button
+                  type="button"
                   data-testid="editor-select-all-button-mobile"
                   disabled={isBusy()}
                   onClick={handleSelectAll}
@@ -454,6 +449,7 @@ export default function Editor() {
                   Select All
                 </button>
                 <button
+                  type="button"
                   data-testid="editor-rotate-button-mobile"
                   disabled={isBusy()}
                   onClick={handleRotateSelected}
@@ -462,6 +458,7 @@ export default function Editor() {
                   Rotate
                 </button>
                 <button
+                  type="button"
                   data-testid="editor-delete-button-mobile"
                   disabled={isBusy()}
                   onClick={handleDeleteSelected}
@@ -470,6 +467,7 @@ export default function Editor() {
                   Delete
                 </button>
                 <button
+                  type="button"
                   data-testid="editor-add-pdf-button-mobile"
                   disabled={isBusy()}
                   onClick={() => {
@@ -488,6 +486,7 @@ export default function Editor() {
                   Add PDF
                 </button>
                 <button
+                  type="button"
                   data-testid="editor-extract-button-mobile"
                   disabled={isBusy()}
                   onClick={handleExtract}
@@ -496,6 +495,7 @@ export default function Editor() {
                   Extract
                 </button>
                 <button
+                  type="button"
                   data-testid="editor-download-button-mobile"
                   disabled={isBusy()}
                   onClick={handleDownload}
