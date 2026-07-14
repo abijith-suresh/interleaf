@@ -5,7 +5,7 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-      time: "16:00"
+      time: "21:30"
       timezone: "Asia/Kolkata"
     open-pull-requests-limit: 10
     labels:
@@ -26,7 +26,7 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-      time: "16:30"
+      time: "22:00"
       timezone: "Asia/Kolkata"
     open-pull-requests-limit: 5
     labels:
