@@ -67,7 +67,7 @@ const pdfjsGetDocumentMock = vi
           }),
           render: vi.fn().mockReturnValue({ promise: Promise.resolve() }),
         }),
-        destroy: vi.fn().mockResolvedValue(undefined),
+        cleanup: vi.fn().mockResolvedValue(undefined),
       }),
     };
   });

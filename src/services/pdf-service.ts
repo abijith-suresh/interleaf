@@ -208,7 +208,7 @@ export class PDFService {
   private disposeDocument(file: File): void {
     const record = this.documentCache.get(file);
     if (record) {
-      void record.pdfjsDocument.destroy();
+      void record.pdfjsDocument.cleanup();
     }
 
     this.documentCache.delete(file);
