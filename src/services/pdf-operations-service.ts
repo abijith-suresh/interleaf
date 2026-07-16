@@ -1,6 +1,6 @@
-import { PDFDocument, degrees } from "pdf-lib";
+import { degrees, PDFDocument } from "pdf-lib";
 import { EXTRACT_FILENAME, OUTPUT_FILENAME } from "../constants";
-import type { PageState, PDFOperationResult, PDFBuildProgress } from "../types/interfaces";
+import type { PageState, PDFBuildProgress, PDFOperationResult } from "../types/interfaces";
 
 export class PDFOperationsService {
   // Class-level cache: avoids re-reading the same File on multiple build/extract

@@ -1,4 +1,3 @@
 {
-  "*.{js,mjs,cjs,jsx,ts,tsx,astro}": ["eslint --fix", "prettier --write"],
-  "*.{json,md,mdx,css,yml,yaml}": ["prettier --write"]
+  "*.{js,mjs,cjs,jsx,ts,tsx,astro,css,json}": ["bunx biome check --write --no-errors-on-unmatched"]
 }
