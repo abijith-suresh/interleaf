@@ -18,7 +18,9 @@ function initScrollAnimations() {
     }
   );
 
-  elements.forEach((el) => observer.observe(el));
+  elements.forEach((el) => {
+    observer.observe(el);
+  });
 }
 
 // Run on initial load

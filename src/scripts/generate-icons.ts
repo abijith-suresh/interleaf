@@ -27,5 +27,3 @@ const faviconResvg = new Resvg(svgContent, {
 });
 const faviconPng = faviconResvg.render().asPng();
 writeFileSync(join(process.cwd(), "public/favicon.ico"), new Uint8Array(faviconPng));
-
-console.log("Icons generated successfully!");

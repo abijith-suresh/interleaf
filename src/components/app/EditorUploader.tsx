@@ -24,13 +24,11 @@ export default function EditorUploader(props: Props) {
   return (
     <div class="flex-1 flex items-center justify-center min-h-0">
       <div class="w-full max-w-lg px-6">
-        <div
+        <button
+          type="button"
           data-testid="editor-upload-dropzone"
-          role="button"
-          tabIndex={0}
           aria-busy={props.busy}
-          aria-label="Click or drag a PDF file here to upload"
-          class={`border-2 border-dashed transition-colors py-20 text-center ${
+          class={`border-2 border-dashed transition-colors py-20 text-center w-full ${
             props.busy
               ? "border-primary bg-hover cursor-wait"
               : `cursor-pointer ${isDragOver() ? "border-primary bg-hover" : "border-border hover:border-primary"}`
@@ -62,7 +60,7 @@ export default function EditorUploader(props: Props) {
           <p class="text-micro uppercase tracking-label text-muted">
             {props.busy ? props.statusMessage : "or click to browse"}
           </p>
-        </div>
+        </button>
         <input
           ref={fileInput}
           data-testid="editor-upload-input"
