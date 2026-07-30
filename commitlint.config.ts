@@ -1,4 +1,4 @@
-const types = ["feat", "fix", "docs", "refactor", "chore", "test", "ci"];
+const types = ["feat", "fix", "docs", "refactor", "chore", "test", "ci", "build"];
 
 export default {
   extends: ["@commitlint/config-conventional"],
