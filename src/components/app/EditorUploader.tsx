@@ -8,7 +8,6 @@ interface Props {
 
 export default function EditorUploader(props: Props) {
   const [isDragOver, setIsDragOver] = createSignal(false);
-  // eslint-disable-next-line no-unassigned-vars
   let fileInput!: HTMLInputElement;
 
   function pickFile() {

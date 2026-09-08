@@ -1,6 +1,3 @@
-/** Milliseconds before an auto-dismissing error message clears */
-export const ERROR_DISMISS_TIMEOUT_MS = 5000;
-
 /** Scale factor used when rendering thumbnail previews of PDF pages */
 export const THUMBNAIL_SCALE = 0.5;
 

@@ -2,13 +2,13 @@
   "name": "interleaf",
   "type": "module",
   "packageManager": "bun@1.4.1",
-  "version": "0.6.1",
+  "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "type-check": "astro sync && tsc --noEmit",
+    "type-check": "astro sync && astro check && tsc --noEmit",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
     "format": "biome format --write .",
@@ -36,7 +36,7 @@
     "husky": "^9.1.7",
     "jsdom": "^30.0.1",
     "lint-staged": "^17.2.0",
-    "typescript": "^7.0.2",
+    "typescript": "6",
     "vite": "^8.1.5",
     "vitest": "^4.1.10"
   }
