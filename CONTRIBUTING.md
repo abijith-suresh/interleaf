@@ -46,7 +46,7 @@ bun run format
 3. Keep public copy, product truth, and implementation aligned.
 4. Run `bun run verify` before push — it also runs automatically on `pre-push`.
 5. Commit using [Conventional Commits](https://www.conventionalcommits.org/): `feat`, `fix`, `docs`, `refactor`, `chore`, `test`, `ci`, `build`.
-6. Open one focused pull request against `main`, then stop and wait for review or merge feedback.
+6. Open a focused pull request against `main` for each coherent change. Independent pull requests may be developed and reviewed in parallel. Stack or delay pull requests that overlap in files or depend on another change.
 
 ### Hooks
 
