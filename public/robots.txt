@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://interleaf.page/sitemap-index.xml
