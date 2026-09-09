@@ -15,7 +15,7 @@ concurrency:
 jobs:
   bun-quality:
     name: bun-quality
-    uses: abijith-suresh/workflows/.github/workflows/bun-quality.yml@0f257b2642d2a010fefe0ff9d03374799d73eb44 # v0.3.0
+    uses: abijith-suresh/workflows/.github/workflows/bun-quality.yml@e2088a6610d40b7c978e6e8e7ca3272be8d06020 # v0.4.0
     permissions:
       contents: read
 
