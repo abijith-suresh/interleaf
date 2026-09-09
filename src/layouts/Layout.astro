@@ -1,5 +1,10 @@
 ---
 import { ClientRouter } from "astro:transitions";
+import "@fontsource/bebas-neue";
+import "@fontsource/work-sans/300.css";
+import "@fontsource/work-sans/400.css";
+import "@fontsource/work-sans/500.css";
+import "@fontsource/work-sans/600.css";
 import "../styles/global.css";
 
 interface Props {
@@ -24,12 +29,6 @@ const resolvedOgImage = ogImage ?? `${siteOrigin}${base}og/${slug}.png`;
     <link rel="apple-touch-icon" href={`${base}apple-touch-icon.png`} />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="generator" content={Astro.generator} />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Work+Sans:wght@300;400;500;600&display=swap"
-      rel="stylesheet"
-    />
     <link rel="canonical" href={canonicalURL} />
     {description && <meta name="description" content={description} />}
     <meta property="og:type" content="website" />
