@@ -1,56 +1,71 @@
 # Agent Instructions — Interleaf
 
-## Overview
+## Product Summary
 
-Interleaf is a client-side PDF editor for merge, extract, reorder, rotate, delete, and unlock flows. PDF processing stays in the browser. See `docs/CONTEXT.md` for the full product truth.
+Interleaf is a fully client-side PDF editor for the core tasks people reach for most: merge, extract, reorder, rotate, delete, and unlock.
 
-## Stack
+It exists because online PDF tools are ad-infested and login-walled, and they usually require uploading documents to a server first. Interleaf gives the opposite guarantee structurally: every operation runs in the browser with `pdf-lib` and `pdf.js`, so files never leave the device.
 
-- Astro 6, SolidJS, Tailwind CSS v4, TypeScript, Bun, Vitest
-- pdf-lib (manipulation), pdf.js (rendering)
+## Product Truth
 
-## Quick Commands
+This section is the product source of truth. Update it before changing product scope, promises, or non-goals. Code and public copy follow this section, not the other way around.
 
-```sh
-bun install          # Install deps
-bun run dev          # Dev server at localhost:4321
-bun run verify       # Full quality gate (type-check, lint, format, test, build)
-```
+### Core Promise
 
-Full workflow details in `docs/CONTRIBUTING.md`.
+- Every operation runs entirely client-side, in the browser.
+- Files never leave the device: no uploads, no server processing, no beacons.
+- No accounts, signups, or login.
+- No ads, tracking, analytics, or cookies.
+- Keep the product honest about what is implemented today.
 
-## Project Map
+### Current Product Surface
 
-```
-src/components/app/    SolidJS editor UI (Editor, Sidebar, PageGrid, PageTile, PageCanvas, Uploader)
-src/components/shared/ Astro chrome (Nav, Footer, BottomCTA, PageHeader, NumberedRow)
-src/controllers/       Page-state helpers (no DOM, no rendering)
-src/services/          PDF load, render, and build (PDFService, PDFOperationsService)
-src/pages/             Marketing, legal, editor, and OG routes
-src/utils/             Download, password prompt, toast, transitions
-src/**/__tests__/      Co-located unit tests
-```
+The active product supports:
 
-Full architecture in `docs/ARCHITECTURE.md`.
+- merging multiple PDFs into one working set
+- extracting selected pages into a new PDF
+- reordering pages with drag and drop
+- rotating pages in 90-degree steps, individually or by selection
+- marking pages for deletion before export
+- unlocking password-protected PDFs with an in-browser prompt
+- locally rendered page thumbnails for inspection before export
 
-## Hard Rules
+These are the only current public product promises.
 
-- **Never add server-side PDF handling.** All processing stays in the browser.
-- **Never add uploads.** Files are read into browser memory only.
-- **Never add analytics, tracking, or cookies.** Privacy is absolute.
-- **Keep business logic in services/controllers**, not in page components.
-- **Cover editor behavior with unit tests.**
+### Non-Goals
 
-Full constraints in `docs/CONTEXT.md`.
+The product does not include, and must not gain without this section changing first:
 
-## Document Ownership
+- server-side PDF processing or uploads of any kind
+- accounts, signups, sync, or collaboration
+- ads, tracking, analytics, cookies, or fingerprinting
+- speculative code kept only for possible future expansion
+- public promises for features that are not implemented
 
-| File                   | Purpose                                                         |
-| ---------------------- | --------------------------------------------------------------- |
-| `README.md`            | User-facing. Product scope, stack, dev quickstart.              |
-| `docs/CONTEXT.md`      | Product truth. Goals, non-goals, constraints, success criteria. |
-| `docs/ARCHITECTURE.md` | Technical truth. Architecture, data flow, design decisions.     |
-| `docs/CONTRIBUTING.md` | Dev workflow. Setup, conventions, testing, CI, git process.     |
-| `AGENTS.md`            | This file. Agent instructions and document ownership.           |
+## Documentation
 
-When the product vision, architecture, or workflow changes, update the corresponding document. Keep these files as the single source of truth.
+- `README.md`: user-facing current behavior only.
+- `CONTRIBUTING.md`: development workflow, commands, conventions, commits, and PR rules.
+- `AGENTS.md`: product truth and agent behavior.
+
+Do not advertise unimplemented features in any of them. Treat stale docs as defects: if product scope changes, update the Product Truth section of this file first, then code, then public copy.
+
+How the app works is documented by the code and its tests, not by prose. Do not restate implementation details in docs; they rot.
+
+## Commands
+
+- Install dependencies: `bun install`
+- Dev server: `bun run dev` (http://localhost:4321)
+- Full quality gate: `bun run verify`
+- Individual checks: `bun run type-check`, `bun run lint`, `bun run format:check`, `bun run test`, `bun run build`
+
+## Git And CI
+
+- Branch from the latest `main` before starting changes.
+- Never commit directly to `main`.
+- Commit and PR titles must use Conventional Commits: `feat`, `fix`, `docs`, `refactor`, `chore`, `test`, `ci`, or `build`.
+- Before push, run `bun run verify`.
+- Squash merge is the expected merge strategy.
+- Open one focused PR at a time, then stop and wait for review or merge feedback before continuing.
+
+Detailed workflow, hooks, and CI behavior live in `CONTRIBUTING.md`.

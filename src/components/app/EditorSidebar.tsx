@@ -10,7 +10,6 @@ interface Props {
 }
 
 export default function EditorSidebar(props: Props) {
-  // eslint-disable-next-line no-unassigned-vars
   let addPdfInput!: HTMLInputElement;
 
   return (

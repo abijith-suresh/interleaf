@@ -14,9 +14,7 @@ export default function EditorPageCanvas(props: Props) {
   const [rendered, setRendered] = createSignal(false);
 
   // Solid.js refs are assigned via JSX ref attribute
-  // eslint-disable-next-line no-unassigned-vars
   let container!: HTMLDivElement;
-  // eslint-disable-next-line no-unassigned-vars
   let canvas!: HTMLCanvasElement;
 
   // Container switches to landscape aspect-ratio (4:3) for 90° / 270° rotations.

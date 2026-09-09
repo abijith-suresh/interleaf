@@ -17,4 +17,3 @@
 
 # GitHub linguist overrides
 .changeset/** linguist-generated=true
-CHANGELOG.md linguist-generated=true
