@@ -34,12 +34,15 @@
     "@biomejs/biome": "^2.5.12",
     "@commitlint/cli": "^21.2.2",
     "@commitlint/config-conventional": "^21.2.2",
+    "@solidjs/testing-library": "^0.8.10",
     "@tailwindcss/vite": "^4.3.3",
+    "@testing-library/jest-dom": "^7.0.1",
     "husky": "^9.1.7",
     "jsdom": "^30.0.1",
     "lint-staged": "^17.5.0",
     "typescript": "6",
     "vite": "^8.2.2",
-    "vitest": "^4.1.10"
+    "vite-plugin-solid": "^2.11.14",
+    "vitest": "^5.0.0"
   }
 }
