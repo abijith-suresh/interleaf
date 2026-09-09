@@ -89,6 +89,28 @@ describe("Editor", () => {
     expect(pdfServiceMocks.reset).toHaveBeenCalled();
   });
 
+  it("keeps editor actions disabled until they have usable input", async () => {
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile());
+    await findAllByTestId("editor-page-tile");
+
+    expect(getByTestId("editor-rotate-button")).toBeDisabled();
+    expect(getByTestId("editor-delete-button")).toBeDisabled();
+    expect(getByTestId("editor-extract-button")).toBeDisabled();
+    expect(getByTestId("editor-download-button")).toBeEnabled();
+    expect(getByTestId("editor-rotate-button-mobile")).toBeDisabled();
+    expect(getByTestId("editor-delete-button-mobile")).toBeDisabled();
+    expect(getByTestId("editor-extract-button-mobile")).toBeDisabled();
+    expect(getByTestId("editor-download-button-mobile")).toBeEnabled();
+
+    fireEvent.click((await findAllByTestId("editor-page-tile"))[0]);
+    await waitFor(() => expect(getByTestId("editor-rotate-button")).toBeEnabled());
+
+    expect(getByTestId("editor-delete-button")).toBeEnabled();
+    expect(getByTestId("editor-extract-button")).toBeEnabled();
+  });
+
   it("prompts for a password and unlocks a protected PDF", async () => {
     pdfServiceMocks.loadPDF.mockRejectedValue(
       new PDFPasswordRequiredError(makeFile(), "needs-password")
@@ -170,6 +192,23 @@ describe("Editor", () => {
       expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual(["true", "true", "true"])
     );
     expect(getByTestId("editor-status-bar")).toHaveTextContent("3 pages (0 active)");
+    expect(getByTestId("editor-download-button")).toBeDisabled();
+    expect(getByTestId("editor-download-button-mobile")).toBeDisabled();
+  });
+
+  it("reorders a page with the keyboard alternative", async () => {
+    const { findAllByTestId, getByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile());
+    const tiles = await findAllByTestId("editor-page-tile");
+
+    fireEvent.keyDown(tiles[2], { altKey: true, key: "ArrowLeft" });
+
+    await waitFor(() => {
+      const reorderedTiles = document.querySelectorAll('[data-testid="editor-page-tile"]');
+      expect(reorderedTiles[1]).toHaveAttribute("data-source-page", "3");
+    });
+    expect(getByTestId("editor-status-message")).toHaveTextContent("Moved page 3 to position 2.");
   });
 
   it("toggles a page selection by clicking its tile", async () => {

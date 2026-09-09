@@ -54,7 +54,7 @@ export default function EditorUploader(props: Props) {
           }}
         >
           <p class="font-display text-4xl text-primary mb-2">
-            {props.busy ? "Working..." : "Drop PDF here"}
+            {props.busy ? "Working…" : "Drop PDF here"}
           </p>
           <p class="text-micro uppercase tracking-label text-muted">
             {props.busy ? props.statusMessage : "or click to browse"}
@@ -65,6 +65,8 @@ export default function EditorUploader(props: Props) {
           data-testid="editor-upload-input"
           type="file"
           accept="application/pdf"
+          name="pdf"
+          aria-label="Choose a PDF"
           class="hidden"
           disabled={props.busy}
           onChange={(e) => {

@@ -119,7 +119,7 @@ export default function Editor() {
       return null;
     }
 
-    setStatusMessage("Unlocking PDF...");
+    setStatusMessage("Unlocking PDF…");
 
     try {
       await pdfService.loadPDFWithPassword(file, password);
@@ -141,7 +141,7 @@ export default function Editor() {
     }
 
     setOperation(mode === "upload" ? "uploading" : "adding");
-    setStatusMessage(mode === "upload" ? "Loading PDF..." : "Adding PDF...");
+    setStatusMessage(mode === "upload" ? "Loading PDF…" : "Adding PDF…");
 
     try {
       await pdfService.loadPDF(file);
@@ -242,14 +242,14 @@ export default function Editor() {
     if (indices.length === 0) return;
 
     setOperation("extracting");
-    setStatusMessage(`Extracting pages... 0/${indices.length}`);
+    setStatusMessage(`Extracting pages… 0/${indices.length}`);
 
     try {
       const result = await pdfOperationsService.buildPDFFromSubset(
         pages,
         indices,
         ({ completed, total }) => {
-          setStatusMessage(`Extracting pages... ${completed}/${total}`);
+          setStatusMessage(`Extracting pages… ${completed}/${total}`);
         }
       );
       downloadPDF(result);
@@ -266,11 +266,11 @@ export default function Editor() {
     const totalPages = activePageCount();
 
     setOperation("building");
-    setStatusMessage(`Building PDF... 0/${totalPages}`);
+    setStatusMessage(`Building PDF… 0/${totalPages}`);
 
     try {
       const result = await pdfOperationsService.buildPDF(pages, ({ completed, total }) => {
-        setStatusMessage(`Building PDF... ${completed}/${total}`);
+        setStatusMessage(`Building PDF… ${completed}/${total}`);
       });
       downloadPDF(result);
       dispatchToast("Download started.", "success");
@@ -287,6 +287,31 @@ export default function Editor() {
     if (isBusy()) return;
     setDragSourceIndex(index);
     if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+  }
+
+  function movePage(from: number, to: number): void {
+    if (from === to || from < 0 || to < 0 || from >= pages.length || to >= pages.length) return;
+
+    setPages(
+      produce((currentPages) => {
+        const [moved] = currentPages.splice(from, 1);
+        currentPages.splice(to, 0, moved);
+      })
+    );
+    setSelectedIndices((previousSelection) => remapSelectionAfterMove(previousSelection, from, to));
+    setStatusMessage(`Moved page ${from + 1} to position ${to + 1}.`);
+  }
+
+  function handlePageKeyDown(index: number, e: KeyboardEvent): void {
+    if (isBusy() || !e.altKey) return;
+
+    if (e.key === "ArrowLeft" && index > 0) {
+      e.preventDefault();
+      movePage(index, index - 1);
+    } else if (e.key === "ArrowRight" && index < pages.length - 1) {
+      e.preventDefault();
+      movePage(index, index + 1);
+    }
   }
 
   function handleDragOver(e: DragEvent): void {
@@ -324,15 +349,7 @@ export default function Editor() {
     }
     const to = targetIndex;
 
-    setPages(
-      produce((p) => {
-        const [moved] = p.splice(from, 1);
-        p.splice(to, 0, moved);
-      })
-    );
-
-    // Remap selection indices after reorder
-    setSelectedIndices((previousSelection) => remapSelectionAfterMove(previousSelection, from, to));
+    movePage(from, to);
 
     setDragSourceIndex(null);
   }
@@ -380,6 +397,7 @@ export default function Editor() {
           <a href={base} class="font-display text-2xl tracking-wide text-white no-underline">
             Interleaf
           </a>
+          <h1 class="sr-only">Interleaf PDF editor</h1>
           <span class="w-px h-6 bg-body mx-5" />
           <Show when={phase() === "edit"}>
             <span class="text-sm text-muted">
@@ -411,6 +429,7 @@ export default function Editor() {
             <EditorSidebar
               busy={isBusy()}
               selectedCount={selectedIndices().size}
+              activePageCount={activePageCount()}
               onSelectAll={handleSelectAll}
               onRotate={handleRotateSelected}
               onDelete={handleDeleteSelected}
@@ -419,7 +438,7 @@ export default function Editor() {
               onAddPdf={handleAddPdf}
             />
 
-            <main class="flex-1 flex flex-col min-h-0">
+            <section class="flex-1 flex flex-col min-h-0" aria-label="PDF workspace">
               {/* Dense page grid — only this scrolls */}
               <EditorPageGrid
                 busy={isBusy()}
@@ -428,6 +447,7 @@ export default function Editor() {
                 dragSourceIndex={dragSourceIndex()}
                 dragOverTarget={dragOverTarget()}
                 onPageClick={handlePageClick}
+                onPageKeyDown={handlePageKeyDown}
                 onPageRotate={handlePageRotate}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
@@ -451,7 +471,7 @@ export default function Editor() {
                 <button
                   type="button"
                   data-testid="editor-rotate-button-mobile"
-                  disabled={isBusy()}
+                  disabled={isBusy() || selectedIndices().size === 0}
                   onClick={handleRotateSelected}
                   class="btn-toolbar interactive-focus"
                 >
@@ -460,7 +480,7 @@ export default function Editor() {
                 <button
                   type="button"
                   data-testid="editor-delete-button-mobile"
-                  disabled={isBusy()}
+                  disabled={isBusy() || selectedIndices().size === 0}
                   onClick={handleDeleteSelected}
                   class="btn-toolbar text-accent interactive-focus"
                 >
@@ -488,7 +508,7 @@ export default function Editor() {
                 <button
                   type="button"
                   data-testid="editor-extract-button-mobile"
-                  disabled={isBusy()}
+                  disabled={isBusy() || selectedIndices().size === 0}
                   onClick={handleExtract}
                   class="btn-toolbar interactive-focus"
                 >
@@ -497,11 +517,11 @@ export default function Editor() {
                 <button
                   type="button"
                   data-testid="editor-download-button-mobile"
-                  disabled={isBusy()}
+                  disabled={isBusy() || activePageCount() === 0}
                   onClick={handleDownload}
                   class="text-micro uppercase tracking-wider bg-accent text-white border-none px-4 py-1.5 cursor-pointer interactive-focus"
                 >
-                  {isBusy() ? "Working..." : "Download"}
+                  {isBusy() ? "Working…" : "Download"}
                 </button>
               </div>
 
@@ -524,7 +544,7 @@ export default function Editor() {
                   {statusMessage()}
                 </span>
               </div>
-            </main>
+            </section>
           </div>
         </Show>
       </div>
