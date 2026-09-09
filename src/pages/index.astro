@@ -131,20 +131,20 @@ const base = import.meta.env.BASE_URL;
 
   /* Hero */
   .hero {
-    min-height: 100vh;
+    min-height: calc(100vh - 4rem);
     display: flex;
     align-items: center;
-    padding: 4rem 1.5rem;
+      padding: 5rem 1.25rem;
   }
 
   @media (min-width: 768px) {
     .hero {
-      padding: 4rem 4rem;
+      padding: 5rem 3rem;
     }
   }
   @media (min-width: 1024px) {
     .hero {
-      padding: 4rem 6rem;
+      padding: 5rem 5rem;
     }
   }
 

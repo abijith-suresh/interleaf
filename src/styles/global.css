@@ -9,11 +9,11 @@
   --tracking-section: 0.2em;
   --color-white: #fff;
   --color-primary: #111;
-  --color-accent: #ff0000;
-  --color-muted: #888;
-  --color-body: #555;
-  --color-border: #ddd;
-  --color-hover: #f5f5f5;
+  --color-accent: #c1121f;
+  --color-muted: #666;
+  --color-body: #444;
+  --color-border: #d6d6d6;
+  --color-hover: #f3f3f3;
   --color-toast-error-border: #ffb3b3;
   --color-toast-error-bg: #fff5f5;
   --color-toast-error-text: #8a1111;
@@ -21,6 +21,7 @@
   --color-toast-success-bg: #f5fbf5;
   --color-toast-success-text: #1f5f1f;
   --color-placeholder: #f0f0f0;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
   --animate-fade-in: fadeIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-slide-up: slideUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -143,7 +144,7 @@
 }
 
 .press-feedback {
-  transition: transform 0.15s ease;
+  transition: transform 0.15s var(--ease-out);
 }
 
 .press-feedback:active {
@@ -196,39 +197,39 @@
 }
 
 .section {
-  padding-left: 1.5rem;
-  padding-right: 1.5rem;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
   max-width: 80rem;
   margin-left: auto;
   margin-right: auto;
 }
 @media (min-width: 768px) {
   .section {
-    padding-left: 4rem;
-    padding-right: 4rem;
+    padding-left: 3rem;
+    padding-right: 3rem;
   }
 }
 @media (min-width: 1024px) {
   .section {
-    padding-left: 6rem;
-    padding-right: 6rem;
+    padding-left: 5rem;
+    padding-right: 5rem;
   }
 }
 
 .section-padding {
-  padding-left: 1.5rem;
-  padding-right: 1.5rem;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
 }
 @media (min-width: 768px) {
   .section-padding {
-    padding-left: 4rem;
-    padding-right: 4rem;
+    padding-left: 3rem;
+    padding-right: 3rem;
   }
 }
 @media (min-width: 1024px) {
   .section-padding {
-    padding-left: 6rem;
-    padding-right: 6rem;
+    padding-left: 5rem;
+    padding-right: 5rem;
   }
 }
 
@@ -304,31 +305,44 @@
   }
 }
 .btn-primary {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
   background: var(--color-accent);
   color: var(--color-white);
   text-transform: uppercase;
   letter-spacing: var(--tracking-label);
   font-weight: 600;
   text-decoration: none;
-  transition: background-color 0.15s;
+  transition:
+    background-color 0.15s var(--ease-out),
+    transform 0.15s var(--ease-out);
 }
 .btn-primary:hover {
   background: var(--color-primary);
 }
+.btn-primary:active {
+  transform: translateY(1px);
+}
+.btn-primary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
 
 .cta-section {
-  padding: 8rem 1.5rem;
+  padding: 6rem 1.25rem;
 }
 
 @media (min-width: 768px) {
   .cta-section {
-    padding: 8rem 4rem;
+    padding: 6rem 3rem;
   }
 }
 
 @media (min-width: 1024px) {
   .cta-section {
-    padding: 8rem 6rem;
+    padding: 6rem 5rem;
   }
 }
 
