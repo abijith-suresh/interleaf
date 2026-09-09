@@ -52,7 +52,7 @@ bun run verify
 
 ## Contributing
 
-See `AGENTS.md` for product truth, hard rules, and the contribution workflow. Keep changes atomic and follow Conventional Commits. Preserve the browser-only privacy model: do not add uploads or server-side PDF handling.
+See `AGENTS.md` for product truth and the contribution workflow. Keep changes atomic and follow Conventional Commits. Preserve the browser-only privacy model: do not add uploads or server-side PDF handling.
 
 ## License
 

@@ -2,7 +2,7 @@
 
 This document describes the development workflow for Interleaf.
 
-Read `AGENTS.md` first for product truth, hard rules, and agent behavior.
+Read `AGENTS.md` first for product truth and agent behavior.
 
 Do not expand product scope unless the Product Truth section of `AGENTS.md` is updated first.
 
@@ -74,6 +74,8 @@ Releases are automated by release-please from Conventional Commits. Versioning r
 
 ## Code Conventions
 
+Follow the existing Astro, SolidJS, TypeScript, and Tailwind patterns. The code and its tests are the source of truth for how the app works; document behavior where it lives, in code, rather than in prose that drifts.
+
 ### Architecture
 
 - **Services** (`src/services/`): PDF loading, rendering, and manipulation. No DOM, no UI.
@@ -104,7 +106,7 @@ Cover services, controllers, utilities, and editor components. Use Vitest with t
 ## Documentation
 
 - `README.md` — user-facing current behavior only.
-- `AGENTS.md` — product truth, hard rules, and agent behavior.
+- `AGENTS.md` — product truth and agent behavior.
 - `CONTRIBUTING.md` — this file.
 
 Update `AGENTS.md` before changing product promises or scope, this file when the workflow changes, and `README.md` when public behavior changes.
