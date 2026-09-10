@@ -14,6 +14,7 @@ interface Props {
   dragSourceIndex: number | null;
   dragOverTarget: DragOverTarget | null;
   onPageClick: (index: number) => void;
+  onClearSelection: () => void;
   onPageKeyDown: (index: number, e: KeyboardEvent) => void;
   onPageRotate: (index: number, e: MouseEvent) => void;
   onDragStart: (index: number, e: DragEvent) => void;
@@ -40,6 +41,15 @@ export default function EditorPageGrid(props: Props) {
         aria-busy={props.busy}
         data-testid="editor-page-grid"
         class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3 items-start"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) props.onClearSelection();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            props.onClearSelection();
+          }
+        }}
       >
         <For each={props.pages}>
           {(page, index) => (

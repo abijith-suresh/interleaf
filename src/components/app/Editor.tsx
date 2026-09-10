@@ -198,6 +198,12 @@ export default function Editor() {
     setSelectedIndices((previousSelection) => toggleSelection(previousSelection, index));
   }
 
+  function clearSelection(): void {
+    if (isBusy() || selectedIndices().size === 0) return;
+    setSelectedIndices(new Set<number>());
+    setStatusMessage("Selection cleared.");
+  }
+
   function handleSelectAll(): void {
     if (isBusy()) return;
     setSelectedIndices((previousSelection) => toggleSelectAll(pages.length, previousSelection));
@@ -447,6 +453,7 @@ export default function Editor() {
                 dragSourceIndex={dragSourceIndex()}
                 dragOverTarget={dragOverTarget()}
                 onPageClick={handlePageClick}
+                onClearSelection={clearSelection}
                 onPageKeyDown={handlePageKeyDown}
                 onPageRotate={handlePageRotate}
                 onDragStart={handleDragStart}

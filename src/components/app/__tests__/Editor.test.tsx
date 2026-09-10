@@ -224,6 +224,24 @@ describe("Editor", () => {
     await waitFor(() => expect(tiles[0].dataset.selected).toBe("false"));
   });
 
+  it("clears selection from the empty grid or with Escape", async () => {
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile());
+    const tiles = await findAllByTestId("editor-page-tile");
+
+    fireEvent.click(tiles[0]);
+    await waitFor(() => expect(tiles[0].dataset.selected).toBe("true"));
+
+    fireEvent.click(getByTestId("editor-page-grid"));
+    await waitFor(() => expect(tiles[0].dataset.selected).toBe("false"));
+
+    fireEvent.click(tiles[1]);
+    await waitFor(() => expect(tiles[1].dataset.selected).toBe("true"));
+    fireEvent.keyDown(tiles[1], { key: "Escape" });
+    await waitFor(() => expect(tiles[1].dataset.selected).toBe("false"));
+  });
+
   it("extracts the selected pages through the operations service", async () => {
     const { getByTestId, findAllByTestId } = render(() => <Editor />);
 
