@@ -1,12 +1,6 @@
 # Agent Instructions — Interleaf
 
-## Product Summary
-
-Interleaf is a fully client-side PDF editor for the core tasks people reach for most: merge, extract, reorder, rotate, delete, and unlock.
-
-It exists because online PDF tools are ad-infested and login-walled, and they usually require uploading documents to a server first. Interleaf gives the opposite guarantee structurally: every operation runs in the browser with `pdf-lib` and `pdf.js`, so files never leave the device.
-
-## Product Truth
+## Product truth
 
 This section is the product source of truth. Update it before changing product scope, promises, or non-goals. Code and public copy follow this section, not the other way around.
 
@@ -52,20 +46,14 @@ Do not advertise unimplemented features in any of them. Treat stale docs as defe
 
 How the app works is documented by the code and its tests, not by prose. Do not restate implementation details in docs; they rot.
 
-## Commands
-
-- Install dependencies: `bun install`
-- Dev server: `bun run dev` (http://localhost:4321)
-- Full quality gate: `bun run verify`
-- Individual checks: `bun run type-check`, `bun run lint`, `bun run format:check`, `bun run test`, `bun run build`
-
-## Git And CI
+## Agent workflow
 
 - Branch from the latest `main` before starting changes.
 - Never commit directly to `main`.
 - Commit and PR titles must use Conventional Commits: `feat`, `fix`, `docs`, `refactor`, `chore`, `test`, `ci`, or `build`.
 - Before push, run `bun run verify`.
 - Squash merge is the expected merge strategy.
-- Open one focused PR at a time, then stop and wait for review or merge feedback before continuing.
+- Open one focused PR for each coherent change.
+- Independent PRs may be developed and opened in parallel. Stack or delay PRs that overlap in files or depend on another change.
 
-Detailed workflow, hooks, and CI behavior live in `CONTRIBUTING.md`.
+Detailed workflow, hooks, commands, and CI behavior live in `CONTRIBUTING.md`.
