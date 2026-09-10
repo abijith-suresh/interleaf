@@ -13,17 +13,19 @@ export function promptForPassword(fileName: string, isRetry: boolean): Promise<s
 
     // Backdrop
     const backdrop = document.createElement("div");
-    backdrop.className = "fixed inset-0 bg-black/50 z-50 flex items-center justify-center";
+    backdrop.className =
+      "fixed inset-0 bg-black/50 z-50 flex items-center justify-center overscroll-contain p-4";
 
     // Modal panel
     const modal = document.createElement("div");
-    modal.className = "bg-white p-8 min-w-[320px] max-w-[420px] w-[90%] font-display";
+    modal.className =
+      "bg-white p-8 min-w-[320px] max-w-[420px] w-[90%] max-h-[calc(100dvh-2rem)] overflow-y-auto font-display";
     modal.setAttribute("role", "dialog");
     modal.setAttribute("aria-modal", "true");
     modal.setAttribute("aria-labelledby", "password-modal-title");
 
     // Title
-    const title = document.createElement("div");
+    const title = document.createElement("h2");
     title.id = "password-modal-title";
     title.textContent = PASSWORD_MODAL_TITLE;
     title.className = "text-2xl tracking-[0.05em] text-primary mb-1.5";
@@ -43,11 +45,12 @@ export function promptForPassword(fileName: string, isRetry: boolean): Promise<s
     // Password input
     const input = document.createElement("input");
     input.type = "password";
-    input.placeholder = "Enter password";
+    input.placeholder = "Enter password…";
     input.setAttribute("aria-label", "PDF password");
-    input.autocomplete = "current-password";
+    input.name = "pdf-password";
+    input.autocomplete = "off";
     input.className =
-      "w-full box-border px-3 py-2.5 border border-border outline-none text-sm font-mono mb-5 focus:border-primary";
+      "w-full box-border px-3 py-2.5 border border-border text-sm font-mono mb-5 focus:border-primary focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2";
 
     // Button row
     const buttonRow = document.createElement("div");

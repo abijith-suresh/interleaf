@@ -10,6 +10,7 @@ interface Props {
   dragOverDirection: "before" | "after" | null;
   scrollRoot: HTMLDivElement;
   onClick: () => void;
+  onKeyDown: (e: KeyboardEvent) => void;
   onRotate: (e: MouseEvent) => void;
   onDragStart: (e: DragEvent) => void;
   onDragOver: (e: DragEvent) => void;
@@ -31,8 +32,7 @@ export default function EditorPageTile(props: Props) {
   };
 
   return (
-    <div
-      role="application"
+    <li
       data-page-index={props.index}
       data-source-page={props.page.sourcePageNumber}
       data-selected={props.selected}
@@ -61,8 +61,10 @@ export default function EditorPageTile(props: Props) {
             ? `Page ${props.index + 1}, marked for deletion`
             : `Page ${props.index + 1}`
         }
+        aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
         disabled={props.busy}
         onClick={props.onClick}
+        onKeyDown={props.onKeyDown}
       >
         <EditorPageCanvas
           page={props.page}
@@ -77,14 +79,13 @@ export default function EditorPageTile(props: Props) {
           data-testid="editor-page-rotate-button"
           class="btn-page-rotate"
           title="Rotate 90°"
-          aria-hidden="true"
-          tabIndex={-1}
+          aria-label={`Rotate page ${props.index + 1} 90 degrees`}
           disabled={props.busy}
           onClick={props.onRotate}
         >
           &#x21BB;
         </button>
       </div>
-    </div>
+    </li>
   );
 }

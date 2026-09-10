@@ -27,6 +27,7 @@ const links = [
               "hidden sm:inline text-nano font-medium text-body uppercase tracking-label no-underline transition-colors hover:text-primary link-slide",
               currentPage === link.key && "text-primary border-b-2 border-primary pb-0.5",
             ]}
+            aria-current={currentPage === link.key ? "page" : undefined}
           >
             {link.label}
           </a>

@@ -1,6 +1,7 @@
 interface Props {
   busy: boolean;
   selectedCount: number;
+  activePageCount: number;
   onSelectAll: () => void;
   onRotate: () => void;
   onDelete: () => void;
@@ -11,6 +12,7 @@ interface Props {
 
 export default function EditorSidebar(props: Props) {
   let addPdfInput!: HTMLInputElement;
+  const hasSelection = () => props.selectedCount > 0;
 
   return (
     <aside class="w-56 border-r border-border flex-col flex-shrink-0 hidden md:flex">
@@ -26,7 +28,7 @@ export default function EditorSidebar(props: Props) {
             class="w-full border border-dashed border-border hover:border-primary transition-colors py-6 text-center cursor-pointer bg-transparent interactive-focus"
           >
             <span class="text-micro text-muted uppercase tracking-wider">
-              {props.busy ? "Working..." : "+ Add PDF"}
+              {props.busy ? "Working…" : "+ Add PDF"}
             </span>
           </button>
           <input
@@ -34,6 +36,8 @@ export default function EditorSidebar(props: Props) {
             data-testid="editor-add-pdf-input"
             type="file"
             accept="application/pdf"
+            name="additional-pdf"
+            aria-label="Choose an additional PDF"
             class="hidden"
             disabled={props.busy}
             onChange={(e) => {
@@ -67,7 +71,7 @@ export default function EditorSidebar(props: Props) {
             data-testid="editor-rotate-button"
             onClick={props.onRotate}
             aria-label="Rotate selected pages 90 degrees"
-            disabled={props.busy}
+            disabled={props.busy || !hasSelection()}
             class="btn-sidebar-action interactive-focus"
           >
             Rotate
@@ -77,7 +81,7 @@ export default function EditorSidebar(props: Props) {
             data-testid="editor-delete-button"
             onClick={props.onDelete}
             aria-label="Mark selected pages for deletion"
-            disabled={props.busy}
+            disabled={props.busy || !hasSelection()}
             class="w-full text-left text-xs text-accent hover:bg-toast-error-bg bg-transparent border-none cursor-pointer py-2 px-2 transition-colors interactive-focus"
           >
             Delete
@@ -87,7 +91,7 @@ export default function EditorSidebar(props: Props) {
             data-testid="editor-extract-button"
             onClick={props.onExtract}
             aria-label="Extract selected pages to a new PDF"
-            disabled={props.busy}
+            disabled={props.busy || !hasSelection()}
             class="btn-sidebar-action interactive-focus"
           >
             Extract
@@ -102,10 +106,10 @@ export default function EditorSidebar(props: Props) {
           type="button"
           data-testid="editor-download-button"
           onClick={props.onDownload}
-          disabled={props.busy}
+          disabled={props.busy || props.activePageCount === 0}
           class="w-full btn-primary text-micro py-3 border-none cursor-pointer transition-colors interactive-focus"
         >
-          {props.busy ? "Working..." : "Download"}
+          {props.busy ? "Working…" : "Download"}
         </button>
       </div>
     </aside>
