@@ -3,841 +3,410 @@ import Layout from "../layouts/Layout.astro";
 
 const base = import.meta.env.BASE_URL;
 
-const routes = [
-  { number: "01", href: `${base}1`, label: "Swiss" },
-  { number: "02", href: `${base}2`, label: "Editorial" },
-  { number: "03", href: `${base}3`, label: "Terminal" },
-  { number: "04", href: `${base}4`, label: "Raw type" },
-  { number: "05", href: `${base}5`, label: "Index" },
-];
-
-const operations = [
-  {
-    number: "01",
-    title: "Merge",
-    description: "Combine multiple PDF files into one working set.",
-  },
-  {
-    number: "02",
-    title: "Extract",
-    description: "Pull selected pages into a new PDF.",
-  },
-  {
-    number: "03",
-    title: "Reorder",
-    description: "Arrange pages with drag and drop.",
-  },
-  {
-    number: "04",
-    title: "Rotate",
-    description: "Turn individual pages or a selection in 90-degree steps.",
-  },
-  {
-    number: "05",
-    title: "Delete",
-    description: "Mark pages for deletion before export.",
-  },
-  {
-    number: "06",
-    title: "Unlock",
-    description: "Open password-protected PDFs with an in-browser prompt.",
-  },
-];
+const routes = ["1", "2", "3", "4", "5"];
 ---
 
 <Layout
-  title="Raw type - Interleaf"
-  description="Edit, merge, extract, reorder, rotate, delete, and unlock PDF files in your browser. No uploads and no server processing."
+  title="Ink and signal | Interleaf"
+  description="Fix a PDF's pages in your browser without uploading the file."
 >
-  <div class="raw-page">
-    <nav class="raw-nav" aria-label="Interleaf navigation">
-      <div class="raw-nav-inner">
-        <a class="raw-wordmark" href={base} aria-label="Interleaf home">
-          <span class="raw-wordmark-name">Interleaf</span>
-          <span class="raw-wordmark-note">raw type / 04</span>
-        </a>
+  <meta slot="head" name="theme-color" content="#171b22" />
 
-        <div class="raw-nav-context" aria-label="Experiment context">
-          <span>Landing study</span>
-          <span aria-hidden="true">/</span>
-          <span>Browser utility</span>
-        </div>
+  <div class="ink-signal-page">
+    <nav class="ink-nav" aria-label="Interleaf navigation">
+      <div class="ink-nav-inner">
+        <a class="ink-wordmark" href={base} aria-label="Interleaf home">interleaf</a>
 
-        <div class="raw-nav-tools">
-          <a class="raw-back-link" href={base}>Index <span aria-hidden="true">↗</span></a>
-          <div class="raw-route-switcher">
-            <span class="raw-route-label">Routes</span>
-            <ul class="raw-route-list" aria-label="Landing page design experiments">
-              {
-                routes.map((route) => (
-                  <li>
-                    <a
-                      class:list={["raw-route-link", route.number === "04" && "is-current"]}
-                      href={route.href}
-                      aria-label={`${route.number}: ${route.label}`}
-                      aria-current={route.number === "04" ? "page" : undefined}
-                    >
-                      {route.number}
-                    </a>
-                  </li>
-                ))
-              }
-            </ul>
-          </div>
+        <div class="ink-nav-actions">
+          <a class="ink-home-link" href={base}>home</a>
+          <ul class="ink-route-list" aria-label="Landing page design routes">
+            {
+              routes.map((route) => (
+                <li>
+                  <a
+                    class:list={["ink-route-link", route === "4" && "is-current"]}
+                    href={`${base}${route}`}
+                    aria-current={route === "4" ? "page" : undefined}
+                  >
+                    /{route}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
         </div>
       </div>
     </nav>
 
     <main id="main-content">
-      <section class="raw-hero" aria-labelledby="raw-title">
-        <div class="raw-hero-inner">
-          <div class="raw-hero-meta" aria-label="Design study details">
-            <span>04 / 05</span>
-            <span>Raw type</span>
-            <span>PDF / browser / 2026</span>
-          </div>
-
-          <h1 class="raw-title" id="raw-title">
-            <span>Inter</span>
-            <span class="raw-title-accent">leaf.</span>
-          </h1>
-
-          <div class="raw-hero-bottom">
-            <p class="raw-hero-deck">
-              Shape the pages.<br />Keep the file with you.
+      <section class="ink-hero" aria-labelledby="ink-title">
+        <div class="ink-hero-inner">
+          <div class="ink-copy">
+            <h1 id="ink-title">Fix a PDF’s pages.</h1>
+            <p class="ink-description">
+              Make the changes you need in your browser without uploading the file.
             </p>
-            <div class="raw-hero-action">
-              <span class="raw-action-label">Start with a PDF</span>
-              <a class="raw-cta" href={`${base}app`}>
-                <span>Open Editor</span>
-                <span class="raw-cta-arrow" aria-hidden="true">↗</span>
-              </a>
-            </div>
+            <a class="ink-cta" href={`${base}app`}>
+              <span>Open editor</span>
+              <span class="ink-cta-arrow" aria-hidden="true">↗</span>
+            </a>
+            <p class="ink-local-note">Local-only. Your file stays on this device.</p>
           </div>
-        </div>
-      </section>
 
-      <section class="raw-statement" aria-labelledby="raw-statement-title">
-        <div class="raw-statement-inner">
-          <p class="raw-section-marker">01 / file handling</p>
-          <div class="raw-statement-copy">
-            <h2 id="raw-statement-title">
-              <span class="raw-red-block" aria-hidden="true"></span>
-              No uploads.<br />No server processing.
-            </h2>
-            <p>
-              Interleaf runs in the browser. Your document stays on your device while you edit and
-              export it.
-            </p>
+          <div class="ink-mark" aria-hidden="true">
+            <span class="ink-mark-outline"></span>
+            <span class="ink-mark-fold"></span>
+            <span class="ink-mark-line ink-mark-line-one"></span>
+            <span class="ink-mark-line ink-mark-line-two"></span>
           </div>
-        </div>
-      </section>
-
-      <section class="raw-operations" aria-labelledby="raw-operations-title">
-        <div class="raw-operations-intro">
-          <p class="raw-section-marker">02 / the workbench</p>
-          <div class="raw-operations-heading">
-            <h2 id="raw-operations-title">Six moves for a better page.</h2>
-            <p>Open the document. Make the change. Export the result.</p>
-          </div>
-        </div>
-
-        <ol class="raw-operation-list">
-          {
-            operations.map((operation) => (
-              <li class="raw-operation">
-                <span class="raw-operation-number">{operation.number}</span>
-                <h3>{operation.title}</h3>
-                <p>{operation.description}</p>
-              </li>
-            ))
-          }
-        </ol>
-      </section>
-
-      <section class="raw-closer" aria-labelledby="raw-closer-title">
-        <div class="raw-closer-inner">
-          <p class="raw-section-marker">03 / close to the file</p>
-          <h2 id="raw-closer-title">The page stays yours.</h2>
-          <p>Work on the PDF in front of you. Nothing leaves the browser.</p>
         </div>
       </section>
     </main>
-
-    <footer class="raw-footer">
-      <div class="raw-footer-inner">
-        <div class="raw-footer-mark">
-          <span class="raw-wordmark-name">Interleaf</span>
-          <span>Raw type / route 04</span>
-        </div>
-        <nav class="raw-footer-links" aria-label="Footer navigation">
-          <a href={`${base}features`}>Features</a>
-          <a href={`${base}about`}>About</a>
-          <a href={`${base}faq`}>FAQ</a>
-          <a href={`${base}privacy`}>Privacy</a>
-        </nav>
-        <a class="raw-footer-home" href={base}>Back to index <span aria-hidden="true">↗</span></a>
-      </div>
-    </footer>
   </div>
 </Layout>
 
 <style>
-  .raw-page {
-    --raw-paper: #f4f2ec;
-    --raw-ink: #11110f;
-    --raw-red: #ff2b1a;
-    --raw-muted: #686761;
-    --raw-rule: #11110f;
+  .ink-signal-page {
+    --ink: #171b22;
+    --ink-deep: #12161c;
+    --warm: #f2eee5;
+    --warm-soft: #c1bdb5;
+    --warm-faint: #85878a;
+    --warm-line: rgb(242 238 229 / 18%);
+    --signal: #ff5044;
     min-width: 320px;
-    min-height: 100vh;
+    min-height: 100svh;
     overflow: hidden;
-    background: var(--raw-paper);
-    color: var(--raw-ink);
+    background:
+      radial-gradient(circle at 76% 45%, rgb(53 58 67 / 54%), transparent 31rem),
+      linear-gradient(135deg, var(--ink-deep) 0%, var(--ink) 58%, #1b2028 100%);
+    color: var(--warm);
+    color-scheme: dark;
     font-family: var(--font-body);
   }
 
-  .raw-page,
-  .raw-page * {
+  .ink-signal-page,
+  .ink-signal-page * {
     box-sizing: border-box;
   }
 
-  .raw-page a {
+  .ink-signal-page a {
     color: inherit;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
-  .raw-page a:focus-visible {
-    outline: 3px solid var(--raw-red);
+  .ink-signal-page a:focus-visible {
+    outline: 2px solid var(--warm);
     outline-offset: 4px;
   }
 
-  .raw-nav {
-    border-bottom: 2px solid var(--raw-rule);
-    padding: 0.75rem clamp(1rem, 4vw, 4.5rem);
+  .ink-nav {
+    position: relative;
+    z-index: 1;
+    padding: 1.25rem clamp(1.25rem, 5vw, 5.5rem);
   }
 
-  .raw-nav-inner,
-  .raw-hero-inner,
-  .raw-statement-inner,
-  .raw-operations,
-  .raw-closer-inner,
-  .raw-footer-inner {
+  .ink-nav-inner {
+    display: flex;
     width: 100%;
-    max-width: 100rem;
+    max-width: 82rem;
+    min-height: 2.75rem;
     margin-inline: auto;
-  }
-
-  .raw-nav-inner {
-    display: grid;
-    grid-template-columns: minmax(11rem, 1fr) auto minmax(14rem, 1fr);
-    gap: 2rem;
     align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
   }
 
-  .raw-wordmark,
-  .raw-back-link,
-  .raw-route-link,
-  .raw-footer-links a,
-  .raw-footer-home {
+  .ink-wordmark,
+  .ink-home-link,
+  .ink-route-link {
     text-decoration: none;
   }
 
-  .raw-wordmark {
-    display: inline-flex;
-    min-height: 2.75rem;
-    align-items: center;
-    gap: 0.75rem;
-    width: fit-content;
-  }
-
-  .raw-wordmark-name {
-    font-family: var(--font-display);
-    font-size: 1.8rem;
-    letter-spacing: 0.025em;
+  .ink-wordmark {
+    color: var(--warm);
+    font-size: 1.15rem;
+    font-weight: 500;
+    letter-spacing: -0.045em;
     line-height: 1;
   }
 
-  .raw-wordmark-note,
-  .raw-nav-context,
-  .raw-route-label,
-  .raw-route-link,
-  .raw-back-link,
-  .raw-section-marker,
-  .raw-action-label,
-  .raw-footer-mark span:last-child,
-  .raw-footer-links a,
-  .raw-footer-home {
-    font-size: 0.6875rem;
-    font-weight: 500;
-    letter-spacing: 0.12em;
-    line-height: 1.2;
-    text-transform: uppercase;
-  }
-
-  .raw-wordmark-note,
-  .raw-nav-context,
-  .raw-route-label,
-  .raw-section-marker,
-  .raw-action-label,
-  .raw-footer-mark span:last-child {
-    color: var(--raw-muted);
-  }
-
-  .raw-nav-context {
+  .ink-nav-actions {
     display: flex;
-    gap: 0.55rem;
+    min-width: 0;
     align-items: center;
-    justify-content: center;
-    white-space: nowrap;
+    gap: clamp(0.85rem, 2.5vw, 2.5rem);
   }
 
-  .raw-nav-tools {
-    display: flex;
-    gap: 1.25rem;
-    align-items: center;
-    justify-content: flex-end;
-  }
-
-  .raw-back-link,
-  .raw-footer-home {
-    display: inline-flex;
+  .ink-home-link {
     min-height: 2.75rem;
-    gap: 0.5rem;
-    align-items: center;
-    border-bottom: 1px solid var(--raw-ink);
+    padding-block: 0.85rem;
+    color: var(--warm-soft);
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    transition: color 160ms ease;
   }
 
-  .raw-route-switcher {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
+  .ink-home-link:hover {
+    color: var(--warm);
   }
 
-  .raw-route-list {
+  .ink-route-list {
     display: flex;
-    gap: 0.25rem;
+    gap: 0.1rem;
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
-  .raw-route-link {
-    display: inline-flex;
-    min-width: 2.75rem;
+  .ink-route-link {
+    display: inline-grid;
+    min-width: 2.5rem;
     min-height: 2.75rem;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--warm-faint);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    transition:
+      border-color 160ms ease,
+      color 160ms ease,
+      background-color 160ms ease;
+  }
+
+  .ink-route-link:hover {
+    border-color: var(--warm-line);
+    color: var(--warm);
+  }
+
+  .ink-route-link.is-current {
+    border-color: var(--warm-line);
+    background: rgb(242 238 229 / 8%);
+    color: var(--warm);
+  }
+
+  .ink-hero {
+    display: grid;
+    min-height: calc(100svh - 5.25rem);
+    padding: clamp(2.5rem, 8vh, 7rem) clamp(1.25rem, 5vw, 5.5rem) clamp(3rem, 9vh, 8rem);
     align-items: center;
-    justify-content: center;
-    border: 1px solid var(--raw-ink);
-    color: var(--raw-ink);
+  }
+
+  .ink-hero-inner {
+    display: grid;
+    width: 100%;
+    max-width: 82rem;
+    margin-inline: auto;
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.72fr);
+    gap: clamp(3rem, 10vw, 10rem);
+    align-items: center;
+  }
+
+  .ink-copy {
+    max-width: 43rem;
+  }
+
+  .ink-copy h1 {
+    max-width: 10ch;
+    margin: 0;
+    color: var(--warm);
+    font-size: clamp(3.35rem, 6.7vw, 6.7rem);
+    font-weight: 400;
+    letter-spacing: -0.065em;
+    line-height: 0.98;
+    text-wrap: balance;
+  }
+
+  .ink-description {
+    max-width: 31rem;
+    margin: clamp(1.5rem, 3vw, 2.25rem) 0 0;
+    color: var(--warm-soft);
+    font-size: clamp(1.05rem, 1.45vw, 1.3rem);
+    font-weight: 300;
+    letter-spacing: -0.015em;
+    line-height: 1.5;
+    text-wrap: pretty;
+  }
+
+  .ink-cta {
+    display: inline-flex;
+    min-width: 11.5rem;
+    min-height: 3.5rem;
+    margin-top: clamp(2rem, 4vw, 3rem);
+    padding: 0.8rem 1rem 0.8rem 1.3rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2.5rem;
+    border-radius: 999px;
+    background: var(--signal);
+    color: var(--ink-deep) !important;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    text-decoration: none;
     transition:
       background-color 160ms ease,
       color 160ms ease,
       transform 160ms ease;
   }
 
-  .raw-route-link:hover {
-    background: var(--raw-red);
+  .ink-cta:hover {
+    background: #ff7065;
     transform: translateY(-2px);
   }
 
-  .raw-route-link.is-current {
-    border-color: var(--raw-red);
-    background: var(--raw-red);
-    color: var(--raw-ink);
-  }
-
-  .raw-hero {
-    padding: clamp(3.5rem, 9vw, 9rem) clamp(1rem, 4vw, 4.5rem) clamp(3.5rem, 8vw, 8rem);
-  }
-
-  .raw-hero-meta {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-    justify-content: space-between;
-    border-top: 1px solid var(--raw-rule);
-    padding-top: 0.8rem;
-    color: var(--raw-muted);
-    font-size: 0.6875rem;
-    font-weight: 500;
-    letter-spacing: 0.12em;
-    line-height: 1.2;
-    text-transform: uppercase;
-  }
-
-  .raw-hero-meta span:nth-child(2) {
-    color: var(--raw-ink);
-  }
-
-  .raw-title {
-    display: flex;
-    gap: 0.08em;
-    align-items: baseline;
-    margin: clamp(3.5rem, 9vw, 8rem) 0 clamp(3rem, 7vw, 6rem);
-    color: var(--raw-ink);
-    font-family: var(--font-display);
-    font-size: clamp(7rem, 20vw, 19rem);
-    font-weight: 400;
-    letter-spacing: -0.035em;
-    line-height: 0.72;
-    text-wrap: nowrap;
-  }
-
-  .raw-title-accent {
-    color: var(--raw-red);
-  }
-
-  .raw-hero-bottom {
+  .ink-cta-arrow {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(15rem, 24rem);
-    gap: 2rem;
-    align-items: end;
-    border-bottom: 2px solid var(--raw-rule);
-    padding-bottom: 1.25rem;
-  }
-
-  .raw-hero-deck {
-    margin: 0;
-    font-size: clamp(1.4rem, 3vw, 2.8rem);
+    width: 1.9rem;
+    height: 1.9rem;
+    place-items: center;
+    border-radius: 50%;
+    background: rgb(23 27 34 / 15%);
+    font-size: 1.15rem;
     font-weight: 400;
-    letter-spacing: -0.025em;
-    line-height: 1.08;
-  }
-
-  .raw-hero-action {
-    display: grid;
-    gap: 0.75rem;
-    justify-items: start;
-  }
-
-  .raw-action-label {
-    display: block;
-  }
-
-  .raw-cta {
-    display: inline-flex;
-    min-height: 3.5rem;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    gap: 2rem;
-    padding: 0.75rem 1rem 0.75rem 1.25rem;
-    background: var(--raw-red);
-    color: var(--raw-ink);
-    font-size: 0.8rem;
-    font-weight: 600;
-    letter-spacing: 0.14em;
-    line-height: 1.1;
-    text-decoration: none;
-    text-transform: uppercase;
-    transition:
-      background-color 160ms ease,
-      color 160ms ease,
-      transform 160ms ease;
-  }
-
-  .raw-cta:hover {
-    background: var(--raw-ink);
-    color: var(--raw-paper);
-    transform: translate(0.25rem, -0.25rem);
-  }
-
-  .raw-cta-arrow {
-    font-size: 1.5rem;
-    font-weight: 400;
-    letter-spacing: 0;
     line-height: 1;
   }
 
-  .raw-statement {
-    border-top: 2px solid var(--raw-rule);
-    border-bottom: 2px solid var(--raw-rule);
-    background: var(--raw-ink);
-    color: var(--raw-paper);
-    padding: clamp(2rem, 5vw, 4.5rem) clamp(1rem, 4vw, 4.5rem);
-  }
-
-  .raw-statement-inner {
-    display: grid;
-    grid-template-columns: minmax(9rem, 1fr) minmax(0, 2.5fr);
-    gap: clamp(2rem, 8vw, 9rem);
-  }
-
-  .raw-statement .raw-section-marker {
-    color: #b9b8b0;
-  }
-
-  .raw-statement-copy {
-    max-width: 58rem;
-  }
-
-  .raw-statement-copy h2 {
-    display: flex;
-    gap: 0.85rem;
-    align-items: flex-start;
-    margin: 0;
-    font-family: var(--font-display);
-    font-size: clamp(3.5rem, 8vw, 8rem);
+  .ink-local-note {
+    margin: 1.15rem 0 0 0.2rem;
+    color: var(--warm-faint);
+    font-size: 0.72rem;
     font-weight: 400;
-    letter-spacing: -0.02em;
-    line-height: 0.8;
+    letter-spacing: 0.015em;
+    line-height: 1.4;
   }
 
-  .raw-red-block {
-    display: block;
-    flex: 0 0 1.1rem;
-    width: 1.1rem;
-    height: 1.1rem;
-    margin-top: 0.25em;
-    background: var(--raw-red);
-  }
-
-  .raw-statement-copy > p {
-    max-width: 34rem;
-    margin: 2rem 0 0 2rem;
-    color: #d2d0c8;
-    font-size: clamp(1rem, 1.5vw, 1.25rem);
-    font-weight: 300;
-    line-height: 1.55;
-  }
-
-  .raw-operations {
-    padding: clamp(4.5rem, 10vw, 10rem) clamp(1rem, 4vw, 4.5rem);
-  }
-
-  .raw-operations-intro {
-    display: grid;
-    grid-template-columns: minmax(9rem, 1fr) minmax(0, 2.5fr);
-    gap: clamp(2rem, 8vw, 9rem);
-    align-items: end;
-    margin-bottom: clamp(2.5rem, 6vw, 5rem);
-  }
-
-  .raw-operations-heading h2,
-  .raw-closer h2 {
-    max-width: 42rem;
-    margin: 0;
-    font-family: var(--font-display);
-    font-size: clamp(3.5rem, 8vw, 8rem);
-    font-weight: 400;
-    letter-spacing: -0.02em;
-    line-height: 0.8;
-  }
-
-  .raw-operations-heading p,
-  .raw-closer p:last-child {
-    max-width: 30rem;
-    margin: 1.5rem 0 0;
-    color: var(--raw-muted);
-    font-size: 1rem;
-    font-weight: 300;
-    line-height: 1.55;
-  }
-
-  .raw-operation-list {
-    margin: 0;
-    padding: 0;
-    border-top: 3px solid var(--raw-rule);
-    list-style: none;
-  }
-
-  .raw-operation {
-    display: grid;
-    grid-template-columns: minmax(4.5rem, 1fr) minmax(12rem, 2fr) minmax(15rem, 1.25fr);
-    gap: 1.5rem;
-    align-items: center;
-    min-height: 7.5rem;
-    border-bottom: 1px solid var(--raw-rule);
-    padding: 1.25rem 0;
-  }
-
-  .raw-operation-number {
-    color: var(--raw-muted);
-    font-size: 0.75rem;
-    font-weight: 500;
-    letter-spacing: 0.12em;
-  }
-
-  .raw-operation h3 {
-    margin: 0;
-    font-family: var(--font-display);
-    font-size: clamp(2.8rem, 5vw, 5.5rem);
-    font-weight: 400;
-    letter-spacing: -0.015em;
-    line-height: 0.8;
-  }
-
-  .raw-operation p {
-    max-width: 24rem;
-    margin: 0;
-    color: var(--raw-muted);
-    font-size: 0.95rem;
-    font-weight: 300;
-    line-height: 1.5;
-  }
-
-  .raw-operation:nth-child(4) h3,
-  .raw-operation:nth-child(6) h3 {
-    color: var(--raw-red);
-  }
-
-  .raw-closer {
-    border-top: 2px solid var(--raw-rule);
-    background: var(--raw-red);
-    padding: clamp(3rem, 8vw, 7rem) clamp(1rem, 4vw, 4.5rem);
-  }
-
-  .raw-closer-inner {
-    display: grid;
-    grid-template-columns: minmax(9rem, 1fr) minmax(0, 2.5fr);
-    gap: clamp(2rem, 8vw, 9rem);
-  }
-
-  .raw-closer .raw-section-marker {
-    color: var(--raw-ink);
-  }
-
-  .raw-closer h2 {
-    color: var(--raw-ink);
-  }
-
-  .raw-closer p:last-child {
-    color: var(--raw-ink);
-  }
-
-  .raw-footer {
-    border-top: 2px solid var(--raw-rule);
-    background: var(--raw-paper);
-    padding: 1.5rem clamp(1rem, 4vw, 4.5rem) 2.5rem;
-  }
-
-  .raw-footer-inner {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    gap: 2rem;
-    align-items: end;
-  }
-
-  .raw-footer-mark {
-    display: grid;
-    gap: 0.5rem;
-  }
-
-  .raw-footer-links {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-
-  .raw-footer-links a:hover,
-  .raw-footer-home:hover,
-  .raw-back-link:hover {
-    color: var(--raw-red);
-  }
-
-  .raw-footer-home {
+  .ink-mark {
+    position: relative;
+    width: min(100%, 24rem);
+    aspect-ratio: 0.82;
     justify-self: end;
+    opacity: 0.78;
+    transform: rotate(7deg);
   }
 
-  @keyframes raw-rise {
-    from {
-      opacity: 0;
-      transform: translateY(1.25rem);
-    }
-
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+  .ink-mark::before,
+  .ink-mark::after {
+    position: absolute;
+    display: block;
+    content: "";
+    border: 1px solid var(--warm-line);
+    border-radius: 47% 53% 44% 56% / 17% 19% 81% 83%;
   }
 
-  .raw-hero-meta,
-  .raw-title,
-  .raw-hero-bottom {
-    animation: raw-rise 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  .ink-mark::before {
+    inset: 4% 8% 3% 7%;
   }
 
-  .raw-title {
-    animation-delay: 90ms;
+  .ink-mark::after {
+    inset: 10% 15% 9% 14%;
+    border-color: rgb(242 238 229 / 9%);
+    transform: rotate(-8deg);
   }
 
-  .raw-hero-bottom {
-    animation-delay: 180ms;
+  .ink-mark-outline {
+    position: absolute;
+    inset: 15% 22% 14% 20%;
+    display: block;
+    border: 1px solid rgb(242 238 229 / 22%);
+    border-radius: 43% 57% 50% 50% / 21% 18% 82% 79%;
+    transform: rotate(-12deg);
   }
 
-  @media (max-width: 900px) {
-    .raw-nav-inner {
-      grid-template-columns: 1fr auto;
-    }
-
-    .raw-nav-context {
-      display: none;
-    }
-
-    .raw-nav-tools {
-      grid-column: 1 / -1;
-      justify-content: space-between;
-      border-top: 1px solid var(--raw-rule);
-      padding-top: 0.75rem;
-    }
-
-    .raw-hero-bottom,
-    .raw-statement-inner,
-    .raw-operations-intro,
-    .raw-closer-inner {
-      grid-template-columns: minmax(7rem, 0.7fr) minmax(0, 2fr);
-      gap: 2rem;
-    }
-
-    .raw-operation {
-      grid-template-columns: 4rem minmax(0, 1.2fr) minmax(13rem, 1fr);
-      gap: 1rem;
-    }
+  .ink-mark-fold {
+    position: absolute;
+    top: 21%;
+    right: 22%;
+    width: 22%;
+    height: 1px;
+    background: rgb(242 238 229 / 34%);
+    transform: rotate(38deg);
+    transform-origin: right center;
   }
 
-  @media (max-width: 640px) {
-    .raw-nav {
-      padding-top: 0.5rem;
-      padding-bottom: 0.5rem;
+  .ink-mark-line {
+    position: absolute;
+    left: 27%;
+    display: block;
+    width: 38%;
+    height: 1px;
+    background: rgb(242 238 229 / 34%);
+    transform: rotate(-12deg);
+    transform-origin: left center;
+  }
+
+  .ink-mark-line-one {
+    top: 43%;
+  }
+
+  .ink-mark-line-two {
+    top: 52%;
+    width: 28%;
+    opacity: 0.62;
+  }
+
+  @media (max-width: 720px) {
+    .ink-nav {
+      padding-top: 0.85rem;
+      padding-bottom: 0.85rem;
     }
 
-    .raw-nav-inner {
-      gap: 0.75rem;
-    }
-
-    .raw-wordmark {
+    .ink-nav-inner {
       gap: 0.5rem;
     }
 
-    .raw-wordmark-name {
-      font-size: 1.6rem;
+    .ink-nav-actions {
+      gap: 0.4rem;
     }
 
-    .raw-wordmark-note {
-      font-size: 0.6rem;
+    .ink-home-link {
+      padding-inline: 0.3rem;
     }
 
-    .raw-nav-tools {
-      gap: 0.75rem;
-      align-items: flex-start;
+    .ink-route-link {
+      min-width: 2.25rem;
     }
 
-    .raw-route-switcher {
-      gap: 0.35rem;
-      align-items: flex-start;
-    }
-
-    .raw-route-label {
-      display: none;
-    }
-
-    .raw-route-list {
-      gap: 0.2rem;
-    }
-
-    .raw-route-link {
-      min-width: 2.35rem;
-      min-height: 2.75rem;
-      font-size: 0.625rem;
-    }
-
-    .raw-hero {
+    .ink-hero {
+      min-height: calc(100svh - 4.45rem);
       padding-top: 3rem;
-      padding-bottom: 3.25rem;
+      padding-bottom: 3.5rem;
     }
 
-    .raw-hero-meta {
-      gap: 0.5rem;
-      align-items: flex-start;
-      font-size: 0.6rem;
+    .ink-hero-inner {
+      display: block;
     }
 
-    .raw-hero-meta span:last-child {
-      max-width: 5rem;
-      text-align: right;
+    .ink-copy {
+      max-width: 31rem;
     }
 
-    .raw-title {
-      display: grid;
-      gap: 0;
-      margin-top: 4.5rem;
-      margin-bottom: 3.5rem;
-      font-size: clamp(6rem, 28vw, 10rem);
-      line-height: 0.7;
+    .ink-copy h1 {
+      max-width: 9ch;
+      font-size: clamp(3.25rem, 15vw, 5.4rem);
     }
 
-    .raw-title-accent {
-      margin-left: 0.18em;
+    .ink-description {
+      max-width: 25rem;
+      font-size: 1.05rem;
     }
 
-    .raw-hero-bottom,
-    .raw-statement-inner,
-    .raw-operations-intro,
-    .raw-closer-inner {
-      grid-template-columns: 1fr;
-      gap: 1.75rem;
+    .ink-cta {
+      width: min(100%, 19rem);
     }
 
-    .raw-hero-deck {
-      font-size: 1.6rem;
-    }
-
-    .raw-hero-action {
-      width: 100%;
-    }
-
-    .raw-statement-copy h2 {
-      gap: 0.6rem;
-      font-size: clamp(3rem, 15vw, 5rem);
-    }
-
-    .raw-red-block {
-      flex-basis: 0.75rem;
-      width: 0.75rem;
-      height: 0.75rem;
-    }
-
-    .raw-statement-copy > p {
-      margin-left: 1.35rem;
-    }
-
-    .raw-operation {
-      grid-template-columns: 3rem minmax(0, 1fr);
-      gap: 0.75rem 1rem;
-      min-height: 0;
-      padding: 1.5rem 0;
-    }
-
-    .raw-operation h3 {
-      font-size: clamp(3rem, 14vw, 5rem);
-    }
-
-    .raw-operation p {
-      grid-column: 2;
-      max-width: 23rem;
-      font-size: 0.9rem;
-    }
-
-    .raw-footer-inner {
-      grid-template-columns: 1fr;
-      gap: 1.5rem;
-      align-items: start;
-    }
-
-    .raw-footer-links {
-      justify-content: flex-start;
-      gap: 0.75rem 1rem;
-    }
-
-    .raw-footer-home {
-      justify-self: start;
+    .ink-mark {
+      display: none;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .raw-page * {
+    .ink-signal-page * {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       scroll-behavior: auto !important;
