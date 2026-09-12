@@ -2,105 +2,37 @@
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
-import NumberedRow from "../components/shared/NumberedRow.astro";
-import BottomCTA from "../components/shared/BottomCTA.astro";
-import { contentSlide } from "../utils/transitions";
 
 const base = import.meta.env.BASE_URL;
 ---
 
 <Layout
-  title="Interleaf - Client-Side PDF Editor"
-  description="Edit, merge, extract, reorder, rotate, delete, and unlock PDF files entirely in your browser. No uploads, no servers, no privacy compromises."
+  title="Interleaf - Put the document right"
+  description="Fix the pages in a PDF in your browser. Your file stays on your device."
 >
-  <div class="page-wrapper" transition:animate={contentSlide}>
+  <div class="landing-page">
     <Nav currentPage="home" />
+
     <main id="main-content">
-      <section class="hero">
-        <div class="hero-grid">
-          <div class="hero-left">
-            <p class="hero-label">Client-side PDF editor</p>
-            <h1 class="hero-title">Interleaf</h1>
-            <div class="hero-tagline">
-              <span class="red-bar"></span>
-              <p class="hero-tagline-text">Edit, merge, extract — all in your browser.</p>
-            </div>
-          </div>
-          <div class="hero-right">
-            <div class="hero-right-inner">
-              <p class="hero-right-text">
-                No file uploads. No server processing. Every operation runs entirely in your
-                browser. Your documents stay private.
-              </p>
-              <a href={`${base}app`} class="cta-underline">Open Editor</a>
+      <section class="landing-hero" aria-labelledby="landing-title">
+        <div class="landing-hero-inner">
+          <div class="landing-copy">
+            <h1 id="landing-title">Put the<br /><span>document right.</span></h1>
+            <p class="landing-intro">
+              When a PDF is almost right, fix its pages in your browser and take the file with you.
+            </p>
+            <div class="landing-action">
+              <a href={`${base}app`} class="btn-primary landing-cta press-feedback">Open editor</a>
+              <p>Your file stays on your device.</p>
             </div>
           </div>
         </div>
       </section>
 
-      <section class="section py-16">
-        <div class="features-header animate-on-scroll">
-          <h2 class="features-title">Features</h2>
-          <p class="features-subtitle">Six core operations, zero compromises.</p>
-        </div>
-
-        <div class="border-t-2 border-primary">
-          {
-            [
-              {
-                num: "01",
-                title: "Merge",
-                text: "Combine multiple PDF files into one cohesive document.",
-                accent: false,
-              },
-              {
-                num: "02",
-                title: "Extract",
-                text: "Extract specific pages into separate PDF files.",
-                accent: false,
-              },
-              {
-                num: "03",
-                title: "Reorder",
-                text: "Drag and drop pages to arrange them in any order you need.",
-                accent: false,
-              },
-              {
-                num: "04",
-                title: "Rotate",
-                text: "Rotate any page to 90, 180, or 270 degrees.",
-                accent: false,
-              },
-              {
-                num: "05",
-                title: "Delete",
-                text: "Remove unwanted pages cleanly from any PDF.",
-                accent: false,
-              },
-              {
-                num: "06",
-                title: "Unlock",
-                text: "Open password-protected PDFs with an in-browser prompt.",
-                accent: true,
-              },
-            ].map((f, i) => (
-              <NumberedRow
-                num={f.num}
-                title={f.title}
-                titleClass={f.accent ? "text-accent" : ""}
-                isLast={f.accent}
-                staggerClass={`stagger-${Math.min(i + 1, 8)}`}
-              >
-                <p>{f.text}</p>
-              </NumberedRow>
-            ))
-          }
-        </div>
+      <section class="landing-note" aria-label="How Interleaf works">
+        <p>Open a document. Make the pages fit. Export it when it is ready.</p>
+        <a href={`${base}about`}>Why Interleaf <span aria-hidden="true">↗</span></a>
       </section>
-
-      <BottomCTA buttonText="Launch Interleaf" buttonHref={`${base}app`}>
-        <Fragment slot="heading">Start<br />editing.</Fragment>
-      </BottomCTA>
     </main>
 
     <Footer />
@@ -108,161 +40,148 @@ const base = import.meta.env.BASE_URL;
 </Layout>
 
 <style>
-  /* Hero entrance animations */
-  .hero-title {
-    animation: var(--animate-slide-up);
-    animation-delay: 0.2s;
-    font-family: var(--font-display);
-    font-size: clamp(5rem, 12vw, 10rem);
-    line-height: 0.85;
-    color: var(--color-primary);
-    letter-spacing: -0.01em;
-  }
-
-  .hero-tagline {
-    animation: var(--animate-slide-up);
-    animation-delay: 0.3s;
-  }
-
-  .hero-right-inner {
-    animation: var(--animate-fade-in);
-    animation-delay: 0.4s;
-  }
-
-  /* Hero */
-  .hero {
+  .landing-page {
     min-height: 100vh;
-    display: flex;
+    background: var(--color-white);
+    color: var(--color-primary);
+    font-family: var(--font-body);
+  }
+
+  .landing-hero {
+    display: grid;
+    min-height: min(44rem, calc(100svh - 4rem));
     align-items: center;
-    padding: 4rem 1.5rem;
+    border-bottom: 1px solid var(--color-primary);
+    padding: clamp(4rem, 9vw, 7rem) 1.25rem;
+  }
+
+  .landing-hero-inner {
+    width: 100%;
+    max-width: 72rem;
+    margin-inline: auto;
+  }
+
+  .landing-copy {
+    max-width: 55rem;
+  }
+
+  .landing-copy h1 {
+    margin: 0;
+    color: var(--color-primary);
+    font-family: var(--font-display);
+    font-size: clamp(4.5rem, 13vw, 10rem);
+    letter-spacing: -0.015em;
+    line-height: 0.8;
+    text-wrap: balance;
+  }
+
+  .landing-copy h1 span {
+    color: var(--color-accent);
+  }
+
+  .landing-intro {
+    max-width: 34rem;
+    margin: clamp(2rem, 5vw, 3.5rem) 0 0;
+    color: var(--color-body);
+    font-size: clamp(1.15rem, 2.1vw, 1.5rem);
+    font-weight: var(--font-weight-light);
+    line-height: 1.45;
+  }
+
+  .landing-action {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+    align-items: center;
+    margin-top: 2.5rem;
+  }
+
+  .landing-cta {
+    text-transform: uppercase;
+  }
+
+  .landing-action p {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+  }
+
+  .landing-note {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 2rem;
+    align-items: center;
+    justify-content: space-between;
+    width: min(calc(100% - 2.5rem), 72rem);
+    margin-inline: auto;
+    padding: 1.5rem 0;
+  }
+
+  .landing-note p,
+  .landing-note a {
+    margin: 0;
+    color: var(--color-body);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-light);
+    line-height: 1.5;
+  }
+
+  .landing-note a {
+    color: var(--color-primary);
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  .landing-note a span {
+    color: var(--color-accent);
+    font-size: 1rem;
+  }
+
+  .landing-note a:hover {
+    color: var(--color-accent);
+  }
+
+  .landing-note a:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 4px;
   }
 
   @media (min-width: 768px) {
-    .hero {
-      padding: 4rem 4rem;
+    .landing-hero {
+      padding-right: 3rem;
+      padding-left: 3rem;
     }
-  }
-  @media (min-width: 1024px) {
-    .hero {
-      padding: 4rem 6rem;
-    }
-  }
-
-  .hero-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 3rem;
-    max-width: 80rem;
-    margin: 0 auto;
-    width: 100%;
-    align-items: center;
   }
 
   @media (min-width: 1024px) {
-    .hero-grid {
-      grid-template-columns: 2fr 1fr;
-      gap: 2rem;
+    .landing-hero {
+      padding-right: 5rem;
+      padding-left: 5rem;
     }
   }
 
-  .hero-label {
-    animation: var(--animate-slide-up);
-    animation-delay: 0.1s;
-    font-size: 0.8rem;
-    font-weight: var(--font-weight-light);
-    color: var(--color-muted);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-section);
-    margin-bottom: 1.5rem;
-  }
-
-  .hero-tagline {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-top: 1.5rem;
-  }
-
-  .red-bar {
-    display: block;
-    width: 3rem;
-    height: 4px;
-    background-color: var(--color-accent);
-    flex-shrink: 0;
-  }
-
-  .hero-tagline-text {
-    font-size: 1.05rem;
-    font-weight: var(--font-weight-light);
-    color: var(--color-muted);
-  }
-
-  .hero-right {
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .hero-right-inner {
-    border-left: 4px solid var(--color-accent);
-    padding-left: 1.5rem;
-    max-width: 20rem;
-  }
-
-  .hero-right-text {
-    font-size: 0.95rem;
-    color: var(--color-body);
-    line-height: 1.7;
-  }
-
-  .cta-underline {
-    display: inline-block;
-    margin-top: 1.5rem;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--color-primary);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-label);
-    text-decoration: none;
-    border-bottom: 2px solid var(--color-primary);
-    padding-bottom: 4px;
-    transition:
-      color 0.2s,
-      border-color 0.2s;
-  }
-
-  .cta-underline:hover {
-    color: var(--color-accent);
-    border-color: var(--color-accent);
-  }
-
-  .cta-underline:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 2px;
-  }
-
-  /* Features layout */
-  .features-header {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1rem;
-    margin-bottom: 4rem;
-  }
-
-  @media (min-width: 1024px) {
-    .features-header {
-      grid-template-columns: 1fr 2fr;
-      align-items: end;
+  @media (max-width: 520px) {
+    .landing-hero {
+      min-height: calc(100svh - 4rem);
+      padding-top: 4rem;
+      padding-bottom: 4rem;
     }
-  }
 
-  .features-title {
-    font-family: var(--font-display);
-    font-size: clamp(2.5rem, 5vw, 3.75rem);
-    color: var(--color-primary);
-  }
+    .landing-copy h1 {
+      font-size: clamp(4rem, 19vw, 6rem);
+    }
 
-  .features-subtitle {
-    font-weight: var(--font-weight-light);
-    color: var(--color-muted);
+    .landing-action {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .landing-note {
+      align-items: flex-start;
+      flex-direction: column;
+      padding-top: 1.25rem;
+      padding-bottom: 1.25rem;
+    }
   }
 </style>

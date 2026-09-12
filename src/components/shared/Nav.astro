@@ -13,12 +13,13 @@ const links = [
 ];
 ---
 
-<nav class="section-padding border-b border-border" transition:persist>
-  <div class="h-14 flex items-center justify-between max-w-7xl mx-auto">
+<nav class="site-nav section-padding border-b border-border" transition:persist>
+  <div class="site-nav-inner h-16 flex items-center justify-between max-w-7xl mx-auto">
     <a href={base} class="font-display text-2xl text-primary no-underline tracking-wide"
       >Interleaf</a
     >
-    <div class="flex items-center gap-6 md:gap-8">
+    <div class="nav-actions flex items-center gap-3 sm:gap-6 md:gap-8">
+      <div class="hidden sm:flex items-center gap-6 md:gap-8">
       {
         links.map((link) => (
           <a
@@ -33,7 +34,29 @@ const links = [
           </a>
         ))
       }
-      <a href={`${base}app`} class="btn-primary text-nano px-5 py-2 press-feedback">
+      </div>
+
+      <details class="mobile-nav sm:hidden">
+        <summary class="mobile-nav-trigger interactive-focus">Menu</summary>
+        <div class="mobile-nav-panel">
+          {
+            links.map((link) => (
+              <a
+                href={link.href}
+                class:list={[
+                  "mobile-nav-link link-slide",
+                  currentPage === link.key && "is-current",
+                ]}
+                aria-current={currentPage === link.key ? "page" : undefined}
+              >
+                {link.label}
+              </a>
+            ))
+          }
+        </div>
+      </details>
+
+      <a href={`${base}app`} class="btn-primary nav-editor-link text-nano press-feedback">
         Open Editor
       </a>
     </div>

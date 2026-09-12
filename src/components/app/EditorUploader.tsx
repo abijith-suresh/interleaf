@@ -21,13 +21,13 @@ export default function EditorUploader(props: Props) {
   }
 
   return (
-    <div class="flex-1 flex items-center justify-center min-h-0">
-      <div class="w-full max-w-lg px-6">
+    <div class="editor-uploader flex-1 flex items-center justify-center min-h-0">
+      <div class="editor-uploader-inner w-full max-w-lg px-4 sm:px-6">
         <button
           type="button"
           data-testid="editor-upload-dropzone"
           aria-busy={props.busy}
-          class={`border-2 border-dashed transition-colors py-20 text-center w-full ${
+          class={`editor-dropzone border-2 border-dashed transition-colors py-20 text-center w-full ${
             props.busy
               ? "border-primary bg-hover cursor-wait"
               : `cursor-pointer ${isDragOver() ? "border-primary bg-hover" : "border-border hover:border-primary"}`

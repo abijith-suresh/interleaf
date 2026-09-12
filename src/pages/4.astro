@@ -1,0 +1,416 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const base = import.meta.env.BASE_URL;
+
+const routes = ["1", "2", "3", "4", "5"];
+---
+
+<Layout
+  title="Ink and signal | Interleaf"
+  description="Fix a PDF's pages in your browser without uploading the file."
+>
+  <meta slot="head" name="theme-color" content="#171b22" />
+
+  <div class="ink-signal-page">
+    <nav class="ink-nav" aria-label="Interleaf navigation">
+      <div class="ink-nav-inner">
+        <a class="ink-wordmark" href={base} aria-label="Interleaf home">interleaf</a>
+
+        <div class="ink-nav-actions">
+          <a class="ink-home-link" href={base}>home</a>
+          <ul class="ink-route-list" aria-label="Landing page design routes">
+            {
+              routes.map((route) => (
+                <li>
+                  <a
+                    class:list={["ink-route-link", route === "4" && "is-current"]}
+                    href={`${base}${route}`}
+                    aria-current={route === "4" ? "page" : undefined}
+                  >
+                    /{route}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <main id="main-content">
+      <section class="ink-hero" aria-labelledby="ink-title">
+        <div class="ink-hero-inner">
+          <div class="ink-copy">
+            <h1 id="ink-title">Fix a PDF’s pages.</h1>
+            <p class="ink-description">
+              Make the changes you need in your browser without uploading the file.
+            </p>
+            <a class="ink-cta" href={`${base}app`}>
+              <span>Open editor</span>
+              <span class="ink-cta-arrow" aria-hidden="true">↗</span>
+            </a>
+            <p class="ink-local-note">Local-only. Your file stays on this device.</p>
+          </div>
+
+          <div class="ink-mark" aria-hidden="true">
+            <span class="ink-mark-outline"></span>
+            <span class="ink-mark-fold"></span>
+            <span class="ink-mark-line ink-mark-line-one"></span>
+            <span class="ink-mark-line ink-mark-line-two"></span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</Layout>
+
+<style>
+  .ink-signal-page {
+    --ink: #171b22;
+    --ink-deep: #12161c;
+    --warm: #f2eee5;
+    --warm-soft: #c1bdb5;
+    --warm-faint: #85878a;
+    --warm-line: rgb(242 238 229 / 18%);
+    --signal: #ff5044;
+    min-width: 320px;
+    min-height: 100svh;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 76% 45%, rgb(53 58 67 / 54%), transparent 31rem),
+      linear-gradient(135deg, var(--ink-deep) 0%, var(--ink) 58%, #1b2028 100%);
+    color: var(--warm);
+    color-scheme: dark;
+    font-family: var(--font-body);
+  }
+
+  .ink-signal-page,
+  .ink-signal-page * {
+    box-sizing: border-box;
+  }
+
+  .ink-signal-page a {
+    color: inherit;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .ink-signal-page a:focus-visible {
+    outline: 2px solid var(--warm);
+    outline-offset: 4px;
+  }
+
+  .ink-nav {
+    position: relative;
+    z-index: 1;
+    padding: 1.25rem clamp(1.25rem, 5vw, 5.5rem);
+  }
+
+  .ink-nav-inner {
+    display: flex;
+    width: 100%;
+    max-width: 82rem;
+    min-height: 2.75rem;
+    margin-inline: auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .ink-wordmark,
+  .ink-home-link,
+  .ink-route-link {
+    text-decoration: none;
+  }
+
+  .ink-wordmark {
+    color: var(--warm);
+    font-size: 1.15rem;
+    font-weight: 500;
+    letter-spacing: -0.045em;
+    line-height: 1;
+  }
+
+  .ink-nav-actions {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: clamp(0.85rem, 2.5vw, 2.5rem);
+  }
+
+  .ink-home-link {
+    min-height: 2.75rem;
+    padding-block: 0.85rem;
+    color: var(--warm-soft);
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    transition: color 160ms ease;
+  }
+
+  .ink-home-link:hover {
+    color: var(--warm);
+  }
+
+  .ink-route-list {
+    display: flex;
+    gap: 0.1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ink-route-link {
+    display: inline-grid;
+    min-width: 2.5rem;
+    min-height: 2.75rem;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--warm-faint);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    transition:
+      border-color 160ms ease,
+      color 160ms ease,
+      background-color 160ms ease;
+  }
+
+  .ink-route-link:hover {
+    border-color: var(--warm-line);
+    color: var(--warm);
+  }
+
+  .ink-route-link.is-current {
+    border-color: var(--warm-line);
+    background: rgb(242 238 229 / 8%);
+    color: var(--warm);
+  }
+
+  .ink-hero {
+    display: grid;
+    min-height: calc(100svh - 5.25rem);
+    padding: clamp(2.5rem, 8vh, 7rem) clamp(1.25rem, 5vw, 5.5rem) clamp(3rem, 9vh, 8rem);
+    align-items: center;
+  }
+
+  .ink-hero-inner {
+    display: grid;
+    width: 100%;
+    max-width: 82rem;
+    margin-inline: auto;
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.72fr);
+    gap: clamp(3rem, 10vw, 10rem);
+    align-items: center;
+  }
+
+  .ink-copy {
+    max-width: 43rem;
+  }
+
+  .ink-copy h1 {
+    max-width: 10ch;
+    margin: 0;
+    color: var(--warm);
+    font-size: clamp(3.35rem, 6.7vw, 6.7rem);
+    font-weight: 400;
+    letter-spacing: -0.065em;
+    line-height: 0.98;
+    text-wrap: balance;
+  }
+
+  .ink-description {
+    max-width: 31rem;
+    margin: clamp(1.5rem, 3vw, 2.25rem) 0 0;
+    color: var(--warm-soft);
+    font-size: clamp(1.05rem, 1.45vw, 1.3rem);
+    font-weight: 300;
+    letter-spacing: -0.015em;
+    line-height: 1.5;
+    text-wrap: pretty;
+  }
+
+  .ink-cta {
+    display: inline-flex;
+    min-width: 11.5rem;
+    min-height: 3.5rem;
+    margin-top: clamp(2rem, 4vw, 3rem);
+    padding: 0.8rem 1rem 0.8rem 1.3rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2.5rem;
+    border-radius: 999px;
+    background: var(--signal);
+    color: var(--ink-deep) !important;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    text-decoration: none;
+    transition:
+      background-color 160ms ease,
+      color 160ms ease,
+      transform 160ms ease;
+  }
+
+  .ink-cta:hover {
+    background: #ff7065;
+    transform: translateY(-2px);
+  }
+
+  .ink-cta-arrow {
+    display: grid;
+    width: 1.9rem;
+    height: 1.9rem;
+    place-items: center;
+    border-radius: 50%;
+    background: rgb(23 27 34 / 15%);
+    font-size: 1.15rem;
+    font-weight: 400;
+    line-height: 1;
+  }
+
+  .ink-local-note {
+    margin: 1.15rem 0 0 0.2rem;
+    color: var(--warm-faint);
+    font-size: 0.72rem;
+    font-weight: 400;
+    letter-spacing: 0.015em;
+    line-height: 1.4;
+  }
+
+  .ink-mark {
+    position: relative;
+    width: min(100%, 24rem);
+    aspect-ratio: 0.82;
+    justify-self: end;
+    opacity: 0.78;
+    transform: rotate(7deg);
+  }
+
+  .ink-mark::before,
+  .ink-mark::after {
+    position: absolute;
+    display: block;
+    content: "";
+    border: 1px solid var(--warm-line);
+    border-radius: 47% 53% 44% 56% / 17% 19% 81% 83%;
+  }
+
+  .ink-mark::before {
+    inset: 4% 8% 3% 7%;
+  }
+
+  .ink-mark::after {
+    inset: 10% 15% 9% 14%;
+    border-color: rgb(242 238 229 / 9%);
+    transform: rotate(-8deg);
+  }
+
+  .ink-mark-outline {
+    position: absolute;
+    inset: 15% 22% 14% 20%;
+    display: block;
+    border: 1px solid rgb(242 238 229 / 22%);
+    border-radius: 43% 57% 50% 50% / 21% 18% 82% 79%;
+    transform: rotate(-12deg);
+  }
+
+  .ink-mark-fold {
+    position: absolute;
+    top: 21%;
+    right: 22%;
+    width: 22%;
+    height: 1px;
+    background: rgb(242 238 229 / 34%);
+    transform: rotate(38deg);
+    transform-origin: right center;
+  }
+
+  .ink-mark-line {
+    position: absolute;
+    left: 27%;
+    display: block;
+    width: 38%;
+    height: 1px;
+    background: rgb(242 238 229 / 34%);
+    transform: rotate(-12deg);
+    transform-origin: left center;
+  }
+
+  .ink-mark-line-one {
+    top: 43%;
+  }
+
+  .ink-mark-line-two {
+    top: 52%;
+    width: 28%;
+    opacity: 0.62;
+  }
+
+  @media (max-width: 720px) {
+    .ink-nav {
+      padding-top: 0.85rem;
+      padding-bottom: 0.85rem;
+    }
+
+    .ink-nav-inner {
+      gap: 0.5rem;
+    }
+
+    .ink-nav-actions {
+      gap: 0.4rem;
+    }
+
+    .ink-home-link {
+      padding-inline: 0.3rem;
+    }
+
+    .ink-route-link {
+      min-width: 2.25rem;
+    }
+
+    .ink-hero {
+      min-height: calc(100svh - 4.45rem);
+      padding-top: 3rem;
+      padding-bottom: 3.5rem;
+    }
+
+    .ink-hero-inner {
+      display: block;
+    }
+
+    .ink-copy {
+      max-width: 31rem;
+    }
+
+    .ink-copy h1 {
+      max-width: 9ch;
+      font-size: clamp(3.25rem, 15vw, 5.4rem);
+    }
+
+    .ink-description {
+      max-width: 25rem;
+      font-size: 1.05rem;
+    }
+
+    .ink-cta {
+      width: min(100%, 19rem);
+    }
+
+    .ink-mark {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ink-signal-page * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>

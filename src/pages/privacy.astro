@@ -58,13 +58,14 @@ const sections = [
         <Fragment slot="title">Privacy<br />Policy.</Fragment>
       </PageHeader>
 
-      <section class="section py-16">
+      <section class="section section-space">
         <div class="border-t-2 border-primary">
           {
             sections.map((s, i) => (
               <NumberedRow
                 num={s.num}
                 title={s.title}
+                variant="reading"
                 isLast={i === sections.length - 1}
                 staggerClass={`stagger-${Math.min(i + 1, 8)}`}
               >

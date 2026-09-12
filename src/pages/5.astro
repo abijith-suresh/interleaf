@@ -1,0 +1,370 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const base = import.meta.env.BASE_URL;
+const routeLinks = ["1", "2", "3", "4", "5"];
+---
+
+<Layout
+  title="One clear thing — Interleaf"
+  description="Interleaf helps you work on a PDF's pages in your browser while the file stays on your device."
+>
+  <div class="clear-page">
+    <header class="clear-header">
+      <div class="clear-header-inner">
+        <nav class="site-nav" aria-label="Site navigation">
+          <a class="brand clear-focus" href={base} translate="no">
+            Interleaf<span class="brand-mark" aria-hidden="true"></span>
+          </a>
+          <a class="home-link clear-focus" href={base}>Home</a>
+        </nav>
+
+        <nav class="direction-nav" aria-label="Compare landing directions">
+          <span class="direction-label" aria-hidden="true">Compare</span>
+          <div class="direction-links">
+            {
+              routeLinks.map((route) => (
+                <a
+                  class:list={["direction-link clear-focus", route === "5" && "is-current"]}
+                  href={`${base}${route}`}
+                  aria-current={route === "5" ? "page" : undefined}
+                >
+                  {route}
+                </a>
+              ))
+            }
+          </div>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content" class="clear-main">
+      <section class="clear-hero" aria-labelledby="clear-title">
+        <div class="clear-hero-inner">
+          <div class="clear-marker" aria-hidden="true"></div>
+
+          <div class="clear-content">
+            <h1 id="clear-title">Get your PDF's pages right.</h1>
+
+            <p class="clear-description">
+              Interleaf lets you work on a PDF's pages in your browser. Your file stays on your
+              device.
+            </p>
+
+            <a class="clear-cta clear-focus" href={`${base}app`}>
+              Open the editor
+              <span class="cta-arrow" aria-hidden="true">↗</span>
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</Layout>
+
+<style>
+  .clear-page {
+    --clear-ink: #111111;
+    --clear-muted: #62625c;
+    --clear-line: #d9d9d2;
+    --clear-red: #ff0000;
+    --clear-gutter: clamp(1.25rem, 5vw, 5rem);
+    --clear-max: 88rem;
+    display: flex;
+    min-width: 320px;
+    min-height: 100svh;
+    flex-direction: column;
+    overflow-x: hidden;
+    background: #ffffff;
+    color: var(--clear-ink);
+    font-family: "Work Sans", sans-serif;
+  }
+
+  .clear-page *,
+  .clear-page *::before,
+  .clear-page *::after {
+    box-sizing: border-box;
+  }
+
+  .clear-page a {
+    color: inherit;
+  }
+
+  .clear-focus:focus-visible {
+    outline: 2px solid var(--clear-red);
+    outline-offset: 4px;
+  }
+
+  .clear-header {
+    border-bottom: 1px solid var(--clear-line);
+  }
+
+  .clear-header-inner {
+    display: flex;
+    width: min(100%, var(--clear-max));
+    min-height: 4.75rem;
+    margin-inline: auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    padding: 0.75rem var(--clear-gutter);
+  }
+
+  .site-nav,
+  .direction-nav,
+  .direction-links {
+    display: flex;
+    align-items: center;
+  }
+
+  .site-nav {
+    gap: clamp(1.5rem, 3vw, 3.5rem);
+  }
+
+  .brand {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: "Bebas Neue", sans-serif;
+    font-size: 1.9rem;
+    letter-spacing: 0.045em;
+    line-height: 1;
+    text-decoration: none;
+  }
+
+  .brand-mark {
+    width: 0.48rem;
+    height: 0.48rem;
+    margin-top: 0.15rem;
+    background: var(--clear-red);
+  }
+
+  .home-link,
+  .direction-label,
+  .direction-link {
+    font-size: 0.67rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .home-link {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    color: var(--clear-muted);
+    text-decoration: none;
+  }
+
+  .home-link:hover {
+    color: var(--clear-red);
+  }
+
+  .direction-nav {
+    gap: 0.8rem;
+  }
+
+  .direction-label {
+    color: var(--clear-muted);
+  }
+
+  .direction-links {
+    border: 1px solid var(--clear-line);
+  }
+
+  .direction-link {
+    display: inline-flex;
+    width: 2.35rem;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid var(--clear-line);
+    color: var(--clear-muted);
+    text-decoration: none;
+    transition:
+      background-color 150ms ease,
+      color 150ms ease;
+  }
+
+  .direction-link:last-child {
+    border-right: 0;
+  }
+
+  .direction-link:hover,
+  .direction-link.is-current {
+    background: var(--clear-ink);
+    color: #ffffff;
+  }
+
+  .direction-link.is-current {
+    box-shadow: inset 0 -0.2rem 0 var(--clear-red);
+  }
+
+  .clear-main {
+    display: flex;
+    flex: 1;
+  }
+
+  .clear-hero {
+    display: flex;
+    width: 100%;
+    align-items: center;
+  }
+
+  .clear-hero-inner {
+    display: grid;
+    width: min(100%, var(--clear-max));
+    margin-inline: auto;
+    grid-template-columns: clamp(1.25rem, 7vw, 7rem) minmax(0, 47rem);
+    gap: clamp(1.5rem, 4vw, 4rem);
+    align-items: start;
+    padding: clamp(5rem, 15vh, 10rem) var(--clear-gutter) clamp(5rem, 12vh, 8rem);
+  }
+
+  .clear-marker {
+    width: 0.35rem;
+    height: clamp(5rem, 13vh, 8rem);
+    margin-top: 0.65rem;
+    background: var(--clear-red);
+  }
+
+  .clear-content {
+    max-width: 47rem;
+  }
+
+  h1 {
+    max-width: 10ch;
+    margin: 0;
+    font-size: clamp(3.7rem, 7.5vw, 7rem);
+    font-weight: 500;
+    letter-spacing: -0.07em;
+    line-height: 0.94;
+    text-wrap: balance;
+  }
+
+  .clear-description {
+    max-width: 28rem;
+    margin: clamp(2rem, 4vw, 3rem) 0 0;
+    color: var(--clear-muted);
+    font-size: clamp(1rem, 1.35vw, 1.2rem);
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
+  .clear-cta {
+    display: inline-flex;
+    min-height: 3.25rem;
+    align-items: center;
+    gap: 2rem;
+    margin-top: clamp(2rem, 4vw, 3rem);
+    padding: 0.95rem 1.15rem 0.95rem 1.25rem;
+    background: var(--clear-red);
+    color: var(--clear-ink);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    line-height: 1.2;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition:
+      background-color 150ms ease,
+      color 150ms ease,
+      transform 150ms ease;
+  }
+
+  .clear-cta:hover {
+    background: var(--clear-ink);
+    color: #ffffff;
+    transform: translateY(-0.15rem);
+  }
+
+  .clear-cta:active {
+    transform: translateY(0);
+  }
+
+  .cta-arrow {
+    font-size: 1.2rem;
+    line-height: 0.8;
+  }
+
+  @media (max-width: 640px) {
+    .clear-header-inner {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0;
+      padding-top: 0.6rem;
+      padding-bottom: 0.6rem;
+    }
+
+    .site-nav {
+      display: contents;
+    }
+
+    .brand {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .home-link {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .direction-nav {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      justify-content: space-between;
+      padding-top: 0.6rem;
+      border-top: 1px solid var(--clear-line);
+    }
+
+    .clear-hero-inner {
+      grid-template-columns: 0.3rem minmax(0, 1fr);
+      gap: 1.25rem;
+      padding-top: clamp(4rem, 12vh, 6rem);
+      padding-bottom: clamp(4rem, 12vh, 6rem);
+    }
+
+    .clear-marker {
+      width: 0.3rem;
+      height: 5.25rem;
+      margin-top: 0.35rem;
+    }
+
+    h1 {
+      max-width: 9ch;
+      font-size: clamp(3.5rem, 16vw, 5.5rem);
+      letter-spacing: -0.075em;
+    }
+
+    .clear-description {
+      max-width: 22rem;
+      margin-top: 2rem;
+      font-size: 1rem;
+    }
+
+    .clear-cta {
+      margin-top: 2rem;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .direction-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+    }
+
+    .direction-link {
+      width: 2.15rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .direction-link,
+    .clear-cta {
+      transition: none;
+    }
+  }
+</style>
