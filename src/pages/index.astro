@@ -2,123 +2,37 @@
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
-import NumberedRow from "../components/shared/NumberedRow.astro";
-import BottomCTA from "../components/shared/BottomCTA.astro";
-import { contentSlide } from "../utils/transitions";
 
 const base = import.meta.env.BASE_URL;
-
-const operations = [
-  {
-    num: "01",
-    title: "Merge",
-    text: "Combine multiple PDF files into one document.",
-  },
-  {
-    num: "02",
-    title: "Extract",
-    text: "Pull selected pages into a new PDF.",
-  },
-  {
-    num: "03",
-    title: "Reorder",
-    text: "Arrange pages with drag and drop.",
-  },
-  {
-    num: "04",
-    title: "Rotate",
-    text: "Turn individual pages or a selection in 90-degree steps.",
-  },
-  {
-    num: "05",
-    title: "Delete",
-    text: "Mark unwanted pages for removal before export.",
-  },
-  {
-    num: "06",
-    title: "Unlock",
-    text: "Open password-protected PDFs with an in-browser prompt.",
-  },
-];
 ---
 
 <Layout
-  title="Interleaf - Client-Side PDF Editor"
-  description="Edit, merge, extract, reorder, rotate, delete, and unlock PDF files entirely in your browser. No uploads, no servers, no privacy compromises."
+  title="Interleaf - Put the document right"
+  description="Fix the pages in a PDF in your browser. Your file stays on your device."
 >
-  <div class="page-wrapper" transition:animate={contentSlide}>
+  <div class="landing-page">
     <Nav currentPage="home" />
 
     <main id="main-content">
-      <section class="hero">
-        <div class="hero-grid">
-          <div class="hero-main">
-            <h1 class="hero-title">Interleaf</h1>
-            <p class="hero-tagline">
-              Work with the pages.<br />Keep the files with you.
+      <section class="landing-hero" aria-labelledby="landing-title">
+        <div class="landing-hero-inner">
+          <div class="landing-copy">
+            <h1 id="landing-title">Put the<br /><span>document right.</span></h1>
+            <p class="landing-intro">
+              When a PDF is almost right, fix its pages in your browser and take the file with you.
             </p>
-            <div class="hero-actions">
-              <a href={`${base}app`} class="btn-primary text-xs no-underline press-feedback">
-                Open Editor
-              </a>
-              <p class="hero-action-note">Six core operations. One browser tab.</p>
+            <div class="landing-action">
+              <a href={`${base}app`} class="btn-primary landing-cta press-feedback">Open editor</a>
+              <p>Your file stays on your device.</p>
             </div>
           </div>
-
         </div>
       </section>
 
-      <section class="section section-space">
-        <div class="section-intro animate-on-scroll">
-          <p class="eyebrow">What you can do</p>
-          <div>
-            <h2 class="section-title text-balance">A workbench for the pages that matter.</h2>
-            <p class="body-text mt-5 max-w-2xl">
-              Open a PDF, make the changes you need, and export the result. Interleaf keeps the
-              process close to the document and clear about where your files go.
-            </p>
-          </div>
-        </div>
-
-        <div class="border-t-2 border-primary">
-          {
-            operations.map((operation, i) => (
-              <NumberedRow
-                num={operation.num}
-                title={operation.title}
-                titleClass={i === operations.length - 1 ? "text-accent" : ""}
-                isLast={i === operations.length - 1}
-                staggerClass={`stagger-${Math.min(i + 1, 8)}`}
-              >
-                <p>{operation.text}</p>
-              </NumberedRow>
-            ))
-          }
-        </div>
+      <section class="landing-note" aria-label="How Interleaf works">
+        <p>Open a document. Make the pages fit. Export it when it is ready.</p>
+        <a href={`${base}about`}>Why Interleaf <span aria-hidden="true">↗</span></a>
       </section>
-
-      <section class="section landing-proof-section">
-        <div class="landing-proof-grid">
-          <div class="surface-note animate-on-scroll">
-            <p class="eyebrow mb-4">No upload step</p>
-            <p class="body-text text-lg">
-              Interleaf works with the file already on your device. Your PDF stays in the browser
-              while you edit it.
-            </p>
-          </div>
-          <div class="landing-proof-copy animate-on-scroll stagger-1">
-            <p class="eyebrow mb-4">A clear starting point</p>
-            <p class="body-text">
-              There is no account to create and no workspace to configure. Open the editor when you
-              have a document to fix.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <BottomCTA buttonText="Open Editor" buttonHref={`${base}app`}>
-        <Fragment slot="heading">Start<br />editing.</Fragment>
-      </BottomCTA>
     </main>
 
     <Footer />
@@ -126,54 +40,55 @@ const operations = [
 </Layout>
 
 <style>
-  .hero {
-    min-height: clamp(34rem, calc(100svh - 4rem), 48rem);
-    display: flex;
+  .landing-page {
+    min-height: 100vh;
+    background: var(--color-white);
+    color: var(--color-primary);
+    font-family: var(--font-body);
+  }
+
+  .landing-hero {
+    display: grid;
+    min-height: min(44rem, calc(100svh - 4rem));
     align-items: center;
-    border-bottom: 2px solid var(--color-primary);
+    border-bottom: 1px solid var(--color-primary);
     padding: clamp(4rem, 9vw, 7rem) 1.25rem;
   }
 
-  .hero-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: end;
+  .landing-hero-inner {
     width: 100%;
-    max-width: 64rem;
-    margin: 0 auto;
+    max-width: 72rem;
+    margin-inline: auto;
   }
 
-  .hero-main {
-    min-width: 0;
+  .landing-copy {
+    max-width: 55rem;
   }
 
-  .hero-title {
-    animation: var(--animate-slide-up);
-    animation-delay: 0.2s;
+  .landing-copy h1 {
+    margin: 0;
     color: var(--color-primary);
     font-family: var(--font-display);
-    font-size: clamp(5rem, 16vw, 12rem);
+    font-size: clamp(4.5rem, 13vw, 10rem);
     letter-spacing: -0.015em;
-    line-height: 0.78;
+    line-height: 0.8;
     text-wrap: balance;
   }
 
-  .hero-tagline {
-    animation: var(--animate-slide-up);
-    animation-delay: 0.3s;
-    max-width: 28rem;
-    margin-top: clamp(2rem, 5vw, 3.5rem);
-    border-left: 4px solid var(--color-accent);
-    padding-left: 1.25rem;
-    color: var(--color-body);
-    font-size: clamp(1.15rem, 2vw, 1.5rem);
-    font-weight: var(--font-weight-light);
-    line-height: 1.35;
+  .landing-copy h1 span {
+    color: var(--color-accent);
   }
 
-  .hero-actions {
-    animation: var(--animate-fade-in);
-    animation-delay: 0.45s;
+  .landing-intro {
+    max-width: 34rem;
+    margin: clamp(2rem, 5vw, 3.5rem) 0 0;
+    color: var(--color-body);
+    font-size: clamp(1.15rem, 2.1vw, 1.5rem);
+    font-weight: var(--font-weight-light);
+    line-height: 1.45;
+  }
+
+  .landing-action {
     display: flex;
     flex-wrap: wrap;
     gap: 1rem 1.5rem;
@@ -181,64 +96,92 @@ const operations = [
     margin-top: 2.5rem;
   }
 
-  .hero-action-note {
-    max-width: 12rem;
+  .landing-cta {
+    text-transform: uppercase;
+  }
+
+  .landing-action p {
     margin: 0;
     color: var(--color-muted);
     font-size: var(--text-xs);
     line-height: 1.4;
   }
 
-  .landing-proof-section {
-    padding-top: 0;
-    padding-bottom: clamp(4rem, 8vw, 7rem);
+  .landing-note {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 2rem;
+    align-items: center;
+    justify-content: space-between;
+    width: min(calc(100% - 2.5rem), 72rem);
+    margin-inline: auto;
+    padding: 1.5rem 0;
   }
 
-  .landing-proof-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.3fr) minmax(15rem, 0.7fr);
-    gap: clamp(2rem, 8vw, 8rem);
-    align-items: start;
-    border-top: 1px solid var(--color-border);
-    padding-top: clamp(2rem, 4vw, 3.5rem);
+  .landing-note p,
+  .landing-note a {
+    margin: 0;
+    color: var(--color-body);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-light);
+    line-height: 1.5;
   }
 
-  .landing-proof-copy {
-    max-width: 24rem;
-    padding-top: 1.5rem;
+  .landing-note a {
+    color: var(--color-primary);
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  .landing-note a span {
+    color: var(--color-accent);
+    font-size: 1rem;
+  }
+
+  .landing-note a:hover {
+    color: var(--color-accent);
+  }
+
+  .landing-note a:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 4px;
   }
 
   @media (min-width: 768px) {
-    .hero {
+    .landing-hero {
       padding-right: 3rem;
       padding-left: 3rem;
     }
   }
 
   @media (min-width: 1024px) {
-    .hero {
+    .landing-hero {
       padding-right: 5rem;
       padding-left: 5rem;
     }
   }
 
-  @media (max-width: 767px) {
-    .hero {
-      min-height: auto;
-      padding-top: 5rem;
-      padding-bottom: 5rem;
+  @media (max-width: 520px) {
+    .landing-hero {
+      min-height: calc(100svh - 4rem);
+      padding-top: 4rem;
+      padding-bottom: 4rem;
     }
 
-    .landing-proof-grid {
-      grid-template-columns: 1fr;
+    .landing-copy h1 {
+      font-size: clamp(4rem, 19vw, 6rem);
     }
 
-    .hero-grid {
-      gap: 0;
+    .landing-action {
+      align-items: flex-start;
+      flex-direction: column;
     }
 
-    .landing-proof-copy {
-      padding-top: 0;
+    .landing-note {
+      align-items: flex-start;
+      flex-direction: column;
+      padding-top: 1.25rem;
+      padding-bottom: 1.25rem;
     }
   }
 </style>
