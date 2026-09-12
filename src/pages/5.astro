@@ -2,77 +2,30 @@
 import Layout from "../layouts/Layout.astro";
 
 const base = import.meta.env.BASE_URL;
-
 const routeLinks = ["1", "2", "3", "4", "5"];
-
-const operations = [
-  {
-    number: "01",
-    name: "Merge",
-    input: "Multiple PDFs",
-    output: "One working set",
-    description: "Combine files before you work through their pages.",
-  },
-  {
-    number: "02",
-    name: "Extract",
-    input: "Selected pages",
-    output: "A new PDF",
-    description: "Pull the pages you need into a separate document.",
-  },
-  {
-    number: "03",
-    name: "Reorder",
-    input: "Page thumbnails",
-    output: "A new sequence",
-    description: "Arrange pages with drag and drop and keep the order visible.",
-  },
-  {
-    number: "04",
-    name: "Rotate",
-    input: "A page or selection",
-    output: "Correct orientation",
-    description: "Turn individual pages or a selection in 90-degree steps.",
-  },
-  {
-    number: "05",
-    name: "Delete",
-    input: "Marked pages",
-    output: "A cleaner export",
-    description: "Mark unwanted pages for removal before you export.",
-  },
-  {
-    number: "06",
-    name: "Unlock",
-    input: "A protected PDF",
-    output: "An open working set",
-    description: "Use an in-browser prompt to unlock a password-protected file.",
-  },
-];
 ---
 
 <Layout
-  title="Technical dossier — Interleaf"
-  description="Interleaf handles six PDF page operations in your browser. Merge, extract, reorder, rotate, delete, and unlock files without uploading them."
+  title="One clear thing — Interleaf"
+  description="Interleaf helps you work on a PDF's pages in your browser while the file stays on your device."
 >
-  <div class="dossier-page">
-    <nav class="dossier-nav" aria-label="Interleaf navigation">
-      <div class="dossier-nav-inner">
-        <div class="dossier-brand-line">
-          <a class="dossier-brand dossier-focus" href={base} aria-label="Interleaf home">
-            Interleaf<span class="dossier-brand-slash" aria-hidden="true">/</span>
+  <div class="clear-page">
+    <header class="clear-header">
+      <div class="clear-header-inner">
+        <nav class="site-nav" aria-label="Site navigation">
+          <a class="brand clear-focus" href={base} translate="no">
+            Interleaf<span class="brand-mark" aria-hidden="true"></span>
           </a>
-          <span class="dossier-nav-divider" aria-hidden="true"></span>
-          <span class="dossier-nav-context">Technical dossier</span>
-        </div>
+          <a class="home-link clear-focus" href={base}>Home</a>
+        </nav>
 
-        <div class="dossier-route-line">
-          <span class="dossier-route-label">Design experiments</span>
-          <div class="dossier-route-switcher" aria-label="Landing page design experiments">
+        <nav class="direction-nav" aria-label="Compare landing directions">
+          <span class="direction-label" aria-hidden="true">Compare</span>
+          <div class="direction-links">
             {
               routeLinks.map((route) => (
                 <a
-                  class:list={["dossier-route-link dossier-focus", route === "5" && "is-current"]}
+                  class:list={["direction-link clear-focus", route === "5" && "is-current"]}
                   href={`${base}${route}`}
                   aria-current={route === "5" ? "page" : undefined}
                 >
@@ -81,1047 +34,337 @@ const operations = [
               ))
             }
           </div>
-          <a class="dossier-home-link dossier-focus" href={base} aria-label="Back to Interleaf home">
-            /
-          </a>
-        </div>
+        </nav>
       </div>
-    </nav>
+    </header>
 
-    <main id="main-content">
-      <section class="dossier-hero" aria-labelledby="dossier-title">
-        <div class="dossier-hero-inner">
-          <div class="dossier-topline">
-            <span class="dossier-status"><span class="dossier-status-dot" aria-hidden="true"></span>Local processing</span>
-            <span class="dossier-reference">Route 05 <span aria-hidden="true">/</span> Technical dossier</span>
-          </div>
+    <main id="main-content" class="clear-main">
+      <section class="clear-hero" aria-labelledby="clear-title">
+        <div class="clear-hero-inner">
+          <div class="clear-marker" aria-hidden="true"></div>
 
-          <div class="dossier-hero-body">
-            <div class="dossier-hero-copy">
-              <h1 id="dossier-title" class="dossier-title">
-                PDF pages,<br /><span>in order<span class="dossier-title-mark" aria-hidden="true">.</span></span>
-              </h1>
-              <p class="dossier-lede">
-                Interleaf is a browser-based workbench for the parts of a PDF that matter: its
-                pages, their sequence, and the final file you take with you.
-              </p>
-              <a class="dossier-cta dossier-focus" href={`${base}app`}>
-                <span>Open Editor</span>
-                <span class="dossier-cta-arrow" aria-hidden="true">↗</span>
-              </a>
-            </div>
+          <div class="clear-content">
+            <h1 id="clear-title">Get your PDF's pages right.</h1>
 
-            <dl class="dossier-register" aria-label="Interleaf product details">
-              <div class="dossier-register-row">
-                <dt>Tool</dt>
-                <dd>Page-level PDF utility</dd>
-              </div>
-              <div class="dossier-register-row">
-                <dt>Operations</dt>
-                <dd>06 supported actions</dd>
-              </div>
-              <div class="dossier-register-row">
-                <dt>Processing</dt>
-                <dd>In this browser</dd>
-              </div>
-              <div class="dossier-register-row">
-                <dt>Account</dt>
-                <dd>Not required</dd>
-              </div>
-            </dl>
-          </div>
-
-          <div class="dossier-hero-foot">
-            <span>Read the index below</span>
-            <span class="dossier-rule-arrow" aria-hidden="true">↓</span>
-            <span class="dossier-hero-foot-note">A small tool for a specific job.</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="dossier-section dossier-index-section" id="operations" aria-labelledby="operations-title">
-        <div class="dossier-section-heading">
-          <p class="dossier-section-label">01 <span aria-hidden="true">/</span> Operations index</p>
-          <div>
-            <h2 id="operations-title" class="dossier-section-title">The page work, clearly named.</h2>
-            <p class="dossier-section-intro">
-              Start with a working set, make the page changes you need, and export when the order
-              is right.
+            <p class="clear-description">
+              Interleaf lets you work on a PDF's pages in your browser. Your file stays on your
+              device.
             </p>
+
+            <a class="clear-cta clear-focus" href={`${base}app`}>
+              Open the editor
+              <span class="cta-arrow" aria-hidden="true">↗</span>
+            </a>
           </div>
         </div>
-
-        <div class="dossier-table-wrap">
-          <table class="dossier-operations-table">
-            <caption class="dossier-visually-hidden">Interleaf supported PDF operations</caption>
-            <thead>
-              <tr>
-                <th scope="col">No.</th>
-                <th scope="col">Operation</th>
-                <th scope="col">Input</th>
-                <th scope="col">Output</th>
-                <th scope="col">What it does</th>
-              </tr>
-            </thead>
-            <tbody>
-              {
-                operations.map((operation) => (
-                  <tr>
-                    <td class="dossier-operation-number" data-label="No.">
-                      <span class="dossier-operation-marker" aria-hidden="true"></span>
-                      {operation.number}
-                    </td>
-                    <th class="dossier-operation-name" scope="row" data-label="Operation">
-                      {operation.name}
-                    </th>
-                    <td data-label="Input">{operation.input}</td>
-                    <td data-label="Output">{operation.output}</td>
-                    <td class="dossier-operation-description" data-label="What it does">
-                      {operation.description}
-                    </td>
-                  </tr>
-                ))
-              }
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="dossier-local-note" aria-labelledby="local-title">
-        <div class="dossier-local-note-inner">
-          <div class="dossier-local-status">
-            <span class="dossier-status-dot" aria-hidden="true"></span>
-            <span>Browser only</span>
-          </div>
-          <div class="dossier-local-copy">
-            <h2 id="local-title">Files stay in this browser.</h2>
-            <p>Interleaf does not upload, store, or send your PDFs to a server.</p>
-          </div>
-          <span class="dossier-local-code" aria-hidden="true">LOCAL / 100%</span>
-        </div>
-      </section>
-
-      <section class="dossier-section dossier-method-section" aria-labelledby="method-title">
-        <div class="dossier-section-heading dossier-method-heading">
-          <p class="dossier-section-label">02 <span aria-hidden="true">/</span> Working method</p>
-          <div>
-            <h2 id="method-title" class="dossier-section-title">Keep the file close.</h2>
-            <p class="dossier-section-intro">
-              There is no workspace to configure. Open the editor, inspect the pages, then take the
-              finished PDF with you.
-            </p>
-          </div>
-        </div>
-
-        <ol class="dossier-method-list">
-          <li>
-            <span class="dossier-method-number">01</span>
-            <span class="dossier-method-name">Open</span>
-            <span class="dossier-method-text">Bring a PDF into the browser.</span>
-          </li>
-          <li>
-            <span class="dossier-method-number">02</span>
-            <span class="dossier-method-name">Shape</span>
-            <span class="dossier-method-text">Inspect thumbnails and change the page set.</span>
-          </li>
-          <li>
-            <span class="dossier-method-number">03</span>
-            <span class="dossier-method-name">Export</span>
-            <span class="dossier-method-text">Save the result when the sequence is right.</span>
-          </li>
-        </ol>
       </section>
     </main>
-
-    <footer class="dossier-footer">
-      <div class="dossier-footer-inner">
-        <div>
-          <p class="dossier-footer-brand">Interleaf<span class="dossier-brand-slash" aria-hidden="true">/</span></p>
-          <p class="dossier-footer-note">Technical dossier, route 05 of 05</p>
-        </div>
-        <a class="dossier-footer-home dossier-focus" href={base}>Back to home <span aria-hidden="true">↗</span></a>
-      </div>
-    </footer>
   </div>
 </Layout>
 
 <style>
-  .dossier-page {
-    --dossier-ink: #111111;
-    --dossier-paper: #ffffff;
-    --dossier-soft: #f5f5f1;
-    --dossier-line: #d8d8d1;
-    --dossier-muted: #666660;
-    --dossier-signal: #f21f2b;
-    --dossier-gutter: clamp(1.25rem, 4.8vw, 5rem);
-    --dossier-max: 86rem;
+  .clear-page {
+    --clear-ink: #111111;
+    --clear-muted: #62625c;
+    --clear-line: #d9d9d2;
+    --clear-red: #ff0000;
+    --clear-gutter: clamp(1.25rem, 5vw, 5rem);
+    --clear-max: 88rem;
+    display: flex;
     min-width: 320px;
-    min-height: 100vh;
-    overflow: hidden;
-    background: var(--dossier-paper);
-    color: var(--dossier-ink);
+    min-height: 100svh;
+    flex-direction: column;
+    overflow-x: hidden;
+    background: #ffffff;
+    color: var(--clear-ink);
     font-family: "Work Sans", sans-serif;
   }
 
-  .dossier-page *,
-  .dossier-page *::before,
-  .dossier-page *::after {
+  .clear-page *,
+  .clear-page *::before,
+  .clear-page *::after {
     box-sizing: border-box;
   }
 
-  .dossier-page a {
+  .clear-page a {
     color: inherit;
   }
 
-  .dossier-focus:focus-visible {
-    outline: 2px solid var(--dossier-signal);
+  .clear-focus:focus-visible {
+    outline: 2px solid var(--clear-red);
     outline-offset: 4px;
   }
 
-  .dossier-nav {
-    border-bottom: 1px solid var(--dossier-line);
+  .clear-header {
+    border-bottom: 1px solid var(--clear-line);
   }
 
-  .dossier-nav-inner,
-  .dossier-hero-inner,
-  .dossier-section,
-  .dossier-local-note-inner,
-  .dossier-footer-inner {
-    width: min(100%, var(--dossier-max));
-    margin-inline: auto;
-    padding-inline: var(--dossier-gutter);
-  }
-
-  .dossier-nav-inner {
+  .clear-header-inner {
     display: flex;
+    width: min(100%, var(--clear-max));
     min-height: 4.75rem;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1.5rem;
-    padding-block: 0.75rem;
-  }
-
-  .dossier-brand-line,
-  .dossier-route-line,
-  .dossier-route-switcher {
-    display: flex;
-    align-items: center;
-  }
-
-  .dossier-brand-line {
-    min-width: 0;
-    gap: 0.9rem;
-  }
-
-  .dossier-brand {
-    font-family: "Bebas Neue", sans-serif;
-    font-size: 1.85rem;
-    letter-spacing: 0.04em;
-    line-height: 1;
-    text-decoration: none;
-  }
-
-  .dossier-brand-slash,
-  .dossier-title-mark {
-    color: var(--dossier-signal);
-  }
-
-  .dossier-nav-divider {
-    width: 1px;
-    height: 1.2rem;
-    background: var(--dossier-line);
-  }
-
-  .dossier-nav-context,
-  .dossier-route-label,
-  .dossier-reference,
-  .dossier-status,
-  .dossier-local-status,
-  .dossier-local-code,
-  .dossier-section-label,
-  .dossier-hero-foot,
-  .dossier-footer-note {
-    font-size: 0.64rem;
-    font-weight: 600;
-    letter-spacing: 0.16em;
-    line-height: 1.3;
-    text-transform: uppercase;
-  }
-
-  .dossier-nav-context {
-    overflow: hidden;
-    color: var(--dossier-muted);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .dossier-route-line {
-    flex-shrink: 0;
-    gap: 0.75rem;
-  }
-
-  .dossier-route-label {
-    color: var(--dossier-muted);
-    white-space: nowrap;
-  }
-
-  .dossier-route-switcher {
-    border: 1px solid var(--dossier-ink);
-  }
-
-  .dossier-route-link,
-  .dossier-home-link {
-    display: inline-flex;
-    min-width: 2.75rem;
-    min-height: 2.75rem;
-    align-items: center;
-    justify-content: center;
-    text-decoration: none;
-  }
-
-  .dossier-route-link {
-    border-right: 1px solid var(--dossier-ink);
-    font-size: 0.72rem;
-    font-weight: 600;
-  }
-
-  .dossier-route-link:hover,
-  .dossier-route-link.is-current {
-    background: var(--dossier-ink);
-    color: var(--dossier-paper);
-  }
-
-  .dossier-route-link.is-current::after {
-    width: 0.35rem;
-    height: 0.35rem;
-    margin-left: 0.25rem;
-    border-radius: 50%;
-    background: var(--dossier-signal);
-    content: "";
-  }
-
-  .dossier-home-link {
-    border: 1px solid var(--dossier-ink);
-    font-family: "Bebas Neue", sans-serif;
-    font-size: 1.25rem;
-    line-height: 1;
-  }
-
-  .dossier-home-link:hover {
-    background: var(--dossier-signal);
-    color: var(--dossier-ink);
-  }
-
-  .dossier-hero {
-    border-bottom: 2px solid var(--dossier-ink);
-    background-image:
-      linear-gradient(to right, transparent calc(25% - 1px), rgb(17 17 17 / 0.045) 25%),
-      linear-gradient(to right, transparent calc(50% - 1px), rgb(17 17 17 / 0.045) 50%),
-      linear-gradient(to right, transparent calc(75% - 1px), rgb(17 17 17 / 0.045) 75%);
-    background-size: 100% 100%;
-  }
-
-  .dossier-hero-inner {
-    padding-top: clamp(3rem, 7vw, 6.5rem);
-    padding-bottom: clamp(2.25rem, 4vw, 3.75rem);
-  }
-
-  .dossier-topline,
-  .dossier-hero-foot {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-
-  .dossier-topline {
-    border-top: 2px solid var(--dossier-ink);
-    padding-top: 0.8rem;
-  }
-
-  .dossier-status,
-  .dossier-local-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .dossier-status-dot {
-    display: inline-block;
-    width: 0.55rem;
-    height: 0.55rem;
-    flex: 0 0 auto;
-    border-radius: 50%;
-    background: var(--dossier-signal);
-    box-shadow: 0 0 0 0.2rem rgb(242 31 43 / 0.12);
-  }
-
-  .dossier-reference {
-    color: var(--dossier-muted);
-    text-align: right;
-  }
-
-  .dossier-hero-body {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(17rem, 25rem);
-    gap: clamp(3rem, 9vw, 10rem);
-    align-items: end;
-    padding-top: clamp(4rem, 8vw, 8rem);
-    padding-bottom: clamp(3.5rem, 7vw, 6.5rem);
-  }
-
-  .dossier-hero-copy {
-    max-width: 55rem;
-  }
-
-  .dossier-title {
-    max-width: 10ch;
-    margin: 0;
-    font-family: "Bebas Neue", sans-serif;
-    font-size: clamp(5.5rem, 13.2vw, 12.2rem);
-    font-weight: 400;
-    letter-spacing: -0.025em;
-    line-height: 0.78;
-    text-wrap: balance;
-  }
-
-  .dossier-title > span {
-    white-space: nowrap;
-  }
-
-  .dossier-lede {
-    max-width: 37rem;
-    margin: clamp(2.25rem, 4vw, 3.5rem) 0 0;
-    color: var(--dossier-muted);
-    font-size: clamp(1rem, 1.45vw, 1.25rem);
-    font-weight: 400;
-    line-height: 1.55;
-  }
-
-  .dossier-page .dossier-cta {
-    display: inline-flex;
-    min-height: 3.25rem;
+    margin-inline: auto;
     align-items: center;
     justify-content: space-between;
     gap: 2rem;
-    margin-top: 2rem;
-    padding: 0.75rem 1rem 0.75rem 1.2rem;
-    background: var(--dossier-ink);
-    box-shadow: 0.4rem 0.4rem 0 var(--dossier-signal);
-    color: var(--dossier-paper);
-    font-size: 0.7rem;
+    padding: 0.75rem var(--clear-gutter);
+  }
+
+  .site-nav,
+  .direction-nav,
+  .direction-links {
+    display: flex;
+    align-items: center;
+  }
+
+  .site-nav {
+    gap: clamp(1.5rem, 3vw, 3.5rem);
+  }
+
+  .brand {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: "Bebas Neue", sans-serif;
+    font-size: 1.9rem;
+    letter-spacing: 0.045em;
+    line-height: 1;
+    text-decoration: none;
+  }
+
+  .brand-mark {
+    width: 0.48rem;
+    height: 0.48rem;
+    margin-top: 0.15rem;
+    background: var(--clear-red);
+  }
+
+  .home-link,
+  .direction-label,
+  .direction-link {
+    font-size: 0.67rem;
     font-weight: 600;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.14em;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .home-link {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    color: var(--clear-muted);
+    text-decoration: none;
+  }
+
+  .home-link:hover {
+    color: var(--clear-red);
+  }
+
+  .direction-nav {
+    gap: 0.8rem;
+  }
+
+  .direction-label {
+    color: var(--clear-muted);
+  }
+
+  .direction-links {
+    border: 1px solid var(--clear-line);
+  }
+
+  .direction-link {
+    display: inline-flex;
+    width: 2.35rem;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid var(--clear-line);
+    color: var(--clear-muted);
+    text-decoration: none;
+    transition:
+      background-color 150ms ease,
+      color 150ms ease;
+  }
+
+  .direction-link:last-child {
+    border-right: 0;
+  }
+
+  .direction-link:hover,
+  .direction-link.is-current {
+    background: var(--clear-ink);
+    color: #ffffff;
+  }
+
+  .direction-link.is-current {
+    box-shadow: inset 0 -0.2rem 0 var(--clear-red);
+  }
+
+  .clear-main {
+    display: flex;
+    flex: 1;
+  }
+
+  .clear-hero {
+    display: flex;
+    width: 100%;
+    align-items: center;
+  }
+
+  .clear-hero-inner {
+    display: grid;
+    width: min(100%, var(--clear-max));
+    margin-inline: auto;
+    grid-template-columns: clamp(1.25rem, 7vw, 7rem) minmax(0, 47rem);
+    gap: clamp(1.5rem, 4vw, 4rem);
+    align-items: start;
+    padding: clamp(5rem, 15vh, 10rem) var(--clear-gutter) clamp(5rem, 12vh, 8rem);
+  }
+
+  .clear-marker {
+    width: 0.35rem;
+    height: clamp(5rem, 13vh, 8rem);
+    margin-top: 0.65rem;
+    background: var(--clear-red);
+  }
+
+  .clear-content {
+    max-width: 47rem;
+  }
+
+  h1 {
+    max-width: 10ch;
+    margin: 0;
+    font-size: clamp(3.7rem, 7.5vw, 7rem);
+    font-weight: 500;
+    letter-spacing: -0.07em;
+    line-height: 0.94;
+    text-wrap: balance;
+  }
+
+  .clear-description {
+    max-width: 28rem;
+    margin: clamp(2rem, 4vw, 3rem) 0 0;
+    color: var(--clear-muted);
+    font-size: clamp(1rem, 1.35vw, 1.2rem);
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
+  .clear-cta {
+    display: inline-flex;
+    min-height: 3.25rem;
+    align-items: center;
+    gap: 2rem;
+    margin-top: clamp(2rem, 4vw, 3rem);
+    padding: 0.95rem 1.15rem 0.95rem 1.25rem;
+    background: var(--clear-red);
+    color: var(--clear-ink);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    line-height: 1.2;
     text-decoration: none;
     text-transform: uppercase;
     transition:
       background-color 150ms ease,
-      box-shadow 150ms ease,
+      color 150ms ease,
       transform 150ms ease;
   }
 
-  .dossier-cta:hover {
-    background: #2a2a2a;
-    box-shadow: 0.25rem 0.25rem 0 var(--dossier-signal);
-    transform: translate(0.15rem, 0.15rem);
+  .clear-cta:hover {
+    background: var(--clear-ink);
+    color: #ffffff;
+    transform: translateY(-0.15rem);
   }
 
-  .dossier-cta:active {
-    box-shadow: 0 0 0 var(--dossier-signal);
-    transform: translate(0.4rem, 0.4rem);
+  .clear-cta:active {
+    transform: translateY(0);
   }
 
-  .dossier-cta-arrow {
-    color: var(--dossier-signal);
+  .cta-arrow {
     font-size: 1.2rem;
     line-height: 0.8;
   }
 
-  .dossier-register {
-    margin: 0;
-    border-top: 2px solid var(--dossier-ink);
-    border-bottom: 2px solid var(--dossier-ink);
-  }
-
-  .dossier-register-row {
-    display: grid;
-    grid-template-columns: 6.25rem minmax(0, 1fr);
-    gap: 1rem;
-    padding: 0.9rem 0;
-    border-bottom: 1px solid var(--dossier-line);
-  }
-
-  .dossier-register-row:last-child {
-    border-bottom: 0;
-  }
-
-  .dossier-register dt,
-  .dossier-register dd {
-    margin: 0;
-    font-size: 0.78rem;
-    line-height: 1.45;
-  }
-
-  .dossier-register dt {
-    color: var(--dossier-muted);
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .dossier-register dd {
-    font-weight: 500;
-  }
-
-  .dossier-hero-foot {
-    justify-content: flex-start;
-    border-top: 1px solid var(--dossier-line);
-    padding-top: 0.85rem;
-  }
-
-  .dossier-rule-arrow {
-    color: var(--dossier-signal);
-    font-size: 1.15rem;
-    line-height: 0.5;
-  }
-
-  .dossier-hero-foot-note {
-    margin-left: auto;
-    color: var(--dossier-muted);
-    font-weight: 400;
-    letter-spacing: 0.02em;
-    text-transform: none;
-  }
-
-  .dossier-section {
-    padding-top: clamp(4.5rem, 9vw, 8rem);
-    padding-bottom: clamp(4.5rem, 9vw, 8rem);
-  }
-
-  .dossier-section-heading {
-    display: grid;
-    grid-template-columns: minmax(10rem, 0.6fr) minmax(0, 2fr);
-    gap: clamp(2rem, 7vw, 8rem);
-    align-items: start;
-    margin-bottom: clamp(2.5rem, 5vw, 4.5rem);
-  }
-
-  .dossier-section-label {
-    margin: 0;
-    color: var(--dossier-signal);
-  }
-
-  .dossier-section-label span {
-    color: var(--dossier-line);
-  }
-
-  .dossier-section-title {
-    max-width: 14ch;
-    margin: 0;
-    font-family: "Bebas Neue", sans-serif;
-    font-size: clamp(3.25rem, 6vw, 6.25rem);
-    font-weight: 400;
-    letter-spacing: -0.015em;
-    line-height: 0.84;
-  }
-
-  .dossier-section-intro {
-    max-width: 35rem;
-    margin: 1.5rem 0 0;
-    color: var(--dossier-muted);
-    font-size: 1rem;
-    line-height: 1.6;
-  }
-
-  .dossier-table-wrap {
-    border-top: 2px solid var(--dossier-ink);
-    border-bottom: 2px solid var(--dossier-ink);
-  }
-
-  .dossier-operations-table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-  }
-
-  .dossier-operations-table th,
-  .dossier-operations-table td {
-    padding: 1.15rem 1rem;
-    border-bottom: 1px solid var(--dossier-line);
-    text-align: left;
-    vertical-align: top;
-  }
-
-  .dossier-operations-table thead th {
-    padding-top: 0.85rem;
-    padding-bottom: 0.85rem;
-    color: var(--dossier-muted);
-    font-size: 0.62rem;
-    font-weight: 600;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }
-
-  .dossier-operations-table thead th:nth-child(1) {
-    width: 5.5rem;
-  }
-
-  .dossier-operations-table thead th:nth-child(2) {
-    width: 14%;
-  }
-
-  .dossier-operations-table thead th:nth-child(3),
-  .dossier-operations-table thead th:nth-child(4) {
-    width: 17%;
-  }
-
-  .dossier-operations-table tr:last-child th,
-  .dossier-operations-table tr:last-child td {
-    border-bottom: 0;
-  }
-
-  .dossier-operation-number {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    color: var(--dossier-muted);
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-  }
-
-  .dossier-operation-marker {
-    width: 0.48rem;
-    height: 0.48rem;
-    flex: 0 0 auto;
-    background: var(--dossier-signal);
-  }
-
-  .dossier-operation-name {
-    font-family: "Bebas Neue", sans-serif;
-    font-size: 1.65rem;
-    font-weight: 400;
-    letter-spacing: 0.02em;
-    line-height: 0.95;
-  }
-
-  .dossier-operations-table td:not(.dossier-operation-number) {
-    color: var(--dossier-muted);
-    font-size: 0.83rem;
-    line-height: 1.45;
-  }
-
-  .dossier-operations-table td:nth-child(4) {
-    color: var(--dossier-ink);
-    font-weight: 500;
-  }
-
-  .dossier-operation-description {
-    max-width: 24rem;
-  }
-
-  .dossier-local-note {
-    border-top: 1px solid var(--dossier-line);
-    border-bottom: 1px solid var(--dossier-line);
-    background: var(--dossier-soft);
-  }
-
-  .dossier-local-note-inner {
-    display: grid;
-    grid-template-columns: minmax(10rem, 0.6fr) minmax(0, 2fr) auto;
-    gap: clamp(1.5rem, 5vw, 5rem);
-    align-items: center;
-    padding-top: 1.75rem;
-    padding-bottom: 1.75rem;
-  }
-
-  .dossier-local-status {
-    align-self: start;
-    color: var(--dossier-signal);
-  }
-
-  .dossier-local-copy h2 {
-    margin: 0;
-    font-family: "Bebas Neue", sans-serif;
-    font-size: clamp(2rem, 3.5vw, 3.5rem);
-    font-weight: 400;
-    letter-spacing: 0.01em;
-    line-height: 0.9;
-  }
-
-  .dossier-local-copy p {
-    margin: 0.55rem 0 0;
-    color: var(--dossier-muted);
-    font-size: 0.95rem;
-    line-height: 1.5;
-  }
-
-  .dossier-local-code {
-    align-self: start;
-    color: var(--dossier-muted);
-    text-align: right;
-    white-space: nowrap;
-  }
-
-  .dossier-method-section {
-    padding-bottom: clamp(5rem, 10vw, 9rem);
-  }
-
-  .dossier-method-list {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin: 0;
-    padding: 0;
-    border-top: 2px solid var(--dossier-ink);
-    list-style: none;
-  }
-
-  .dossier-method-list li {
-    display: grid;
-    grid-template-columns: 2.25rem minmax(0, 1fr);
-    gap: 0.25rem 1rem;
-    min-height: 10rem;
-    padding: 1.25rem 1.25rem 1.25rem 0;
-    border-bottom: 1px solid var(--dossier-line);
-  }
-
-  .dossier-method-list li + li {
-    padding-left: 1.25rem;
-    border-left: 1px solid var(--dossier-line);
-  }
-
-  .dossier-method-number {
-    color: var(--dossier-signal);
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-  }
-
-  .dossier-method-name {
-    font-family: "Bebas Neue", sans-serif;
-    font-size: 2rem;
-    line-height: 0.9;
-  }
-
-  .dossier-method-text {
-    grid-column: 2;
-    align-self: end;
-    color: var(--dossier-muted);
-    font-size: 0.85rem;
-    line-height: 1.5;
-  }
-
-  .dossier-footer {
-    border-top: 2px solid var(--dossier-ink);
-  }
-
-  .dossier-footer-inner {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 2rem;
-    padding-top: 1.5rem;
-    padding-bottom: 2.5rem;
-  }
-
-  .dossier-footer-brand {
-    margin: 0;
-    font-family: "Bebas Neue", sans-serif;
-    font-size: 1.5rem;
-    letter-spacing: 0.04em;
-    line-height: 1;
-  }
-
-  .dossier-footer-note {
-    margin: 0.6rem 0 0;
-    color: var(--dossier-muted);
-    font-weight: 400;
-    letter-spacing: 0.08em;
-  }
-
-  .dossier-footer-home {
-    display: inline-flex;
-    min-height: 2.75rem;
-    align-items: center;
-    gap: 0.75rem;
-    color: var(--dossier-ink);
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-decoration: none;
-    text-transform: uppercase;
-  }
-
-  .dossier-footer-home span {
-    color: var(--dossier-signal);
-    font-size: 1.1rem;
-  }
-
-  .dossier-footer-home:hover {
-    color: var(--dossier-signal);
-  }
-
-  .dossier-visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  @media (max-width: 900px) {
-    .dossier-nav-inner {
-      align-items: flex-start;
-    }
-
-    .dossier-route-line {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 0.35rem;
-    }
-
-    .dossier-hero-body {
-      grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.55fr);
-      gap: 3rem;
-    }
-
-    .dossier-section-heading {
-      grid-template-columns: minmax(8rem, 0.5fr) minmax(0, 2fr);
-    }
-
-    .dossier-local-note-inner {
-      grid-template-columns: minmax(8rem, 0.5fr) minmax(0, 2fr);
-    }
-
-    .dossier-local-code {
-      display: none;
-    }
-  }
-
-  @media (max-width: 680px) {
-    .dossier-nav-inner {
+  @media (max-width: 640px) {
+    .clear-header-inner {
       display: grid;
-      gap: 1rem;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0;
+      padding-top: 0.6rem;
+      padding-bottom: 0.6rem;
     }
 
-    .dossier-route-line {
-      width: 100%;
-      align-items: center;
-      flex-direction: row;
+    .site-nav {
+      display: contents;
+    }
+
+    .brand {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .home-link {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .direction-nav {
+      grid-column: 1 / -1;
+      grid-row: 2;
       justify-content: space-between;
+      padding-top: 0.6rem;
+      border-top: 1px solid var(--clear-line);
     }
 
-    .dossier-route-label {
-      margin-right: auto;
+    .clear-hero-inner {
+      grid-template-columns: 0.3rem minmax(0, 1fr);
+      gap: 1.25rem;
+      padding-top: clamp(4rem, 12vh, 6rem);
+      padding-bottom: clamp(4rem, 12vh, 6rem);
     }
 
-    .dossier-hero-inner {
-      padding-top: 2.5rem;
+    .clear-marker {
+      width: 0.3rem;
+      height: 5.25rem;
+      margin-top: 0.35rem;
     }
 
-    .dossier-topline {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 0.75rem;
+    h1 {
+      max-width: 9ch;
+      font-size: clamp(3.5rem, 16vw, 5.5rem);
+      letter-spacing: -0.075em;
     }
 
-    .dossier-reference {
-      text-align: left;
-    }
-
-    .dossier-hero-body {
-      display: block;
-      padding-top: 4.5rem;
-      padding-bottom: 3.5rem;
-    }
-
-    .dossier-title {
-      font-size: clamp(5rem, 21vw, 7.6rem);
-    }
-
-    .dossier-lede {
-      margin-top: 2.25rem;
+    .clear-description {
+      max-width: 22rem;
+      margin-top: 2rem;
       font-size: 1rem;
     }
 
-    .dossier-register {
-      margin-top: 3.5rem;
-    }
-
-    .dossier-hero-foot {
-      align-items: flex-start;
-      flex-wrap: wrap;
-    }
-
-    .dossier-hero-foot-note {
-      width: 100%;
-      margin-left: 0;
-    }
-
-    .dossier-section-heading {
-      display: block;
-    }
-
-    .dossier-section-label {
-      margin-bottom: 1.5rem;
-    }
-
-    .dossier-section-title {
-      font-size: clamp(3.5rem, 16vw, 5rem);
-    }
-
-    .dossier-table-wrap {
-      border-bottom: 2px solid var(--dossier-ink);
-    }
-
-    .dossier-operations-table,
-    .dossier-operations-table tbody,
-    .dossier-operations-table tr,
-    .dossier-operations-table td,
-    .dossier-operations-table th {
-      display: block;
-    }
-
-    .dossier-operations-table thead {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-
-    .dossier-operations-table tr {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0 1rem;
-      padding: 0.35rem 0 1.25rem;
-      border-bottom: 1px solid var(--dossier-line);
-    }
-
-    .dossier-operations-table tr:last-child {
-      border-bottom: 0;
-    }
-
-    .dossier-operations-table th,
-    .dossier-operations-table td {
-      padding: 0.8rem 0 0;
-      border: 0;
-    }
-
-    .dossier-operations-table td::before,
-    .dossier-operations-table th::before {
-      display: block;
-      margin-bottom: 0.35rem;
-      color: var(--dossier-muted);
-      content: attr(data-label);
-      font-size: 0.58rem;
-      font-weight: 600;
-      letter-spacing: 0.14em;
-      line-height: 1.2;
-      text-transform: uppercase;
-    }
-
-    .dossier-operations-table .dossier-operation-number {
-      grid-column: 1 / -1;
-      padding-top: 0.85rem;
-    }
-
-    .dossier-operations-table .dossier-operation-number::before {
-      display: inline;
-      margin: 0 0.5rem 0 0;
-    }
-
-    .dossier-operations-table .dossier-operation-name {
-      grid-column: 1 / -1;
-      padding-top: 0.4rem;
-      padding-bottom: 0.55rem;
-      border-bottom: 1px solid var(--dossier-line);
-      font-size: 2.1rem;
-    }
-
-    .dossier-operations-table .dossier-operation-name::before {
-      margin-bottom: 0.5rem;
-    }
-
-    .dossier-operations-table .dossier-operation-description {
-      grid-column: 1 / -1;
-      padding-top: 1rem;
-      border-top: 1px solid var(--dossier-line);
-    }
-
-    .dossier-operations-table td:not(.dossier-operation-number) {
-      font-size: 0.82rem;
-    }
-
-    .dossier-local-note-inner {
-      display: block;
-      padding-top: 1.5rem;
-      padding-bottom: 1.5rem;
-    }
-
-    .dossier-local-status {
-      margin-bottom: 1.25rem;
-    }
-
-    .dossier-local-copy p {
-      max-width: 30rem;
-    }
-
-    .dossier-method-list {
-      display: block;
-    }
-
-    .dossier-method-list li,
-    .dossier-method-list li + li {
-      min-height: 0;
-      padding: 1.25rem 0;
-      border-right: 0;
-      border-left: 0;
-    }
-
-    .dossier-method-text {
-      align-self: start;
-    }
-
-    .dossier-footer-inner {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 1.5rem;
+    .clear-cta {
+      margin-top: 2rem;
     }
   }
 
-  @media (prefers-reduced-motion: no-preference) {
-    .dossier-hero-inner > * {
-      animation: dossier-rise 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  @media (max-width: 380px) {
+    .direction-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
     }
 
-    .dossier-hero-inner > :nth-child(2) {
-      animation-delay: 80ms;
+    .direction-link {
+      width: 2.15rem;
     }
+  }
 
-    .dossier-hero-inner > :nth-child(3) {
-      animation-delay: 160ms;
-    }
-
-    .dossier-hero-inner > :nth-child(4) {
-      animation-delay: 240ms;
-    }
-
-    @keyframes dossier-rise {
-      from {
-        opacity: 0;
-        transform: translateY(0.75rem);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+  @media (prefers-reduced-motion: reduce) {
+    .direction-link,
+    .clear-cta {
+      transition: none;
     }
   }
 </style>
