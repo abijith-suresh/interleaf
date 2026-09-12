@@ -1,7 +1,15 @@
 function initScrollAnimations() {
   const elements = document.querySelectorAll(".animate-on-scroll:not(.is-visible)");
 
-  if (elements.length === 0) return;
+  if (
+    elements.length === 0 ||
+    !("IntersectionObserver" in window) ||
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    return;
+  }
+
+  document.documentElement.classList.add("has-scroll-animations");
 
   const observer = new IntersectionObserver(
     (entries) => {

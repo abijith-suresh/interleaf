@@ -2,8 +2,8 @@
 const { label } = Astro.props;
 ---
 
-<section class="section pt-16 pb-12 border-b border-border">
-  <div>
+<section class="section page-header pt-16 pb-12 border-b border-border">
+  <div class="page-header-inner">
     <p class="section-heading animate-on-scroll">{label}</p>
     <h1 class="page-heading animate-on-scroll stagger-1"><slot name="title" /></h1>
   </div>

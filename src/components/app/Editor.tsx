@@ -399,24 +399,31 @@ export default function Editor() {
         class="contents"
       >
         {/* Dark header */}
-        <header class="bg-primary text-white h-14 flex items-center px-6 flex-shrink-0">
+        <header class="editor-header bg-primary text-white h-14 flex items-center gap-3 px-4 sm:px-6 flex-shrink-0">
           <a href={base} class="font-display text-2xl tracking-wide text-white no-underline">
             Interleaf
           </a>
           <h1 class="sr-only">Interleaf PDF editor</h1>
-          <span class="w-px h-6 bg-body mx-5" />
+          <span class="editor-header-divider w-px h-6 mx-1 sm:mx-2" aria-hidden="true" />
           <Show when={phase() === "edit"}>
-            <span class="text-sm text-muted">
-              {pages.length} pages ({activePageCount()} active)
+            <span class="editor-header-count min-w-0 truncate text-xs sm:text-sm">
+              {pages.length} pages{" "}
+              <span class="hidden sm:inline">({activePageCount()} active)</span>
             </span>
           </Show>
-          <span class="flex-1" />
+          <span class="flex-1 min-w-2" />
           <Show when={phase() === "edit" && selectedIndices().size > 0}>
-            <span class="text-sm text-muted">{selectedIndices().size} selected</span>
-            <span class="w-px h-6 bg-body mx-5" />
+            <span class="editor-header-selected hidden sm:inline text-sm">
+              {selectedIndices().size} selected
+            </span>
+            <span class="editor-header-divider hidden sm:block w-px h-6 mx-2" aria-hidden="true" />
           </Show>
-          <a href={base} class="text-sm text-muted hover:text-white no-underline transition-colors">
-            &#8592; Back
+          <a
+            href={base}
+            class="editor-back text-xs sm:text-sm no-underline transition-colors whitespace-nowrap"
+          >
+            <span class="hidden sm:inline">&#8592; Back</span>
+            <span class="sm:hidden">Exit</span>
           </a>
         </header>
 
@@ -465,68 +472,70 @@ export default function Editor() {
               />
 
               {/* Mobile toolbar */}
-              <div class="md:hidden border-t border-border p-2.5 flex items-center gap-2 flex-wrap justify-center">
-                <button
-                  type="button"
-                  data-testid="editor-select-all-button-mobile"
-                  disabled={isBusy()}
-                  onClick={handleSelectAll}
-                  class="btn-toolbar interactive-focus"
-                >
-                  Select All
-                </button>
-                <button
-                  type="button"
-                  data-testid="editor-rotate-button-mobile"
-                  disabled={isBusy() || selectedIndices().size === 0}
-                  onClick={handleRotateSelected}
-                  class="btn-toolbar interactive-focus"
-                >
-                  Rotate
-                </button>
-                <button
-                  type="button"
-                  data-testid="editor-delete-button-mobile"
-                  disabled={isBusy() || selectedIndices().size === 0}
-                  onClick={handleDeleteSelected}
-                  class="btn-toolbar text-accent interactive-focus"
-                >
-                  Delete
-                </button>
-                <button
-                  type="button"
-                  data-testid="editor-add-pdf-button-mobile"
-                  disabled={isBusy()}
-                  onClick={() => {
-                    if (isBusy()) return;
-                    const input = document.createElement("input");
-                    input.type = "file";
-                    input.accept = "application/pdf";
-                    input.onchange = () => {
-                      const file = input.files?.[0];
-                      if (file) handleAddPdf(file);
-                    };
-                    input.click();
-                  }}
-                  class="btn-toolbar interactive-focus"
-                >
-                  Add PDF
-                </button>
-                <button
-                  type="button"
-                  data-testid="editor-extract-button-mobile"
-                  disabled={isBusy() || selectedIndices().size === 0}
-                  onClick={handleExtract}
-                  class="btn-toolbar interactive-focus"
-                >
-                  Extract
-                </button>
+              <div class="editor-mobile-toolbar md:hidden border-t border-border p-2.5">
+                <div class="editor-mobile-actions">
+                  <button
+                    type="button"
+                    data-testid="editor-select-all-button-mobile"
+                    disabled={isBusy()}
+                    onClick={handleSelectAll}
+                    class="btn-toolbar interactive-focus"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="editor-rotate-button-mobile"
+                    disabled={isBusy() || selectedIndices().size === 0}
+                    onClick={handleRotateSelected}
+                    class="btn-toolbar interactive-focus"
+                  >
+                    Rotate
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="editor-delete-button-mobile"
+                    disabled={isBusy() || selectedIndices().size === 0}
+                    onClick={handleDeleteSelected}
+                    class="btn-toolbar text-accent interactive-focus"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="editor-add-pdf-button-mobile"
+                    disabled={isBusy()}
+                    onClick={() => {
+                      if (isBusy()) return;
+                      const input = document.createElement("input");
+                      input.type = "file";
+                      input.accept = "application/pdf";
+                      input.onchange = () => {
+                        const file = input.files?.[0];
+                        if (file) handleAddPdf(file);
+                      };
+                      input.click();
+                    }}
+                    class="btn-toolbar interactive-focus"
+                  >
+                    Add PDF
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="editor-extract-button-mobile"
+                    disabled={isBusy() || selectedIndices().size === 0}
+                    onClick={handleExtract}
+                    class="btn-toolbar interactive-focus"
+                  >
+                    Extract
+                  </button>
+                </div>
                 <button
                   type="button"
                   data-testid="editor-download-button-mobile"
                   disabled={isBusy() || activePageCount() === 0}
                   onClick={handleDownload}
-                  class="text-micro uppercase tracking-wider bg-accent text-white border-none px-4 py-1.5 cursor-pointer interactive-focus"
+                  class="btn-primary editor-mobile-download text-micro cursor-pointer interactive-focus"
                 >
                   {isBusy() ? "Working…" : "Download"}
                 </button>

@@ -35,10 +35,10 @@ const values = [
         <Fragment slot="title">Why Interleaf.</Fragment>
       </PageHeader>
 
-      <section class="section py-16">
+      <section class="section section-space">
         <div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-12 animate-on-scroll">
           <div>
-            <p class="body-text text-lg mb-6">
+            <p class="body-text content-measure text-lg mb-6">
               PDF tools shouldn't require uploading your documents to someone else's server.
               Interleaf was built on a simple idea: every PDF operation can happen right in your
               browser.
@@ -49,8 +49,8 @@ const values = [
               browser APIs and WebAssembly-powered libraries.
             </p>
           </div>
-          <div class="border-l-4 border-accent pl-6">
-            <p class="text-sm text-muted font-light leading-relaxed">
+          <div class="surface-note self-start">
+            <p class="text-sm text-body font-light leading-relaxed">
               Built as an open-source project to demonstrate that powerful tools don't need to
               compromise on privacy.
             </p>
@@ -58,15 +58,18 @@ const values = [
         </div>
       </section>
 
-      <section class="section py-16 border-t border-border">
+      <section class="section section-space border-t border-border">
         <div>
-          <h2 class="section-heading mb-8 animate-on-scroll">Tech Stack</h2>
-          <div class="grid grid-cols-2 md:grid-cols-3 gap-6">
+          <div class="section-intro mb-10 animate-on-scroll">
+            <p class="eyebrow">How it is made</p>
+            <h2 class="section-title text-balance">Small, open, and close to the browser.</h2>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 border-t-2 border-primary">
             {
               stack.map((s, i) => (
                 <div
                   class:list={[
-                    "border border-border p-5 hover:bg-hover transition-colors hover:-translate-y-px animate-on-scroll",
+                    "border-b border-border py-5 pr-4 animate-on-scroll",
                     `stagger-${Math.min(i + 1, 8)}`,
                   ]}
                 >
@@ -79,7 +82,7 @@ const values = [
         </div>
       </section>
 
-      <section class="section py-16 border-t border-border">
+      <section class="section section-space border-t border-border">
         <div>
           <h2 class="section-heading mb-8 animate-on-scroll">Values</h2>
           <div class="border-t-2 border-primary">
