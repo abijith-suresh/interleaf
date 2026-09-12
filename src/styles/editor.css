@@ -37,10 +37,7 @@ body:has([data-page="editor"]) {
 }
 
 .editor-uploader {
-  background:
-    linear-gradient(var(--color-surface-muted) 1px, transparent 1px),
-    linear-gradient(90deg, var(--color-surface-muted) 1px, transparent 1px);
-  background-size: 2rem 2rem;
+  background: var(--color-surface-muted);
 }
 
 .editor-uploader-inner {

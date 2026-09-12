@@ -9,8 +9,8 @@
   --tracking-section: 0.2em;
   --color-white: #fff;
   --color-primary: #111;
-  --color-accent: #c1121f;
-  --color-accent-hover: #98101a;
+  --color-accent: #ff0000;
+  --color-accent-hover: #d90000;
   --color-muted: #666;
   --color-body: #444;
   --color-border: #d6d6d1;
@@ -213,7 +213,8 @@ body {
 }
 
 .footer-link {
-  display: inline-flex;
+  display: flex;
+  width: max-content;
   min-height: 2.75rem;
   align-items: center;
   font-size: var(--text-sm);

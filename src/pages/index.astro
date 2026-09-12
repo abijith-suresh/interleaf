@@ -53,7 +53,6 @@ const operations = [
       <section class="hero">
         <div class="hero-grid">
           <div class="hero-main">
-            <p class="hero-label eyebrow animate-on-scroll">Private PDF editor</p>
             <h1 class="hero-title">Interleaf</h1>
             <p class="hero-tagline">
               Work with the pages.<br />Keep the files with you.
@@ -66,16 +65,6 @@ const operations = [
             </div>
           </div>
 
-          <aside class="hero-proof animate-on-scroll" aria-label="Interleaf privacy promise">
-            <p class="hero-proof-index">01</p>
-            <div>
-              <p class="hero-proof-label eyebrow">Privacy is the default</p>
-              <p class="hero-proof-text">
-                Your documents are processed in your browser. Nothing is uploaded. Nothing is sent
-                to a server.
-              </p>
-            </div>
-          </aside>
         </div>
       </section>
 
@@ -147,22 +136,15 @@ const operations = [
 
   .hero-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(15rem, 0.7fr);
-    gap: clamp(3rem, 9vw, 9rem);
+    grid-template-columns: minmax(0, 1fr);
     align-items: end;
     width: 100%;
-    max-width: 80rem;
+    max-width: 64rem;
     margin: 0 auto;
   }
 
   .hero-main {
     min-width: 0;
-  }
-
-  .hero-label {
-    animation: var(--animate-slide-up);
-    animation-delay: 0.1s;
-    margin-bottom: 1.5rem;
   }
 
   .hero-title {
@@ -207,36 +189,6 @@ const operations = [
     line-height: 1.4;
   }
 
-  .hero-proof {
-    animation: var(--animate-fade-in);
-    animation-delay: 0.5s;
-    display: grid;
-    grid-template-columns: 2.5rem minmax(0, 1fr);
-    gap: 1rem;
-    border-left: 4px solid var(--color-accent);
-    padding: 0 0 0 1.5rem;
-  }
-
-  .hero-proof-index {
-    margin: 0;
-    color: var(--color-accent);
-    font-family: var(--font-display);
-    font-size: 2rem;
-    line-height: 1;
-  }
-
-  .hero-proof-label {
-    margin-bottom: 1rem;
-  }
-
-  .hero-proof-text {
-    margin: 0;
-    color: var(--color-body);
-    font-size: 0.95rem;
-    font-weight: var(--font-weight-light);
-    line-height: 1.7;
-  }
-
   .landing-proof-section {
     padding-top: 0;
     padding-bottom: clamp(4rem, 8vw, 7rem);
@@ -277,19 +229,12 @@ const operations = [
       padding-bottom: 5rem;
     }
 
-    .hero-grid,
     .landing-proof-grid {
       grid-template-columns: 1fr;
     }
 
     .hero-grid {
-      gap: 4rem;
-    }
-
-    .hero-proof {
-      border-top: 1px solid var(--color-border);
-      border-left: 0;
-      padding: 1.5rem 0 0;
+      gap: 0;
     }
 
     .landing-proof-copy {
