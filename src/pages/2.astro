@@ -2,948 +2,459 @@
 import Layout from "../layouts/Layout.astro";
 
 const base = import.meta.env.BASE_URL;
-
-const studies = [
-  { number: "01", label: "Swiss", href: `${base}1` },
-  { number: "02", label: "Editorial", href: `${base}2` },
-  { number: "03", label: "Terminal", href: `${base}3` },
-  { number: "04", label: "Archive", href: `${base}4` },
-  { number: "05", label: "Index", href: `${base}5` },
-];
-
-const operations = [
-  {
-    number: "01",
-    title: "Merge",
-    text: "Combine multiple PDFs into one working set.",
-    note: "multiple files",
-  },
-  {
-    number: "02",
-    title: "Extract",
-    text: "Pull selected pages into a new PDF.",
-    note: "selected pages",
-  },
-  {
-    number: "03",
-    title: "Reorder",
-    text: "Arrange pages with drag and drop.",
-    note: "page order",
-  },
-  {
-    number: "04",
-    title: "Rotate",
-    text: "Turn pages in 90-degree steps, individually or by selection.",
-    note: "90° steps",
-  },
-  {
-    number: "05",
-    title: "Delete",
-    text: "Mark unwanted pages for removal before export.",
-    note: "before export",
-  },
-  {
-    number: "06",
-    title: "Unlock",
-    text: "Open password-protected PDFs with an in-browser prompt.",
-    note: "password prompt",
-  },
-];
+const experiments = ["1", "2", "3", "4", "5"];
 ---
 
 <Layout
-  title="Interleaf / Editorial magazine"
-  description="A browser-based PDF workbench for merging, extracting, reordering, rotating, deleting, and unlocking pages. No uploads, no accounts, no servers."
+  title="Interleaf / Calm utility"
+  description="Fix the pages in a PDF locally in your browser."
 >
-  <div class="editorial-page">
-    <header class="masthead">
-      <a href={base} class="wordmark" aria-label="Interleaf home">
-        Interleaf<span aria-hidden="true">.</span>
-      </a>
+  <div class="calm-page">
+    <header class="site-header">
+      <a class="brand" href={base} aria-label="Interleaf home">interleaf</a>
 
-      <p class="masthead-description">PDF tools / browser-native</p>
-
-      <nav class="study-navigation" aria-label="Landing page studies">
-        <span class="study-navigation-label">Design studies</span>
-        <div class="study-links">
+      <div class="header-links">
+        <a class="home-link" href={base}>Home</a>
+        <nav class="study-switcher" aria-label="Landing page design experiments">
           {
-            studies.map((study) => (
+            experiments.map((experiment) => (
               <a
-                href={study.href}
-                class:list={["study-link", study.number === "02" && "is-current"]}
-                aria-current={study.number === "02" ? "page" : undefined}
+                href={`${base}${experiment}`}
+                class:list={["study-link", experiment === "2" && "is-current"]}
+                aria-current={experiment === "2" ? "page" : undefined}
               >
-                <span>{study.number}</span>
-                <span class="study-link-label">{study.label}</span>
+                /{experiment}
               </a>
             ))
           }
-        </div>
-      </nav>
+        </nav>
+      </div>
     </header>
 
     <main id="main-content">
-      <section class="cover" aria-labelledby="cover-title">
-        <div class="cover-meta">
-          <p>Vol. 01 <span aria-hidden="true">/</span> Landing study 02</p>
-          <p>Editorial magazine</p>
-        </div>
-
-        <div class="cover-grid">
-          <div class="cover-rail" aria-hidden="true">
-            <span>Interleaf / 2026</span>
-            <span class="cover-rail-line"></span>
-            <span>Open the page</span>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="workspace">
+          <div class="workspace-bar" aria-hidden="true">
+            <span class="bar-dot"></span>
+            <span class="bar-rule"></span>
+            <span class="bar-rule bar-rule-short"></span>
           </div>
 
-          <div class="cover-copy">
-            <p class="cover-overline">A small tool for page-level work.</p>
-            <h1 id="cover-title">Make room<br />for <span>the page.</span></h1>
-            <p class="cover-deck">
-              Open a PDF. Change its pages. Export the result. The work stays in the browser with
-              you.
-            </p>
-            <a href={`${base}app`} class="editor-link">
-              <span>Open editor</span>
-              <span class="editor-link-arrow" aria-hidden="true">↗</span>
-            </a>
-          </div>
+          <div class="workspace-body">
+            <div class="hero-copy">
+              <h1 id="hero-title">
+                Fix the PDF<br />
+                <span>you <em>already</em> have.</span>
+              </h1>
+              <p>
+                When a PDF is almost right, Interleaf lets you fix its pages locally in the browser.
+              </p>
+              <a class="primary-action" href={`${base}app`}>
+                Open editor <span aria-hidden="true">↗</span>
+              </a>
+            </div>
 
-          <div class="cover-poster" aria-label="Editorial magazine design study">
-            <div class="poster-header">
-              <span>02</span>
-              <span>2026</span>
-            </div>
-            <div class="poster-title" aria-hidden="true">
-              <span>PDF</span>
-              <span>EDIT</span>
-              <span class="poster-title-red">HERE.</span>
-            </div>
-            <div class="poster-footer">
-              <span>pages in motion</span>
-              <span>interleaf.app</span>
+            <div class="workspace-canvas" aria-hidden="true">
+              <span class="canvas-corner canvas-corner-top"></span>
+              <span class="canvas-corner canvas-corner-bottom"></span>
+              <span class="canvas-axis canvas-axis-horizontal"></span>
+              <span class="canvas-axis canvas-axis-vertical"></span>
+              <span class="canvas-point"></span>
             </div>
           </div>
-        </div>
 
-        <div class="cover-footer">
-          <p>Merge / extract / reorder / rotate / delete / unlock</p>
-          <a href={base} class="home-link">Back to Interleaf home <span aria-hidden="true">↗</span></a>
-        </div>
-      </section>
-
-      <section class="principle page-frame" aria-labelledby="principle-title">
-        <div class="section-marker">
-          <span>01</span>
-          <span>The short version</span>
-        </div>
-        <div class="principle-copy">
-          <h2 id="principle-title">Keep the file close.</h2>
-          <p>Your files stay on your device. Interleaf processes PDFs in your browser. No upload, no account, no server.</p>
-        </div>
-        <p class="principle-stamp" aria-hidden="true">LOCAL<br />ONLY</p>
-      </section>
-
-      <section class="operations page-frame" aria-labelledby="operations-title">
-        <header class="index-header">
-          <div class="section-marker">
-            <span>02</span>
-            <span>Index</span>
+          <div class="workspace-footer">
+            <span class="footer-mark" aria-hidden="true"></span>
+            <p>Your PDF stays in your browser.</p>
           </div>
-          <div class="index-intro">
-            <h2 id="operations-title">The pages in play.</h2>
-            <p>Six focused operations for the PDF in front of you.</p>
-          </div>
-          <p class="index-count"><span>06</span> operations</p>
-        </header>
-
-        <ol class="operation-list">
-          {
-            operations.map((operation) => (
-              <li class="operation-row">
-                <span class="operation-number">{operation.number}</span>
-                <h3>{operation.title}</h3>
-                <p>{operation.text}</p>
-                <span class="operation-note">{operation.note}</span>
-              </li>
-            ))
-          }
-        </ol>
-      </section>
-
-      <section class="closing page-frame" aria-labelledby="closing-title">
-        <div class="section-marker">
-          <span>03</span>
-          <span>End note</span>
-        </div>
-        <div class="closing-copy">
-          <p class="closing-overline">For the document already on your desk.</p>
-          <h2 id="closing-title">Less ceremony.<br /><span>More page.</span></h2>
-        </div>
-        <div class="closing-side">
-          <p>Interleaf is open source and runs without an account. Start when a document needs fixing.</p>
-          <a href={base} class="home-link">Return to the main site <span aria-hidden="true">↗</span></a>
         </div>
       </section>
     </main>
 
-    <footer class="editorial-footer">
-      <span class="footer-wordmark">Interleaf<span aria-hidden="true">.</span></span>
-      <span>Editorial magazine / design study 02</span>
-      <span>2026</span>
+    <footer class="site-footer">
+      <span>Interleaf</span>
+      <span>Calm utility / 02</span>
     </footer>
   </div>
 </Layout>
 
 <style>
-  :global(html) {
-    scroll-behavior: smooth;
+  :global(html),
+  :global(body) {
+    background: #f7f5f0;
   }
 
-  .editorial-page {
-    --editorial-red: #ff1f0f;
-    --editorial-red-soft: #fff2ef;
-    --editorial-ink: #11100f;
-    --editorial-paper: #fffefa;
-    --editorial-line: #c9c7c0;
-    --editorial-muted: #66635c;
-    min-height: 100vh;
-    overflow: hidden;
-    background: var(--editorial-paper);
-    color: var(--editorial-ink);
+  .calm-page {
+    --ink: #242421;
+    --muted: #77756e;
+    --structure: #dedbd4;
+    --structure-soft: #eae7e0;
+    --paper: #fcfbf8;
+    --warm-white: #f7f5f0;
+    --accent: #ff2a1f;
+    min-height: 100svh;
+    background: var(--warm-white);
+    color: var(--ink);
     font-family: var(--font-body);
   }
 
-  .masthead,
-  .cover,
-  .page-frame,
-  .editorial-footer {
-    width: min(100% - 2.5rem, 90rem);
+  .site-header,
+  .site-footer,
+  .hero {
+    width: min(calc(100% - 2rem), 72rem);
     margin-inline: auto;
   }
 
-  .masthead {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    min-height: 5.5rem;
-    gap: 2rem;
-    border-bottom: 1px solid var(--editorial-ink);
-  }
-
-  .wordmark,
-  .footer-wordmark {
-    color: var(--editorial-ink);
-    font-family: var(--font-display);
-    font-size: 2rem;
-    letter-spacing: 0.02em;
-    line-height: 1;
-    text-decoration: none;
-  }
-
-  .wordmark span,
-  .footer-wordmark span,
-  .cover h1 span,
-  .closing h2 span {
-    color: var(--editorial-red);
-  }
-
-  .masthead-description,
-  .study-navigation-label,
-  .cover-meta,
-  .cover-footer,
-  .section-marker,
-  .index-count,
-  .operation-note,
-  .editorial-footer {
-    font-size: 0.65rem;
-    letter-spacing: 0.15em;
-    line-height: 1.3;
-    text-transform: uppercase;
-  }
-
-  .masthead-description {
-    margin: 0;
-    color: var(--editorial-muted);
-  }
-
-  .study-navigation {
+  .site-header {
     display: flex;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .study-navigation-label {
-    color: var(--editorial-muted);
-    white-space: nowrap;
-  }
-
-  .study-links {
-    display: flex;
-    gap: 0.35rem;
-  }
-
-  .study-link {
-    display: inline-flex;
-    min-width: 2.65rem;
-    min-height: 2.65rem;
-    align-items: center;
-    justify-content: center;
-    gap: 0.35rem;
-    border: 1px solid var(--editorial-ink);
-    color: var(--editorial-ink);
-    font-size: 0.65rem;
-    letter-spacing: 0.08em;
-    text-decoration: none;
-    transition:
-      background-color 160ms ease,
-      color 160ms ease,
-      transform 160ms ease;
-  }
-
-  .study-link-label {
-    display: none;
-  }
-
-  .study-link:hover,
-  .study-link.is-current {
-    background: var(--editorial-red);
-    color: var(--editorial-ink);
-  }
-
-  .study-link:active,
-  .editor-link:active,
-  .home-link:active {
-    transform: translateY(1px);
-  }
-
-  .wordmark:focus-visible,
-  .study-link:focus-visible,
-  .editor-link:focus-visible,
-  .home-link:focus-visible {
-    outline: 2px solid var(--editorial-red);
-    outline-offset: 4px;
-  }
-
-  .cover {
-    padding-block: clamp(2.25rem, 5vw, 4.5rem) clamp(4rem, 9vw, 8rem);
-  }
-
-  .cover-meta,
-  .cover-footer {
-    display: flex;
+    min-height: 4.75rem;
     align-items: center;
     justify-content: space-between;
     gap: 1.5rem;
+    border-bottom: 1px solid var(--structure);
   }
 
-  .cover-meta {
-    padding-bottom: 1.25rem;
-    border-bottom: 1px solid var(--editorial-line);
-    color: var(--editorial-muted);
-  }
-
-  .cover-meta p,
-  .cover-footer p {
-    margin: 0;
-  }
-
-  .cover-meta p:first-child {
-    color: var(--editorial-ink);
-  }
-
-  .cover-meta span {
-    padding-inline: 0.4rem;
-    color: var(--editorial-red);
-  }
-
-  .cover-grid {
-    display: grid;
-    grid-template-columns: 2.5rem minmax(0, 1.55fr) minmax(14rem, 0.75fr);
-    gap: clamp(1.5rem, 4vw, 4rem);
-    align-items: end;
-    padding-block: clamp(3.5rem, 8vw, 8rem) clamp(3rem, 6vw, 5.5rem);
-  }
-
-  .cover-rail {
-    display: flex;
-    min-height: 26rem;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-    color: var(--editorial-muted);
-    font-size: 0.62rem;
-    letter-spacing: 0.16em;
-    line-height: 1;
-    text-transform: uppercase;
-    writing-mode: vertical-rl;
-  }
-
-  .cover-rail-line {
-    width: 1px;
-    flex: 1;
-    margin-block: 1.25rem;
-    background: var(--editorial-red);
-  }
-
-  .cover-copy {
-    position: relative;
-    z-index: 1;
-    min-width: 0;
-  }
-
-  .cover-overline,
-  .closing-overline {
-    margin: 0 0 1.25rem;
-    color: var(--editorial-muted);
-    font-size: clamp(0.72rem, 1vw, 0.85rem);
-    font-weight: 500;
-    letter-spacing: 0.14em;
-    line-height: 1.4;
-    text-transform: uppercase;
-  }
-
-  .cover h1 {
-    max-width: 9ch;
-    margin: 0;
-    font-family: var(--font-display);
-    font-size: clamp(5rem, 12vw, 11.5rem);
-    font-weight: 400;
-    letter-spacing: -0.025em;
-    line-height: 0.78;
-    text-wrap: balance;
-  }
-
-  .cover-deck {
-    max-width: 28rem;
-    margin: clamp(2rem, 4vw, 3.5rem) 0 0;
-    padding-left: 1.25rem;
-    border-left: 4px solid var(--editorial-red);
-    color: #3f3c36;
-    font-size: clamp(1rem, 1.7vw, 1.3rem);
-    font-weight: 300;
-    line-height: 1.45;
-  }
-
-  .editor-link {
-    display: inline-flex;
-    min-height: 3.25rem;
-    align-items: center;
-    gap: 2.5rem;
-    margin-top: 2.25rem;
-    padding: 0.75rem 1rem 0.75rem 1.15rem;
-    background: var(--editorial-red);
-    color: var(--editorial-ink);
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.14em;
+  .brand,
+  .home-link,
+  .study-link,
+  .primary-action {
+    color: inherit;
     text-decoration: none;
-    text-transform: uppercase;
-    transition:
-      background-color 160ms ease,
-      color 160ms ease,
-      transform 160ms ease;
   }
 
-  .editor-link:hover {
-    background: var(--editorial-ink);
-    color: var(--editorial-paper);
-  }
-
-  .editor-link-arrow {
-    display: grid;
-    width: 1.7rem;
-    height: 1.7rem;
-    place-items: center;
-    border: 1px solid currentColor;
-    font-size: 1rem;
-    letter-spacing: 0;
-  }
-
-  .cover-poster {
-    display: flex;
-    min-height: clamp(22rem, 36vw, 34rem);
-    flex-direction: column;
-    justify-content: space-between;
-    padding: clamp(1.25rem, 2.5vw, 2.25rem);
-    background: var(--editorial-red);
-    color: var(--editorial-ink);
-    transform: translateY(1.5rem);
-  }
-
-  .poster-header,
-  .poster-footer {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.65rem;
+  .brand {
+    font-size: 1.05rem;
     font-weight: 600;
-    letter-spacing: 0.16em;
-    line-height: 1.3;
-    text-transform: uppercase;
+    letter-spacing: -0.055em;
   }
 
-  .poster-title {
+  .header-links,
+  .study-switcher {
     display: flex;
-    flex-direction: column;
-    margin-block: 2rem;
-    font-family: var(--font-display);
-    font-size: clamp(4rem, 8vw, 7.75rem);
-    letter-spacing: -0.025em;
-    line-height: 0.76;
+    align-items: center;
   }
 
-  .poster-title-red {
-    color: var(--editorial-paper);
+  .header-links {
+    gap: 1.25rem;
   }
 
-  .cover-footer {
-    padding-top: 1.25rem;
-    border-top: 1px solid var(--editorial-ink);
-  }
-
-  .cover-footer p {
-    max-width: 60rem;
-    color: var(--editorial-muted);
+  .home-link,
+  .study-link {
+    min-height: 2.75rem;
+    align-content: center;
+    color: var(--muted);
+    font-size: 0.75rem;
+    line-height: 1;
   }
 
   .home-link {
-    display: inline-flex;
-    min-height: 2.75rem;
+    color: var(--ink);
+  }
+
+  .study-switcher {
+    gap: 0.15rem;
+    padding: 0.2rem;
+    border: 1px solid var(--structure);
+    border-radius: 999px;
+    background: var(--paper);
+  }
+
+  .study-link {
+    display: inline-grid;
+    min-width: 2rem;
+    min-height: 2rem;
+    place-items: center;
+    border-radius: 999px;
+  }
+
+  .study-link:hover {
+    color: var(--ink);
+    background: var(--structure-soft);
+  }
+
+  .study-link.is-current {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .calm-page a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
+  }
+
+  .hero {
+    display: grid;
+    min-height: calc(100svh - 9.5rem);
     align-items: center;
-    gap: 0.5rem;
-    color: var(--editorial-ink);
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-decoration: underline;
-    text-decoration-color: var(--editorial-red);
-    text-decoration-thickness: 2px;
-    text-underline-offset: 0.35rem;
-    text-transform: uppercase;
-    transition: color 160ms ease;
+    padding-block: clamp(3.5rem, 9vh, 7rem);
   }
 
-  .home-link:hover {
-    color: var(--editorial-red);
+  .workspace {
+    overflow: hidden;
+    border: 1px solid var(--structure);
+    border-radius: 1.25rem;
+    background: var(--paper);
+    box-shadow: 0 1.5rem 4rem rgb(48 45 39 / 7%);
   }
 
-  .page-frame {
-    border-top: 1px solid var(--editorial-ink);
-  }
-
-  .section-marker {
+  .workspace-bar {
     display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    color: var(--editorial-muted);
+    height: 2.75rem;
+    align-items: center;
+    gap: 0.45rem;
+    padding-inline: 1.25rem;
+    border-bottom: 1px solid var(--structure-soft);
   }
 
-  .section-marker span:first-child {
-    color: var(--editorial-red);
-    font-family: var(--font-display);
-    font-size: 1.65rem;
-    letter-spacing: 0;
-  }
-
-  .principle {
-    display: grid;
-    grid-template-columns: minmax(8rem, 0.65fr) minmax(0, 2fr) minmax(8rem, 0.65fr);
-    gap: 2rem;
-    align-items: start;
-    padding-block: clamp(3rem, 7vw, 6rem);
-  }
-
-  .principle-copy {
-    max-width: 47rem;
-  }
-
-  .principle h2,
-  .index-intro h2,
-  .closing h2 {
-    margin: 0;
-    font-family: var(--font-display);
-    font-size: clamp(3rem, 6vw, 6.5rem);
-    font-weight: 400;
-    letter-spacing: -0.015em;
-    line-height: 0.84;
-  }
-
-  .principle-copy p {
-    max-width: 35rem;
-    margin: 1.75rem 0 0;
-    color: #3f3c36;
-    font-size: clamp(1.05rem, 1.8vw, 1.4rem);
-    font-weight: 300;
-    line-height: 1.45;
-  }
-
-  .principle-stamp {
-    margin: 0;
-    color: var(--editorial-red);
-    font-family: var(--font-display);
-    font-size: clamp(2rem, 4vw, 4rem);
-    letter-spacing: 0.02em;
-    line-height: 0.8;
-    text-align: right;
-  }
-
-  .operations {
-    padding-block: clamp(3rem, 7vw, 6rem) clamp(4rem, 8vw, 8rem);
-  }
-
-  .index-header {
-    display: grid;
-    grid-template-columns: minmax(8rem, 0.65fr) minmax(0, 2fr) minmax(8rem, 0.65fr);
-    gap: 2rem;
-    align-items: end;
-    padding-bottom: clamp(2.5rem, 5vw, 4rem);
-  }
-
-  .index-intro p {
-    max-width: 22rem;
-    margin: 1.25rem 0 0;
-    color: var(--editorial-muted);
-    font-size: 1rem;
-    font-weight: 300;
-    line-height: 1.5;
-  }
-
-  .index-count {
-    margin: 0;
-    color: var(--editorial-muted);
-    text-align: right;
-  }
-
-  .index-count span {
+  .bar-dot,
+  .footer-mark {
     display: block;
-    color: var(--editorial-ink);
-    font-family: var(--font-display);
-    font-size: clamp(3.5rem, 6vw, 6rem);
-    letter-spacing: 0;
-    line-height: 0.75;
+    width: 0.45rem;
+    height: 0.45rem;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--accent);
   }
 
-  .operation-list {
-    margin: 0;
-    padding: 0;
-    border-top: 2px solid var(--editorial-ink);
-    list-style: none;
+  .bar-rule {
+    display: block;
+    width: 2.5rem;
+    height: 1px;
+    background: var(--structure);
   }
 
-  .operation-row {
+  .bar-rule-short {
+    width: 1rem;
+  }
+
+  .workspace-body {
     display: grid;
-    grid-template-columns: 3rem minmax(10rem, 0.75fr) minmax(0, 1.5fr) minmax(8rem, 0.55fr);
-    gap: 1.5rem;
-    align-items: baseline;
-    min-height: 6.25rem;
-    padding-block: 1.5rem;
-    border-bottom: 1px solid var(--editorial-line);
+    grid-template-columns: minmax(0, 1.08fr) minmax(15rem, 0.92fr);
+    min-height: min(34rem, 58vh);
+    align-items: center;
+    gap: clamp(2.5rem, 5vw, 5rem);
+    padding: clamp(2.5rem, 7vw, 6.5rem);
+  }
+
+  .hero-copy {
+    max-width: 37rem;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(3.4rem, 7vw, 6rem);
+    font-weight: 500;
+    letter-spacing: -0.085em;
+    line-height: 0.93;
+  }
+
+  h1 em {
+    font-style: normal;
+    text-decoration: underline;
+    text-decoration-color: var(--accent);
+    text-decoration-thickness: 0.06em;
+    text-underline-offset: 0.12em;
+  }
+
+  .hero-copy p {
+    max-width: 31rem;
+    margin: clamp(1.75rem, 4vw, 2.75rem) 0 0;
+    color: var(--muted);
+    font-size: clamp(1rem, 1.7vw, 1.2rem);
+    line-height: 1.52;
+  }
+
+  .primary-action {
+    display: inline-flex;
+    min-height: 3rem;
+    align-items: center;
+    gap: 1.2rem;
+    margin-top: 2rem;
+    padding: 0.8rem 1.1rem 0.8rem 1.25rem;
+    border-radius: 0.55rem;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     transition:
       background-color 160ms ease,
-      padding 160ms ease;
+      transform 160ms ease;
   }
 
-  .operation-row:hover {
-    padding-inline: 0.75rem;
-    background: var(--editorial-red-soft);
+  .primary-action span {
+    font-size: 1.15rem;
+    line-height: 1;
   }
 
-  .operation-number {
-    color: var(--editorial-red);
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
+  .primary-action:hover {
+    background: var(--ink);
+    transform: translateY(-1px);
   }
 
-  .operation-row h3 {
-    margin: 0;
-    font-family: var(--font-display);
-    font-size: clamp(2rem, 4vw, 3.75rem);
-    font-weight: 400;
-    letter-spacing: -0.01em;
-    line-height: 0.8;
-    text-transform: uppercase;
-    transition: color 160ms ease;
+  .primary-action:active {
+    transform: translateY(0);
   }
 
-  .operation-row:hover h3 {
-    color: var(--editorial-red);
-  }
-
-  .operation-row p {
-    max-width: 27rem;
-    margin: 0;
-    color: #3f3c36;
-    font-size: 1rem;
-    font-weight: 300;
-    line-height: 1.45;
-  }
-
-  .operation-note {
-    color: var(--editorial-muted);
-    text-align: right;
-  }
-
-  .closing {
-    display: grid;
-    grid-template-columns: minmax(8rem, 0.65fr) minmax(0, 1.4fr) minmax(13rem, 0.9fr);
-    gap: 2rem;
-    align-items: end;
-    padding-block: clamp(3rem, 7vw, 6rem) clamp(4rem, 8vw, 8rem);
-  }
-
-  .closing h2 {
-    font-size: clamp(4rem, 8vw, 8rem);
-  }
-
-  .closing-side {
-    max-width: 19rem;
+  .workspace-canvas {
+    position: relative;
+    width: min(100%, 22rem);
+    aspect-ratio: 1.05;
     justify-self: end;
+    border: 1px solid var(--structure);
+    border-radius: 0.8rem;
+    background:
+      linear-gradient(var(--structure-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--structure-soft) 1px, transparent 1px),
+      #f7f5f0;
+    background-position: center;
+    background-size: 25% 25%;
   }
 
-  .closing-side p {
-    margin: 0 0 1.5rem;
-    color: var(--editorial-muted);
-    font-size: 0.95rem;
-    font-weight: 300;
-    line-height: 1.55;
+  .canvas-corner {
+    position: absolute;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-color: var(--ink);
   }
 
-  .editorial-footer {
+  .canvas-corner-top {
+    top: 16%;
+    left: 16%;
+    border-top: 1px solid;
+    border-left: 1px solid;
+  }
+
+  .canvas-corner-bottom {
+    right: 16%;
+    bottom: 16%;
+    border-right: 1px solid;
+    border-bottom: 1px solid;
+  }
+
+  .canvas-axis {
+    position: absolute;
+    background: var(--structure);
+  }
+
+  .canvas-axis-horizontal {
+    top: 50%;
+    right: 16%;
+    left: 16%;
+    height: 1px;
+  }
+
+  .canvas-axis-vertical {
+    top: 16%;
+    bottom: 16%;
+    left: 50%;
+    width: 1px;
+  }
+
+  .canvas-point {
+    position: absolute;
+    top: calc(50% - 0.35rem);
+    left: calc(50% - 0.35rem);
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 0.45rem rgb(255 42 31 / 12%);
+  }
+
+  .workspace-footer {
     display: flex;
     align-items: center;
+    gap: 0.7rem;
+    min-height: 3.5rem;
+    padding-inline: clamp(1.25rem, 3vw, 2rem);
+    border-top: 1px solid var(--structure-soft);
+  }
+
+  .workspace-footer p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+
+  .site-footer {
+    display: flex;
     justify-content: space-between;
-    gap: 1rem;
-    padding-block: 1.25rem;
-    border-top: 1px solid var(--editorial-ink);
-    color: var(--editorial-muted);
+    padding-block: 1.5rem 2rem;
+    color: var(--muted);
+    font-size: 0.7rem;
   }
 
-  .footer-wordmark {
-    font-size: 1.45rem;
+  .site-footer span:first-child {
+    color: var(--ink);
+    font-weight: 600;
   }
 
-  @media (max-width: 900px) {
-    .masthead {
-      grid-template-columns: auto 1fr;
+  @media (max-width: 48rem) {
+    .site-header {
+      min-height: 4.25rem;
     }
 
-    .masthead-description {
-      justify-self: end;
+    .header-links {
+      gap: 0.5rem;
     }
 
-    .study-navigation {
-      grid-column: 1 / -1;
-      justify-content: space-between;
-      padding-bottom: 1rem;
+    .home-link {
+      padding-inline: 0.45rem;
     }
 
-    .cover-grid {
-      grid-template-columns: 2rem minmax(0, 1.4fr) minmax(11rem, 0.8fr);
-      gap: 1.25rem;
-    }
-
-    .cover-poster {
-      min-height: 25rem;
-    }
-
-    .principle,
-    .index-header,
-    .closing {
-      grid-template-columns: minmax(6rem, 0.6fr) minmax(0, 2fr) minmax(6rem, 0.6fr);
-      gap: 1.25rem;
-    }
-
-    .operation-row {
-      grid-template-columns: 2.5rem minmax(9rem, 0.8fr) minmax(0, 1.5fr);
-    }
-
-    .operation-note {
-      grid-column: 3;
-      text-align: left;
-    }
-  }
-
-  @media (max-width: 640px) {
-    .masthead,
-    .cover,
-    .page-frame,
-    .editorial-footer {
-      width: min(100% - 2rem, 90rem);
-    }
-
-    .masthead {
-      display: flex;
+    .hero {
       min-height: auto;
-      flex-wrap: wrap;
-      gap: 1rem;
-      padding-block: 1rem;
+      padding-block: 2.5rem 3.5rem;
     }
 
-    .masthead-description {
-      margin-left: auto;
-      font-size: 0.58rem;
-      text-align: right;
-    }
-
-    .study-navigation {
-      width: 100%;
-      align-items: flex-start;
-      gap: 0.75rem;
-      overflow-x: auto;
-    }
-
-    .study-navigation-label {
-      padding-top: 0.8rem;
-      font-size: 0.58rem;
-    }
-
-    .study-links {
-      flex-shrink: 0;
-    }
-
-    .study-link {
-      min-width: 2.75rem;
-      min-height: 2.75rem;
-    }
-
-    .cover {
-      padding-top: 2rem;
-    }
-
-    .cover-meta,
-    .cover-footer {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 0.65rem;
-    }
-
-    .cover-meta {
-      padding-bottom: 1rem;
-    }
-
-    .cover-grid {
-      grid-template-columns: 1.25rem minmax(0, 1fr);
-      gap: 1rem;
-      padding-block: 3.5rem 3rem;
-    }
-
-    .cover-rail {
-      min-height: 20rem;
-      font-size: 0.55rem;
-    }
-
-    .cover h1 {
-      font-size: clamp(4.5rem, 20vw, 7.5rem);
-    }
-
-    .cover-deck {
-      margin-top: 2rem;
-      font-size: 1.05rem;
-    }
-
-    .cover-poster {
-      grid-column: 2;
-      min-height: 18rem;
-      margin-top: 1rem;
-      transform: none;
-    }
-
-    .poster-title {
-      font-size: clamp(3.5rem, 18vw, 6rem);
-    }
-
-    .cover-footer {
-      padding-top: 1rem;
-    }
-
-    .cover-footer p {
-      line-height: 1.6;
-    }
-
-    .principle,
-    .index-header,
-    .closing {
-      display: grid;
+    .workspace-body {
       grid-template-columns: 1fr;
-      gap: 1.75rem;
-      padding-block: 3.5rem;
-    }
-
-    .principle-stamp {
-      justify-self: start;
-      text-align: left;
-    }
-
-    .index-header {
-      gap: 1.5rem;
-    }
-
-    .index-count {
-      display: flex;
-      align-items: baseline;
-      gap: 0.75rem;
-      text-align: left;
-    }
-
-    .index-count span {
-      font-size: 3.5rem;
-    }
-
-    .operation-row,
-    .operation-note {
-      grid-column: auto;
-    }
-
-    .operation-row {
-      grid-template-columns: 2.25rem minmax(0, 1fr);
-      gap: 0.75rem 1rem;
       min-height: auto;
-      padding-block: 1.5rem;
+      gap: 2.75rem;
+      padding: 2.5rem 1.5rem 3rem;
     }
 
-    .operation-row:hover {
-      padding-inline: 0.5rem;
+    h1 {
+      font-size: clamp(3.15rem, 14vw, 5.2rem);
     }
 
-    .operation-row h3 {
-      font-size: clamp(2.5rem, 13vw, 4rem);
+    .workspace-canvas {
+      width: min(100%, 20rem);
+      justify-self: center;
     }
 
-    .operation-row p {
-      grid-column: 2;
+    .site-footer {
+      padding-bottom: 1.25rem;
+    }
+  }
+
+  @media (max-width: 24rem) {
+    .brand {
       font-size: 0.95rem;
     }
 
-    .operation-note {
-      grid-column: 2;
-      font-size: 0.58rem;
-      text-align: left;
+    .home-link {
+      display: none;
     }
 
-    .closing-side {
-      justify-self: start;
+    .study-link {
+      min-width: 1.8rem;
     }
 
-    .editorial-footer {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 0.4rem;
-      padding-block: 1.25rem 2rem;
+    .workspace-body {
+      padding-inline: 1.25rem;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    :global(html) {
-      scroll-behavior: auto;
-    }
-
-    .study-link,
-    .editor-link,
-    .home-link,
-    .operation-row,
-    .operation-row h3 {
-      transition: none;
+    .calm-page *,
+    .calm-page *::before,
+    .calm-page *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
     }
   }
 </style>
