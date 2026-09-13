@@ -1,6 +1,7 @@
 ---
 import Footer from "../shared/Footer.astro";
 import Nav from "../shared/Nav.astro";
+import ArrowIcon from "../shared/ArrowIcon.astro";
 
 interface Props {
   showExperiments?: boolean;
@@ -48,7 +49,7 @@ const experiments = ["1", "2", "3", "4", "5"];
             Bring PDFs together, shape their pages, and keep the result on your device.
           </p>
           <a class="landing-action" href={base + "app"}>
-            Open editor <span aria-hidden="true">↗</span>
+            Open editor <span aria-hidden="true"><ArrowIcon /></span>
           </a>
         </div>
 
