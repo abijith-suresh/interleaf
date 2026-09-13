@@ -2,113 +2,399 @@
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
-import PageHeader from "../components/shared/PageHeader.astro";
-import BottomCTA from "../components/shared/BottomCTA.astro";
 import { contentSlide } from "../utils/transitions";
 
-const stack = [
-  { name: "Astro", desc: "Static site framework" },
-  { name: "pdf-lib", desc: "PDF manipulation" },
-  { name: "pdf.js", desc: "PDF rendering" },
-  { name: "Tailwind CSS", desc: "Utility-first styling" },
-  { name: "TypeScript", desc: "Type safety" },
-  { name: "Bun", desc: "Package manager & runtime" },
-];
-
-const values = [
-  { title: "Privacy", desc: "Your files never leave your browser. Zero data collection." },
-  { title: "Simplicity", desc: "Clean interface, no bloat. Just the tools you need." },
-  { title: "Open Source", desc: "Fully transparent. Inspect, modify, and contribute." },
-  { title: "Speed", desc: "Client-side processing means instant results, no waiting for servers." },
-];
+const base = import.meta.env.BASE_URL;
+const githubHref = "https://github.com/abijith-suresh/interleaf";
 ---
 
 <Layout
   title="About — Interleaf"
-  description="Interleaf was built on one idea: every PDF operation should run in your browser. No accounts, no uploads, no servers. Open source and fully transparent."
+  description="Interleaf is an open-source PDF workspace that runs in your browser and keeps document work on your device."
 >
-  <div class="page-wrapper" transition:animate={contentSlide}>
+  <div class="about-page" transition:animate={contentSlide}>
     <Nav currentPage="about" />
 
     <main id="main-content">
-      <PageHeader label="Company">
-        <Fragment slot="title">Why Interleaf.</Fragment>
-      </PageHeader>
+      <section class="about-hero section-padding" aria-labelledby="about-title">
+        <div class="about-hero-inner">
+          <h1 id="about-title">
+            Work with PDFs.<br />
+            <span>Keep the file with you.</span>
+          </h1>
 
-      <section class="section py-16">
-        <div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-12 animate-on-scroll">
+          <div class="hero-support">
+            <p>
+              Interleaf is a browser-based PDF workspace for the document jobs that happen before
+              you hit send. Open a file, shape its pages, and export the result without uploading
+              it.
+            </p>
+            <a class="hero-action" href={`${base}app`}>
+              Open editor <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <div class="about-content section-padding">
+        <section class="story-block" aria-labelledby="local-title">
+          <h2 id="local-title">Why browser-local matters</h2>
+          <div class="story-copy">
+            <p>
+              The app reads and changes your file on your device. It does not upload the document
+              to a server, and it does not need an account, ads, tracking, analytics, or cookies to
+              do its job.
+            </p>
+            <p>
+              That keeps the boundary simple. A contract, scan, or form can stay in the browser
+              while you work on it.
+            </p>
+          </div>
+        </section>
+
+        <section class="story-block" aria-labelledby="today-title">
+          <h2 id="today-title">What Interleaf is today</h2>
+          <div class="story-copy">
+            <p>
+              Today, Interleaf focuses on page-level PDF work. It brings documents together, lets
+              you select, reorder, rotate, and remove pages, and can open password-protected files
+              in the browser. That is the current scope.
+            </p>
+
+            <dl class="project-details">
+              <div>
+                <dt>Runs</dt>
+                <dd>In your browser</dd>
+              </div>
+              <div>
+                <dt>Source</dt>
+                <dd>Open on GitHub</dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+
+        <section class="source-block" aria-labelledby="source-title">
           <div>
-            <p class="body-text text-lg mb-6">
-              PDF tools shouldn't require uploading your documents to someone else's server.
-              Interleaf was built on a simple idea: every PDF operation can happen right in your
-              browser.
-            </p>
-            <p class="body-text">
-              No accounts. No subscriptions. No file size limits imposed by a server. Just open the
-              editor, drop your files in, and get to work. Everything runs client-side using modern
-              browser APIs and WebAssembly-powered libraries.
+            <h2 id="source-title">Built in the open</h2>
+            <p>
+              Interleaf is open source. Read the code, report an issue, or follow the project on
+              GitHub.
             </p>
           </div>
-          <div class="border-l-4 border-accent pl-6">
-            <p class="text-sm text-muted font-light leading-relaxed">
-              Built as an open-source project to demonstrate that powerful tools don't need to
-              compromise on privacy.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section class="section py-16 border-t border-border">
-        <div>
-          <h2 class="section-heading mb-8 animate-on-scroll">Tech Stack</h2>
-          <div class="grid grid-cols-2 md:grid-cols-3 gap-6">
-            {
-              stack.map((s, i) => (
-                <div
-                  class:list={[
-                    "border border-border p-5 hover:bg-hover transition-colors hover:-translate-y-px animate-on-scroll",
-                    `stagger-${Math.min(i + 1, 8)}`,
-                  ]}
-                >
-                  <p class="font-display text-xl text-primary">{s.name}</p>
-                  <p class="text-xs text-muted font-light mt-1">{s.desc}</p>
-                </div>
-              ))
-            }
-          </div>
-        </div>
-      </section>
-
-      <section class="section py-16 border-t border-border">
-        <div>
-          <h2 class="section-heading mb-8 animate-on-scroll">Values</h2>
-          <div class="border-t-2 border-primary">
-            {
-              values.map((v, i) => (
-                <div
-                  class:list={[
-                    "grid grid-cols-1 md:grid-cols-[10rem_1fr] gap-2 md:gap-8 py-6 border-b animate-on-scroll",
-                    i === values.length - 1 ? "border-primary border-b-2" : "border-border",
-                    `stagger-${Math.min(i + 1, 8)}`,
-                  ]}
-                >
-                  <h3 class="font-display text-xl text-primary">{v.title}</h3>
-                  <p class="body-text">{v.desc}</p>
-                </div>
-              ))
-            }
-          </div>
-        </div>
-      </section>
-
-      <BottomCTA
-        buttonText="View on GitHub"
-        buttonHref="https://github.com/abijith-suresh/interleaf"
-      >
-        <Fragment slot="heading">Open source.</Fragment>
-      </BottomCTA>
+          <a
+            class="source-link"
+            href={githubHref}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View source <span aria-hidden="true">↗</span>
+          </a>
+        </section>
+      </div>
     </main>
 
     <Footer />
   </div>
 </Layout>
+
+<style>
+  :global(html),
+  :global(body) {
+    background: #f7f5f0;
+  }
+
+  .about-page {
+    --about-ink: #242421;
+    --about-muted: #77756e;
+    --about-line: #dedbd4;
+    --about-line-soft: #eae7e0;
+    --about-paper: #fcfbf8;
+    --about-warm-white: #f7f5f0;
+    --about-accent: #ff2a1f;
+    --color-primary: var(--about-ink);
+    --color-accent: var(--about-accent);
+    --color-border: var(--about-line);
+    --color-body: var(--about-muted);
+    --color-muted: var(--about-muted);
+    min-height: 100svh;
+    background: var(--about-warm-white);
+    color: var(--about-ink);
+    font-family: var(--font-body);
+  }
+
+  .about-page :global(.site-nav) {
+    border-bottom-color: var(--about-line);
+    background: var(--about-warm-white);
+  }
+
+  .about-page :global(.site-nav-inner),
+  .about-page :global(.site-footer > div) {
+    max-width: 72rem;
+  }
+
+  .about-page :global(.site-nav .font-display) {
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.055em;
+    text-transform: lowercase;
+  }
+
+  .about-page :global(.site-nav .nav-editor-link) {
+    border-radius: 0.55rem;
+    background: var(--about-accent);
+    font-size: 0.8rem;
+    letter-spacing: -0.01em;
+    text-transform: none;
+  }
+
+  .about-page :global(.site-nav .nav-editor-link:hover) {
+    background: var(--about-ink);
+  }
+
+  .about-page :global(.site-nav a:focus-visible),
+  .about-page :global(.site-nav summary:focus-visible),
+  .about-page a:focus-visible {
+    outline: 2px solid var(--about-accent);
+    outline-offset: 4px;
+  }
+
+  .about-hero {
+    border-bottom: 1px solid var(--about-line);
+  }
+
+  .about-hero-inner {
+    display: grid;
+    width: 100%;
+    max-width: 72rem;
+    min-height: min(35rem, 58vh);
+    margin: 0 auto;
+    grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.75fr);
+    align-items: end;
+    gap: clamp(3rem, 8vw, 8rem);
+    padding-block: clamp(5rem, 11vw, 9rem);
+  }
+
+  h1,
+  h2,
+  p {
+    margin: 0;
+  }
+
+  h1 {
+    max-width: 11ch;
+    font-size: clamp(3.7rem, 8.4vw, 7.5rem);
+    font-weight: 500;
+    letter-spacing: -0.085em;
+    line-height: 0.9;
+  }
+
+  h1 span {
+    color: var(--about-muted);
+  }
+
+  .hero-support {
+    max-width: 25rem;
+    padding-bottom: 0.55rem;
+  }
+
+  .hero-support p,
+  .story-copy p,
+  .source-block p {
+    color: var(--about-muted);
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.55;
+  }
+
+  .hero-action {
+    display: inline-flex;
+    min-height: 3rem;
+    align-items: center;
+    gap: 1.2rem;
+    margin-top: 2rem;
+    padding: 0.8rem 1.1rem 0.8rem 1.25rem;
+    border-radius: 0.55rem;
+    background: var(--about-accent);
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition:
+      background-color 160ms ease,
+      transform 160ms ease;
+  }
+
+  .hero-action span,
+  .source-link span {
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  .hero-action:hover {
+    background: var(--about-ink);
+    transform: translateY(-1px);
+  }
+
+  .hero-action:active {
+    transform: translateY(0);
+  }
+
+  .about-content {
+    width: 100%;
+    max-width: 80rem;
+    margin: 0 auto;
+  }
+
+  .story-block {
+    display: grid;
+    grid-template-columns: minmax(12rem, 0.9fr) minmax(0, 1.1fr);
+    gap: clamp(2rem, 8vw, 8rem);
+    padding-block: clamp(4.5rem, 9vw, 7rem);
+    border-bottom: 1px solid var(--about-line);
+  }
+
+  h2 {
+    max-width: 12ch;
+    font-size: clamp(2rem, 3.7vw, 3.5rem);
+    font-weight: 500;
+    letter-spacing: -0.065em;
+    line-height: 0.96;
+  }
+
+  .story-copy {
+    max-width: 37rem;
+  }
+
+  .story-copy p + p {
+    margin-top: 1rem;
+  }
+
+  .project-details {
+    display: grid;
+    max-width: 30rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 2.5rem 0 0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--about-line);
+  }
+
+  .project-details div {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .project-details dt {
+    color: var(--about-muted);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .project-details dd {
+    margin: 0;
+    color: var(--about-ink);
+    font-size: 0.95rem;
+  }
+
+  .source-block {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 2rem;
+    margin-block: clamp(4.5rem, 9vw, 7rem);
+    padding: clamp(2rem, 4vw, 3.5rem);
+    border: 1px solid var(--about-line);
+    border-radius: 1.1rem;
+    background: var(--about-paper);
+    box-shadow: 0 1.5rem 4rem rgb(48 45 39 / 5%);
+  }
+
+  .source-block h2 {
+    max-width: none;
+    font-size: clamp(2rem, 3.5vw, 3rem);
+  }
+
+  .source-block p {
+    max-width: 31rem;
+    margin-top: 1rem;
+  }
+
+  .source-link {
+    display: inline-flex;
+    min-height: 2.75rem;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.65rem 0;
+    border-bottom: 1px solid var(--about-ink);
+    color: var(--about-ink);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .source-link:hover {
+    border-bottom-color: var(--about-accent);
+    color: var(--about-accent);
+  }
+
+  .about-page :global(.site-footer) {
+    border-top: 1px solid var(--about-line);
+  }
+
+  @media (max-width: 48rem) {
+    .about-hero-inner {
+      min-height: auto;
+      grid-template-columns: 1fr;
+      align-items: start;
+      gap: 2.5rem;
+      padding-block: 4rem 4.5rem;
+    }
+
+    h1 {
+      max-width: 10ch;
+      font-size: clamp(3.4rem, 15vw, 5.5rem);
+    }
+
+    .hero-support {
+      max-width: 32rem;
+    }
+
+    .story-block {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      padding-block: 3.75rem;
+    }
+
+    h2 {
+      max-width: 14ch;
+    }
+
+    .source-block {
+      display: block;
+      margin-block: 3.75rem;
+    }
+
+    .source-link {
+      margin-top: 2rem;
+    }
+  }
+
+  @media (max-width: 24rem) {
+    .project-details {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .about-page *,
+    .about-page *::before,
+    .about-page *::after {
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>

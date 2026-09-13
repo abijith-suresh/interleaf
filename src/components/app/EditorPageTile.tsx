@@ -54,8 +54,7 @@ export default function EditorPageTile(props: Props) {
         data-selected={props.selected}
         data-marked-for-deletion={props.page.markedForDeletion}
         class="editor-page-hitarea"
-        role="option"
-        aria-selected={props.selected}
+        aria-pressed={props.selected}
         aria-label={
           props.page.markedForDeletion
             ? `Page ${props.index + 1}, marked for deletion`

@@ -15,7 +15,7 @@ export default function EditorSidebar(props: Props) {
   const hasSelection = () => props.selectedCount > 0;
 
   return (
-    <aside class="w-56 border-r border-border flex-col flex-shrink-0 hidden md:flex">
+    <aside class="editor-sidebar w-56 border-r border-border flex-col flex-shrink-0 hidden md:flex">
       <div class="flex-1 overflow-y-auto min-h-0">
         {/* Upload */}
         <div class="p-4 border-b border-border">
@@ -25,7 +25,7 @@ export default function EditorSidebar(props: Props) {
             data-testid="editor-add-pdf-button"
             onClick={() => addPdfInput.click()}
             disabled={props.busy}
-            class="w-full border border-dashed border-border hover:border-primary transition-colors py-6 text-center cursor-pointer bg-transparent interactive-focus"
+            class="editor-add-pdf w-full border border-dashed border-border hover:border-primary transition-colors py-6 text-center cursor-pointer bg-transparent interactive-focus"
           >
             <span class="text-micro text-muted uppercase tracking-wider">
               {props.busy ? "Working…" : "+ Add PDF"}

@@ -3,6 +3,78 @@ body:has([data-page="editor"]) {
   padding: 0;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.editor-header {
+  border-bottom: 2px solid var(--color-accent);
+}
+
+.editor-header-divider {
+  background: var(--color-border-strong);
+}
+
+.editor-header-count,
+.editor-header-selected,
+.editor-back {
+  color: var(--color-on-dark-muted);
+}
+
+.editor-back {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  padding: 0 0.25rem;
+}
+
+.editor-back:hover {
+  color: var(--color-white);
+}
+
+.editor-back:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.editor-uploader {
+  background: var(--color-surface-muted);
+}
+
+.editor-uploader-inner {
+  position: relative;
+}
+
+.editor-dropzone {
+  min-height: 18rem;
+  background: var(--color-white);
+  box-shadow: 0.4rem 0.4rem 0 var(--color-border);
+  transition:
+    border-color 0.2s var(--ease-out),
+    background-color 0.2s var(--ease-out),
+    box-shadow 0.2s var(--ease-out);
+}
+
+.editor-dropzone:hover:not(:disabled),
+.editor-dropzone:focus-visible:not(:disabled) {
+  box-shadow: 0.25rem 0.25rem 0 var(--color-primary);
+}
+
+.editor-dropzone:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 4px;
+}
+
+.editor-sidebar {
+  background: var(--color-surface-muted);
+}
+
+.editor-add-pdf {
+  min-height: 5rem;
+}
+
+.editor-page-scroll {
+  scrollbar-gutter: stable;
+  background: var(--color-white);
 }
 
 /* Page thumbnails — Swiss industrial style */
@@ -34,7 +106,7 @@ body:has([data-page="editor"]) {
 
 .editor-page-hitarea:focus-visible {
   outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 
 .editor-page.selected {
@@ -96,7 +168,8 @@ body:has([data-page="editor"]) {
   align-items: center;
   justify-content: center;
   border: 1px solid var(--color-border);
-  transition: border-color 0.2s;
+  background: var(--color-white);
+  transition: border-color 0.2s var(--ease-out);
 }
 
 /* Landscape aspect-ratio for pages rotated 90° or 270° */
@@ -117,7 +190,7 @@ body:has([data-page="editor"]) {
   max-width: 100%;
   max-height: 100%;
   /* Fade back in after re-render */
-  transition: opacity 120ms ease-out;
+  transition: opacity 120ms var(--ease-out);
 }
 
 /* Applied during rotation re-render — canvas fades out, reshapes, fades in */
@@ -144,49 +217,63 @@ body:has([data-page="editor"]) {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 10px;
-  padding: 2px;
-  min-width: 24px;
-  min-height: 24px;
+  font-size: 1rem;
+  padding: 0.25rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-border);
-  opacity: 0;
-  transition:
-    opacity 0.2s,
-    color 0.2s;
-}
-
-.editor-page:hover .btn-page-rotate,
-.editor-page:focus-within .btn-page-rotate {
+  color: var(--color-muted);
   opacity: 1;
+  transition:
+    color 0.2s var(--ease-out),
+    background-color 0.2s var(--ease-out);
 }
 
 .btn-page-rotate:hover {
-  color: var(--color-muted);
+  color: var(--color-primary);
+  background: var(--color-hover);
 }
 
 .btn-page-rotate:focus-visible {
-  opacity: 1;
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
 .btn-toolbar {
+  min-height: 2.75rem;
   font-size: var(--text-micro);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--color-body);
   background: transparent;
   border: 1px solid var(--color-border);
-  padding: 0.375rem 0.75rem;
+  padding: 0.625rem 0.75rem;
   cursor: pointer;
   touch-action: manipulation;
+  transition:
+    background-color 0.15s var(--ease-out),
+    border-color 0.15s var(--ease-out),
+    color 0.15s var(--ease-out);
+}
+
+.btn-toolbar:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  background: var(--color-hover);
+  color: var(--color-primary);
+}
+
+.btn-toolbar:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .btn-sidebar-action {
   width: 100%;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
   text-align: left;
   font-size: var(--text-xs);
   color: var(--color-body);
@@ -195,10 +282,43 @@ body:has([data-page="editor"]) {
   cursor: pointer;
   padding: 0.5rem 0.5rem;
   transition:
-    color 0.15s,
-    background-color 0.15s;
+    color 0.15s var(--ease-out),
+    background-color 0.15s var(--ease-out);
 }
 .btn-sidebar-action:hover {
   color: var(--color-primary);
   background: var(--color-hover);
+}
+
+.editor-mobile-toolbar {
+  display: grid;
+  gap: 0.5rem;
+  background: var(--color-white);
+}
+
+.editor-mobile-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.editor-mobile-download {
+  width: 100%;
+}
+
+@media (min-width: 480px) and (max-width: 767px) {
+  .editor-mobile-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-container,
+  .editor-page .page-canvas,
+  .editor-page .page-canvas.is-rendering,
+  .btn-page-rotate,
+  .btn-toolbar,
+  .btn-sidebar-action {
+    transition: none;
+  }
 }

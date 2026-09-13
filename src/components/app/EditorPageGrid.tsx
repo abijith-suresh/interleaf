@@ -29,13 +29,11 @@ export default function EditorPageGrid(props: Props) {
   let scrollContainer!: HTMLDivElement;
 
   return (
-    <div ref={scrollContainer} class="flex-1 overflow-y-auto p-4">
+    <div ref={scrollContainer} class="editor-page-scroll flex-1 overflow-y-auto p-4">
       <p id="editor-page-grid-help" class="sr-only">
         Select a page. Hold Alt and press the Left or Right Arrow key to move it.
       </p>
-      <div
-        role="listbox"
-        aria-multiselectable="true"
+      <ul
         aria-label="PDF pages"
         aria-describedby="editor-page-grid-help"
         aria-busy={props.busy}
@@ -75,7 +73,7 @@ export default function EditorPageGrid(props: Props) {
             />
           )}
         </For>
-      </div>
+      </ul>
     </div>
   );
 }

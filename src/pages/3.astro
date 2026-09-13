@@ -1,0 +1,547 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const base = import.meta.env.BASE_URL;
+const route = (segment = "") => `${base}${segment}`;
+const normalizePath = (value: string) => value.replace(/\/+$/, "") || "/";
+const isCurrent = (segment = "") =>
+  normalizePath(Astro.url.pathname) === normalizePath(route(segment));
+const experiments = ["1", "2", "3", "4", "5"];
+---
+
+<Layout
+  title="Interleaf / Document desk"
+  description="A focused place to fix a PDF in your browser. No uploads or server processing."
+>
+  <div class="document-desk">
+    <header class="site-header">
+      <div class="header-inner">
+        <div class="brand-lockup">
+          <a class="brand" href={route()} aria-label="Interleaf home">Interleaf</a>
+          <span class="brand-rule" aria-hidden="true"></span>
+          <span class="direction-name">Document desk</span>
+        </div>
+
+        <nav class="exploration-nav" aria-label="Landing page experiments">
+          <a class="home-link" href={route()} aria-current={isCurrent() ? "page" : undefined}>Home</a>
+          <span class="nav-divider" aria-hidden="true">/</span>
+          <ol class="route-list">
+            {
+              experiments.map((experiment) => (
+                <li>
+                  <a
+                    href={route(experiment)}
+                    aria-current={isCurrent(experiment) ? "page" : undefined}
+                    class:list={{ "is-current": isCurrent(experiment) }}
+                  >
+                    /{experiment}
+                  </a>
+                </li>
+              ))
+            }
+          </ol>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <h1 id="hero-title">Put your PDF<br />in order.</h1>
+          <p class="hero-description">
+            A focused place to fix the pages in a document before you send it on.
+          </p>
+          <a class="primary-action" href={route("app")}>
+            <span>Open editor</span>
+            <span class="action-arrow" aria-hidden="true">↗</span>
+          </a>
+        </div>
+
+        <div class="visual-anchor" aria-hidden="true">
+          <div class="desk-surface">
+            <div class="document-page">
+              <span class="document-tab"></span>
+              <div class="page-header">
+                <span>PDF</span>
+                <span>01</span>
+              </div>
+              <div class="page-rule"></div>
+              <div class="page-body">
+                <span class="page-title-line"></span>
+                <span class="page-title-line page-title-line--short"></span>
+                <div class="page-copy-lines">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                  <span class="page-copy-line--short"></span>
+                </div>
+                <span class="page-red-mark"></span>
+              </div>
+              <div class="page-footer">
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <p class="local-note">Runs in your browser. Your file stays on your device.</p>
+    </main>
+
+    <footer class="site-footer">
+      <span>Interleaf</span>
+      <a href={route("about")}>About</a>
+    </footer>
+  </div>
+</Layout>
+
+<style>
+  .document-desk {
+    --desk: #eee5d8;
+    --sheet: #fffdf8;
+    --ink: #2b2825;
+    --muted: #726a61;
+    --line: rgba(43, 40, 37, 0.22);
+    --accent: #ff0000;
+    --gutter: clamp(1.25rem, 5vw, 5.5rem);
+    min-height: 100vh;
+    overflow-x: hidden;
+    background:
+      radial-gradient(circle at 80% -10%, rgba(255, 255, 255, 0.5), transparent 32rem),
+      var(--desk);
+    color: var(--ink);
+    font-family: var(--font-body);
+  }
+
+  .document-desk *,
+  .document-desk *::before,
+  .document-desk *::after {
+    box-sizing: border-box;
+  }
+
+  .header-inner,
+  .hero,
+  .local-note,
+  .site-footer {
+    width: min(100%, 76rem);
+    margin-right: auto;
+    margin-left: auto;
+  }
+
+  .site-header {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    padding: 1.25rem var(--gutter);
+  }
+
+  .brand-lockup,
+  .exploration-nav,
+  .route-list,
+  .primary-action {
+    display: flex;
+    align-items: center;
+  }
+
+  .brand-lockup {
+    min-width: 0;
+    gap: 0.75rem;
+  }
+
+  .brand {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 2rem;
+    letter-spacing: 0.03em;
+    line-height: 1;
+    text-decoration: none;
+  }
+
+  .brand-rule {
+    width: 1px;
+    height: 1.25rem;
+    background: var(--line);
+  }
+
+  .direction-name,
+  .home-link,
+  .route-list a,
+  .site-footer {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .direction-name {
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .exploration-nav {
+    gap: 0.6rem;
+  }
+
+  .home-link,
+  .route-list a,
+  .site-footer a {
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .home-link {
+    min-height: 2.75rem;
+    align-items: center;
+    display: inline-flex;
+  }
+
+  .home-link:hover,
+  .site-footer a:hover {
+    color: var(--accent);
+  }
+
+  .nav-divider {
+    color: var(--muted);
+  }
+
+  .route-list {
+    gap: 0.2rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .route-list a {
+    display: inline-flex;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+  }
+
+  .route-list a:hover,
+  .route-list a.is-current {
+    border-color: var(--ink);
+    background: var(--sheet);
+  }
+
+  .route-list a.is-current {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--sheet);
+  }
+
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.12fr) minmax(19rem, 0.88fr);
+    min-height: min(46rem, calc(100svh - 5rem));
+    align-items: center;
+    gap: clamp(2rem, 6vw, 5rem);
+    padding: clamp(4rem, 10vw, 8rem) var(--gutter) clamp(3.5rem, 7vw, 6rem);
+  }
+
+  .hero-copy {
+    max-width: none;
+  }
+
+  h1 {
+    max-width: none;
+    margin: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(3.5rem, 6.2vw, 6rem);
+    font-weight: 400;
+    letter-spacing: -0.065em;
+    line-height: 0.94;
+    text-wrap: balance;
+  }
+
+  .hero-description {
+    max-width: 27rem;
+    margin: 2rem 0 0;
+    color: var(--muted);
+    font-size: clamp(1.05rem, 1.55vw, 1.25rem);
+    line-height: 1.45;
+    text-wrap: pretty;
+  }
+
+  .primary-action {
+    width: max-content;
+    min-height: 3.25rem;
+    gap: 2rem;
+    margin-top: 2.25rem;
+    padding: 0.85rem 1.15rem 0.85rem 1.35rem;
+    border: 1px solid var(--ink);
+    border-radius: 0.15rem;
+    background: var(--ink);
+    box-shadow: 0 0.3rem 0 var(--accent);
+    color: var(--sheet);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-decoration: none;
+    text-transform: uppercase;
+    touch-action: manipulation;
+    transition: transform 180ms ease;
+  }
+
+  .primary-action:hover {
+    transform: translateY(-0.15rem);
+  }
+
+  .action-arrow {
+    color: var(--accent);
+    font-size: 1.3rem;
+    line-height: 1;
+    transition: transform 180ms ease;
+  }
+
+  .primary-action:hover .action-arrow {
+    transform: translate(0.15rem, -0.15rem);
+  }
+
+  .visual-anchor {
+    display: grid;
+    place-items: center;
+    min-width: 0;
+  }
+
+  .desk-surface {
+    position: relative;
+    display: grid;
+    width: min(100%, 31rem);
+    aspect-ratio: 1.12;
+    place-items: center;
+    border: 1px solid rgba(43, 40, 37, 0.13);
+    background: rgba(255, 253, 248, 0.24);
+  }
+
+  .desk-surface::before,
+  .desk-surface::after {
+    position: absolute;
+    content: "";
+  }
+
+  .desk-surface::before {
+    inset: 1.25rem;
+    border: 1px solid rgba(43, 40, 37, 0.14);
+  }
+
+  .desk-surface::after {
+    right: 1.25rem;
+    bottom: 1.25rem;
+    width: 2rem;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  .document-page {
+    position: relative;
+    width: min(62%, 19rem);
+    aspect-ratio: 0.707;
+    padding: clamp(1.2rem, 3vw, 1.7rem);
+    border: 1px solid rgba(43, 40, 37, 0.18);
+    background: var(--sheet);
+    box-shadow: 0 1.3rem 2rem rgba(69, 55, 39, 0.16);
+    transform: rotate(3.5deg);
+  }
+
+  .document-tab {
+    position: absolute;
+    top: 1.75rem;
+    right: -0.65rem;
+    width: 0.8rem;
+    height: 4.25rem;
+    background: var(--accent);
+  }
+
+  .page-header,
+  .page-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 0.54rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .page-rule {
+    width: 100%;
+    height: 2px;
+    margin-top: 1.1rem;
+    background: var(--ink);
+  }
+
+  .page-body {
+    display: flex;
+    min-height: 70%;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.6rem;
+  }
+
+  .page-title-line {
+    display: block;
+    width: 76%;
+    height: 0.55rem;
+    background: var(--ink);
+  }
+
+  .page-title-line--short {
+    width: 48%;
+    height: 0.28rem;
+    background: var(--accent);
+  }
+
+  .page-copy-lines {
+    display: grid;
+    width: 100%;
+    gap: 0.42rem;
+    margin-top: 1.35rem;
+  }
+
+  .page-copy-lines span {
+    display: block;
+    width: 100%;
+    height: 0.18rem;
+    background: rgba(43, 40, 37, 0.4);
+  }
+
+  .page-copy-lines .page-copy-line--short {
+    width: 66%;
+  }
+
+  .page-red-mark {
+    display: block;
+    width: 1.3rem;
+    height: 1.3rem;
+    margin-top: 1.8rem;
+    background: var(--accent);
+  }
+
+  .page-footer {
+    border-top: 1px solid var(--line);
+    padding-top: 0.75rem;
+  }
+
+  .page-footer span:first-child {
+    width: 34%;
+    height: 0.18rem;
+    background: var(--line);
+  }
+
+  .page-footer span:last-child {
+    width: 0.55rem;
+    height: 0.55rem;
+    background: var(--ink);
+  }
+
+  .local-note {
+    border-top: 1px solid var(--line);
+    padding: 1.15rem var(--gutter) 1.3rem;
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+
+  .local-note::before {
+    display: inline-block;
+    width: 0.45rem;
+    height: 0.45rem;
+    margin: 0 0.65rem 0.06rem 0;
+    background: var(--accent);
+    content: "";
+  }
+
+  .site-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-top: 1px solid var(--line);
+    padding: 1.25rem var(--gutter) 1.5rem;
+    color: var(--muted);
+  }
+
+  :is(.brand, .home-link, .route-list a, .primary-action, .site-footer a):focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 4px;
+  }
+
+  @media (max-width: 760px) {
+    .header-inner {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .exploration-nav {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .hero {
+      display: block;
+      min-height: 0;
+      padding-top: 5rem;
+    }
+
+    .visual-anchor {
+      margin-top: 4.5rem;
+    }
+
+    .desk-surface {
+      width: min(100%, 29rem);
+    }
+  }
+
+  @media (max-width: 420px) {
+    .direction-name {
+      font-size: 0.61rem;
+    }
+
+    .hero {
+      padding-top: 4rem;
+    }
+
+    h1 {
+      font-size: clamp(3.35rem, 14vw, 4.2rem);
+    }
+
+    .hero-description {
+      max-width: 20rem;
+      margin-top: 1.6rem;
+      font-size: 1rem;
+    }
+
+    .visual-anchor {
+      margin-top: 3.5rem;
+    }
+
+    .desk-surface {
+      aspect-ratio: 1;
+    }
+
+    .document-page {
+      width: 64%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .document-desk *,
+    .document-desk *::before,
+    .document-desk *::after {
+      scroll-behavior: auto !important;
+      transition: none !important;
+    }
+  }
+</style>
