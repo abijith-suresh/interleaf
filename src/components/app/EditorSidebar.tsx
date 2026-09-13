@@ -15,21 +15,21 @@ export default function EditorSidebar(props: Props) {
   const hasSelection = () => props.selectedCount > 0;
 
   return (
-    <aside class="editor-sidebar w-56 border-r border-border flex-col flex-shrink-0 hidden md:flex">
-      <div class="flex-1 overflow-y-auto min-h-0">
-        {/* Upload */}
-        <div class="p-4 border-b border-border">
-          <p class="text-micro uppercase tracking-wider text-muted mb-2">Upload</p>
+    <aside class="editor-sidebar">
+      <div class="editor-sidebar-scroll">
+        <section class="editor-sidebar-section">
+          <h2 class="editor-sidebar-label">File</h2>
           <button
             type="button"
             data-testid="editor-add-pdf-button"
             onClick={() => addPdfInput.click()}
             disabled={props.busy}
-            class="editor-add-pdf w-full border border-dashed border-border hover:border-primary transition-colors py-6 text-center cursor-pointer bg-transparent interactive-focus"
+            class="editor-add-pdf"
           >
-            <span class="text-micro text-muted uppercase tracking-wider">
-              {props.busy ? "Working…" : "+ Add PDF"}
-            </span>
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M10 4v12M4 10h12" />
+            </svg>
+            <span>{props.busy ? "Working…" : "+ Add PDF"}</span>
           </button>
           <input
             ref={addPdfInput}
@@ -46,35 +46,39 @@ export default function EditorSidebar(props: Props) {
               e.currentTarget.value = "";
             }}
           />
-        </div>
+        </section>
 
-        {/* Selection */}
-        <div class="p-4 border-b border-border">
-          <p class="text-micro uppercase tracking-wider text-muted mb-3">Selection</p>
+        <section class="editor-sidebar-section">
+          <h2 class="editor-sidebar-label">Pages</h2>
           <button
             type="button"
             data-testid="editor-select-all-button"
             onClick={props.onSelectAll}
             aria-label="Select all pages"
             disabled={props.busy}
-            class="btn-sidebar-action interactive-focus"
+            class="editor-sidebar-action"
           >
-            Select All
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M4 5h12M4 10h12M4 15h8" />
+            </svg>
+            <span>Select all</span>
           </button>
-        </div>
+        </section>
 
-        {/* Actions */}
-        <div class="p-4 border-b border-border">
-          <p class="text-micro uppercase tracking-wider text-muted mb-3">Actions</p>
+        <section class="editor-sidebar-section">
+          <h2 class="editor-sidebar-label">Adjust</h2>
           <button
             type="button"
             data-testid="editor-rotate-button"
             onClick={props.onRotate}
             aria-label="Rotate selected pages 90 degrees"
             disabled={props.busy || !hasSelection()}
-            class="btn-sidebar-action interactive-focus"
+            class="editor-sidebar-action"
           >
-            Rotate
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M15.5 7A6 6 0 1 0 16 11M15.5 7V3.5M15.5 7H12" />
+            </svg>
+            <span>Rotate</span>
           </button>
           <button
             type="button"
@@ -82,9 +86,12 @@ export default function EditorSidebar(props: Props) {
             onClick={props.onDelete}
             aria-label="Mark selected pages for deletion"
             disabled={props.busy || !hasSelection()}
-            class="w-full text-left text-xs text-accent hover:bg-toast-error-bg bg-transparent border-none cursor-pointer py-2 px-2 transition-colors interactive-focus"
+            class="editor-sidebar-action editor-sidebar-action-danger"
           >
-            Delete
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M4.5 6.5h11M8 6.5V4h4v2.5M6.5 8.5v6m3.5-6v6m3.5-6v6M5.5 6.5l.5 10h8l.5-10" />
+            </svg>
+            <span>Mark for deletion</span>
           </button>
           <button
             type="button"
@@ -92,26 +99,34 @@ export default function EditorSidebar(props: Props) {
             onClick={props.onExtract}
             aria-label="Extract selected pages to a new PDF"
             disabled={props.busy || !hasSelection()}
-            class="btn-sidebar-action interactive-focus"
+            class="editor-sidebar-action"
           >
-            Extract
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M6 3.5h6l3 3v10H6zM12 3.5v3h3M9 10h4M11 8l2 2-2 2" />
+            </svg>
+            <span>Extract</span>
           </button>
-        </div>
+        </section>
       </div>
 
-      {/* Export — pinned to bottom */}
-      <div class="p-4 border-t border-border flex-shrink-0">
-        <p class="text-micro uppercase tracking-wider text-muted mb-3">Export</p>
+      <section class="editor-sidebar-export">
+        <div class="editor-export-meta">
+          <span>Export</span>
+          <span>{props.activePageCount} active</span>
+        </div>
         <button
           type="button"
           data-testid="editor-download-button"
           onClick={props.onDownload}
           disabled={props.busy || props.activePageCount === 0}
-          class="w-full btn-primary text-micro py-3 border-none cursor-pointer transition-colors interactive-focus"
+          class="editor-download-action"
         >
-          {props.busy ? "Working…" : "Download"}
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M10 3v9m0 0 3-3m-3 3-3-3M4 14v3h12v-3" />
+          </svg>
+          <span>{props.busy ? "Working…" : "Download PDF"}</span>
         </button>
-      </div>
+      </section>
     </aside>
   );
 }

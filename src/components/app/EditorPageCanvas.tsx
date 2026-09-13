@@ -14,7 +14,7 @@ export default function EditorPageCanvas(props: Props) {
   const [rendered, setRendered] = createSignal(false);
 
   // Solid.js refs are assigned via JSX ref attribute
-  let container!: HTMLDivElement;
+  let container!: HTMLSpanElement;
   let canvas!: HTMLCanvasElement;
 
   // Container switches to landscape aspect-ratio (4:3) for 90° / 270° rotations.
@@ -95,7 +95,7 @@ export default function EditorPageCanvas(props: Props) {
   );
 
   return (
-    <div
+    <span
       ref={container}
       data-testid="editor-page-canvas"
       data-render-state={renderState()}
@@ -106,6 +106,6 @@ export default function EditorPageCanvas(props: Props) {
       }}
     >
       <canvas ref={canvas} class="page-canvas" />
-    </div>
+    </span>
   );
 }

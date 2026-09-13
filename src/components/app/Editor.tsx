@@ -135,7 +135,7 @@ export default function Editor() {
   }
 
   async function loadPdfFile(file: File, mode: "upload" | "add"): Promise<number | null> {
-    if (file.type !== "application/pdf") {
+    if (file.type !== "application/pdf" && !/\.pdf$/i.test(file.name)) {
       dispatchToast("Please upload a valid PDF file.", "error");
       return null;
     }
@@ -366,68 +366,62 @@ export default function Editor() {
   }
 
   return (
-    <div class="font-body bg-white text-primary h-dvh flex flex-col overflow-hidden">
-      <div
+    <div class="editor-app">
+      <section
         data-testid="editor-toast-region"
-        role="status"
+        aria-label="Notifications"
         aria-live="polite"
         aria-atomic="true"
-        class="pointer-events-none fixed right-4 top-4 z-50 flex max-w-sm flex-col gap-2"
+        class="editor-toast-region"
       >
         <For each={toasts()}>
           {(toast) => (
-            <div
-              data-testid="editor-toast"
-              class={`rounded-sm border px-4 py-3 text-sm shadow-sm ${
-                toast.tone === "error"
-                  ? "border-toast-error-border bg-toast-error-bg text-toast-error-text"
-                  : toast.tone === "success"
-                    ? "border-toast-success-border bg-toast-success-bg text-toast-success-text"
-                    : "border-border bg-white text-body"
-              }`}
-            >
+            <div data-testid="editor-toast" class={`editor-toast editor-toast-${toast.tone}`}>
               {toast.message}
             </div>
           )}
         </For>
-      </div>
+      </section>
 
       <div
         data-testid="editor-root"
         data-operation={operation()}
+        data-phase={phase()}
         aria-busy={isBusy()}
         class="contents"
       >
-        {/* Dark header */}
-        <header class="editor-header bg-primary text-white h-14 flex items-center gap-3 px-4 sm:px-6 flex-shrink-0">
-          <a href={base} class="font-display text-2xl tracking-wide text-white no-underline">
-            Interleaf
-          </a>
+        <header class="editor-header">
+          <div class="editor-header-left">
+            <a href={base} class="editor-brand" translate="no">
+              interleaf
+            </a>
+            <Show when={phase() === "edit"}>
+              <span class="editor-header-divider" aria-hidden="true" />
+              <div class="editor-document-meta">
+                <span class="editor-document-context">PDF workspace</span>
+                <span class="editor-header-count">{formatPageCount(pages.length)}</span>
+              </div>
+            </Show>
+          </div>
           <h1 class="sr-only">Interleaf PDF editor</h1>
-          <span class="editor-header-divider w-px h-6 mx-1 sm:mx-2" aria-hidden="true" />
-          <Show when={phase() === "edit"}>
-            <span class="editor-header-count min-w-0 truncate text-xs sm:text-sm">
-              {pages.length} pages{" "}
-              <span class="hidden sm:inline">({activePageCount()} active)</span>
-            </span>
-          </Show>
-          <span class="flex-1 min-w-2" />
-          <Show when={phase() === "edit" && selectedIndices().size > 0}>
-            <span class="editor-header-selected hidden sm:inline text-sm">
-              {selectedIndices().size} selected
-            </span>
-            <span class="editor-header-divider hidden sm:block w-px h-6 mx-2" aria-hidden="true" />
-          </Show>
-          <a
-            href={base}
-            class="editor-back text-xs sm:text-sm no-underline transition-colors whitespace-nowrap"
-          >
-            <span class="hidden sm:inline">&#8592; Back</span>
-            <span class="sm:hidden">Exit</span>
-          </a>
+          <div class="editor-header-right">
+            <Show when={phase() === "edit" && selectedIndices().size > 0}>
+              <span class="editor-header-selected">{selectedIndices().size} selected</span>
+              <span
+                class="editor-header-divider editor-header-divider-optional"
+                aria-hidden="true"
+              />
+            </Show>
+            <a href={base} class="editor-back" aria-label="Return to Interleaf home">
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M8 4 3 10l5 6M4 10h13" />
+              </svg>
+              <span class="editor-back-wide">Back</span>
+              <span class="editor-back-compact">Exit</span>
+            </a>
+          </div>
         </header>
 
-        {/* Content — upload or edit */}
         <Show
           when={phase() === "edit"}
           fallback={
@@ -438,7 +432,7 @@ export default function Editor() {
             />
           }
         >
-          <div class="flex h-[calc(100dvh-3.5rem)] min-h-0">
+          <div class="editor-workspace">
             <EditorSidebar
               busy={isBusy()}
               selectedCount={selectedIndices().size}
@@ -451,8 +445,7 @@ export default function Editor() {
               onAddPdf={handleAddPdf}
             />
 
-            <section class="flex-1 flex flex-col min-h-0" aria-label="PDF workspace">
-              {/* Dense page grid — only this scrolls */}
+            <section class="editor-workspace-main" aria-label="PDF workspace">
               <EditorPageGrid
                 busy={isBusy()}
                 pages={pages}
@@ -471,35 +464,16 @@ export default function Editor() {
                 onDragEnd={handleDragEnd}
               />
 
-              {/* Mobile toolbar */}
-              <div class="editor-mobile-toolbar md:hidden border-t border-border p-2.5">
-                <div class="editor-mobile-actions">
+              <div class="editor-mobile-toolbar" role="toolbar" aria-label="Page actions">
+                <div class="editor-mobile-primary-actions">
                   <button
                     type="button"
                     data-testid="editor-select-all-button-mobile"
                     disabled={isBusy()}
                     onClick={handleSelectAll}
-                    class="btn-toolbar interactive-focus"
+                    class="editor-toolbar-action"
                   >
-                    Select All
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="editor-rotate-button-mobile"
-                    disabled={isBusy() || selectedIndices().size === 0}
-                    onClick={handleRotateSelected}
-                    class="btn-toolbar interactive-focus"
-                  >
-                    Rotate
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="editor-delete-button-mobile"
-                    disabled={isBusy() || selectedIndices().size === 0}
-                    onClick={handleDeleteSelected}
-                    class="btn-toolbar text-accent interactive-focus"
-                  >
-                    Delete
+                    Select all
                   </button>
                   <button
                     type="button"
@@ -510,32 +484,62 @@ export default function Editor() {
                       const input = document.createElement("input");
                       input.type = "file";
                       input.accept = "application/pdf";
+                      input.name = "additional-pdf-mobile";
+                      input.setAttribute("aria-label", "Choose an additional PDF");
                       input.onchange = () => {
                         const file = input.files?.[0];
                         if (file) handleAddPdf(file);
                       };
                       input.click();
                     }}
-                    class="btn-toolbar interactive-focus"
+                    class="editor-toolbar-action"
                   >
                     Add PDF
                   </button>
-                  <button
-                    type="button"
-                    data-testid="editor-extract-button-mobile"
-                    disabled={isBusy() || selectedIndices().size === 0}
-                    onClick={handleExtract}
-                    class="btn-toolbar interactive-focus"
-                  >
-                    Extract
-                  </button>
                 </div>
+                <details class="editor-mobile-more" open={selectedIndices().size > 0}>
+                  <summary class="editor-mobile-more-trigger">
+                    <span>Page actions</span>
+                    <svg viewBox="0 0 20 20" aria-hidden="true">
+                      <path d="m5 7.5 5 5 5-5" />
+                    </svg>
+                  </summary>
+                  <div class="editor-mobile-actions">
+                    <button
+                      type="button"
+                      data-testid="editor-rotate-button-mobile"
+                      disabled={isBusy() || selectedIndices().size === 0}
+                      onClick={handleRotateSelected}
+                      class="editor-toolbar-action"
+                    >
+                      Rotate
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="editor-delete-button-mobile"
+                      disabled={isBusy() || selectedIndices().size === 0}
+                      onClick={handleDeleteSelected}
+                      class="editor-toolbar-action editor-toolbar-action-danger"
+                    >
+                      Mark for deletion
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="editor-extract-button-mobile"
+                      disabled={isBusy() || selectedIndices().size === 0}
+                      onClick={handleExtract}
+                      class="editor-toolbar-action"
+                    >
+                      Extract
+                    </button>
+                  </div>
+                </details>
                 <button
                   type="button"
                   data-testid="editor-download-button-mobile"
                   disabled={isBusy() || activePageCount() === 0}
                   onClick={handleDownload}
-                  class="btn-primary editor-mobile-download text-micro cursor-pointer interactive-focus"
+                  class="editor-download-action editor-mobile-download"
                 >
                   {isBusy() ? "Working…" : "Download"}
                 </button>
@@ -547,16 +551,16 @@ export default function Editor() {
                 aria-live="polite"
                 aria-atomic="true"
                 data-testid="editor-status-bar"
-                class="h-8 bg-hover border-t border-border flex items-center px-5 text-micro text-muted flex-shrink-0"
+                class="editor-status-bar"
               >
-                <span>
+                <span class="editor-status-pages">
                   {pages.length} pages ({activePageCount()} active)
                 </span>
-                <span class="flex-1 text-center">
+                <span class="editor-status-selection">
                   {selectedIndices().size > 0 ? `${selectedIndices().size} selected` : ""}
                 </span>
-                <span class="flex items-center gap-1.5" data-testid="editor-status-message">
-                  <span class="w-1.5 h-1.5 bg-accent inline-block" />
+                <span class="editor-status-message" data-testid="editor-status-message">
+                  <span class="editor-status-dot" aria-hidden="true" />
                   {statusMessage()}
                 </span>
               </div>

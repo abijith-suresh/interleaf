@@ -82,7 +82,9 @@ export default function EditorPageTile(props: Props) {
           disabled={props.busy}
           onClick={props.onRotate}
         >
-          &#x21BB;
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M15.5 7A6 6 0 1 0 16 11M15.5 7V3.5M15.5 7H12" />
+          </svg>
         </button>
       </div>
     </li>

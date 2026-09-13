@@ -21,17 +21,20 @@ export default function EditorUploader(props: Props) {
   }
 
   return (
-    <div class="editor-uploader flex-1 flex items-center justify-center min-h-0">
-      <div class="editor-uploader-inner w-full max-w-lg px-4 sm:px-6">
+    <div class="editor-uploader">
+      <div class="editor-uploader-inner">
+        <div class="editor-uploader-intro">
+          <span class="editor-uploader-mark" aria-hidden="true" />
+          <h2>Start with a PDF.</h2>
+          <p>Arrange pages, then export.</p>
+        </div>
         <button
           type="button"
           data-testid="editor-upload-dropzone"
           aria-busy={props.busy}
-          class={`editor-dropzone border-2 border-dashed transition-colors py-20 text-center w-full ${
-            props.busy
-              ? "border-primary bg-hover cursor-wait"
-              : `cursor-pointer ${isDragOver() ? "border-primary bg-hover" : "border-border hover:border-primary"}`
-          } interactive-focus`}
+          aria-describedby="editor-upload-status"
+          aria-label="Choose a PDF file or drop one here"
+          class={`editor-dropzone ${props.busy ? "is-busy" : ""} ${isDragOver() ? "is-drag-over" : ""}`}
           onClick={pickFile}
           onKeyDown={(e) => {
             if (props.busy) return;
@@ -53,12 +56,15 @@ export default function EditorUploader(props: Props) {
             handleFile(e.dataTransfer?.files[0]);
           }}
         >
-          <p class="font-display text-4xl text-primary mb-2">
-            {props.busy ? "Working…" : "Drop PDF here"}
-          </p>
-          <p class="text-micro uppercase tracking-label text-muted">
-            {props.busy ? props.statusMessage : "or click to browse"}
-          </p>
+          <span class="editor-dropzone-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v2h14v-2" />
+            </svg>
+          </span>
+          <span class="editor-dropzone-copy">
+            <strong>{props.busy ? "Preparing PDF…" : "Choose a PDF"}</strong>
+            <span>{props.busy ? props.statusMessage : "or drop it here"}</span>
+          </span>
         </button>
         <input
           ref={fileInput}
@@ -74,11 +80,10 @@ export default function EditorUploader(props: Props) {
             e.currentTarget.value = "";
           }}
         />
-        <p
-          class="text-muted text-xs mt-3 text-center min-h-[1em]"
-          data-testid="editor-upload-status"
-        >
-          {props.busy ? props.statusMessage : "Private by default. Files stay in your browser."}
+        <p class="editor-upload-status" data-testid="editor-upload-status">
+          {props.busy
+            ? props.statusMessage
+            : "Your file stays on your device. Nothing is uploaded."}
         </p>
       </div>
     </div>
