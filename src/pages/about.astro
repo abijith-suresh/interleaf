@@ -3,7 +3,7 @@ import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
 import ArrowIcon from "../components/shared/ArrowIcon.astro";
-import { contentSlide } from "../utils/transitions";
+import { pageTransition } from "../utils/transitions";
 
 const base = import.meta.env.BASE_URL;
 const githubHref = "https://github.com/abijith-suresh/interleaf";
@@ -13,7 +13,7 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
   title="About — Interleaf"
   description="Interleaf is an open-source PDF workspace that runs in your browser and keeps document work on your device."
 >
-  <div class="about-page" transition:animate={contentSlide}>
+  <div class="about-page" transition:animate={pageTransition}>
     <Nav currentPage="about" />
 
     <main id="main-content">

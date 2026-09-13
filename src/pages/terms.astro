@@ -2,7 +2,7 @@
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
-import { contentSlide } from "../utils/transitions";
+import { pageTransition } from "../utils/transitions";
 
 const githubUrl = "https://github.com/abijith-suresh/interleaf";
 
@@ -20,7 +20,7 @@ const sections = [
   title="Terms of Service — Interleaf"
   description="The terms that apply when you use Interleaf. Free to use for any lawful purpose, with no warranty."
 >
-  <div class="calm-page legal-page" transition:animate={contentSlide}>
+  <div class="calm-page legal-page" transition:animate={pageTransition}>
     <Nav />
 
     <main id="main-content">

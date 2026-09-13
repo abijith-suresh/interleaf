@@ -1,6 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import ArrowIcon from "../components/shared/ArrowIcon.astro";
+import { pageTransition } from "../utils/transitions";
 
 const base = import.meta.env.BASE_URL;
 const routeLinks = ["1", "2", "3", "4", "5"];
@@ -10,7 +11,7 @@ const routeLinks = ["1", "2", "3", "4", "5"];
   title="One clear thing — Interleaf"
   description="Interleaf helps you work on a PDF's pages in your browser while the file stays on your device."
 >
-  <div class="clear-page">
+  <div class="clear-page" transition:animate={pageTransition}>
     <header class="clear-header">
       <div class="clear-header-inner">
         <nav class="site-nav" aria-label="Site navigation">
