@@ -2,6 +2,7 @@
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
+import ArrowIcon from "../components/shared/ArrowIcon.astro";
 import { contentSlide } from "../utils/transitions";
 
 const base = import.meta.env.BASE_URL;
@@ -30,7 +31,7 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
               it.
             </p>
             <a class="hero-action" href={`${base}app`}>
-              Open editor <span aria-hidden="true">↗</span>
+              Open editor <span aria-hidden="true"><ArrowIcon /></span>
             </a>
           </div>
         </div>
@@ -88,7 +89,7 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
             target="_blank"
             rel="noopener noreferrer"
           >
-            View source <span aria-hidden="true">↗</span>
+            View source <span aria-hidden="true"><ArrowIcon /></span>
           </a>
         </section>
       </div>
