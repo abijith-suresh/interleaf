@@ -29,7 +29,7 @@ const capabilities = [
   title="Features — Interleaf"
   description="A local workspace for bringing PDF files together, arranging their pages, and opening protected documents."
 >
-  <div class="features-page" transition:animate={pageTransition}>
+  <div class="marketing-page features-page" transition:animate={pageTransition}>
     <Nav currentPage="features" />
 
     <main id="main-content">
@@ -84,86 +84,16 @@ const capabilities = [
 
 <style>
   .features-page {
-    --paper: #f7f5f0;
-    --paper-bright: #fcfbf8;
-    --ink: #242421;
-    --muted: #77756e;
-    --rule: #d9d6ce;
-    --accent: #ff2a1f;
+    --paper: var(--marketing-page);
+    --paper-bright: var(--marketing-paper);
+    --ink: var(--marketing-ink);
+    --muted: var(--marketing-muted);
+    --rule: var(--marketing-rule);
+    --accent: var(--marketing-accent);
     min-height: 100svh;
     background: var(--paper);
     color: var(--ink);
     font-family: var(--font-body);
-  }
-
-  :global(html:has(.features-page)),
-  :global(body:has(.features-page)) {
-    background: #f7f5f0;
-  }
-
-  :global(.features-page .site-nav) {
-    padding-inline: max(1rem, calc((100vw - 72rem) / 2));
-    border-color: var(--rule);
-    background: var(--paper);
-  }
-
-  :global(.features-page .site-nav-inner) {
-    max-width: 72rem;
-    height: 4.75rem;
-  }
-
-  :global(.features-page .site-nav .font-display) {
-    color: var(--ink);
-    font-family: var(--font-body);
-    font-size: 1.05rem;
-    font-weight: 600;
-    letter-spacing: -0.055em;
-    text-transform: lowercase;
-  }
-
-  :global(.features-page .site-nav a) {
-    color: var(--muted);
-  }
-
-  :global(.features-page .site-nav a:hover),
-  :global(.features-page .site-nav a[aria-current="page"]) {
-    color: var(--ink);
-  }
-
-  :global(.features-page .site-nav .btn-primary) {
-    border-radius: 0.45rem;
-    background: var(--accent);
-    color: #fff;
-    font-size: 0.7rem;
-    letter-spacing: 0.01em;
-    text-transform: none;
-  }
-
-  :global(.features-page .site-nav .btn-primary:hover) {
-    background: var(--ink);
-  }
-
-  :global(.features-page .mobile-nav-trigger) {
-    border-color: var(--rule);
-    border-radius: 0.4rem;
-    color: var(--ink);
-    font-size: 0.7rem;
-    letter-spacing: 0.01em;
-    text-transform: none;
-  }
-
-  :global(.features-page .mobile-nav-panel) {
-    border-color: var(--rule);
-    border-radius: 0.45rem;
-    background: var(--paper-bright);
-    box-shadow: 0 1rem 2rem rgb(48 45 39 / 8%);
-  }
-
-  :global(.features-page .mobile-nav-link) {
-    color: var(--ink);
-    font-size: 0.7rem;
-    letter-spacing: 0.01em;
-    text-transform: none;
   }
 
   .features-page a:focus-visible {
@@ -342,39 +272,7 @@ const capabilities = [
     font-weight: 600;
   }
 
-  :global(.features-page .site-footer) {
-    margin-top: clamp(3rem, 7vw, 5.5rem);
-    padding: 2rem max(1rem, calc((100vw - 72rem) / 2)) 1.5rem;
-    border-top: 1px solid var(--rule);
-    background: var(--paper);
-  }
-
-  :global(.features-page .site-footer > div) {
-    max-width: 72rem;
-  }
-
-  :global(.features-page .site-footer .border-t) {
-    border-color: var(--rule);
-  }
-
-  :global(.features-page .site-footer .font-display) {
-    color: var(--ink);
-    font-family: var(--font-body);
-    font-size: 1.05rem;
-    font-weight: 600;
-    letter-spacing: -0.055em;
-  }
-
-  :global(.features-page .site-footer .text-muted),
-  :global(.features-page .site-footer .footer-link) {
-    color: var(--muted);
-  }
-
-  :global(.features-page .site-footer .footer-link:hover) {
-    color: var(--ink);
-  }
-
-  @media (max-width: 700px) {
+  @media (max-width: 47.99rem) {
     .features-hero {
       min-height: auto;
       padding-block: 3.5rem 3.25rem;

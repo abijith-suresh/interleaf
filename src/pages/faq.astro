@@ -44,7 +44,7 @@ const questions = [
   title="FAQ — Interleaf"
   description="Short answers about using Interleaf in your browser, including privacy, browser support, file sizes, and offline use."
 >
-  <div class="calm-page faq-page" transition:animate={pageTransition}>
+  <div class="marketing-page calm-page faq-page" transition:animate={pageTransition}>
     <Nav currentPage="faq" />
 
     <main id="main-content">
@@ -84,13 +84,13 @@ const questions = [
 
 <style>
   .calm-page {
-    --calm-ink: #242421;
-    --calm-muted: #77756e;
-    --calm-line: #dedbd4;
-    --calm-line-strong: #c7c3ba;
-    --calm-paper: #fcfbf8;
-    --calm-warm: #f7f5f0;
-    --calm-accent: #ff2a1f;
+    --calm-ink: var(--marketing-ink);
+    --calm-muted: var(--marketing-muted);
+    --calm-line: var(--marketing-rule);
+    --calm-line-strong: var(--marketing-rule-strong);
+    --calm-paper: var(--marketing-paper);
+    --calm-warm: var(--marketing-page);
+    --calm-accent: var(--marketing-accent);
     min-height: 100vh;
     background: var(--calm-warm);
     color: var(--calm-ink);
@@ -100,59 +100,6 @@ const questions = [
   .calm-container {
     width: min(calc(100% - 2rem), 72rem);
     margin-inline: auto;
-  }
-
-  .calm-page :global(.site-nav) {
-    border-color: var(--calm-line);
-    background: transparent;
-  }
-
-  .calm-page :global(.site-nav-inner) {
-    max-width: 72rem;
-  }
-
-  .calm-page :global(.site-nav .font-display) {
-    color: var(--calm-ink);
-    font-family: var(--font-body);
-    font-size: 1.05rem;
-    font-weight: 600;
-    letter-spacing: -0.055em;
-    text-transform: lowercase;
-  }
-
-  .calm-page :global(.site-nav a:not(.btn-primary)) {
-    color: var(--calm-muted);
-  }
-
-  .calm-page :global(.site-nav a:not(.btn-primary):hover),
-  .calm-page :global(.site-nav a[aria-current="page"]:not(.btn-primary)) {
-    color: var(--calm-ink);
-  }
-
-  .calm-page :global(.site-nav .btn-primary) {
-    border-radius: 0.55rem;
-    background: var(--calm-accent);
-    text-transform: none;
-    letter-spacing: -0.01em;
-    transition:
-      background-color 160ms ease,
-      transform 160ms ease;
-  }
-
-  .calm-page :global(.site-nav .btn-primary:hover) {
-    background: var(--calm-ink);
-  }
-
-  .calm-page a,
-  .calm-page summary {
-    -webkit-tap-highlight-color: rgb(255 42 31 / 18%);
-    touch-action: manipulation;
-  }
-
-  .calm-page a:focus-visible,
-  .calm-page summary:focus-visible {
-    outline: 2px solid var(--calm-accent);
-    outline-offset: 4px;
   }
 
   .page-intro {
@@ -257,29 +204,7 @@ const questions = [
     line-height: 1.65;
   }
 
-  .calm-page :global(.site-footer) {
-    border-top: 1px solid var(--calm-line);
-    background: var(--calm-warm);
-  }
-
-  .calm-page :global(.site-footer > div) {
-    max-width: 72rem;
-  }
-
-  .calm-page :global(.site-footer .font-display) {
-    color: var(--calm-ink);
-    font-family: var(--font-body);
-    font-size: 1.05rem;
-    font-weight: 600;
-    letter-spacing: -0.055em;
-    text-transform: lowercase;
-  }
-
   @media (max-width: 520px) {
-    .calm-container {
-      width: min(calc(100% - 1.5rem), 72rem);
-    }
-
     .page-intro {
       padding-top: 4rem;
     }

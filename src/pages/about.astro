@@ -13,7 +13,7 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
   title="About — Interleaf"
   description="Interleaf is an open-source PDF workspace that runs in your browser and keeps document work on your device."
 >
-  <div class="about-page" transition:animate={pageTransition}>
+  <div class="marketing-page about-page" transition:animate={pageTransition}>
     <Nav currentPage="about" />
 
     <main id="main-content">
@@ -100,19 +100,14 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
 </Layout>
 
 <style>
-  :global(html),
-  :global(body) {
-    background: #f7f5f0;
-  }
-
   .about-page {
-    --about-ink: #242421;
-    --about-muted: #77756e;
-    --about-line: #dedbd4;
-    --about-line-soft: #eae7e0;
-    --about-paper: #fcfbf8;
-    --about-warm-white: #f7f5f0;
-    --about-accent: #ff2a1f;
+    --about-ink: var(--marketing-ink);
+    --about-muted: var(--marketing-muted);
+    --about-line: var(--marketing-rule);
+    --about-line-soft: var(--marketing-hover);
+    --about-paper: var(--marketing-paper);
+    --about-warm-white: var(--marketing-page);
+    --about-accent: var(--marketing-accent);
     --color-primary: var(--about-ink);
     --color-accent: var(--about-accent);
     --color-border: var(--about-line);
@@ -124,38 +119,6 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
     font-family: var(--font-body);
   }
 
-  .about-page :global(.site-nav) {
-    border-bottom-color: var(--about-line);
-    background: var(--about-warm-white);
-  }
-
-  .about-page :global(.site-nav-inner),
-  .about-page :global(.site-footer > div) {
-    max-width: 72rem;
-  }
-
-  .about-page :global(.site-nav .font-display) {
-    font-family: var(--font-body);
-    font-size: 1.05rem;
-    font-weight: 600;
-    letter-spacing: -0.055em;
-    text-transform: lowercase;
-  }
-
-  .about-page :global(.site-nav .nav-editor-link) {
-    border-radius: 0.55rem;
-    background: var(--about-accent);
-    font-size: 0.8rem;
-    letter-spacing: -0.01em;
-    text-transform: none;
-  }
-
-  .about-page :global(.site-nav .nav-editor-link:hover) {
-    background: var(--about-ink);
-  }
-
-  .about-page :global(.site-nav a:focus-visible),
-  .about-page :global(.site-nav summary:focus-visible),
   .about-page a:focus-visible {
     outline: 2px solid var(--about-accent);
     outline-offset: 4px;
@@ -342,11 +305,7 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
     color: var(--about-accent);
   }
 
-  .about-page :global(.site-footer) {
-    border-top: 1px solid var(--about-line);
-  }
-
-  @media (max-width: 48rem) {
+  @media (max-width: 47.99rem) {
     .about-hero-inner {
       min-height: auto;
       grid-template-columns: 1fr;
