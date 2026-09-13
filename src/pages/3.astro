@@ -1,6 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import ArrowIcon from "../components/shared/ArrowIcon.astro";
+import { pageTransition } from "../utils/transitions";
 
 const base = import.meta.env.BASE_URL;
 const route = (segment = "") => `${base}${segment}`;
@@ -14,7 +15,7 @@ const experiments = ["1", "2", "3", "4", "5"];
   title="Interleaf / Document desk"
   description="A focused place to fix a PDF in your browser. No uploads or server processing."
 >
-  <div class="document-desk">
+  <div class="document-desk" transition:animate={pageTransition}>
     <header class="site-header">
       <div class="header-inner">
         <div class="brand-lockup">

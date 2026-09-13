@@ -2,6 +2,7 @@
 import Footer from "../shared/Footer.astro";
 import Nav from "../shared/Nav.astro";
 import ArrowIcon from "../shared/ArrowIcon.astro";
+import { pageTransition } from "../../utils/transitions";
 
 interface Props {
   showExperiments?: boolean;
@@ -12,7 +13,10 @@ const base = import.meta.env.BASE_URL;
 const experiments = ["1", "2", "3", "4", "5"];
 ---
 
-<div class:list={["landing-page", showExperiments && "landing-study-page"]}>
+<div
+  class:list={["landing-page", showExperiments && "landing-study-page"]}
+  transition:animate={pageTransition}
+>
   {
     showExperiments ? (
       <header class="study-header">

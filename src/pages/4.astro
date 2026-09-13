@@ -1,6 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import ArrowIcon from "../components/shared/ArrowIcon.astro";
+import { pageTransition } from "../utils/transitions";
 
 const base = import.meta.env.BASE_URL;
 
@@ -13,7 +14,7 @@ const routes = ["1", "2", "3", "4", "5"];
 >
   <meta slot="head" name="theme-color" content="#171b22" />
 
-  <div class="ink-signal-page">
+  <div class="ink-signal-page" transition:animate={pageTransition}>
     <nav class="ink-nav" aria-label="Interleaf navigation">
       <div class="ink-nav-inner">
         <a class="ink-wordmark" href={base} aria-label="Interleaf home">interleaf</a>

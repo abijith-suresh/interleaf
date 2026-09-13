@@ -47,7 +47,7 @@ const resolvedOgImage = ogImage ?? `${siteOrigin}${base}og/${slug}.png`;
     <meta name="twitter:image" content={resolvedOgImage} />
     <slot name="head" />
     <title>{title}</title>
-    <ClientRouter />
+    <ClientRouter fallback="animate" />
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>

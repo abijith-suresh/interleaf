@@ -81,7 +81,7 @@ body {
 }
 
 /* View Transition keyframes */
-@keyframes contentFadeOut {
+@keyframes pageFadeOut {
   from {
     opacity: 1;
     transform: translateY(0);
@@ -92,7 +92,7 @@ body {
   }
 }
 
-@keyframes contentFadeIn {
+@keyframes pageFadeIn {
   from {
     opacity: 0;
     transform: translateY(12px);

@@ -2,7 +2,7 @@
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
-import { contentSlide } from "../utils/transitions";
+import { pageTransition } from "../utils/transitions";
 
 const questions = [
   {
@@ -44,7 +44,7 @@ const questions = [
   title="FAQ — Interleaf"
   description="Short answers about using Interleaf in your browser, including privacy, browser support, file sizes, and offline use."
 >
-  <div class="calm-page faq-page" transition:animate={contentSlide}>
+  <div class="calm-page faq-page" transition:animate={pageTransition}>
     <Nav currentPage="faq" />
 
     <main id="main-content">

@@ -3,6 +3,7 @@ import Layout from "../layouts/Layout.astro";
 import ArrowIcon from "../components/shared/ArrowIcon.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
+import { pageTransition } from "../utils/transitions";
 
 const base = import.meta.env.BASE_URL;
 
@@ -28,7 +29,7 @@ const capabilities = [
   title="Features — Interleaf"
   description="A local workspace for bringing PDF files together, arranging their pages, and opening protected documents."
 >
-  <div class="features-page">
+  <div class="features-page" transition:animate={pageTransition}>
     <Nav currentPage="features" />
 
     <main id="main-content">
