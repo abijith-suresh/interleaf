@@ -110,10 +110,7 @@ export default function EditorSidebar(props: Props) {
       </div>
 
       <section class="editor-sidebar-export">
-        <div class="editor-export-meta">
-          <span>Export</span>
-          <span>{props.activePageCount} active</span>
-        </div>
+        <h2 class="editor-sidebar-label">Export</h2>
         <button
           type="button"
           data-testid="editor-download-button"

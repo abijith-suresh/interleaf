@@ -85,7 +85,6 @@ describe("Editor", () => {
     await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
     const tiles = await findAllByTestId("editor-page-tile");
     expect(tiles).toHaveLength(3);
-    expectLastToast("doc.pdf loaded with 3 pages.");
     expect(pdfServiceMocks.reset).toHaveBeenCalled();
   });
 
@@ -256,7 +255,6 @@ describe("Editor", () => {
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
     expect(pdfOperationsMocks.buildPDFFromSubset).toHaveBeenCalledTimes(1);
     expect(pdfOperationsMocks.buildPDFFromSubset.mock.calls[0][1]).toEqual([2]);
-    expectLastToast("Extracted PDF download started.");
   });
 
   it("downloads a PDF built from the active pages", async () => {
@@ -269,7 +267,6 @@ describe("Editor", () => {
 
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
     expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledTimes(1);
-    expectLastToast("Download started.");
   });
 
   it("shows a failure toast when building the output fails", async () => {

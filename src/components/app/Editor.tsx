@@ -163,7 +163,7 @@ export default function Editor() {
     setSelectedIndices(new Set<number>());
     setPhase("edit");
     setReadyStatus();
-    dispatchToast(`${file.name} loaded with ${formatPageCount(pageCount)}.`, "success");
+    setStatusMessage(`${file.name} loaded with ${formatPageCount(pageCount)}.`);
   }
 
   async function handleAddPdf(file: File): Promise<void> {
@@ -179,7 +179,7 @@ export default function Editor() {
     );
 
     setReadyStatus();
-    dispatchToast(`Added ${formatPageCount(pageCount)} from ${file.name}.`, "success");
+    setStatusMessage(`Added ${formatPageCount(pageCount)} from ${file.name}.`);
   }
 
   async function handleInitialUpload(file: File): Promise<void> {
@@ -259,7 +259,7 @@ export default function Editor() {
         }
       );
       downloadPDF(result);
-      dispatchToast("Extracted PDF download started.", "success");
+      setStatusMessage("Extracted PDF download started.");
     } catch (_err) {
       dispatchToast("Failed to extract selected pages.", "error");
     } finally {
@@ -279,7 +279,7 @@ export default function Editor() {
         setStatusMessage(`Building PDF… ${completed}/${total}`);
       });
       downloadPDF(result);
-      dispatchToast("Download started.", "success");
+      setStatusMessage("Download started.");
     } catch (_err) {
       dispatchToast("Failed to build the PDF.", "error");
     } finally {
@@ -405,13 +405,6 @@ export default function Editor() {
           </div>
           <h1 class="sr-only">Interleaf PDF editor</h1>
           <div class="editor-header-right">
-            <Show when={phase() === "edit" && selectedIndices().size > 0}>
-              <span class="editor-header-selected">{selectedIndices().size} selected</span>
-              <span
-                class="editor-header-divider editor-header-divider-optional"
-                aria-hidden="true"
-              />
-            </Show>
             <a href={base} class="editor-back" aria-label="Return to Interleaf home">
               <svg viewBox="0 0 20 20" aria-hidden="true">
                 <path d="M8 4 3 10l5 6M4 10h13" />
@@ -545,24 +538,15 @@ export default function Editor() {
                 </button>
               </div>
 
-              {/* Status bar */}
               <div
                 role="status"
                 aria-live="polite"
                 aria-atomic="true"
                 data-testid="editor-status-bar"
-                class="editor-status-bar"
+                class="sr-only"
               >
-                <span class="editor-status-pages">
-                  {pages.length} pages ({activePageCount()} active)
-                </span>
-                <span class="editor-status-selection">
-                  {selectedIndices().size > 0 ? `${selectedIndices().size} selected` : ""}
-                </span>
-                <span class="editor-status-message" data-testid="editor-status-message">
-                  <span class="editor-status-dot" aria-hidden="true" />
-                  {statusMessage()}
-                </span>
+                {pages.length} pages ({activePageCount()} active).{" "}
+                <span data-testid="editor-status-message">{statusMessage()}</span>
               </div>
             </section>
           </div>

@@ -1,4 +1,4 @@
-import { createEffect, createSignal, on, onCleanup, onMount } from "solid-js";
+import { createSignal, onCleanup, onMount } from "solid-js";
 import { THUMBNAIL_INTERSECTION_MARGIN, THUMBNAIL_SCALE } from "../../constants";
 import { pdfService } from "../../services/pdf-service";
 import type { PageState } from "../../types/interfaces";
@@ -11,16 +11,19 @@ interface Props {
 
 export default function EditorPageCanvas(props: Props) {
   const [renderState, setRenderState] = createSignal<"loading" | "ready" | "error">("loading");
-  const [rendered, setRendered] = createSignal(false);
+  const [baseAspectRatio, setBaseAspectRatio] = createSignal(3 / 4);
 
   // Solid.js refs are assigned via JSX ref attribute
   let container!: HTMLSpanElement;
   let canvas!: HTMLCanvasElement;
 
-  // Container switches to landscape aspect-ratio (4:3) for 90° / 270° rotations.
-  // Uses a CSS class (not inline style) so the browser treats it as a definite height
-  // — allowing max-height: 100% on the child canvas to resolve correctly.
-  const isTransposed = () => props.rotation % 180 !== 0;
+  const frameStyle = () => {
+    const ratio = baseAspectRatio();
+    const quarterTurn = props.rotation % 180 !== 0;
+    const frameRatio = quarterTurn ? 1 / ratio : ratio;
+
+    return `--frame-ratio: ${frameRatio}; --stage-width: ${quarterTurn ? ratio * 100 : 100}%; --stage-height: ${quarterTurn ? 100 / ratio : 100}%; --page-rotation: ${props.rotation}deg`;
+  };
 
   onMount(() => {
     const observer = new IntersectionObserver(
@@ -30,20 +33,20 @@ export default function EditorPageCanvas(props: Props) {
           observer.disconnect();
 
           try {
-            // Render at the current rotation so pages that are already rotated when
-            // they first enter the viewport get the correct orientation immediately.
-            // pdf.js rotation is CCW; UI rotation is CW — convert direction.
-            const pdfjsRotation = (360 - props.rotation) % 360;
+            // Render the source page once. UI rotation happens on the existing canvas;
+            // the export service applies the selected rotation to the output PDF.
             await pdfService.renderPage(
               props.page.sourceFile,
               props.page.sourcePageNumber,
               canvas,
               THUMBNAIL_SCALE,
-              pdfjsRotation
+              0
             );
             if (!container.isConnected) return;
+            if (canvas.width > 0 && canvas.height > 0) {
+              setBaseAspectRatio(canvas.width / canvas.height);
+            }
             setRenderState("ready");
-            setRendered(true);
           } catch (_err) {
             setRenderState("error");
           }
@@ -64,48 +67,20 @@ export default function EditorPageCanvas(props: Props) {
     });
   });
 
-  // Re-render with fade-dissolve animation when rotation changes after first render.
-  // defer: true prevents this from firing on initial mount.
-  createEffect(
-    on(
-      () => props.rotation,
-      async (rotation) => {
-        if (!rendered()) return;
-        try {
-          // Fade out fast (80ms ease-in via CSS), then render while invisible,
-          // then remove the class to fade back in (120ms ease-out via CSS).
-          canvas.classList.add("is-rendering");
-          await new Promise<void>((resolve) => setTimeout(resolve, 80));
-          if (!container.isConnected) return;
-          const pdfjsRotation = (360 - rotation) % 360;
-          await pdfService.renderPage(
-            props.page.sourceFile,
-            props.page.sourcePageNumber,
-            canvas,
-            THUMBNAIL_SCALE,
-            pdfjsRotation
-          );
-        } catch (_err) {
-        } finally {
-          canvas.classList.remove("is-rendering");
-        }
-      },
-      { defer: true }
-    )
-  );
-
   return (
     <span
       ref={container}
       data-testid="editor-page-canvas"
       data-render-state={renderState()}
+      style={frameStyle()}
       classList={{
         "canvas-container": true,
         "thumbnail-placeholder": renderState() === "loading",
-        "is-transposed": isTransposed(),
       }}
     >
-      <canvas ref={canvas} class="page-canvas" />
+      <span class="canvas-stage">
+        <canvas ref={canvas} class="page-canvas" />
+      </span>
     </span>
   );
 }
