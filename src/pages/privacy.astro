@@ -2,77 +2,127 @@
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
-import PageHeader from "../components/shared/PageHeader.astro";
-import NumberedRow from "../components/shared/NumberedRow.astro";
 import { contentSlide } from "../utils/transitions";
 
+const githubUrl = "https://github.com/abijith-suresh/interleaf";
+
 const sections = [
-  {
-    num: "01",
-    title: "No Data Collection",
-    content:
-      "Interleaf does not collect, store, or transmit any personal data. We do not use analytics, tracking pixels, or any form of user monitoring.",
-  },
-  {
-    num: "02",
-    title: "Client-Side Processing",
-    content:
-      "All PDF operations run entirely in your browser using JavaScript. Your files are never uploaded to any server. Documents are processed in memory and discarded when you close the tab.",
-  },
-  {
-    num: "03",
-    title: "No Cookies",
-    content:
-      "Interleaf does not use cookies, local storage, or any other client-side storage mechanism to track users or store personal information.",
-  },
-  {
-    num: "04",
-    title: "No Third-Party Services",
-    content:
-      "We do not integrate with any third-party analytics, advertising, or tracking services. Every resource the site loads — scripts, styles, and fonts — is served from this site itself. No requests are made to third-party domains.",
-  },
-  {
-    num: "05",
-    title: "Open Source",
-    content:
-      "Interleaf is fully open source. You can inspect the complete source code on GitHub to verify these privacy claims for yourself.",
-  },
-  {
-    num: "06",
-    title: "Contact",
-    content:
-      "If you have questions about this privacy policy, you can open an issue on our GitHub repository.",
-  },
+  { id: "no-data-collection", num: "01", title: "No data collection" },
+  { id: "client-side-processing", num: "02", title: "Client-side processing" },
+  { id: "no-cookies", num: "03", title: "No cookies" },
+  { id: "no-third-party-services", num: "04", title: "No third-party services" },
+  { id: "open-source", num: "05", title: "Open source" },
+  { id: "contact", num: "06", title: "Contact" },
 ];
 ---
 
 <Layout
   title="Privacy Policy — Interleaf"
-  description="Interleaf collects no data, uses no cookies, and never uploads your files. Your documents stay in your browser. Always."
+  description="How Interleaf handles your files and browsing data. No uploads, tracking, analytics, or cookies."
 >
-  <div class="page-wrapper" transition:animate={contentSlide}>
+  <div class="calm-page legal-page" transition:animate={contentSlide}>
     <Nav />
 
     <main id="main-content">
-      <PageHeader label="Legal">
-        <Fragment slot="title">Privacy<br />Policy.</Fragment>
-      </PageHeader>
+      <section class="legal-intro" aria-labelledby="privacy-title">
+        <div class="calm-container">
+          <div class="legal-intro-copy">
+            <h1 id="privacy-title">Privacy policy</h1>
+            <p>What Interleaf collects and how it handles files in your browser.</p>
+          </div>
+        </div>
+      </section>
 
-      <section class="section section-space">
-        <div class="border-t-2 border-primary">
-          {
-            sections.map((s, i) => (
-              <NumberedRow
-                num={s.num}
-                title={s.title}
-                variant="reading"
-                isLast={i === sections.length - 1}
-                staggerClass={`stagger-${Math.min(i + 1, 8)}`}
-              >
-                <p>{s.content}</p>
-              </NumberedRow>
-            ))
-          }
+      <section class="legal-content" aria-label="Privacy policy contents">
+        <div class="legal-layout calm-container">
+          <aside class="contents-rail">
+            <nav aria-label="On this page">
+              <p class="contents-title">On this page</p>
+              <ol>
+                {
+                  sections.map((section) => (
+                    <li>
+                      <a href={`#${section.id}`}>
+                        <span>{section.num}</span>
+                        {section.title}
+                      </a>
+                    </li>
+                  ))
+                }
+              </ol>
+            </nav>
+          </aside>
+
+          <article class="legal-article">
+            <section id="no-data-collection" class="legal-block">
+              <div class="legal-number">01</div>
+              <div>
+                <h2>No data collection</h2>
+                <p>
+                  Interleaf does not collect, store, or transmit any personal data. We do not use
+                  analytics, tracking pixels, or any form of user monitoring.
+                </p>
+              </div>
+            </section>
+
+            <section id="client-side-processing" class="legal-block">
+              <div class="legal-number">02</div>
+              <div>
+                <h2>Client-side processing</h2>
+                <p>
+                  All PDF operations run entirely in your browser using JavaScript. Your files are
+                  never uploaded to any server. Documents are processed in memory and discarded
+                  when you close the tab.
+                </p>
+              </div>
+            </section>
+
+            <section id="no-cookies" class="legal-block">
+              <div class="legal-number">03</div>
+              <div>
+                <h2>No cookies</h2>
+                <p>
+                  Interleaf does not use cookies, local storage, or any other client-side storage
+                  mechanism to track users or store personal information.
+                </p>
+              </div>
+            </section>
+
+            <section id="no-third-party-services" class="legal-block">
+              <div class="legal-number">04</div>
+              <div>
+                <h2>No third-party services</h2>
+                <p>
+                  We do not integrate with any third-party analytics, advertising, or tracking
+                  services. Every resource the site loads, including scripts, styles, and fonts,
+                  is served from this site itself. No requests are made to third-party domains.
+                </p>
+              </div>
+            </section>
+
+            <section id="open-source" class="legal-block">
+              <div class="legal-number">05</div>
+              <div>
+                <h2>Open source</h2>
+                <p>
+                  Interleaf is fully open source. You can inspect the complete source code on
+                  <a href={githubUrl} target="_blank" rel="noopener">GitHub</a> to verify these
+                  privacy claims for yourself.
+                </p>
+              </div>
+            </section>
+
+            <section id="contact" class="legal-block">
+              <div class="legal-number">06</div>
+              <div>
+                <h2>Contact</h2>
+                <p>
+                  If you have questions about this privacy policy, you can open an issue on our
+                  <a href={githubUrl} target="_blank" rel="noopener">GitHub repository</a>.
+                </p>
+              </div>
+            </section>
+          </article>
         </div>
       </section>
     </main>
@@ -80,3 +130,278 @@ const sections = [
     <Footer />
   </div>
 </Layout>
+
+<style>
+  .calm-page {
+    --calm-ink: #242421;
+    --calm-muted: #77756e;
+    --calm-line: #dedbd4;
+    --calm-line-strong: #c7c3ba;
+    --calm-paper: #fcfbf8;
+    --calm-warm: #f7f5f0;
+    --calm-accent: #ff2a1f;
+    min-height: 100vh;
+    background: var(--calm-warm);
+    color: var(--calm-ink);
+    font-family: var(--font-body);
+  }
+
+  .calm-container {
+    width: min(calc(100% - 2rem), 72rem);
+    margin-inline: auto;
+  }
+
+  .calm-page :global(.site-nav) {
+    border-color: var(--calm-line);
+    background: transparent;
+  }
+
+  .calm-page :global(.site-nav-inner) {
+    max-width: 72rem;
+  }
+
+  .calm-page :global(.site-nav .font-display) {
+    color: var(--calm-ink);
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.055em;
+    text-transform: lowercase;
+  }
+
+  .calm-page :global(.site-nav a:not(.btn-primary)) {
+    color: var(--calm-muted);
+  }
+
+  .calm-page :global(.site-nav a:not(.btn-primary):hover) {
+    color: var(--calm-ink);
+  }
+
+  .calm-page :global(.site-nav .mobile-nav-link.is-current) {
+    color: #fff;
+  }
+
+  .calm-page :global(.site-nav .btn-primary) {
+    border-radius: 0.55rem;
+    background: var(--calm-accent);
+    text-transform: none;
+    letter-spacing: -0.01em;
+    transition:
+      background-color 160ms ease,
+      transform 160ms ease;
+  }
+
+  .calm-page :global(.site-nav .btn-primary:hover) {
+    background: var(--calm-ink);
+  }
+
+  .calm-page a {
+    -webkit-tap-highlight-color: rgb(255 42 31 / 18%);
+    touch-action: manipulation;
+  }
+
+  .calm-page a:focus-visible {
+    outline: 2px solid var(--calm-accent);
+    outline-offset: 4px;
+  }
+
+  .legal-intro {
+    border-bottom: 1px solid var(--calm-line);
+    padding-block: clamp(4rem, 9vw, 6.5rem) clamp(2.75rem, 6vw, 4.5rem);
+  }
+
+  .legal-intro-copy {
+    max-width: 46rem;
+  }
+
+  h1 {
+    margin: 0;
+    color: var(--calm-ink);
+    font-size: clamp(2.75rem, 6.5vw, 5rem);
+    font-weight: 500;
+    letter-spacing: -0.085em;
+    line-height: 0.95;
+    text-wrap: balance;
+  }
+
+  .legal-intro p {
+    max-width: 34rem;
+    margin: 1.5rem 0 0;
+    color: var(--calm-muted);
+    font-size: clamp(1rem, 1.6vw, 1.15rem);
+    line-height: 1.55;
+  }
+
+  .legal-content {
+    padding-block: clamp(3rem, 7vw, 5.5rem) clamp(5rem, 10vw, 8rem);
+  }
+
+  .legal-layout {
+    display: grid;
+    grid-template-columns: 12rem minmax(0, 46rem);
+    align-items: start;
+    gap: clamp(2rem, 7vw, 7rem);
+  }
+
+  .contents-rail {
+    position: sticky;
+    top: 1.5rem;
+  }
+
+  .contents-title {
+    margin: 0 0 0.8rem;
+    color: var(--calm-muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .contents-rail ol {
+    display: grid;
+    gap: 0.1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .contents-rail a {
+    display: grid;
+    grid-template-columns: 1.8rem minmax(0, 1fr);
+    min-height: 2.5rem;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--calm-muted);
+    font-size: 0.8rem;
+    line-height: 1.25;
+    text-decoration: none;
+  }
+
+  .contents-rail a:hover {
+    color: var(--calm-accent);
+  }
+
+  .contents-rail a span {
+    color: var(--calm-line-strong);
+    font-size: 0.68rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .legal-article {
+    min-width: 0;
+    border-top: 1px solid var(--calm-line-strong);
+    background: var(--calm-paper);
+  }
+
+  .legal-block {
+    display: grid;
+    grid-template-columns: 2.25rem minmax(0, 1fr);
+    gap: 1.25rem;
+    padding: 1.75rem 1.5rem 2rem;
+    border-bottom: 1px solid var(--calm-line);
+    scroll-margin-top: 1.5rem;
+  }
+
+  .legal-block:last-child {
+    border-bottom-color: var(--calm-line-strong);
+  }
+
+  .legal-number {
+    padding-top: 0.15rem;
+    color: var(--calm-muted);
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  h2 {
+    margin: 0;
+    color: var(--calm-ink);
+    font-size: clamp(1.1rem, 1.8vw, 1.3rem);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+    text-wrap: balance;
+  }
+
+  .legal-block p {
+    max-width: 41rem;
+    margin: 0.75rem 0 0;
+    color: var(--calm-muted);
+    font-size: 0.98rem;
+    line-height: 1.7;
+  }
+
+  .legal-block a {
+    color: var(--calm-ink);
+    text-decoration-color: var(--calm-accent);
+    text-decoration-thickness: 0.1em;
+    text-underline-offset: 0.16em;
+  }
+
+  .legal-block a:hover {
+    color: var(--calm-accent);
+  }
+
+  .calm-page :global(.site-footer) {
+    border-top: 1px solid var(--calm-line);
+    background: var(--calm-warm);
+  }
+
+  .calm-page :global(.site-footer > div) {
+    max-width: 72rem;
+  }
+
+  .calm-page :global(.site-footer .font-display) {
+    color: var(--calm-ink);
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.055em;
+    text-transform: lowercase;
+  }
+
+  @media (max-width: 760px) {
+    .legal-layout {
+      grid-template-columns: 1fr;
+      gap: 2.25rem;
+    }
+
+    .contents-rail {
+      position: static;
+    }
+
+    .contents-rail ol {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      column-gap: 1rem;
+      border-top: 1px solid var(--calm-line);
+      padding-top: 0.5rem;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .calm-container {
+      width: min(calc(100% - 1.5rem), 72rem);
+    }
+
+    .legal-intro {
+      padding-top: 4rem;
+    }
+
+    .legal-block {
+      grid-template-columns: 1.8rem minmax(0, 1fr);
+      gap: 0.8rem;
+      padding: 1.5rem 1rem 1.75rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .calm-page *,
+    .calm-page *::before,
+    .calm-page *::after {
+      animation-duration: 0.01ms;
+      animation-iteration-count: 1;
+      scroll-behavior: auto;
+      transition-duration: 0.01ms;
+    }
+  }
+</style>
