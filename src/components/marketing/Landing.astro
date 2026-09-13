@@ -14,7 +14,7 @@ const experiments = ["1", "2", "3", "4", "5"];
 ---
 
 <div
-  class:list={["landing-page", showExperiments && "landing-study-page"]}
+  class:list={["marketing-page", "landing-page", showExperiments && "landing-study-page"]}
   transition:animate={pageTransition}
 >
   {
@@ -112,26 +112,11 @@ const experiments = ["1", "2", "3", "4", "5"];
 </div>
 
 <style>
-  :global(html),
-  :global(body) {
-    background: #f5f3ee;
-  }
-
   .landing-page {
-    --marketing-page: #f5f3ee;
-    --marketing-paper: #fcfbf8;
-    --marketing-ink: #292925;
-    --marketing-body: #77756e;
-    --marketing-muted: #77756e;
-    --marketing-rule: #ddd9d1;
-    --marketing-rule-strong: #c8c4bb;
-    --marketing-hover: #ebe8e1;
-    --marketing-accent: #f04436;
-    --marketing-accent-hover: #d9362b;
     --ink: var(--marketing-ink);
     --muted: var(--marketing-muted);
     --line: var(--marketing-rule);
-    --line-soft: #ebe8e1;
+    --line-soft: var(--marketing-hover);
     --paper: var(--marketing-paper);
     --canvas: var(--marketing-page);
     --field: #f0eee8;
@@ -503,7 +488,7 @@ const experiments = ["1", "2", "3", "4", "5"];
     outline-offset: 4px;
   }
 
-  @media (max-width: 48rem) {
+  @media (max-width: 47.99rem) {
     .landing-hero {
       padding-block: 3.25rem 4rem;
     }

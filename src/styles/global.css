@@ -33,6 +33,7 @@
 
 :root {
   color-scheme: light;
+  --marketing-page-default: #f7f5f0;
 }
 
 html {
@@ -45,19 +46,19 @@ body {
   background: var(--color-white);
 }
 
-/* Marketing pages use a warmer paper palette. The editor keeps the root tokens. */
+/* Marketing pages share one visual contract. The editor keeps the root tokens. */
 .page-wrapper,
-.landing-page {
-  --marketing-page: #f7f5f0;
+.marketing-page {
+  --marketing-page: var(--marketing-page-default);
   --marketing-paper: #fcfbf8;
   --marketing-ink: #242421;
   --marketing-body: #5e5c56;
-  --marketing-muted: #85827a;
+  --marketing-muted: #77756e;
   --marketing-rule: #dedbd4;
-  --marketing-rule-strong: #c8c4bb;
+  --marketing-rule-strong: #c7c3ba;
   --marketing-hover: #edeae3;
-  --marketing-accent: #ef4b40;
-  --marketing-accent-hover: #c93730;
+  --marketing-accent: #f04436;
+  --marketing-accent-hover: #d9362b;
   --marketing-radius-sm: 0.45rem;
   --marketing-radius-md: 0.75rem;
   --color-white: var(--marketing-paper);
@@ -73,6 +74,11 @@ body {
   background: var(--marketing-page);
   color: var(--marketing-ink);
   font-family: var(--font-body);
+}
+
+html:has(.marketing-page),
+body:has(.marketing-page) {
+  background: var(--marketing-page-default);
 }
 
 ::selection {
@@ -268,10 +274,18 @@ body {
   padding-right: 1rem;
   padding-left: 1rem;
 }
+
 @media (min-width: 768px) {
   .section-padding {
     padding-right: 2rem;
     padding-left: 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .section-padding {
+    padding-right: 3rem;
+    padding-left: 3rem;
   }
 }
 
@@ -352,6 +366,18 @@ body {
   border-bottom: 1px solid var(--marketing-rule, var(--color-border));
   background: var(--marketing-page, var(--color-white));
   font-family: var(--font-body);
+}
+
+.marketing-page a,
+.marketing-page summary {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.marketing-page a:focus-visible,
+.marketing-page summary:focus-visible {
+  outline: 2px solid var(--marketing-accent, var(--color-accent));
+  outline-offset: 4px;
 }
 
 .site-nav-inner {
@@ -546,7 +572,7 @@ body {
   outline-offset: 2px;
 }
 
-@media (max-width: 639px) {
+@media (max-width: 47.99rem) {
   .desktop-nav {
     display: none;
   }
@@ -713,7 +739,7 @@ body {
 
 /* Marketing buttons are softer and stay isolated from the editor controls. */
 .page-wrapper .btn-primary,
-.landing-page .btn-primary {
+.marketing-page .btn-primary {
   min-height: 3rem;
   border-radius: var(--marketing-radius-sm);
   background: var(--marketing-accent);
@@ -728,12 +754,12 @@ body {
 }
 
 .page-wrapper .btn-primary:hover,
-.landing-page .btn-primary:hover {
+.marketing-page .btn-primary:hover {
   background: var(--marketing-ink);
 }
 
 .page-wrapper .btn-primary:focus-visible,
-.landing-page .btn-primary:focus-visible {
+.marketing-page .btn-primary:focus-visible {
   outline-color: var(--marketing-accent);
 }
 
@@ -771,7 +797,7 @@ body {
 }
 
 .page-wrapper .btn-secondary,
-.landing-page .btn-secondary {
+.marketing-page .btn-secondary {
   border-radius: var(--marketing-radius-sm);
   font-family: var(--font-body);
   letter-spacing: -0.01em;
