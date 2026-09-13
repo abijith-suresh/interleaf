@@ -1,0 +1,589 @@
+---
+import Footer from "../shared/Footer.astro";
+import Nav from "../shared/Nav.astro";
+
+interface Props {
+  showExperiments?: boolean;
+}
+
+const { showExperiments = false } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const experiments = ["1", "2", "3", "4", "5"];
+---
+
+<div class:list={["landing-page", showExperiments && "landing-study-page"]}>
+  {
+    showExperiments ? (
+      <header class="study-header">
+        <a class="study-brand" href={base} aria-label="Interleaf home">interleaf</a>
+        <div class="study-actions">
+          <a class="study-home" href={base}>Home</a>
+          <nav class="study-switcher" aria-label="Landing page design experiments">
+            {experiments.map((experiment) => (
+              <a
+                href={base + experiment}
+                class:list={["study-link", experiment === "2" && "is-current"]}
+                aria-current={experiment === "2" ? "page" : undefined}
+              >
+                /{experiment}
+              </a>
+            ))}
+          </nav>
+        </div>
+      </header>
+    ) : (
+      <Nav />
+    )
+  }
+
+  <main id="main-content">
+    <section class="landing-hero" aria-labelledby="landing-title">
+      <div class="landing-hero-grid">
+        <div class="landing-hero-copy">
+          <h1 id="landing-title">
+            Make the<br />
+            <span>document ready.</span>
+          </h1>
+          <p>
+            Bring PDFs together, shape their pages, and keep the result on your device.
+          </p>
+          <a class="landing-action" href={base + "app"}>
+            Open editor <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+
+        <div class="workspace-cue" aria-hidden="true">
+          <div class="cue-top">
+            <span class="cue-dot"></span>
+            <span class="cue-rule"></span>
+            <span class="cue-rule cue-rule-short"></span>
+          </div>
+          <div class="cue-field">
+            <span class="sheet sheet-back"></span>
+            <span class="sheet sheet-middle"></span>
+            <span class="sheet sheet-front">
+              <span class="sheet-heading"></span>
+              <span class="sheet-line sheet-line-wide"></span>
+              <span class="sheet-line"></span>
+              <span class="sheet-line sheet-line-short"></span>
+              <span class="sheet-line"></span>
+            </span>
+            <span class="sheet-marker"></span>
+          </div>
+          <div class="cue-bottom">
+            <span class="cue-rule cue-rule-long"></span>
+            <span class="cue-dot cue-dot-small"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="workflow" aria-labelledby="workflow-title">
+      <div class="workflow-heading">
+        <h2 id="workflow-title">The work between opening a file and sending it.</h2>
+      </div>
+
+      <div class="workflow-grid">
+        <article class="workflow-card">
+          <span class="workflow-number">01</span>
+          <h3>Bring together</h3>
+          <p>Merge files or pull out the pages you need.</p>
+        </article>
+        <article class="workflow-card">
+          <span class="workflow-number">02</span>
+          <h3>Shape pages</h3>
+          <p>Reorder, rotate, and remove pages before export.</p>
+        </article>
+        <article class="workflow-card">
+          <span class="workflow-number">03</span>
+          <h3>Keep it local</h3>
+          <p>Everything runs in your browser. Nothing is uploaded.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <Footer />
+</div>
+
+<style>
+  :global(html),
+  :global(body) {
+    background: #f5f3ee;
+  }
+
+  .landing-page {
+    --marketing-page: #f5f3ee;
+    --marketing-paper: #fcfbf8;
+    --marketing-ink: #292925;
+    --marketing-body: #77756e;
+    --marketing-muted: #77756e;
+    --marketing-rule: #ddd9d1;
+    --marketing-rule-strong: #c8c4bb;
+    --marketing-hover: #ebe8e1;
+    --marketing-accent: #f04436;
+    --marketing-accent-hover: #d9362b;
+    --ink: var(--marketing-ink);
+    --muted: var(--marketing-muted);
+    --line: var(--marketing-rule);
+    --line-soft: #ebe8e1;
+    --paper: var(--marketing-paper);
+    --canvas: var(--marketing-page);
+    --field: #f0eee8;
+    --accent: var(--marketing-accent);
+    min-height: 100svh;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-body);
+  }
+
+  .landing-page a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
+  }
+
+  .landing-hero,
+  .workflow {
+    width: min(calc(100% - 2rem), 72rem);
+    margin-inline: auto;
+  }
+
+  .landing-hero {
+    display: grid;
+    align-items: center;
+    padding-block: clamp(3.5rem, 7vw, 5.75rem) clamp(3.75rem, 7vw, 5.5rem);
+  }
+
+  .landing-hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.76fr);
+    align-items: center;
+    gap: clamp(3rem, 7vw, 7rem);
+  }
+
+  .landing-hero-copy {
+    max-width: 38rem;
+  }
+
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
+
+  h1 {
+    font-size: clamp(3.8rem, 7.5vw, 6.35rem);
+    font-weight: 500;
+    letter-spacing: -0.085em;
+    line-height: 0.9;
+    text-wrap: balance;
+  }
+
+  h1 span {
+    color: var(--accent);
+  }
+
+  .landing-hero-copy > p {
+    max-width: 31rem;
+    margin-top: clamp(1.5rem, 3vw, 2rem);
+    color: var(--muted);
+    font-size: clamp(1rem, 1.6vw, 1.15rem);
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
+  .landing-action {
+    display: inline-flex;
+    min-height: 3rem;
+    align-items: center;
+    gap: 1.15rem;
+    margin-top: 1.75rem;
+    padding: 0.8rem 1.1rem 0.8rem 1.25rem;
+    border-radius: 0.55rem;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-decoration: none;
+    transition:
+      background-color 160ms ease,
+      transform 160ms ease;
+  }
+
+  .landing-action span {
+    font-size: 1.15rem;
+    line-height: 1;
+  }
+
+  .landing-action:hover {
+    background: var(--ink);
+    transform: translateY(-1px);
+  }
+
+  .landing-action:active {
+    transform: translateY(0);
+  }
+
+  .workspace-cue {
+    width: min(100%, 25rem);
+    aspect-ratio: 1.08;
+    justify-self: end;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 1.1rem;
+    background: var(--paper);
+    box-shadow: 0 1.5rem 4rem rgb(48 45 39 / 8%);
+  }
+
+  .cue-top,
+  .cue-bottom {
+    display: flex;
+    height: 2.75rem;
+    align-items: center;
+    gap: 0.45rem;
+    padding-inline: 1.2rem;
+  }
+
+  .cue-top {
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .cue-bottom {
+    justify-content: space-between;
+    border-top: 1px solid var(--line-soft);
+  }
+
+  .cue-dot {
+    display: block;
+    width: 0.45rem;
+    height: 0.45rem;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .cue-dot-small {
+    width: 0.35rem;
+    height: 0.35rem;
+    background: var(--line);
+  }
+
+  .cue-rule {
+    display: block;
+    width: 2.5rem;
+    height: 1px;
+    background: var(--line);
+  }
+
+  .cue-rule-short {
+    width: 1rem;
+  }
+
+  .cue-rule-long {
+    width: 4.5rem;
+  }
+
+  .cue-field {
+    position: relative;
+    min-height: 15rem;
+    margin: 1.25rem;
+    overflow: hidden;
+    border: 1px solid var(--line-soft);
+    background: var(--field);
+  }
+
+  .sheet {
+    position: absolute;
+    display: block;
+    width: 42%;
+    height: 69%;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    box-shadow: 0 0.75rem 1.5rem rgb(48 45 39 / 8%);
+  }
+
+  .sheet-back {
+    top: 15%;
+    left: 17%;
+    transform: rotate(-8deg);
+  }
+
+  .sheet-middle {
+    top: 19%;
+    left: 28%;
+    transform: rotate(5deg);
+  }
+
+  .sheet-front {
+    top: 12%;
+    left: 25%;
+    display: flex;
+    width: 48%;
+    height: 73%;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.35rem 1.2rem;
+    transform: rotate(-2deg);
+  }
+
+  .sheet-heading,
+  .sheet-line {
+    display: block;
+    height: 0.28rem;
+    background: var(--line);
+  }
+
+  .sheet-heading {
+    width: 64%;
+    height: 0.48rem;
+    margin-bottom: 0.35rem;
+    background: var(--ink);
+  }
+
+  .sheet-line-wide {
+    width: 88%;
+  }
+
+  .sheet-line-short {
+    width: 48%;
+  }
+
+  .sheet-marker {
+    position: absolute;
+    top: 47%;
+    right: 12%;
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 0.45rem rgb(240 68 54 / 13%);
+  }
+
+  .workflow {
+    padding-block: 0 clamp(4.5rem, 9vw, 7rem);
+  }
+
+  .workflow-heading {
+    padding-block: 1.5rem 1.25rem;
+    border-top: 1px solid var(--line);
+  }
+
+  h2 {
+    max-width: 34rem;
+    font-size: clamp(1.8rem, 3.4vw, 2.65rem);
+    font-weight: 500;
+    letter-spacing: -0.075em;
+    line-height: 1;
+    text-wrap: balance;
+  }
+
+  .workflow-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-top: 1px solid var(--line);
+  }
+
+  .workflow-card {
+    min-height: 10rem;
+    padding: 1.25rem clamp(1rem, 2.5vw, 2rem) 1.5rem 0;
+  }
+
+  .workflow-card + .workflow-card {
+    padding-left: clamp(1rem, 2.5vw, 2rem);
+    border-left: 1px solid var(--line);
+  }
+
+  .workflow-number {
+    display: block;
+    margin-bottom: 2.5rem;
+    color: var(--accent);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+
+  h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: -0.035em;
+  }
+
+  .workflow-card p {
+    max-width: 17rem;
+    margin-top: 0.45rem;
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.45;
+  }
+
+  .study-header {
+    display: flex;
+    width: min(calc(100% - 2rem), 72rem);
+    min-height: 4.75rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-inline: auto;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .study-brand,
+  .study-home,
+  .study-link {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .study-brand {
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.055em;
+  }
+
+  .study-actions,
+  .study-switcher {
+    display: flex;
+    align-items: center;
+  }
+
+  .study-actions {
+    gap: 1.25rem;
+  }
+
+  .study-home,
+  .study-link {
+    min-height: 2.75rem;
+    align-content: center;
+    color: var(--muted);
+    font-size: 0.75rem;
+    line-height: 1;
+  }
+
+  .study-home {
+    color: var(--ink);
+  }
+
+  .study-switcher {
+    gap: 0.15rem;
+    padding: 0.2rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--paper);
+  }
+
+  .study-link {
+    display: inline-grid;
+    min-width: 2rem;
+    min-height: 2rem;
+    place-items: center;
+    border-radius: 999px;
+  }
+
+  .study-link:hover {
+    color: var(--ink);
+    background: var(--line-soft);
+  }
+
+  .study-link.is-current {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .study-brand:focus-visible,
+  .study-home:focus-visible,
+  .study-link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
+  }
+
+  @media (max-width: 48rem) {
+    .landing-hero {
+      padding-block: 3.25rem 4rem;
+    }
+
+    .landing-hero-grid {
+      grid-template-columns: 1fr;
+      gap: 2.75rem;
+    }
+
+    .workspace-cue {
+      justify-self: center;
+    }
+
+    .workflow-card {
+      min-height: 0;
+      padding-block: 1.25rem 1.5rem;
+    }
+
+    .workflow-number {
+      margin-bottom: 1.5rem;
+    }
+
+    .study-header {
+      min-height: 4.25rem;
+    }
+
+    .study-actions {
+      gap: 0.5rem;
+    }
+
+    .study-home {
+      padding-inline: 0.45rem;
+    }
+  }
+
+  @media (max-width: 36rem) {
+    .landing-hero-grid {
+      gap: 2.25rem;
+    }
+
+    h1 {
+      font-size: clamp(3.35rem, 15vw, 5rem);
+    }
+
+    .workspace-cue {
+      width: min(100%, 20rem);
+    }
+
+    .cue-field {
+      min-height: 13rem;
+    }
+
+    .workflow-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .workflow-card + .workflow-card {
+      padding-left: 0;
+      border-top: 1px solid var(--line);
+      border-left: 0;
+    }
+
+    .study-header {
+      gap: 0.75rem;
+    }
+
+    .study-home {
+      display: none;
+    }
+
+    .study-actions {
+      gap: 0.25rem;
+    }
+
+    .study-link {
+      min-width: 1.8rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .landing-page *,
+    .landing-page *::before,
+    .landing-page *::after {
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
