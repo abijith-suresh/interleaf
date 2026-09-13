@@ -2,117 +2,421 @@
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/shared/Nav.astro";
 import Footer from "../components/shared/Footer.astro";
-import PageHeader from "../components/shared/PageHeader.astro";
-import NumberedRow from "../components/shared/NumberedRow.astro";
-import BottomCTA from "../components/shared/BottomCTA.astro";
-import { contentSlide } from "../utils/transitions";
 
 const base = import.meta.env.BASE_URL;
 
-const features = [
+const capabilities = [
   {
-    num: "01",
-    title: "Merge",
-    desc: "Combine multiple PDF files into a single document.",
-    details: [
-      "Add more PDFs at any point",
-      "Keeps page order under your control",
-      "Runs fully in-browser",
-    ],
+    title: "Get a document together",
+    description:
+      "Combine PDFs into one working document, or pull selected pages into a separate file.",
   },
   {
-    num: "02",
-    title: "Extract",
-    desc: "Extract selected pages into a new PDF.",
-    details: ["Select any subset of pages", "Exports a separate PDF", "Preserves your page order"],
+    title: "Shape the pages",
+    description:
+      "Arrange pages by dragging, turn them in 90° steps, and mark the ones you no longer need before export.",
   },
   {
-    num: "03",
-    title: "Reorder",
-    desc: "Drag and drop pages to arrange them in any order.",
-    details: ["Visual page thumbnails", "Drag-and-drop interface", "Instant preview"],
-  },
-  {
-    num: "04",
-    title: "Rotate",
-    desc: "Rotate any page to the correct orientation.",
-    details: [
-      "Rotate in 90 degree steps",
-      "Per-page or bulk rotation",
-      "Immediate visual confirmation",
-    ],
-  },
-  {
-    num: "05",
-    title: "Delete",
-    desc: "Remove unwanted pages cleanly from any PDF.",
-    details: ["Click to select pages", "Bulk deletion"],
-  },
-  {
-    num: "06",
-    title: "Unlock",
-    desc: "Open password-protected PDFs without any server involvement.",
-    details: [
-      "In-browser password prompt",
-      "Handles owner and user passwords",
-      "No data leaves your device",
-    ],
+    title: "Open protected files",
+    description: "Use an in-browser password prompt to unlock a protected PDF and keep working.",
   },
 ];
 ---
 
 <Layout
   title="Features — Interleaf"
-  description="Merge, extract, reorder, rotate, delete, and unlock PDFs. Six powerful operations, all running client-side in your browser."
+  description="A local workspace for bringing PDF files together, arranging their pages, and opening protected documents."
 >
-  <div class="page-wrapper" transition:animate={contentSlide}>
+  <div class="features-page">
     <Nav currentPage="features" />
 
     <main id="main-content">
-      <PageHeader label="Product">
-        <Fragment slot="title">Everything<br />you need.</Fragment>
-      </PageHeader>
+      <section class="features-hero" aria-labelledby="features-title">
+        <div class="hero-grid">
+          <h1 id="features-title">Make the<br /><span>document ready.</span></h1>
 
-      <section class="section section-space">
-        <div>
-          <div class="border-t-2 border-primary">
-            {
-              features.map((f, i) => (
-                <NumberedRow
-                  num={f.num}
-                  title={f.title}
-                  titleClass={i === features.length - 1 ? "text-accent" : ""}
-                  isLast={i === features.length - 1}
-                  staggerClass={`stagger-${Math.min(i + 1, 8)}`}
-                >
-                  <p>{f.desc}</p>
-                  <ul class="mt-3 space-y-1">
-                    {f.details.map((d) => (
-                      <li class="text-sm text-muted font-light">{d}</li>
-                    ))}
-                  </ul>
-                </NumberedRow>
-              ))
-            }
+          <div class="hero-copy">
+            <p>
+              Interleaf is a local workspace for the work that happens before a PDF is ready to
+              share. Bring files together, shape their pages, and open protected documents in the
+              browser.
+            </p>
+            <a class="hero-action" href={`${base}app`}>
+              Open editor <span aria-hidden="true">↗</span>
+            </a>
           </div>
         </div>
       </section>
 
-      <section class="section section-space">
-        <div class="surface-note content-measure animate-on-scroll">
-          <p class="eyebrow mb-4">Runs here</p>
-          <p class="body-text text-sm">
-            Every operation runs entirely in your browser. No files are uploaded to any server. Your
-            documents never leave your device.
-          </p>
+      <section class="capability-section" aria-labelledby="capability-title">
+        <div class="section-intro">
+          <p class="section-index">The work in between</p>
+          <h2 id="capability-title">A few careful steps before the file goes out.</h2>
+        </div>
+
+        <div class="capability-list">
+          {
+            capabilities.map((capability) => (
+              <article class="capability">
+                <span class="capability-marker" aria-hidden="true"></span>
+                <h3>{capability.title}</h3>
+                <p>{capability.description}</p>
+              </article>
+            ))
+          }
         </div>
       </section>
 
-      <BottomCTA buttonText="Open Editor" buttonHref={`${base}app`}>
-        <Fragment slot="heading">Try it now.</Fragment>
-      </BottomCTA>
+      <section class="local-note" aria-label="Local processing">
+        <span class="local-note-marker" aria-hidden="true"></span>
+        <p>
+          <strong>Your files stay with you.</strong> Interleaf processes documents in your browser.
+          Nothing is uploaded.
+        </p>
+      </section>
     </main>
 
     <Footer />
   </div>
 </Layout>
+
+<style>
+  .features-page {
+    --paper: #f7f5f0;
+    --paper-bright: #fcfbf8;
+    --ink: #242421;
+    --muted: #77756e;
+    --rule: #d9d6ce;
+    --accent: #ff2a1f;
+    min-height: 100svh;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+  }
+
+  :global(html:has(.features-page)),
+  :global(body:has(.features-page)) {
+    background: #f7f5f0;
+  }
+
+  :global(.features-page .site-nav) {
+    padding-inline: max(1rem, calc((100vw - 72rem) / 2));
+    border-color: var(--rule);
+    background: var(--paper);
+  }
+
+  :global(.features-page .site-nav-inner) {
+    max-width: 72rem;
+    height: 4.75rem;
+  }
+
+  :global(.features-page .site-nav .font-display) {
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.055em;
+    text-transform: lowercase;
+  }
+
+  :global(.features-page .site-nav a) {
+    color: var(--muted);
+  }
+
+  :global(.features-page .site-nav a:hover),
+  :global(.features-page .site-nav a[aria-current="page"]) {
+    color: var(--ink);
+  }
+
+  :global(.features-page .site-nav .btn-primary) {
+    border-radius: 0.45rem;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.7rem;
+    letter-spacing: 0.01em;
+    text-transform: none;
+  }
+
+  :global(.features-page .site-nav .btn-primary:hover) {
+    background: var(--ink);
+  }
+
+  :global(.features-page .mobile-nav-trigger) {
+    border-color: var(--rule);
+    border-radius: 0.4rem;
+    color: var(--ink);
+    font-size: 0.7rem;
+    letter-spacing: 0.01em;
+    text-transform: none;
+  }
+
+  :global(.features-page .mobile-nav-panel) {
+    border-color: var(--rule);
+    border-radius: 0.45rem;
+    background: var(--paper-bright);
+    box-shadow: 0 1rem 2rem rgb(48 45 39 / 8%);
+  }
+
+  :global(.features-page .mobile-nav-link) {
+    color: var(--ink);
+    font-size: 0.7rem;
+    letter-spacing: 0.01em;
+    text-transform: none;
+  }
+
+  :global(.features-page .mobile-nav-link:hover),
+  :global(.features-page .mobile-nav-link.is-current) {
+    background: var(--ink);
+    color: var(--paper-bright);
+  }
+
+  .features-page a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
+  }
+
+  .features-hero,
+  .capability-section,
+  .local-note {
+    width: min(calc(100% - 2rem), 72rem);
+    margin-inline: auto;
+  }
+
+  .features-hero {
+    display: grid;
+    align-items: end;
+    min-height: min(31rem, calc(100svh - 4.75rem));
+    padding-block: clamp(3.5rem, 8vw, 6rem) clamp(3rem, 7vw, 5.25rem);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(16rem, 0.8fr);
+    gap: clamp(2.5rem, 8vw, 8rem);
+    align-items: end;
+  }
+
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
+
+  h1 {
+    max-width: 48rem;
+    font-size: clamp(3.75rem, 8.7vw, 7.5rem);
+    font-weight: 500;
+    letter-spacing: -0.085em;
+    line-height: 0.88;
+    text-wrap: balance;
+  }
+
+  h1 span {
+    color: var(--accent);
+  }
+
+  .hero-copy {
+    max-width: 26rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .hero-copy > p {
+    color: var(--muted);
+    font-size: clamp(1rem, 1.5vw, 1.15rem);
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
+  .hero-action {
+    display: inline-flex;
+    min-height: 3rem;
+    align-items: center;
+    gap: 1.25rem;
+    margin-top: 1.75rem;
+    padding: 0.8rem 1rem 0.8rem 1.15rem;
+    border-radius: 0.45rem;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition:
+      background-color 160ms ease,
+      transform 160ms ease;
+  }
+
+  .hero-action span {
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  .hero-action:hover {
+    background: var(--ink);
+    transform: translateY(-1px);
+  }
+
+  .hero-action:active {
+    transform: translateY(0);
+  }
+
+  .capability-section {
+    padding-block: clamp(3.75rem, 8vw, 6.5rem);
+  }
+
+  .section-intro {
+    display: grid;
+    grid-template-columns: minmax(9rem, 0.5fr) minmax(0, 1.5fr);
+    gap: 2rem;
+    align-items: start;
+  }
+
+  .section-index {
+    padding-top: 0.55rem;
+    color: var(--muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  h2 {
+    max-width: 34rem;
+    font-size: clamp(2rem, 4.3vw, 3.5rem);
+    font-weight: 500;
+    letter-spacing: -0.07em;
+    line-height: 0.98;
+    text-wrap: balance;
+  }
+
+  .capability-list {
+    margin-top: clamp(2.5rem, 5vw, 4rem);
+    border-top: 1px solid var(--ink);
+  }
+
+  .capability {
+    display: grid;
+    grid-template-columns: 1rem minmax(14rem, 0.8fr) minmax(0, 1.2fr);
+    gap: 1.5rem;
+    align-items: baseline;
+    padding-block: 1.6rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .capability:last-child {
+    border-bottom-color: var(--ink);
+  }
+
+  .capability-marker,
+  .local-note-marker {
+    display: block;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  h3 {
+    font-size: clamp(1.05rem, 1.7vw, 1.3rem);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+  }
+
+  .capability p {
+    max-width: 32rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.55;
+  }
+
+  .local-note {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-block: 1.25rem;
+    border-top: 1px solid var(--rule);
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+
+  .local-note strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  :global(.features-page .site-footer) {
+    margin-top: clamp(3rem, 7vw, 5.5rem);
+    padding: 2rem max(1rem, calc((100vw - 72rem) / 2)) 1.5rem;
+    border-top: 1px solid var(--rule);
+    background: var(--paper);
+  }
+
+  :global(.features-page .site-footer > div) {
+    max-width: 72rem;
+  }
+
+  :global(.features-page .site-footer .border-t) {
+    border-color: var(--rule);
+  }
+
+  :global(.features-page .site-footer .font-display) {
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.055em;
+  }
+
+  :global(.features-page .site-footer .text-muted),
+  :global(.features-page .site-footer .footer-link) {
+    color: var(--muted);
+  }
+
+  :global(.features-page .site-footer .footer-link:hover) {
+    color: var(--ink);
+  }
+
+  @media (max-width: 700px) {
+    .features-hero {
+      min-height: auto;
+      padding-block: 3.5rem 3.25rem;
+    }
+
+    .hero-grid,
+    .section-intro {
+      grid-template-columns: 1fr;
+      gap: 2rem;
+    }
+
+    .hero-copy {
+      max-width: 30rem;
+    }
+
+    .capability {
+      grid-template-columns: 1rem minmax(0, 1fr);
+      gap: 0.85rem 1rem;
+      padding-block: 1.35rem;
+    }
+
+    .capability p {
+      grid-column: 2;
+    }
+
+    .local-note {
+      align-items: flex-start;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-action {
+      transition: none;
+    }
+
+    .hero-action:hover,
+    .hero-action:active {
+      transform: none;
+    }
+  }
+</style>
