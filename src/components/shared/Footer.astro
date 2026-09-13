@@ -2,41 +2,33 @@
 const base = import.meta.env.BASE_URL;
 ---
 
-<footer class="site-footer section-padding border-t-2 border-primary pt-12 pb-8" transition:animate="fade">
-  <div class="max-w-7xl mx-auto">
-    <div class="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-12">
-      <div>
-        <span class="font-display text-2xl text-primary">Interleaf</span>
-        <p class="text-sm font-light text-muted mt-2">
-          Client-side PDF editing.<br />No uploads. No servers.
-        </p>
+<footer class="site-footer marketing-footer section-padding" transition:animate="fade">
+  <div class="site-footer-inner">
+    <div class="footer-main">
+      <div class="footer-brand">
+        <a href={base} class="footer-brand-link" aria-label="Interleaf home">interleaf</a>
+        <p>PDF tools that run in your browser.</p>
       </div>
-      <div class="grid grid-cols-2 sm:grid-cols-3 gap-8">
-        <div>
-            <p class="footer-heading text-nano uppercase tracking-section text-muted mb-3">Project</p>
-          <a href={`${base}about`} class="footer-link link-slide">About</a>
-          <a
-            href="https://github.com/abijith-suresh/interleaf"
-            target="_blank"
-            rel="noopener"
-            class="footer-link link-slide">GitHub</a
-          >
-        </div>
-        <div>
-            <p class="footer-heading text-nano uppercase tracking-section text-muted mb-3">Docs</p>
-          <a href={`${base}features`} class="footer-link link-slide">Features</a>
-          <a href={`${base}app`} class="footer-link link-slide">Open Editor</a>
-          <a href={`${base}faq`} class="footer-link link-slide">FAQ</a>
-        </div>
-        <div>
-            <p class="footer-heading text-nano uppercase tracking-section text-muted mb-3">Legal</p>
-          <a href={`${base}privacy`} class="footer-link link-slide">Privacy</a>
-          <a href={`${base}terms`} class="footer-link link-slide">Terms</a>
-        </div>
-      </div>
+
+      <nav class="footer-links" aria-label="Footer navigation">
+        <a href={`${base}about`} class="footer-link">About</a>
+        <a
+          href="https://github.com/abijith-suresh/interleaf"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="footer-link">GitHub</a
+        >
+        <a href={`${base}features`} class="footer-link">Features</a>
+        <a href={`${base}app`} class="footer-link">Open editor</a>
+        <a href={`${base}faq`} class="footer-link">FAQ</a>
+        <a href={`${base}privacy`} class="footer-link">Privacy</a>
+        <a href={`${base}terms`} class="footer-link">Terms</a>
+      </nav>
     </div>
-    <div class="border-t border-border mt-12 pt-6 flex justify-center text-nano text-muted">
+
+    <div class="footer-bottom">
       <span>&copy; 2026 Interleaf</span>
+      <span>Your files stay on your device.</span>
     </div>
   </div>
 </footer>

@@ -2,18 +2,15 @@
 const { buttonText, buttonHref } = Astro.props;
 ---
 
-<section class="cta-section border-t border-border">
+<section class="cta-section marketing-cta">
   <div class="cta-section-inner animate-on-scroll">
-    <div>
-      <p class="eyebrow mb-4">Ready when you are</p>
-      <h2 class="font-display text-[clamp(3rem,7vw,5rem)] leading-[0.9] text-primary">
-      <slot name="heading" />
-      </h2>
+    <div class="cta-copy">
+      <h2 class="cta-heading"><slot name="heading" /></h2>
     </div>
-    <div class="flex items-end">
+    <div class="cta-action">
       <a
         href={buttonHref}
-        class="btn-primary font-body text-xs no-underline press-feedback"
+        class="btn-primary press-feedback"
         target={buttonHref.startsWith("http") ? "_blank" : undefined}
         rel={buttonHref.startsWith("http") ? "noopener noreferrer" : undefined}
       >
