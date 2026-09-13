@@ -1,0 +1,33 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { contentSlide } from "../../utils/transitions";
+import Footer from "../shared/Footer.astro";
+import Nav from "../shared/Nav.astro";
+
+interface Props {
+  title: string;
+  description?: string;
+  currentPage?: string;
+  includeMain?: boolean;
+}
+
+const { title, description, currentPage, includeMain = true } = Astro.props;
+---
+
+<Layout title={title} description={description}>
+  <div class="marketing-page" transition:animate={contentSlide}>
+    <Nav currentPage={currentPage} />
+
+    {
+      includeMain ? (
+        <main id="main-content">
+          <slot />
+        </main>
+      ) : (
+        <slot />
+      )
+    }
+
+    <Footer />
+  </div>
+</Layout>

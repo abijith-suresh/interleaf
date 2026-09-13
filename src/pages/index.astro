@@ -1,11 +1,12 @@
 ---
 import Landing from "../components/marketing/Landing.astro";
-import Layout from "../layouts/Layout.astro";
+import MarketingLayout from "../components/marketing/MarketingLayout.astro";
 ---
 
-<Layout
+<MarketingLayout
   title="Interleaf | Make documents ready in your browser"
   description="Bring PDFs together, shape their pages, and keep the result on your device."
+  includeMain={false}
 >
-  <Landing />
-</Layout>
+  <Landing includeChrome={false} />
+</MarketingLayout>
