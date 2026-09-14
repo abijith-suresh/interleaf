@@ -3,6 +3,8 @@ import { THUMBNAIL_INTERSECTION_MARGIN, THUMBNAIL_SCALE } from "../../constants"
 import { pdfService } from "../../services/pdf-service";
 import type { PageState } from "../../types/interfaces";
 
+const PAGE_FRAME_RATIO = 3 / 4;
+
 interface Props {
   page: PageState;
   rotation: number;
@@ -20,9 +22,25 @@ export default function EditorPageCanvas(props: Props) {
   const frameStyle = () => {
     const ratio = baseAspectRatio();
     const quarterTurn = props.rotation % 180 !== 0;
-    const frameRatio = quarterTurn ? 1 / ratio : ratio;
+    // Keep the grid stable while preserving the source page's proportions inside the frame.
+    let stageWidth = 100;
+    let stageHeight = 100;
 
-    return `--frame-ratio: ${frameRatio}; --stage-width: ${quarterTurn ? ratio * 100 : 100}%; --stage-height: ${quarterTurn ? 100 / ratio : 100}%; --page-rotation: ${props.rotation}deg`;
+    if (!quarterTurn) {
+      if (ratio >= PAGE_FRAME_RATIO) {
+        stageHeight = (PAGE_FRAME_RATIO / ratio) * 100;
+      } else {
+        stageWidth = (ratio / PAGE_FRAME_RATIO) * 100;
+      }
+    } else if (1 / ratio >= PAGE_FRAME_RATIO) {
+      stageWidth = ratio * 100;
+      stageHeight = PAGE_FRAME_RATIO * 100;
+    } else {
+      stageWidth = (1 / PAGE_FRAME_RATIO) * 100;
+      stageHeight = (1 / ratio) * 100;
+    }
+
+    return `--frame-ratio: ${PAGE_FRAME_RATIO}; --stage-width: ${stageWidth}%; --stage-height: ${stageHeight}%; --page-rotation: ${props.rotation}deg`;
   };
 
   onMount(() => {

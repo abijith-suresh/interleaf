@@ -109,8 +109,7 @@ export default function EditorSidebar(props: Props) {
         </section>
       </div>
 
-      <section class="editor-sidebar-export">
-        <h2 class="editor-sidebar-label">Export</h2>
+      <section class="editor-sidebar-download">
         <button
           type="button"
           data-testid="editor-download-button"
