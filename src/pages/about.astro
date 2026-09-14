@@ -1,6 +1,7 @@
 ---
 import MarketingLayout from "../components/marketing/MarketingLayout.astro";
 import ArrowIcon from "../components/shared/ArrowIcon.astro";
+import MarketingHero from "../components/marketing/MarketingHero.astro";
 
 const base = import.meta.env.BASE_URL;
 const githubHref = "https://github.com/abijith-suresh/interleaf";
@@ -11,24 +12,22 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
   description="Interleaf is an open-source PDF workspace that runs in your browser and keeps document work on your device."
   currentPage="about"
 >
-  <section class="about-hero" aria-labelledby="about-title">
-    <div class="about-hero-inner marketing-container">
-      <h1 id="about-title">
-        Work with PDFs.<br />
-        <span>Keep the file with you.</span>
-      </h1>
+  <MarketingHero titleId="about-title">
+    <h1 slot="primary" id="about-title" class="marketing-hero-title about-hero-title">
+      Work with PDFs.<br />
+      <span>Keep the file with you.</span>
+    </h1>
 
-      <div class="hero-support">
-        <p>
-          Interleaf is a browser-based PDF workspace for the document jobs that happen before you
-          hit send. Open a file, shape its pages, and export the result without uploading it.
-        </p>
-        <a class="hero-action" href={`${base}app`}>
-          Open editor <span aria-hidden="true"><ArrowIcon /></span>
-        </a>
-      </div>
+    <div slot="secondary" class="hero-support">
+      <p>
+        Interleaf is a browser-based PDF workspace for the document jobs that happen before you
+        hit send. Open a file, shape its pages, and export the result without uploading it.
+      </p>
+      <a class="marketing-hero-action" href={`${base}app`}>
+        Open editor <span aria-hidden="true"><ArrowIcon /></span>
+      </a>
     </div>
-  </section>
+  </MarketingHero>
 
   <div class="about-content marketing-container">
     <section class="story-block" aria-labelledby="local-title">
@@ -93,40 +92,22 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
     outline-offset: 4px;
   }
 
-  .about-hero {
-    border-bottom: 1px solid var(--marketing-rule);
-  }
-
-  .about-hero-inner {
-    display: grid;
-    min-height: min(35rem, 58vh);
-    grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.75fr);
-    align-items: end;
-    gap: clamp(3rem, 8vw, 8rem);
-    padding-block: clamp(5rem, 11vw, 9rem);
-  }
-
   h1,
   h2,
   p {
     margin: 0;
   }
 
-  h1 {
+  .about-hero-title {
     max-width: 11ch;
-    font-size: clamp(3.7rem, 8.4vw, 7.5rem);
-    font-weight: 500;
-    letter-spacing: -0.085em;
-    line-height: 0.9;
   }
 
-  h1 span {
+  .about-hero-title span {
     color: var(--marketing-muted);
   }
 
   .hero-support {
     max-width: 25rem;
-    padding-bottom: 0.55rem;
   }
 
   .hero-support p,
@@ -138,37 +119,9 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
     line-height: 1.55;
   }
 
-  .hero-action {
-    display: inline-flex;
-    min-height: 3rem;
-    align-items: center;
-    gap: 1.2rem;
-    margin-top: 2rem;
-    padding: 0.8rem 1.1rem 0.8rem 1.25rem;
-    border-radius: 0.55rem;
-    background: var(--marketing-accent);
-    color: #fff;
-    font-size: 0.85rem;
-    font-weight: 600;
-    text-decoration: none;
-    transition:
-      background-color 160ms ease,
-      transform 160ms ease;
-  }
-
-  .hero-action span,
   .source-link span {
     font-size: 1.1rem;
     line-height: 1;
-  }
-
-  .hero-action:hover {
-    background: var(--marketing-ink);
-    transform: translateY(-1px);
-  }
-
-  .hero-action:active {
-    transform: translateY(0);
   }
 
   .about-content {
@@ -270,19 +223,6 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
   }
 
   @media (max-width: 48rem) {
-    .about-hero-inner {
-      min-height: auto;
-      grid-template-columns: 1fr;
-      align-items: start;
-      gap: 2.5rem;
-      padding-block: 4rem 4.5rem;
-    }
-
-    h1 {
-      max-width: 10ch;
-      font-size: clamp(3.4rem, 15vw, 5.5rem);
-    }
-
     .hero-support {
       max-width: 32rem;
     }
@@ -313,12 +253,4 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      scroll-behavior: auto !important;
-      transition-duration: 0.01ms !important;
-    }
-  }
 </style>
