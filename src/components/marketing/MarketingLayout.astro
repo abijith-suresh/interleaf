@@ -15,18 +15,20 @@ const { title, description, currentPage, includeMain = true } = Astro.props;
 ---
 
 <Layout title={title} description={description}>
-  <div class="marketing-page" transition:animate={contentSlide}>
+  <div class="marketing-page">
     <Nav currentPage={currentPage} />
 
-    {
-      includeMain ? (
-        <main id="main-content">
+    <div class="marketing-content" transition:animate={contentSlide}>
+      {
+        includeMain ? (
+          <main id="main-content">
+            <slot />
+          </main>
+        ) : (
           <slot />
-        </main>
-      ) : (
-        <slot />
-      )
-    }
+        )
+      }
+    </div>
 
     <Footer />
   </div>

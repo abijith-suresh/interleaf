@@ -13,7 +13,7 @@ const links = [
 ];
 ---
 
-<nav class="site-nav marketing-nav" aria-label="Main navigation">
+<nav class="site-nav marketing-nav" aria-label="Main navigation" transition:animate="none">
   <div class="site-nav-inner">
     <a href={base} class="site-brand" aria-label="Interleaf home">interleaf</a>
 
@@ -23,7 +23,10 @@ const links = [
           links.map((link) => (
             <a
               href={link.href}
-              class:list={["nav-link", currentPage === link.key && "is-current"]}
+              class:list={[
+                "marketing-link",
+                currentPage === link.key && "is-current",
+              ]}
               aria-current={currentPage === link.key ? "page" : undefined}
             >
               {link.label}
