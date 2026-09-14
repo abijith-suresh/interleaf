@@ -18,6 +18,10 @@ export default function EditorPageCanvas(props: Props) {
   // Solid.js refs are assigned via JSX ref attribute
   let container!: HTMLSpanElement;
   let canvas!: HTMLCanvasElement;
+  let observer: IntersectionObserver | null = null;
+  let renderAttempt = 0;
+  let renderInFlight = false;
+  let disposed = false;
 
   const frameStyle = () => {
     const ratio = baseAspectRatio();
@@ -43,32 +47,62 @@ export default function EditorPageCanvas(props: Props) {
     return `--frame-ratio: ${PAGE_FRAME_RATIO}; --stage-width: ${stageWidth}%; --stage-height: ${stageHeight}%; --page-rotation: ${props.rotation}deg`;
   };
 
-  onMount(() => {
-    const observer = new IntersectionObserver(
-      async (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          observer.disconnect();
+  const canUpdateRenderState = (attempt: number) =>
+    !disposed && attempt === renderAttempt && container.isConnected;
 
-          try {
-            // Render the source page once. UI rotation happens on the existing canvas;
-            // the export service applies the selected rotation to the output PDF.
-            await pdfService.renderPage(
-              props.page.sourceFile,
-              props.page.sourcePageNumber,
-              canvas,
-              THUMBNAIL_SCALE,
-              0
-            );
-            if (!container.isConnected) return;
-            if (canvas.width > 0 && canvas.height > 0) {
-              setBaseAspectRatio(canvas.width / canvas.height);
-            }
-            setRenderState("ready");
-          } catch (_err) {
-            setRenderState("error");
-          }
+  const renderThumbnail = async () => {
+    if (disposed || renderInFlight) return;
+
+    renderInFlight = true;
+    const attempt = ++renderAttempt;
+    canvas.width = 0;
+    canvas.height = 0;
+    setRenderState("loading");
+
+    try {
+      // Render the source page once. UI rotation happens on the existing canvas;
+      // the export service applies the selected rotation to the output PDF.
+      await pdfService.renderPage(
+        props.page.sourceFile,
+        props.page.sourcePageNumber,
+        canvas,
+        THUMBNAIL_SCALE,
+        0
+      );
+
+      if (!canUpdateRenderState(attempt)) return;
+      if (canvas.width > 0 && canvas.height > 0) {
+        setBaseAspectRatio(canvas.width / canvas.height);
+      }
+      setRenderState("ready");
+    } catch (_err) {
+      if (canUpdateRenderState(attempt)) {
+        setRenderState("error");
+      }
+    } finally {
+      if (attempt === renderAttempt) {
+        renderInFlight = false;
+      }
+    }
+  };
+
+  const observeForRender = () => {
+    if (disposed) return;
+
+    observer?.disconnect();
+    let nextObserver!: IntersectionObserver;
+    nextObserver = new IntersectionObserver(
+      (entries) => {
+        if (
+          observer !== nextObserver ||
+          !entries.some((entry) => entry.isIntersecting) ||
+          renderInFlight
+        ) {
+          return;
         }
+        nextObserver.disconnect();
+        observer = null;
+        void renderThumbnail();
       },
       {
         root: props.scrollRoot,
@@ -77,11 +111,29 @@ export default function EditorPageCanvas(props: Props) {
       }
     );
 
-    observer.observe(container);
+    observer = nextObserver;
+    nextObserver.observe(container);
+  };
+
+  const retryRender = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (renderState() !== "error" || disposed) return;
+    setRenderState("loading");
+    observeForRender();
+  };
+
+  onMount(() => {
+    observeForRender();
 
     onCleanup(() => {
+      disposed = true;
+      renderAttempt += 1;
       canvas.width = 0;
-      observer.disconnect();
+      canvas.height = 0;
+      observer?.disconnect();
+      observer = null;
     });
   });
 
@@ -99,6 +151,27 @@ export default function EditorPageCanvas(props: Props) {
       <span class="canvas-stage">
         <canvas ref={canvas} class="page-canvas" />
       </span>
+      {renderState() === "error" && (
+        <span
+          data-testid="editor-page-canvas-error"
+          role="status"
+          aria-atomic="true"
+          aria-live="polite"
+          style="position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.65rem; padding: 1rem; background: rgb(247 245 240 / 94%); color: var(--editor-body); font-size: 0.75rem; line-height: 1.4; text-align: center;"
+        >
+          <span>Preview unavailable.</span>
+          <button
+            type="button"
+            data-testid="editor-page-canvas-retry"
+            aria-label="Retry page preview"
+            onClick={retryRender}
+            onKeyDown={(event) => event.stopPropagation()}
+            style="display: inline-flex; min-height: 2rem; align-items: center; justify-content: center; padding: 0.4rem 0.75rem; border: 1px solid var(--editor-line-strong); border-radius: 999px; background: var(--editor-paper); color: var(--editor-ink); cursor: pointer; font: inherit; font-size: 0.6875rem; font-weight: 600; line-height: 1; touch-action: manipulation;"
+          >
+            Retry
+          </button>
+        </span>
+      )}
     </span>
   );
 }
