@@ -1,51 +1,11 @@
 ---
-import Footer from "../shared/Footer.astro";
-import MarketingHero from "./MarketingHero.astro";
-import Nav from "../shared/Nav.astro";
 import ArrowIcon from "../shared/ArrowIcon.astro";
+import MarketingHero from "./MarketingHero.astro";
 
-interface Props {
-  showExperiments?: boolean;
-  includeChrome?: boolean;
-}
-
-const { showExperiments = false, includeChrome = true } = Astro.props;
 const base = import.meta.env.BASE_URL;
-const experiments = ["1", "2", "3", "4", "5"];
 ---
 
-<div
-  class:list={[
-    "landing-page",
-    !includeChrome && "landing-content",
-    showExperiments && "landing-study-page",
-  ]}
->
-  {
-    includeChrome &&
-      (showExperiments ? (
-        <header class="study-header">
-          <a class="study-brand" href={base} aria-label="Interleaf home">interleaf</a>
-          <div class="study-actions">
-            <a class="study-home" href={base}>Home</a>
-            <nav class="study-switcher" aria-label="Landing page design experiments">
-              {experiments.map((experiment) => (
-                <a
-                  href={base + experiment}
-                  class:list={["study-link", experiment === "2" && "is-current"]}
-                  aria-current={experiment === "2" ? "page" : undefined}
-                >
-                  /{experiment}
-                </a>
-              ))}
-            </nav>
-          </div>
-        </header>
-      ) : (
-        <Nav />
-      ))
-  }
-
+<div class="landing-page">
   <main id="main-content">
     <MarketingHero titleId="landing-title">
       <div slot="primary" class="landing-hero-copy">
@@ -111,7 +71,6 @@ const experiments = ["1", "2", "3", "4", "5"];
     </section>
   </main>
 
-  {includeChrome && <Footer />}
 </div>
 
 <style>
@@ -124,16 +83,9 @@ const experiments = ["1", "2", "3", "4", "5"];
     --canvas: var(--marketing-page);
     --field: #f0eee8;
     --accent: var(--marketing-accent);
-    min-height: 100svh;
     background: var(--canvas);
     color: var(--ink);
     font-family: var(--font-body);
-  }
-
-  .landing-content {
-    flex: 1;
-    min-height: 0;
-    display: block;
   }
 
   .landing-page a:focus-visible {
@@ -362,86 +314,6 @@ const experiments = ["1", "2", "3", "4", "5"];
     line-height: 1.45;
   }
 
-  .study-header {
-    display: flex;
-    width: min(calc(100% - 2rem), 72rem);
-    min-height: 4.75rem;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1.5rem;
-    margin-inline: auto;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .study-brand,
-  .study-home,
-  .study-link {
-    color: inherit;
-    text-decoration: none;
-  }
-
-  .study-brand {
-    font-size: 1.05rem;
-    font-weight: 600;
-    letter-spacing: -0.055em;
-  }
-
-  .study-actions,
-  .study-switcher {
-    display: flex;
-    align-items: center;
-  }
-
-  .study-actions {
-    gap: 1.25rem;
-  }
-
-  .study-home,
-  .study-link {
-    min-height: 2.75rem;
-    align-content: center;
-    color: var(--muted);
-    font-size: 0.75rem;
-    line-height: 1;
-  }
-
-  .study-home {
-    color: var(--ink);
-  }
-
-  .study-switcher {
-    gap: 0.15rem;
-    padding: 0.2rem;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    background: var(--paper);
-  }
-
-  .study-link {
-    display: inline-grid;
-    min-width: 2rem;
-    min-height: 2rem;
-    place-items: center;
-    border-radius: 999px;
-  }
-
-  .study-link:hover {
-    color: var(--ink);
-    background: var(--line-soft);
-  }
-
-  .study-link.is-current {
-    background: var(--ink);
-    color: var(--paper);
-  }
-
-  .study-brand:focus-visible,
-  .study-home:focus-visible,
-  .study-link:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 4px;
-  }
-
   @media (max-width: 48rem) {
     .workspace-cue {
       justify-self: center;
@@ -456,17 +328,6 @@ const experiments = ["1", "2", "3", "4", "5"];
       margin-bottom: 1.5rem;
     }
 
-    .study-header {
-      min-height: 4.25rem;
-    }
-
-    .study-actions {
-      gap: 0.5rem;
-    }
-
-    .study-home {
-      padding-inline: 0.45rem;
-    }
   }
 
   @media (max-width: 36rem) {
@@ -488,21 +349,6 @@ const experiments = ["1", "2", "3", "4", "5"];
       border-left: 0;
     }
 
-    .study-header {
-      gap: 0.75rem;
-    }
-
-    .study-home {
-      display: none;
-    }
-
-    .study-actions {
-      gap: 0.25rem;
-    }
-
-    .study-link {
-      min-width: 1.8rem;
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -47,8 +47,7 @@ body {
 }
 
 /* Marketing pages use one shared paper palette and layout contract. */
-.marketing-page,
-.landing-page {
+.marketing-page {
   --marketing-page: var(--marketing-page-default);
   --marketing-paper: #fcfbf8;
   --marketing-ink: #242421;
@@ -78,10 +77,6 @@ body {
   background: var(--marketing-page);
   color: var(--marketing-ink);
   font-family: var(--font-body);
-}
-
-.landing-page > main {
-  flex: 1;
 }
 
 .marketing-content {
@@ -154,9 +149,7 @@ body {
 }
 
 html:has(.marketing-page),
-body:has(.marketing-page),
-html:has(.landing-page),
-body:has(.landing-page) {
+body:has(.marketing-page) {
   background: var(--marketing-page-default);
 }
 
@@ -584,8 +577,7 @@ body:has(.landing-page) {
 }
 
 /* Marketing buttons are softer and stay isolated from the editor controls. */
-.marketing-page .btn-primary,
-.landing-page .btn-primary {
+.marketing-page .btn-primary {
   min-height: 3rem;
   border-radius: var(--marketing-radius-sm);
   background: var(--marketing-accent);
@@ -599,13 +591,11 @@ body:has(.landing-page) {
   -webkit-tap-highlight-color: transparent;
 }
 
-.marketing-page .btn-primary:hover,
-.landing-page .btn-primary:hover {
+.marketing-page .btn-primary:hover {
   background: var(--marketing-ink);
 }
 
-.marketing-page .btn-primary:focus-visible,
-.landing-page .btn-primary:focus-visible {
+.marketing-page .btn-primary:focus-visible {
   outline-color: var(--marketing-accent);
 }
 
