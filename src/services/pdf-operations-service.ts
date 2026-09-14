@@ -1,6 +1,14 @@
 import { degrees, PDFDocument } from "pdf-lib";
 import { EXTRACT_FILENAME, OUTPUT_FILENAME } from "../constants";
 import type { PageState, PDFBuildProgress, PDFOperationResult } from "../types/interfaces";
+import { pdfService } from "./pdf-service";
+
+const ENCRYPTED_PAGE_RENDER_SCALE = 2;
+
+function normalizeRotation(rotation: number): number {
+  const normalized = rotation % 360;
+  return normalized < 0 ? normalized + 360 : normalized;
+}
 
 export class PDFOperationsService {
   // Class-level cache: avoids re-reading the same File on multiple build/extract
@@ -78,13 +86,21 @@ export class PDFOperationsService {
 
     for (const [index, page] of pagesToBuild.entries()) {
       const sourceDoc = await this.getOrLoadSourceDoc(page.sourceFile);
-      const [copiedPage] = await outputDoc.copyPages(sourceDoc, [page.sourcePageNumber - 1]);
 
-      if (page.rotation !== 0) {
-        copiedPage.setRotation(degrees(page.rotation));
+      if (sourceDoc.isEncrypted) {
+        await this.addEncryptedPage(outputDoc, sourceDoc, page);
+      } else {
+        const [copiedPage] = await outputDoc.copyPages(sourceDoc, [page.sourcePageNumber - 1]);
+        const sourceRotation = normalizeRotation(copiedPage.getRotation().angle);
+        const combinedRotation = normalizeRotation(sourceRotation + page.rotation);
+
+        if (combinedRotation !== sourceRotation) {
+          copiedPage.setRotation(degrees(combinedRotation));
+        }
+
+        outputDoc.addPage(copiedPage);
       }
 
-      outputDoc.addPage(copiedPage);
       onProgress?.({ completed: index + 1, total: pagesToBuild.length });
     }
 
@@ -109,6 +125,37 @@ export class PDFOperationsService {
     const sourceDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
     this.sourceDocCache.set(file, sourceDoc);
     return sourceDoc;
+  }
+
+  private async addEncryptedPage(
+    outputDoc: PDFDocument,
+    sourceDoc: PDFDocument,
+    page: PageState
+  ): Promise<void> {
+    // pdf-lib can read the page tree of an encrypted document with
+    // ignoreEncryption, but it cannot decrypt the page content streams. PDF.js
+    // already has the unlocked document for the editor, so render the page
+    // locally and place that result into a fresh, unencrypted PDF page.
+    const sourcePage = sourceDoc.getPage(page.sourcePageNumber - 1);
+    const sourceRotation = normalizeRotation(sourcePage.getRotation().angle);
+    const combinedRotation = normalizeRotation(sourceRotation + page.rotation);
+    const width = sourcePage.getWidth();
+    const height = sourcePage.getHeight();
+    const canvas = document.createElement("canvas");
+
+    await pdfService.renderPage(
+      page.sourceFile,
+      page.sourcePageNumber,
+      canvas,
+      ENCRYPTED_PAGE_RENDER_SCALE,
+      0
+    );
+
+    const image = await outputDoc.embedPng(canvas.toDataURL("image/png"));
+    const outputPage = outputDoc.addPage([width, height]);
+
+    outputPage.drawImage(image, { x: 0, y: 0, width, height });
+    outputPage.setRotation(degrees(combinedRotation));
   }
 }
 
