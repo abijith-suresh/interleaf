@@ -5,7 +5,7 @@ import { Resvg } from "@resvg/resvg-js";
 const svgContent = readFileSync(join(process.cwd(), "public/favicon.svg"), "utf-8");
 
 const appleTouchIconSize = 180;
-const faviconSizes = [16, 32, 48];
+const faviconSizes = [16, 32, 48, 96];
 
 const appleTouchIconResvg = new Resvg(svgContent, {
   fitTo: {
