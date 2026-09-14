@@ -1,8 +1,6 @@
 ---
-import Layout from "../layouts/Layout.astro";
+import MarketingLayout from "../components/marketing/MarketingLayout.astro";
 import ArrowIcon from "../components/shared/ArrowIcon.astro";
-import Nav from "../components/shared/Nav.astro";
-import Footer from "../components/shared/Footer.astro";
 
 const base = import.meta.env.BASE_URL;
 
@@ -24,163 +22,61 @@ const capabilities = [
 ];
 ---
 
-<Layout
+<MarketingLayout
   title="Features — Interleaf"
   description="A local workspace for bringing PDF files together, arranging their pages, and opening protected documents."
+  currentPage="features"
 >
-  <div class="features-page">
-    <Nav currentPage="features" />
+  <section class="features-hero" aria-labelledby="features-title">
+    <div class="hero-grid marketing-container">
+      <h1 id="features-title">Make the<br /><span>document ready.</span></h1>
 
-    <main id="main-content">
-      <section class="features-hero" aria-labelledby="features-title">
-        <div class="hero-grid">
-          <h1 id="features-title">Make the<br /><span>document ready.</span></h1>
-
-          <div class="hero-copy">
-            <p>
-              Interleaf is a local workspace for the work that happens before a PDF is ready to
-              share. Bring files together, shape their pages, and open protected documents in the
-              browser.
-            </p>
-            <a class="hero-action" href={`${base}app`}>
-              Open editor <span aria-hidden="true"><ArrowIcon /></span>
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <section class="capability-section" aria-labelledby="capability-title">
-        <div class="section-intro">
-          <p class="section-index">The work in between</p>
-          <h2 id="capability-title">A few careful steps before the file goes out.</h2>
-        </div>
-
-        <div class="capability-list">
-          {
-            capabilities.map((capability) => (
-              <article class="capability">
-                <span class="capability-marker" aria-hidden="true"></span>
-                <h3>{capability.title}</h3>
-                <p>{capability.description}</p>
-              </article>
-            ))
-          }
-        </div>
-      </section>
-
-      <section class="local-note" aria-label="Local processing">
-        <span class="local-note-marker" aria-hidden="true"></span>
+      <div class="hero-copy">
         <p>
-          <strong>Your files stay with you.</strong> Interleaf processes documents in your browser.
-          Nothing is uploaded.
+          Interleaf is a local workspace for the work that happens before a PDF is ready to share.
+          Bring files together, shape their pages, and open protected documents in the browser.
         </p>
-      </section>
-    </main>
+        <a class="hero-action" href={`${base}app`}>
+          Open editor <span aria-hidden="true"><ArrowIcon /></span>
+        </a>
+      </div>
+    </div>
+  </section>
 
-    <Footer />
-  </div>
-</Layout>
+  <section class="capability-section" aria-labelledby="capability-title">
+    <div class="marketing-container">
+      <div class="section-intro">
+        <p class="section-index">The work in between</p>
+        <h2 id="capability-title">A few careful steps before the file goes out.</h2>
+      </div>
+
+      <div class="capability-list">
+        {
+          capabilities.map((capability) => (
+            <article class="capability">
+              <span class="capability-marker" aria-hidden="true"></span>
+              <h3>{capability.title}</h3>
+              <p>{capability.description}</p>
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="local-note marketing-container" aria-label="Local processing">
+    <span class="local-note-marker" aria-hidden="true"></span>
+    <p>
+      <strong>Your files stay with you.</strong> Interleaf processes documents in your browser.
+      Nothing is uploaded.
+    </p>
+  </section>
+</MarketingLayout>
 
 <style>
-  .features-page {
-    --paper: #f7f5f0;
-    --paper-bright: #fcfbf8;
-    --ink: #242421;
-    --muted: #77756e;
-    --rule: #d9d6ce;
-    --accent: #ff2a1f;
-    min-height: 100svh;
-    background: var(--paper);
-    color: var(--ink);
-    font-family: var(--font-body);
-  }
-
-  :global(html:has(.features-page)),
-  :global(body:has(.features-page)) {
-    background: #f7f5f0;
-  }
-
-  :global(.features-page .site-nav) {
-    padding-inline: max(1rem, calc((100vw - 72rem) / 2));
-    border-color: var(--rule);
-    background: var(--paper);
-  }
-
-  :global(.features-page .site-nav-inner) {
-    max-width: 72rem;
-    height: 4.75rem;
-  }
-
-  :global(.features-page .site-nav .font-display) {
-    color: var(--ink);
-    font-family: var(--font-body);
-    font-size: 1.05rem;
-    font-weight: 600;
-    letter-spacing: -0.055em;
-    text-transform: lowercase;
-  }
-
-  :global(.features-page .site-nav a) {
-    color: var(--muted);
-  }
-
-  :global(.features-page .site-nav a:hover),
-  :global(.features-page .site-nav a[aria-current="page"]) {
-    color: var(--ink);
-  }
-
-  :global(.features-page .site-nav .btn-primary) {
-    border-radius: 0.45rem;
-    background: var(--accent);
-    color: #fff;
-    font-size: 0.7rem;
-    letter-spacing: 0.01em;
-    text-transform: none;
-  }
-
-  :global(.features-page .site-nav .btn-primary:hover) {
-    background: var(--ink);
-  }
-
-  :global(.features-page .mobile-nav-trigger) {
-    border-color: var(--rule);
-    border-radius: 0.4rem;
-    color: var(--ink);
-    font-size: 0.7rem;
-    letter-spacing: 0.01em;
-    text-transform: none;
-  }
-
-  :global(.features-page .mobile-nav-panel) {
-    border-color: var(--rule);
-    border-radius: 0.45rem;
-    background: var(--paper-bright);
-    box-shadow: 0 1rem 2rem rgb(48 45 39 / 8%);
-  }
-
-  :global(.features-page .mobile-nav-link) {
-    color: var(--ink);
-    font-size: 0.7rem;
-    letter-spacing: 0.01em;
-    text-transform: none;
-  }
-
-  :global(.features-page .mobile-nav-link:hover),
-  :global(.features-page .mobile-nav-link.is-current) {
-    background: var(--ink);
-    color: var(--paper-bright);
-  }
-
-  .features-page a:focus-visible {
-    outline: 2px solid var(--accent);
+  a:focus-visible {
+    outline: 2px solid var(--marketing-accent);
     outline-offset: 4px;
-  }
-
-  .features-hero,
-  .capability-section,
-  .local-note {
-    width: min(calc(100% - 2rem), 72rem);
-    margin-inline: auto;
   }
 
   .features-hero {
@@ -188,11 +84,12 @@ const capabilities = [
     align-items: end;
     min-height: min(31rem, calc(100svh - 4.75rem));
     padding-block: clamp(3.5rem, 8vw, 6rem) clamp(3rem, 7vw, 5.25rem);
-    border-bottom: 1px solid var(--rule);
+    border-bottom: 1px solid var(--marketing-rule);
   }
 
   .hero-grid {
     display: grid;
+    width: min(calc(100% - 2rem), 72rem);
     grid-template-columns: minmax(0, 1.2fr) minmax(16rem, 0.8fr);
     gap: clamp(2.5rem, 8vw, 8rem);
     align-items: end;
@@ -215,7 +112,7 @@ const capabilities = [
   }
 
   h1 span {
-    color: var(--accent);
+    color: var(--marketing-accent);
   }
 
   .hero-copy {
@@ -224,7 +121,7 @@ const capabilities = [
   }
 
   .hero-copy > p {
-    color: var(--muted);
+    color: var(--marketing-muted);
     font-size: clamp(1rem, 1.5vw, 1.15rem);
     line-height: 1.55;
     text-wrap: pretty;
@@ -238,7 +135,7 @@ const capabilities = [
     margin-top: 1.75rem;
     padding: 0.8rem 1rem 0.8rem 1.15rem;
     border-radius: 0.45rem;
-    background: var(--accent);
+    background: var(--marketing-accent);
     color: #fff;
     font-size: 0.85rem;
     font-weight: 600;
@@ -254,7 +151,7 @@ const capabilities = [
   }
 
   .hero-action:hover {
-    background: var(--ink);
+    background: var(--marketing-ink);
     transform: translateY(-1px);
   }
 
@@ -275,7 +172,7 @@ const capabilities = [
 
   .section-index {
     padding-top: 0.55rem;
-    color: var(--muted);
+    color: var(--marketing-muted);
     font-size: 0.7rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -292,7 +189,7 @@ const capabilities = [
 
   .capability-list {
     margin-top: clamp(2.5rem, 5vw, 4rem);
-    border-top: 1px solid var(--ink);
+    border-top: 1px solid var(--marketing-ink);
   }
 
   .capability {
@@ -301,11 +198,11 @@ const capabilities = [
     gap: 1.5rem;
     align-items: baseline;
     padding-block: 1.6rem;
-    border-bottom: 1px solid var(--rule);
+    border-bottom: 1px solid var(--marketing-rule);
   }
 
   .capability:last-child {
-    border-bottom-color: var(--ink);
+    border-bottom-color: var(--marketing-ink);
   }
 
   .capability-marker,
@@ -314,7 +211,7 @@ const capabilities = [
     width: 0.55rem;
     height: 0.55rem;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--marketing-accent);
   }
 
   h3 {
@@ -326,7 +223,7 @@ const capabilities = [
 
   .capability p {
     max-width: 32rem;
-    color: var(--muted);
+    color: var(--marketing-muted);
     font-size: 0.95rem;
     line-height: 1.55;
   }
@@ -335,48 +232,17 @@ const capabilities = [
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    margin-bottom: clamp(3rem, 7vw, 5.5rem);
     padding-block: 1.25rem;
-    border-top: 1px solid var(--rule);
-    color: var(--muted);
+    border-top: 1px solid var(--marketing-rule);
+    color: var(--marketing-muted);
     font-size: 0.8rem;
     line-height: 1.5;
   }
 
   .local-note strong {
-    color: var(--ink);
+    color: var(--marketing-ink);
     font-weight: 600;
-  }
-
-  :global(.features-page .site-footer) {
-    margin-top: clamp(3rem, 7vw, 5.5rem);
-    padding: 2rem max(1rem, calc((100vw - 72rem) / 2)) 1.5rem;
-    border-top: 1px solid var(--rule);
-    background: var(--paper);
-  }
-
-  :global(.features-page .site-footer > div) {
-    max-width: 72rem;
-  }
-
-  :global(.features-page .site-footer .border-t) {
-    border-color: var(--rule);
-  }
-
-  :global(.features-page .site-footer .font-display) {
-    color: var(--ink);
-    font-family: var(--font-body);
-    font-size: 1.05rem;
-    font-weight: 600;
-    letter-spacing: -0.055em;
-  }
-
-  :global(.features-page .site-footer .text-muted),
-  :global(.features-page .site-footer .footer-link) {
-    color: var(--muted);
-  }
-
-  :global(.features-page .site-footer .footer-link:hover) {
-    color: var(--ink);
   }
 
   @media (max-width: 700px) {

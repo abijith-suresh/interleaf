@@ -1,176 +1,105 @@
 ---
-import Layout from "../layouts/Layout.astro";
-import Nav from "../components/shared/Nav.astro";
-import Footer from "../components/shared/Footer.astro";
+import MarketingLayout from "../components/marketing/MarketingLayout.astro";
 import ArrowIcon from "../components/shared/ArrowIcon.astro";
-import { contentSlide } from "../utils/transitions";
 
 const base = import.meta.env.BASE_URL;
 const githubHref = "https://github.com/abijith-suresh/interleaf";
 ---
 
-<Layout
+<MarketingLayout
   title="About — Interleaf"
   description="Interleaf is an open-source PDF workspace that runs in your browser and keeps document work on your device."
+  currentPage="about"
 >
-  <div class="about-page" transition:animate={contentSlide}>
-    <Nav currentPage="about" />
+  <section class="about-hero" aria-labelledby="about-title">
+    <div class="about-hero-inner marketing-container">
+      <h1 id="about-title">
+        Work with PDFs.<br />
+        <span>Keep the file with you.</span>
+      </h1>
 
-    <main id="main-content">
-      <section class="about-hero section-padding" aria-labelledby="about-title">
-        <div class="about-hero-inner">
-          <h1 id="about-title">
-            Work with PDFs.<br />
-            <span>Keep the file with you.</span>
-          </h1>
-
-          <div class="hero-support">
-            <p>
-              Interleaf is a browser-based PDF workspace for the document jobs that happen before
-              you hit send. Open a file, shape its pages, and export the result without uploading
-              it.
-            </p>
-            <a class="hero-action" href={`${base}app`}>
-              Open editor <span aria-hidden="true"><ArrowIcon /></span>
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <div class="about-content section-padding">
-        <section class="story-block" aria-labelledby="local-title">
-          <h2 id="local-title">Why browser-local matters</h2>
-          <div class="story-copy">
-            <p>
-              The app reads and changes your file on your device. It does not upload the document
-              to a server, and it does not need an account, ads, tracking, analytics, or cookies to
-              do its job.
-            </p>
-            <p>
-              That keeps the boundary simple. A contract, scan, or form can stay in the browser
-              while you work on it.
-            </p>
-          </div>
-        </section>
-
-        <section class="story-block" aria-labelledby="today-title">
-          <h2 id="today-title">What Interleaf is today</h2>
-          <div class="story-copy">
-            <p>
-              Today, Interleaf focuses on page-level PDF work. It brings documents together, lets
-              you select, reorder, rotate, and remove pages, and can open password-protected files
-              in the browser. That is the current scope.
-            </p>
-
-            <dl class="project-details">
-              <div>
-                <dt>Runs</dt>
-                <dd>In your browser</dd>
-              </div>
-              <div>
-                <dt>Source</dt>
-                <dd>Open on GitHub</dd>
-              </div>
-            </dl>
-          </div>
-        </section>
-
-        <section class="source-block" aria-labelledby="source-title">
-          <div>
-            <h2 id="source-title">Built in the open</h2>
-            <p>
-              Interleaf is open source. Read the code, report an issue, or follow the project on
-              GitHub.
-            </p>
-          </div>
-          <a
-            class="source-link"
-            href={githubHref}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            View source <span aria-hidden="true"><ArrowIcon /></span>
-          </a>
-        </section>
+      <div class="hero-support">
+        <p>
+          Interleaf is a browser-based PDF workspace for the document jobs that happen before you
+          hit send. Open a file, shape its pages, and export the result without uploading it.
+        </p>
+        <a class="hero-action" href={`${base}app`}>
+          Open editor <span aria-hidden="true"><ArrowIcon /></span>
+        </a>
       </div>
-    </main>
+    </div>
+  </section>
 
-    <Footer />
+  <div class="about-content marketing-container">
+    <section class="story-block" aria-labelledby="local-title">
+      <h2 id="local-title">Why browser-local matters</h2>
+      <div class="story-copy">
+        <p>
+          The app reads and changes your file on your device. It does not upload the document to a
+          server, and it does not need an account, ads, tracking, analytics, or cookies to do its
+          job.
+        </p>
+        <p>
+          That keeps the boundary simple. A contract, scan, or form can stay in the browser while
+          you work on it.
+        </p>
+      </div>
+    </section>
+
+    <section class="story-block" aria-labelledby="today-title">
+      <h2 id="today-title">What Interleaf is today</h2>
+      <div class="story-copy">
+        <p>
+          Today, Interleaf focuses on page-level PDF work. It brings documents together, lets you
+          select, reorder, rotate, and remove pages, and can open password-protected files in the
+          browser. That is the current scope.
+        </p>
+
+        <dl class="project-details">
+          <div>
+            <dt>Runs</dt>
+            <dd>In your browser</dd>
+          </div>
+          <div>
+            <dt>Source</dt>
+            <dd>Open on GitHub</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="source-block" aria-labelledby="source-title">
+      <div>
+        <h2 id="source-title">Built in the open</h2>
+        <p>
+          Interleaf is open source. Read the code, report an issue, or follow the project on GitHub.
+        </p>
+      </div>
+      <a
+        class="source-link"
+        href={githubHref}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        View source <span aria-hidden="true"><ArrowIcon /></span>
+      </a>
+    </section>
   </div>
-</Layout>
+</MarketingLayout>
 
 <style>
-  :global(html),
-  :global(body) {
-    background: #f7f5f0;
-  }
-
-  .about-page {
-    --about-ink: #242421;
-    --about-muted: #77756e;
-    --about-line: #dedbd4;
-    --about-line-soft: #eae7e0;
-    --about-paper: #fcfbf8;
-    --about-warm-white: #f7f5f0;
-    --about-accent: #ff2a1f;
-    --color-primary: var(--about-ink);
-    --color-accent: var(--about-accent);
-    --color-border: var(--about-line);
-    --color-body: var(--about-muted);
-    --color-muted: var(--about-muted);
-    min-height: 100svh;
-    background: var(--about-warm-white);
-    color: var(--about-ink);
-    font-family: var(--font-body);
-  }
-
-  .about-page :global(.site-nav) {
-    border-bottom-color: var(--about-line);
-    background: var(--about-warm-white);
-  }
-
-  .about-page :global(.site-nav-inner),
-  .about-page :global(.site-footer > div) {
-    max-width: 72rem;
-  }
-
-  .about-page :global(.site-nav .font-display) {
-    font-family: var(--font-body);
-    font-size: 1.05rem;
-    font-weight: 600;
-    letter-spacing: -0.055em;
-    text-transform: lowercase;
-  }
-
-  .about-page :global(.site-nav .nav-editor-link) {
-    border-radius: 0.55rem;
-    background: var(--about-accent);
-    font-size: 0.8rem;
-    letter-spacing: -0.01em;
-    text-transform: none;
-  }
-
-  .about-page :global(.site-nav .nav-editor-link:hover) {
-    background: var(--about-ink);
-  }
-
-  .about-page :global(.site-nav a:focus-visible),
-  .about-page :global(.site-nav summary:focus-visible),
-  .about-page a:focus-visible {
-    outline: 2px solid var(--about-accent);
+  a:focus-visible {
+    outline: 2px solid var(--marketing-accent);
     outline-offset: 4px;
   }
 
   .about-hero {
-    border-bottom: 1px solid var(--about-line);
+    border-bottom: 1px solid var(--marketing-rule);
   }
 
   .about-hero-inner {
     display: grid;
-    width: 100%;
-    max-width: 72rem;
     min-height: min(35rem, 58vh);
-    margin: 0 auto;
     grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.75fr);
     align-items: end;
     gap: clamp(3rem, 8vw, 8rem);
@@ -192,7 +121,7 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
   }
 
   h1 span {
-    color: var(--about-muted);
+    color: var(--marketing-muted);
   }
 
   .hero-support {
@@ -203,7 +132,7 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
   .hero-support p,
   .story-copy p,
   .source-block p {
-    color: var(--about-muted);
+    color: var(--marketing-muted);
     font-size: 1rem;
     font-weight: 400;
     line-height: 1.55;
@@ -217,7 +146,7 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
     margin-top: 2rem;
     padding: 0.8rem 1.1rem 0.8rem 1.25rem;
     border-radius: 0.55rem;
-    background: var(--about-accent);
+    background: var(--marketing-accent);
     color: #fff;
     font-size: 0.85rem;
     font-weight: 600;
@@ -234,7 +163,7 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
   }
 
   .hero-action:hover {
-    background: var(--about-ink);
+    background: var(--marketing-ink);
     transform: translateY(-1px);
   }
 
@@ -243,9 +172,7 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
   }
 
   .about-content {
-    width: 100%;
-    max-width: 80rem;
-    margin: 0 auto;
+    margin-inline: auto;
   }
 
   .story-block {
@@ -253,7 +180,7 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
     grid-template-columns: minmax(12rem, 0.9fr) minmax(0, 1.1fr);
     gap: clamp(2rem, 8vw, 8rem);
     padding-block: clamp(4.5rem, 9vw, 7rem);
-    border-bottom: 1px solid var(--about-line);
+    border-bottom: 1px solid var(--marketing-rule);
   }
 
   h2 {
@@ -279,7 +206,7 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
     gap: 1rem;
     margin: 2.5rem 0 0;
     padding-top: 1rem;
-    border-top: 1px solid var(--about-line);
+    border-top: 1px solid var(--marketing-rule);
   }
 
   .project-details div {
@@ -288,7 +215,7 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
   }
 
   .project-details dt {
-    color: var(--about-muted);
+    color: var(--marketing-muted);
     font-size: 0.68rem;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -296,7 +223,7 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
 
   .project-details dd {
     margin: 0;
-    color: var(--about-ink);
+    color: var(--marketing-ink);
     font-size: 0.95rem;
   }
 
@@ -307,9 +234,9 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
     gap: 2rem;
     margin-block: clamp(4.5rem, 9vw, 7rem);
     padding: clamp(2rem, 4vw, 3.5rem);
-    border: 1px solid var(--about-line);
+    border: 1px solid var(--marketing-rule);
     border-radius: 1.1rem;
-    background: var(--about-paper);
+    background: var(--marketing-paper);
     box-shadow: 0 1.5rem 4rem rgb(48 45 39 / 5%);
   }
 
@@ -330,20 +257,16 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
     align-items: center;
     gap: 0.8rem;
     padding: 0.65rem 0;
-    border-bottom: 1px solid var(--about-ink);
-    color: var(--about-ink);
+    border-bottom: 1px solid var(--marketing-ink);
+    color: var(--marketing-ink);
     font-size: 0.85rem;
     font-weight: 600;
     text-decoration: none;
   }
 
   .source-link:hover {
-    border-bottom-color: var(--about-accent);
-    color: var(--about-accent);
-  }
-
-  .about-page :global(.site-footer) {
-    border-top: 1px solid var(--about-line);
+    border-bottom-color: var(--marketing-accent);
+    color: var(--marketing-accent);
   }
 
   @media (max-width: 48rem) {
@@ -391,9 +314,9 @@ const githubHref = "https://github.com/abijith-suresh/interleaf";
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .about-page *,
-    .about-page *::before,
-    .about-page *::after {
+    *,
+    *::before,
+    *::after {
       scroll-behavior: auto !important;
       transition-duration: 0.01ms !important;
     }

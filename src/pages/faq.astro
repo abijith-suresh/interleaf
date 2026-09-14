@@ -1,8 +1,5 @@
 ---
-import Layout from "../layouts/Layout.astro";
-import Nav from "../components/shared/Nav.astro";
-import Footer from "../components/shared/Footer.astro";
-import { contentSlide } from "../utils/transitions";
+import MarketingLayout from "../components/marketing/MarketingLayout.astro";
 
 const questions = [
   {
@@ -40,127 +37,56 @@ const questions = [
 ];
 ---
 
-<Layout
+<MarketingLayout
   title="FAQ — Interleaf"
   description="Short answers about using Interleaf in your browser, including privacy, browser support, file sizes, and offline use."
+  currentPage="faq"
 >
-  <div class="calm-page faq-page" transition:animate={contentSlide}>
-    <Nav currentPage="faq" />
+  <section class="page-intro" aria-labelledby="faq-title">
+    <div class="marketing-container">
+      <div class="page-intro-copy">
+        <h1 id="faq-title">Questions, answered.</h1>
+        <p>Short answers about using Interleaf in your browser.</p>
+      </div>
+    </div>
+  </section>
 
-    <main id="main-content">
-      <section class="page-intro" aria-labelledby="faq-title">
-        <div class="calm-container">
-          <div class="page-intro-copy">
-            <h1 id="faq-title">Questions, answered.</h1>
-            <p>Short answers about using Interleaf in your browser.</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="faq-content" aria-label="Frequently asked questions">
-        <div class="calm-container">
-          <div class="faq-list">
-            {
-              questions.map((item, index) => (
-                <details open={index === 0}>
-                  <summary>
-                    <span>{item.q}</span>
-                    <span class="summary-mark" aria-hidden="true">+</span>
-                  </summary>
-                  <div class="faq-answer">
-                    <p>{item.a}</p>
-                  </div>
-                </details>
-              ))
-            }
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <Footer />
-  </div>
-</Layout>
+  <section class="faq-content" aria-label="Frequently asked questions">
+    <div class="marketing-container">
+      <div class="faq-list">
+        {
+          questions.map((item, index) => (
+            <details open={index === 0}>
+              <summary>
+                <span>{item.q}</span>
+                <span class="summary-mark" aria-hidden="true">+</span>
+              </summary>
+              <div class="faq-answer">
+                <p>{item.a}</p>
+              </div>
+            </details>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</MarketingLayout>
 
 <style>
-  .calm-page {
-    --calm-ink: #242421;
-    --calm-muted: #77756e;
-    --calm-line: #dedbd4;
-    --calm-line-strong: #c7c3ba;
-    --calm-paper: #fcfbf8;
-    --calm-warm: #f7f5f0;
-    --calm-accent: #ff2a1f;
-    min-height: 100vh;
-    background: var(--calm-warm);
-    color: var(--calm-ink);
-    font-family: var(--font-body);
-  }
-
-  .calm-container {
-    width: min(calc(100% - 2rem), 72rem);
-    margin-inline: auto;
-  }
-
-  .calm-page :global(.site-nav) {
-    border-color: var(--calm-line);
-    background: transparent;
-  }
-
-  .calm-page :global(.site-nav-inner) {
-    max-width: 72rem;
-  }
-
-  .calm-page :global(.site-nav .font-display) {
-    color: var(--calm-ink);
-    font-family: var(--font-body);
-    font-size: 1.05rem;
-    font-weight: 600;
-    letter-spacing: -0.055em;
-    text-transform: lowercase;
-  }
-
-  .calm-page :global(.site-nav a:not(.btn-primary)) {
-    color: var(--calm-muted);
-  }
-
-  .calm-page :global(.site-nav a:not(.btn-primary):hover),
-  .calm-page :global(.site-nav a[aria-current="page"]:not(.btn-primary)) {
-    color: var(--calm-ink);
-  }
-
-  .calm-page :global(.site-nav .mobile-nav-link.is-current) {
-    color: #fff;
-  }
-
-  .calm-page :global(.site-nav .btn-primary) {
-    border-radius: 0.55rem;
-    background: var(--calm-accent);
-    text-transform: none;
-    letter-spacing: -0.01em;
-    transition:
-      background-color 160ms ease,
-      transform 160ms ease;
-  }
-
-  .calm-page :global(.site-nav .btn-primary:hover) {
-    background: var(--calm-ink);
-  }
-
-  .calm-page a,
-  .calm-page summary {
+  a,
+  summary {
     -webkit-tap-highlight-color: rgb(255 42 31 / 18%);
     touch-action: manipulation;
   }
 
-  .calm-page a:focus-visible,
-  .calm-page summary:focus-visible {
-    outline: 2px solid var(--calm-accent);
+  a:focus-visible,
+  summary:focus-visible {
+    outline: 2px solid var(--marketing-accent);
     outline-offset: 4px;
   }
 
   .page-intro {
-    border-bottom: 1px solid var(--calm-line);
+    border-bottom: 1px solid var(--marketing-rule);
     padding-block: clamp(4.5rem, 10vw, 7.5rem) clamp(3rem, 6vw, 5rem);
   }
 
@@ -170,7 +96,7 @@ const questions = [
 
   h1 {
     margin: 0;
-    color: var(--calm-ink);
+    color: var(--marketing-ink);
     font-size: clamp(3.25rem, 8vw, 6.25rem);
     font-weight: 500;
     letter-spacing: -0.09em;
@@ -181,7 +107,7 @@ const questions = [
   .page-intro p {
     max-width: 30rem;
     margin: 1.75rem 0 0;
-    color: var(--calm-muted);
+    color: var(--marketing-muted);
     font-size: clamp(1rem, 1.7vw, 1.15rem);
     line-height: 1.55;
   }
@@ -193,12 +119,12 @@ const questions = [
   .faq-list {
     max-width: 54rem;
     margin-inline: auto;
-    border-top: 1px solid var(--calm-line-strong);
-    background: var(--calm-paper);
+    border-top: 1px solid var(--marketing-rule-strong);
+    background: var(--marketing-paper);
   }
 
   details {
-    border-bottom: 1px solid var(--calm-line);
+    border-bottom: 1px solid var(--marketing-rule);
   }
 
   details[open] {
@@ -212,7 +138,7 @@ const questions = [
     justify-content: space-between;
     gap: 1.5rem;
     padding: 1.25rem 1.5rem;
-    color: var(--calm-ink);
+    color: var(--marketing-ink);
     cursor: pointer;
     font-size: clamp(1rem, 1.7vw, 1.15rem);
     font-weight: 500;
@@ -225,7 +151,7 @@ const questions = [
   }
 
   summary:hover {
-    color: var(--calm-accent);
+    color: var(--marketing-accent);
   }
 
   .summary-mark {
@@ -234,17 +160,17 @@ const questions = [
     height: 1.5rem;
     flex: 0 0 auto;
     place-items: center;
-    border: 1px solid var(--calm-line-strong);
+    border: 1px solid var(--marketing-rule-strong);
     border-radius: 50%;
-    color: var(--calm-muted);
+    color: var(--marketing-muted);
     font-size: 1.1rem;
     font-weight: 300;
     line-height: 1;
   }
 
   details[open] .summary-mark {
-    background: var(--calm-accent);
-    border-color: var(--calm-accent);
+    background: var(--marketing-accent);
+    border-color: var(--marketing-accent);
     color: #fff;
     transform: rotate(45deg);
   }
@@ -256,34 +182,12 @@ const questions = [
 
   .faq-answer p {
     margin: 0;
-    color: var(--calm-muted);
+    color: var(--marketing-muted);
     font-size: 0.98rem;
     line-height: 1.65;
   }
 
-  .calm-page :global(.site-footer) {
-    border-top: 1px solid var(--calm-line);
-    background: var(--calm-warm);
-  }
-
-  .calm-page :global(.site-footer > div) {
-    max-width: 72rem;
-  }
-
-  .calm-page :global(.site-footer .font-display) {
-    color: var(--calm-ink);
-    font-family: var(--font-body);
-    font-size: 1.05rem;
-    font-weight: 600;
-    letter-spacing: -0.055em;
-    text-transform: lowercase;
-  }
-
   @media (max-width: 520px) {
-    .calm-container {
-      width: min(calc(100% - 1.5rem), 72rem);
-    }
-
     .page-intro {
       padding-top: 4rem;
     }
@@ -300,9 +204,9 @@ const questions = [
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .calm-page *,
-    .calm-page *::before,
-    .calm-page *::after {
+    *,
+    *::before,
+    *::after {
       animation-duration: 0.01ms;
       animation-iteration-count: 1;
       scroll-behavior: auto;

@@ -5,36 +5,44 @@ import ArrowIcon from "../shared/ArrowIcon.astro";
 
 interface Props {
   showExperiments?: boolean;
+  includeChrome?: boolean;
 }
 
-const { showExperiments = false } = Astro.props;
+const { showExperiments = false, includeChrome = true } = Astro.props;
 const base = import.meta.env.BASE_URL;
 const experiments = ["1", "2", "3", "4", "5"];
 ---
 
-<div class:list={["landing-page", showExperiments && "landing-study-page"]}>
+<div
+  class:list={[
+    "landing-page",
+    !includeChrome && "landing-content",
+    showExperiments && "landing-study-page",
+  ]}
+>
   {
-    showExperiments ? (
-      <header class="study-header">
-        <a class="study-brand" href={base} aria-label="Interleaf home">interleaf</a>
-        <div class="study-actions">
-          <a class="study-home" href={base}>Home</a>
-          <nav class="study-switcher" aria-label="Landing page design experiments">
-            {experiments.map((experiment) => (
-              <a
-                href={base + experiment}
-                class:list={["study-link", experiment === "2" && "is-current"]}
-                aria-current={experiment === "2" ? "page" : undefined}
-              >
-                /{experiment}
-              </a>
-            ))}
-          </nav>
-        </div>
-      </header>
-    ) : (
-      <Nav />
-    )
+    includeChrome &&
+      (showExperiments ? (
+        <header class="study-header">
+          <a class="study-brand" href={base} aria-label="Interleaf home">interleaf</a>
+          <div class="study-actions">
+            <a class="study-home" href={base}>Home</a>
+            <nav class="study-switcher" aria-label="Landing page design experiments">
+              {experiments.map((experiment) => (
+                <a
+                  href={base + experiment}
+                  class:list={["study-link", experiment === "2" && "is-current"]}
+                  aria-current={experiment === "2" ? "page" : undefined}
+                >
+                  /{experiment}
+                </a>
+              ))}
+            </nav>
+          </div>
+        </header>
+      ) : (
+        <Nav />
+      ))
   }
 
   <main id="main-content">
@@ -104,26 +112,11 @@ const experiments = ["1", "2", "3", "4", "5"];
     </section>
   </main>
 
-  <Footer />
+  {includeChrome && <Footer />}
 </div>
 
 <style>
-  :global(html),
-  :global(body) {
-    background: #f5f3ee;
-  }
-
   .landing-page {
-    --marketing-page: #f5f3ee;
-    --marketing-paper: #fcfbf8;
-    --marketing-ink: #292925;
-    --marketing-body: #77756e;
-    --marketing-muted: #77756e;
-    --marketing-rule: #ddd9d1;
-    --marketing-rule-strong: #c8c4bb;
-    --marketing-hover: #ebe8e1;
-    --marketing-accent: #f04436;
-    --marketing-accent-hover: #d9362b;
     --ink: var(--marketing-ink);
     --muted: var(--marketing-muted);
     --line: var(--marketing-rule);
@@ -136,6 +129,12 @@ const experiments = ["1", "2", "3", "4", "5"];
     background: var(--canvas);
     color: var(--ink);
     font-family: var(--font-body);
+  }
+
+  .landing-content {
+    flex: 1;
+    min-height: 0;
+    display: block;
   }
 
   .landing-page a:focus-visible {
@@ -359,7 +358,7 @@ const experiments = ["1", "2", "3", "4", "5"];
     height: 0.65rem;
     border-radius: 50%;
     background: var(--accent);
-    box-shadow: 0 0 0 0.45rem rgb(240 68 54 / 13%);
+    box-shadow: 0 0 0 0.45rem rgb(255 42 31 / 13%);
   }
 
   .workflow {

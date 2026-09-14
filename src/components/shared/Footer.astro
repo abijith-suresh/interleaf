@@ -2,7 +2,7 @@
 const base = import.meta.env.BASE_URL;
 ---
 
-<footer class="site-footer marketing-footer section-padding" transition:animate="fade">
+<footer class="site-footer marketing-footer" transition:animate="none">
   <div class="site-footer-inner">
     <div class="footer-main">
       <div class="footer-brand">
@@ -11,18 +11,17 @@ const base = import.meta.env.BASE_URL;
       </div>
 
       <nav class="footer-links" aria-label="Footer navigation">
-        <a href={`${base}about`} class="footer-link">About</a>
+        <a href={`${base}about`} class="footer-link marketing-link">About</a>
         <a
           href="https://github.com/abijith-suresh/interleaf"
           target="_blank"
           rel="noopener noreferrer"
-          class="footer-link">GitHub</a
+          class="footer-link marketing-link">GitHub</a
         >
-        <a href={`${base}features`} class="footer-link">Features</a>
-        <a href={`${base}app`} class="footer-link">Open editor</a>
-        <a href={`${base}faq`} class="footer-link">FAQ</a>
-        <a href={`${base}privacy`} class="footer-link">Privacy</a>
-        <a href={`${base}terms`} class="footer-link">Terms</a>
+        <a href={`${base}features`} class="footer-link marketing-link">Features</a>
+        <a href={`${base}faq`} class="footer-link marketing-link">FAQ</a>
+        <a href={`${base}privacy`} class="footer-link marketing-link">Privacy</a>
+        <a href={`${base}terms`} class="footer-link marketing-link">Terms</a>
       </nav>
     </div>
 
