@@ -1,8 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
   <title>Interleaf</title>
-  <rect width="32" height="32" fill="#ffffff"/>
-  <rect x="0" y="27" width="32" height="5" fill="#ff0000"/>
-  <rect x="9" y="5" width="14" height="4" fill="#111"/>
-  <rect x="14" y="5" width="4" height="18" fill="#111"/>
-  <rect x="9" y="23" width="14" height="4" fill="#111"/>
+  <rect width="48" height="48" fill="#fcfbf8"/>
+  <path
+    d="M9 12h17l12 12-12 12H9"
+    fill="none"
+    stroke="#242421"
+    stroke-linecap="square"
+    stroke-linejoin="miter"
+    stroke-width="7"
+  />
+  <path
+    d="M39 12H22L10 24l12 12h17"
+    fill="none"
+    stroke="#ff2a1f"
+    stroke-linecap="square"
+    stroke-linejoin="miter"
+    stroke-width="7"
+  />
 </svg>
