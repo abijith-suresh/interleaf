@@ -2,7 +2,10 @@ import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { ROTATION_STEP } from "../../constants";
 import {
+  areAllPagesSelected,
   createPageStates,
+  type DeletionAction,
+  getDeletionAction,
   remapSelectionAfterMove,
   toggleSelectAll,
   toggleSelection,
@@ -37,6 +40,21 @@ interface Toast {
   tone: ToastTone;
 }
 
+const deletionActionCopy: Record<DeletionAction, { label: string; ariaLabel: string }> = {
+  mark: {
+    label: "Mark for deletion",
+    ariaLabel: "Mark selected pages for deletion",
+  },
+  restore: {
+    label: "Restore from deletion",
+    ariaLabel: "Restore selected pages from deletion",
+  },
+  toggle: {
+    label: "Toggle deletion",
+    ariaLabel: "Toggle deletion for selected pages",
+  },
+};
+
 export default function Editor() {
   const base = import.meta.env.BASE_URL;
   let nextToastId = 0;
@@ -58,6 +76,14 @@ export default function Editor() {
 
   const activePageCount = () => pages.filter((p) => !p.markedForDeletion).length;
   const isBusy = () => operation() !== "idle";
+  const allPagesSelected = () => areAllPagesSelected(pages.length, selectedIndices());
+  const selectedDeletionAction = () => getDeletionAction(pages, selectedIndices());
+  const deletionCopy = () => deletionActionCopy[selectedDeletionAction()];
+  const selectAllLabel = () => (allPagesSelected() ? "Deselect all" : "Select all");
+  const selectedPageIndex = () => {
+    if (selectedIndices().size !== 1) return null;
+    return Array.from(selectedIndices())[0] ?? null;
+  };
 
   function setReadyStatus() {
     setOperation("idle");
@@ -320,6 +346,23 @@ export default function Editor() {
     }
   }
 
+  function moveSelectedPage(direction: "earlier" | "later"): void {
+    if (isBusy()) return;
+
+    const index = selectedPageIndex();
+    if (index === null) return;
+
+    const target = direction === "earlier" ? index - 1 : index + 1;
+    movePage(index, target);
+  }
+
+  function canMoveSelectedPage(direction: "earlier" | "later"): boolean {
+    const index = selectedPageIndex();
+    if (index === null) return false;
+
+    return direction === "earlier" ? index > 0 : index < pages.length - 1;
+  }
+
   function handleDragOver(e: DragEvent): void {
     if (isBusy()) return;
     e.preventDefault();
@@ -430,6 +473,9 @@ export default function Editor() {
               busy={isBusy()}
               selectedCount={selectedIndices().size}
               activePageCount={activePageCount()}
+              allPagesSelected={allPagesSelected()}
+              deletionLabel={deletionCopy().label}
+              deletionAriaLabel={deletionCopy().ariaLabel}
               onSelectAll={handleSelectAll}
               onRotate={handleRotateSelected}
               onDelete={handleDeleteSelected}
@@ -464,9 +510,10 @@ export default function Editor() {
                     data-testid="editor-select-all-button-mobile"
                     disabled={isBusy()}
                     onClick={handleSelectAll}
+                    aria-label={`${selectAllLabel()} pages`}
                     class="editor-toolbar-action"
                   >
-                    Select all
+                    {selectAllLabel()}
                   </button>
                   <button
                     type="button"
@@ -498,6 +545,28 @@ export default function Editor() {
                     </svg>
                   </summary>
                   <div class="editor-mobile-actions">
+                    <Show when={selectedIndices().size === 1}>
+                      <button
+                        type="button"
+                        data-testid="editor-move-earlier-button-mobile"
+                        disabled={isBusy() || !canMoveSelectedPage("earlier")}
+                        onClick={() => moveSelectedPage("earlier")}
+                        aria-label="Move selected page earlier"
+                        class="editor-toolbar-action"
+                      >
+                        Move earlier
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="editor-move-later-button-mobile"
+                        disabled={isBusy() || !canMoveSelectedPage("later")}
+                        onClick={() => moveSelectedPage("later")}
+                        aria-label="Move selected page later"
+                        class="editor-toolbar-action"
+                      >
+                        Move later
+                      </button>
+                    </Show>
                     <button
                       type="button"
                       data-testid="editor-rotate-button-mobile"
@@ -512,9 +581,10 @@ export default function Editor() {
                       data-testid="editor-delete-button-mobile"
                       disabled={isBusy() || selectedIndices().size === 0}
                       onClick={handleDeleteSelected}
+                      aria-label={deletionCopy().ariaLabel}
                       class="editor-toolbar-action editor-toolbar-action-danger"
                     >
-                      Mark for deletion
+                      {deletionCopy().label}
                     </button>
                     <button
                       type="button"

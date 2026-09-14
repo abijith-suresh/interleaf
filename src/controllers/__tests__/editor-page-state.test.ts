@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  areAllPagesSelected,
   createPageStates,
+  getDeletionAction,
   remapSelectionAfterMove,
   toggleSelectAll,
   toggleSelection,
@@ -45,6 +47,22 @@ describe("editor page state controller", () => {
   it("toggles select-all against the total page count", () => {
     expect(toggleSelectAll(3, new Set([0]))).toEqual(new Set([0, 1, 2]));
     expect(toggleSelectAll(3, new Set([0, 1, 2]))).toEqual(new Set<number>());
+  });
+
+  it("only treats the complete page set as selected", () => {
+    expect(areAllPagesSelected(3, new Set([0, 1, 2]))).toBe(true);
+    expect(areAllPagesSelected(3, new Set([0, 1, 3]))).toBe(false);
+    expect(areAllPagesSelected(0, new Set<number>())).toBe(false);
+  });
+
+  it("describes the action needed for the selected deletion states", () => {
+    const pages = createPageStates(file, 3, 1234);
+
+    expect(getDeletionAction(pages, new Set([0]))).toBe("mark");
+
+    pages[0].markedForDeletion = true;
+    expect(getDeletionAction(pages, new Set([0]))).toBe("restore");
+    expect(getDeletionAction(pages, new Set([0, 1]))).toBe("toggle");
   });
 
   it("remaps selections when an item moves forward", () => {

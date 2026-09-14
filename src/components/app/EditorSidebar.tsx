@@ -2,6 +2,9 @@ interface Props {
   busy: boolean;
   selectedCount: number;
   activePageCount: number;
+  allPagesSelected: boolean;
+  deletionLabel: string;
+  deletionAriaLabel: string;
   onSelectAll: () => void;
   onRotate: () => void;
   onDelete: () => void;
@@ -13,6 +16,7 @@ interface Props {
 export default function EditorSidebar(props: Props) {
   let addPdfInput!: HTMLInputElement;
   const hasSelection = () => props.selectedCount > 0;
+  const selectAllLabel = () => (props.allPagesSelected ? "Deselect all" : "Select all");
 
   return (
     <aside class="editor-sidebar">
@@ -54,14 +58,14 @@ export default function EditorSidebar(props: Props) {
             type="button"
             data-testid="editor-select-all-button"
             onClick={props.onSelectAll}
-            aria-label="Select all pages"
+            aria-label={`${selectAllLabel()} pages`}
             disabled={props.busy}
             class="editor-sidebar-action"
           >
             <svg viewBox="0 0 20 20" aria-hidden="true">
               <path d="M4 5h12M4 10h12M4 15h8" />
             </svg>
-            <span>Select all</span>
+            <span>{selectAllLabel()}</span>
           </button>
         </section>
 
@@ -84,14 +88,14 @@ export default function EditorSidebar(props: Props) {
             type="button"
             data-testid="editor-delete-button"
             onClick={props.onDelete}
-            aria-label="Mark selected pages for deletion"
+            aria-label={props.deletionAriaLabel}
             disabled={props.busy || !hasSelection()}
             class="editor-sidebar-action editor-sidebar-action-danger"
           >
             <svg viewBox="0 0 20 20" aria-hidden="true">
               <path d="M4.5 6.5h11M8 6.5V4h4v2.5M6.5 8.5v6m3.5-6v6m3.5-6v6M5.5 6.5l.5 10h8l.5-10" />
             </svg>
-            <span>Mark for deletion</span>
+            <span>{props.deletionLabel}</span>
           </button>
           <button
             type="button"

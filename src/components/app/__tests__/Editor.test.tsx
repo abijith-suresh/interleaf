@@ -110,6 +110,43 @@ describe("Editor", () => {
     expect(getByTestId("editor-extract-button")).toBeEnabled();
   });
 
+  it("labels the select-all action as deselect when every page is selected", async () => {
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile());
+    await findAllByTestId("editor-page-tile");
+
+    expect(getByTestId("editor-select-all-button")).toHaveTextContent("Select all");
+    expect(getByTestId("editor-select-all-button")).toHaveAttribute(
+      "aria-label",
+      "Select all pages"
+    );
+
+    fireEvent.click(getByTestId("editor-select-all-button"));
+
+    await waitFor(() => {
+      expect(getByTestId("editor-select-all-button")).toHaveTextContent("Deselect all");
+      expect(getByTestId("editor-select-all-button")).toHaveAttribute(
+        "aria-label",
+        "Deselect all pages"
+      );
+      expect(getByTestId("editor-select-all-button-mobile")).toHaveTextContent("Deselect all");
+      expect(getByTestId("editor-select-all-button-mobile")).toHaveAttribute(
+        "aria-label",
+        "Deselect all pages"
+      );
+    });
+
+    fireEvent.click(getByTestId("editor-select-all-button"));
+
+    await waitFor(() =>
+      expect(getByTestId("editor-select-all-button")).toHaveAttribute(
+        "aria-label",
+        "Select all pages"
+      )
+    );
+  });
+
   it("prompts for a password and unlocks a protected PDF", async () => {
     pdfServiceMocks.loadPDF.mockRejectedValue(
       new PDFPasswordRequiredError(makeFile(), "needs-password")
@@ -185,6 +222,9 @@ describe("Editor", () => {
     fireEvent.click(getByTestId("editor-select-all-button"));
     await waitFor(() => expect(tiles[0].dataset.selected).toBe("true"));
 
+    expect(getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
+    expect(getByTestId("editor-delete-button-mobile")).toHaveTextContent("Mark for deletion");
+
     fireEvent.click(getByTestId("editor-delete-button"));
 
     await waitFor(() =>
@@ -193,6 +233,27 @@ describe("Editor", () => {
     expect(getByTestId("editor-status-bar")).toHaveTextContent("3 pages (0 active)");
     expect(getByTestId("editor-download-button")).toBeDisabled();
     expect(getByTestId("editor-download-button-mobile")).toBeDisabled();
+    expect(getByTestId("editor-delete-button")).toHaveTextContent("Restore from deletion");
+    expect(getByTestId("editor-delete-button")).toHaveAttribute(
+      "aria-label",
+      "Restore selected pages from deletion"
+    );
+    expect(getByTestId("editor-delete-button-mobile")).toHaveTextContent("Restore from deletion");
+    expect(getByTestId("editor-delete-button-mobile")).toHaveAttribute(
+      "aria-label",
+      "Restore selected pages from deletion"
+    );
+
+    fireEvent.click(getByTestId("editor-delete-button"));
+
+    await waitFor(() => {
+      expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual([
+        "false",
+        "false",
+        "false",
+      ]);
+      expect(getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
+    });
   });
 
   it("reorders a page with the keyboard alternative", async () => {
@@ -208,6 +269,37 @@ describe("Editor", () => {
       expect(reorderedTiles[1]).toHaveAttribute("data-source-page", "3");
     });
     expect(getByTestId("editor-status-message")).toHaveTextContent("Moved page 3 to position 2.");
+  });
+
+  it("reorders a selected page with the mobile tap controls", async () => {
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile());
+    const tiles = await findAllByTestId("editor-page-tile");
+
+    fireEvent.click(tiles[1]);
+
+    await waitFor(() => {
+      expect(getByTestId("editor-move-earlier-button-mobile")).toBeEnabled();
+      expect(getByTestId("editor-move-later-button-mobile")).toBeEnabled();
+    });
+
+    fireEvent.click(getByTestId("editor-move-later-button-mobile"));
+
+    await waitFor(() => {
+      const reorderedTiles = document.querySelectorAll('[data-testid="editor-page-tile"]');
+      expect(reorderedTiles[2]).toHaveAttribute("data-source-page", "2");
+      expect(reorderedTiles[2]).toHaveAttribute("data-selected", "true");
+      expect(getByTestId("editor-move-later-button-mobile")).toBeDisabled();
+    });
+
+    fireEvent.click(getByTestId("editor-move-earlier-button-mobile"));
+
+    await waitFor(() => {
+      const reorderedTiles = document.querySelectorAll('[data-testid="editor-page-tile"]');
+      expect(reorderedTiles[1]).toHaveAttribute("data-source-page", "2");
+      expect(reorderedTiles[1]).toHaveAttribute("data-selected", "true");
+    });
   });
 
   it("toggles a page selection by clicking its tile", async () => {
