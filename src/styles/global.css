@@ -59,6 +59,7 @@ body {
   --marketing-hover: #ebe8e1;
   --marketing-accent: #ff2a1f;
   --marketing-accent-hover: #d21f17;
+  --marketing-nav-height: 4.75rem;
   --marketing-radius-sm: 0.45rem;
   --marketing-radius-md: 0.75rem;
   --color-white: var(--marketing-paper);
@@ -86,6 +87,70 @@ body {
 .marketing-content {
   min-width: 0;
   flex: 1;
+}
+
+.marketing-hero {
+  display: grid;
+  align-items: end;
+  min-height: min(35rem, calc(100svh - var(--marketing-nav-height)));
+  padding-block: clamp(4rem, 8vw, 6rem) clamp(3.5rem, 7vw, 5.5rem);
+  border-bottom: 1px solid var(--marketing-rule, var(--color-border));
+}
+
+.marketing-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(16rem, 0.8fr);
+  align-items: end;
+  gap: clamp(2.5rem, 8vw, 8rem);
+}
+
+.marketing-hero-primary,
+.marketing-hero-secondary {
+  min-width: 0;
+}
+
+.marketing-hero-title {
+  max-width: 48rem;
+  margin: 0;
+  color: var(--marketing-ink, var(--color-primary));
+  font-size: clamp(3.75rem, 8.7vw, 7.5rem);
+  font-weight: 500;
+  letter-spacing: -0.085em;
+  line-height: 0.9;
+  text-wrap: balance;
+}
+
+.marketing-hero-action {
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  gap: 1.15rem;
+  margin-top: 1.75rem;
+  padding: 0.8rem 1.1rem 0.8rem 1.25rem;
+  border-radius: var(--marketing-radius-sm, 0.45rem);
+  background: var(--marketing-accent, var(--color-accent));
+  color: var(--marketing-paper, var(--color-white));
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.marketing-hero-action > span {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.marketing-hero-action:hover {
+  background: var(--marketing-ink, var(--color-primary));
+  transform: translateY(-1px);
+}
+
+.marketing-hero-action:active {
+  transform: translateY(0);
 }
 
 html:has(.marketing-page),
@@ -297,7 +362,7 @@ body:has(.landing-page) {
 
 .site-nav-inner {
   display: flex;
-  min-height: 4.75rem;
+  min-height: var(--marketing-nav-height, 4.75rem);
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
@@ -465,6 +530,20 @@ body:has(.landing-page) {
 }
 
 @media (max-width: 47.99rem) {
+  .marketing-hero {
+    min-height: auto;
+    padding-block: 4rem 4.5rem;
+  }
+
+  .marketing-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 2.75rem;
+  }
+
+  .marketing-hero-title {
+    font-size: clamp(3.4rem, 15vw, 5.5rem);
+  }
+
   .desktop-nav {
     display: none;
   }
@@ -607,6 +686,15 @@ body:has(.landing-page) {
 
   .link-slide::after {
     transition: none;
+  }
+
+  .marketing-hero-action {
+    transition: none;
+  }
+
+  .marketing-hero-action:hover,
+  .marketing-hero-action:active {
+    transform: none;
   }
 
   *,

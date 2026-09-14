@@ -1,5 +1,6 @@
 ---
 import Footer from "../shared/Footer.astro";
+import MarketingHero from "./MarketingHero.astro";
 import Nav from "../shared/Nav.astro";
 import ArrowIcon from "../shared/ArrowIcon.astro";
 
@@ -46,46 +47,44 @@ const experiments = ["1", "2", "3", "4", "5"];
   }
 
   <main id="main-content">
-    <section class="landing-hero" aria-labelledby="landing-title">
-      <div class="landing-hero-grid">
-        <div class="landing-hero-copy">
-          <h1 id="landing-title">
-            Make the<br />
-            <span>document ready.</span>
-          </h1>
-          <p>
-            Bring PDFs together, shape their pages, and keep the result on your device.
-          </p>
-          <a class="landing-action" href={base + "app"}>
-            Open editor <span aria-hidden="true"><ArrowIcon /></span>
-          </a>
-        </div>
+    <MarketingHero titleId="landing-title">
+      <div slot="primary" class="landing-hero-copy">
+        <h1 id="landing-title" class="marketing-hero-title landing-hero-title">
+          Make the<br />
+          <span>document ready.</span>
+        </h1>
+        <p>
+          Bring PDFs together, shape their pages, and keep the result on your device.
+        </p>
+        <a class="marketing-hero-action" href={base + "app"}>
+          Open editor <span aria-hidden="true"><ArrowIcon /></span>
+        </a>
+      </div>
 
-        <div class="workspace-cue" aria-hidden="true">
-          <div class="cue-top">
-            <span class="cue-dot"></span>
-            <span class="cue-rule"></span>
-            <span class="cue-rule cue-rule-short"></span>
-          </div>
-          <div class="cue-field">
-            <span class="sheet sheet-back"></span>
-            <span class="sheet sheet-middle"></span>
-            <span class="sheet sheet-front">
-              <span class="sheet-heading"></span>
-              <span class="sheet-line sheet-line-wide"></span>
-              <span class="sheet-line"></span>
-              <span class="sheet-line sheet-line-short"></span>
-              <span class="sheet-line"></span>
-            </span>
-            <span class="sheet-marker"></span>
-          </div>
-          <div class="cue-bottom">
-            <span class="cue-rule cue-rule-long"></span>
-            <span class="cue-dot cue-dot-small"></span>
-          </div>
+      <div slot="secondary" class="workspace-cue" aria-hidden="true">
+        <div class="cue-top">
+          <span class="cue-dot"></span>
+          <span class="cue-rule"></span>
+          <span class="cue-rule cue-rule-short"></span>
+        </div>
+        <div class="cue-field">
+          <span class="sheet sheet-back"></span>
+          <span class="sheet sheet-middle"></span>
+          <span class="sheet sheet-front">
+            <span class="sheet-heading"></span>
+            <span class="sheet-line sheet-line-wide"></span>
+            <span class="sheet-line"></span>
+            <span class="sheet-line sheet-line-short"></span>
+            <span class="sheet-line"></span>
+          </span>
+          <span class="sheet-marker"></span>
+        </div>
+        <div class="cue-bottom">
+          <span class="cue-rule cue-rule-long"></span>
+          <span class="cue-dot cue-dot-small"></span>
         </div>
       </div>
-    </section>
+    </MarketingHero>
 
     <section class="workflow" aria-labelledby="workflow-title">
       <div class="workflow-heading">
@@ -142,23 +141,9 @@ const experiments = ["1", "2", "3", "4", "5"];
     outline-offset: 4px;
   }
 
-  .landing-hero,
   .workflow {
     width: min(calc(100% - 2rem), 72rem);
     margin-inline: auto;
-  }
-
-  .landing-hero {
-    display: grid;
-    align-items: center;
-    padding-block: clamp(3.5rem, 7vw, 5.75rem) clamp(3.75rem, 7vw, 5.5rem);
-  }
-
-  .landing-hero-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.76fr);
-    align-items: center;
-    gap: clamp(3rem, 7vw, 7rem);
   }
 
   .landing-hero-copy {
@@ -172,15 +157,7 @@ const experiments = ["1", "2", "3", "4", "5"];
     margin: 0;
   }
 
-  h1 {
-    font-size: clamp(3.8rem, 7.5vw, 6.35rem);
-    font-weight: 500;
-    letter-spacing: -0.085em;
-    line-height: 0.9;
-    text-wrap: balance;
-  }
-
-  h1 span {
+  .landing-hero-title span {
     color: var(--accent);
   }
 
@@ -191,39 +168,6 @@ const experiments = ["1", "2", "3", "4", "5"];
     font-size: clamp(1rem, 1.6vw, 1.15rem);
     line-height: 1.55;
     text-wrap: pretty;
-  }
-
-  .landing-action {
-    display: inline-flex;
-    min-height: 3rem;
-    align-items: center;
-    gap: 1.15rem;
-    margin-top: 1.75rem;
-    padding: 0.8rem 1.1rem 0.8rem 1.25rem;
-    border-radius: 0.55rem;
-    background: var(--accent);
-    color: #fff;
-    font-size: 0.85rem;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    text-decoration: none;
-    transition:
-      background-color 160ms ease,
-      transform 160ms ease;
-  }
-
-  .landing-action span {
-    font-size: 1.15rem;
-    line-height: 1;
-  }
-
-  .landing-action:hover {
-    background: var(--ink);
-    transform: translateY(-1px);
-  }
-
-  .landing-action:active {
-    transform: translateY(0);
   }
 
   .workspace-cue {
@@ -499,15 +443,6 @@ const experiments = ["1", "2", "3", "4", "5"];
   }
 
   @media (max-width: 48rem) {
-    .landing-hero {
-      padding-block: 3.25rem 4rem;
-    }
-
-    .landing-hero-grid {
-      grid-template-columns: 1fr;
-      gap: 2.75rem;
-    }
-
     .workspace-cue {
       justify-self: center;
     }
@@ -535,14 +470,6 @@ const experiments = ["1", "2", "3", "4", "5"];
   }
 
   @media (max-width: 36rem) {
-    .landing-hero-grid {
-      gap: 2.25rem;
-    }
-
-    h1 {
-      font-size: clamp(3.35rem, 15vw, 5rem);
-    }
-
     .workspace-cue {
       width: min(100%, 20rem);
     }

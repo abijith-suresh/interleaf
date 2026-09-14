@@ -1,6 +1,7 @@
 ---
 import MarketingLayout from "../components/marketing/MarketingLayout.astro";
 import ArrowIcon from "../components/shared/ArrowIcon.astro";
+import MarketingHero from "../components/marketing/MarketingHero.astro";
 
 const base = import.meta.env.BASE_URL;
 
@@ -27,21 +28,21 @@ const capabilities = [
   description="A local workspace for bringing PDF files together, arranging their pages, and opening protected documents."
   currentPage="features"
 >
-  <section class="features-hero" aria-labelledby="features-title">
-    <div class="hero-grid marketing-container">
-      <h1 id="features-title">Make the<br /><span>document ready.</span></h1>
+  <MarketingHero titleId="features-title">
+    <h1 slot="primary" id="features-title" class="marketing-hero-title">
+      Make the<br /><span>document ready.</span>
+    </h1>
 
-      <div class="hero-copy">
-        <p>
-          Interleaf is a local workspace for the work that happens before a PDF is ready to share.
-          Bring files together, shape their pages, and open protected documents in the browser.
-        </p>
-        <a class="hero-action" href={`${base}app`}>
-          Open editor <span aria-hidden="true"><ArrowIcon /></span>
-        </a>
-      </div>
+    <div slot="secondary" class="hero-copy">
+      <p>
+        Interleaf is a local workspace for the work that happens before a PDF is ready to share.
+        Bring files together, shape their pages, and open protected documents in the browser.
+      </p>
+      <a class="marketing-hero-action" href={`${base}app`}>
+        Open editor <span aria-hidden="true"><ArrowIcon /></span>
+      </a>
     </div>
-  </section>
+  </MarketingHero>
 
   <section class="capability-section" aria-labelledby="capability-title">
     <div class="marketing-container">
@@ -79,36 +80,11 @@ const capabilities = [
     outline-offset: 4px;
   }
 
-  .features-hero {
-    display: grid;
-    align-items: end;
-    min-height: min(31rem, calc(100svh - 4.75rem));
-    padding-block: clamp(3.5rem, 8vw, 6rem) clamp(3rem, 7vw, 5.25rem);
-    border-bottom: 1px solid var(--marketing-rule);
-  }
-
-  .hero-grid {
-    display: grid;
-    width: min(calc(100% - 2rem), 72rem);
-    grid-template-columns: minmax(0, 1.2fr) minmax(16rem, 0.8fr);
-    gap: clamp(2.5rem, 8vw, 8rem);
-    align-items: end;
-  }
-
   h1,
   h2,
   h3,
   p {
     margin: 0;
-  }
-
-  h1 {
-    max-width: 48rem;
-    font-size: clamp(3.75rem, 8.7vw, 7.5rem);
-    font-weight: 500;
-    letter-spacing: -0.085em;
-    line-height: 0.88;
-    text-wrap: balance;
   }
 
   h1 span {
@@ -117,7 +93,6 @@ const capabilities = [
 
   .hero-copy {
     max-width: 26rem;
-    padding-bottom: 0.25rem;
   }
 
   .hero-copy > p {
@@ -125,38 +100,6 @@ const capabilities = [
     font-size: clamp(1rem, 1.5vw, 1.15rem);
     line-height: 1.55;
     text-wrap: pretty;
-  }
-
-  .hero-action {
-    display: inline-flex;
-    min-height: 3rem;
-    align-items: center;
-    gap: 1.25rem;
-    margin-top: 1.75rem;
-    padding: 0.8rem 1rem 0.8rem 1.15rem;
-    border-radius: 0.45rem;
-    background: var(--marketing-accent);
-    color: #fff;
-    font-size: 0.85rem;
-    font-weight: 600;
-    text-decoration: none;
-    transition:
-      background-color 160ms ease,
-      transform 160ms ease;
-  }
-
-  .hero-action span {
-    font-size: 1.1rem;
-    line-height: 1;
-  }
-
-  .hero-action:hover {
-    background: var(--marketing-ink);
-    transform: translateY(-1px);
-  }
-
-  .hero-action:active {
-    transform: translateY(0);
   }
 
   .capability-section {
@@ -245,13 +188,7 @@ const capabilities = [
     font-weight: 600;
   }
 
-  @media (max-width: 700px) {
-    .features-hero {
-      min-height: auto;
-      padding-block: 3.5rem 3.25rem;
-    }
-
-    .hero-grid,
+  @media (max-width: 48rem) {
     .section-intro {
       grid-template-columns: 1fr;
       gap: 2rem;
@@ -276,14 +213,4 @@ const capabilities = [
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .hero-action {
-      transition: none;
-    }
-
-    .hero-action:hover,
-    .hero-action:active {
-      transform: none;
-    }
-  }
 </style>
