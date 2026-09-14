@@ -1,6 +1,6 @@
 # Interleaf
 
-Interleaf is a fully client-side PDF editor for the core tasks people reach for most: merge, extract, reorder, rotate, delete, and unlock.
+Interleaf is a fully client-side PDF editor for merging, extracting, reordering, rotating, marking pages for deletion before export, and unlocking PDFs.
 
 No uploads. No accounts. No tracking.
 
