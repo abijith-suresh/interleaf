@@ -154,19 +154,18 @@ export default function EditorPageCanvas(props: Props) {
       {renderState() === "error" && (
         <span
           data-testid="editor-page-canvas-error"
+          class="editor-page-canvas-error"
           role="status"
           aria-atomic="true"
           aria-live="polite"
-          style="position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.65rem; padding: 1rem; background: rgb(247 245 240 / 94%); color: var(--editor-body); font-size: 0.75rem; line-height: 1.4; text-align: center;"
         >
           <span>Preview unavailable.</span>
           <button
             type="button"
             data-testid="editor-page-canvas-retry"
+            class="editor-page-canvas-retry"
             aria-label="Retry page preview"
             onClick={retryRender}
-            onKeyDown={(event) => event.stopPropagation()}
-            style="display: inline-flex; min-height: 2rem; align-items: center; justify-content: center; padding: 0.4rem 0.75rem; border: 1px solid var(--editor-line-strong); border-radius: 999px; background: var(--editor-paper); color: var(--editor-ink); cursor: pointer; font: inherit; font-size: 0.6875rem; font-weight: 600; line-height: 1; touch-action: manipulation;"
           >
             Retry
           </button>
