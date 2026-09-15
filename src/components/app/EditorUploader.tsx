@@ -30,6 +30,7 @@ export default function EditorUploader(props: Props) {
         </div>
         <button
           type="button"
+          id="editor-upload-dropzone"
           data-testid="editor-upload-dropzone"
           aria-busy={props.busy}
           aria-describedby="editor-upload-status"
