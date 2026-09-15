@@ -704,7 +704,7 @@ body:has(.marketing-page) {
 @media print {
   nav,
   footer,
-  .editor-page-controls,
+  .page-controls,
   [data-page="editor"] aside {
     display: none;
   }

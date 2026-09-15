@@ -46,31 +46,32 @@ export default function EditorPageTile(props: Props) {
       onDrop={props.onDrop}
       onDragEnd={props.onDragEnd}
     >
-      <button
-        type="button"
-        data-testid="editor-page-tile"
-        data-page-index={props.index}
-        data-source-page={props.page.sourcePageNumber}
-        data-selected={props.selected}
-        data-marked-for-deletion={props.page.markedForDeletion}
-        class="editor-page-hitarea"
-        aria-pressed={props.selected}
-        aria-label={
-          props.page.markedForDeletion
-            ? `Page ${props.index + 1}, marked for deletion`
-            : `Page ${props.index + 1}`
-        }
-        aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
-        disabled={props.busy}
-        onClick={props.onClick}
-        onKeyDown={props.onKeyDown}
-      >
+      <div class="editor-page-preview">
         <EditorPageCanvas
           page={props.page}
           rotation={props.page.rotation}
           scrollRoot={props.scrollRoot}
         />
-      </button>
+        <button
+          type="button"
+          data-testid="editor-page-tile"
+          data-page-index={props.index}
+          data-source-page={props.page.sourcePageNumber}
+          data-selected={props.selected}
+          data-marked-for-deletion={props.page.markedForDeletion}
+          class="editor-page-hitarea"
+          aria-pressed={props.selected}
+          aria-label={
+            props.page.markedForDeletion
+              ? `Page ${props.index + 1}, marked for deletion`
+              : `Page ${props.index + 1}`
+          }
+          aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+          disabled={props.busy}
+          onClick={props.onClick}
+          onKeyDown={props.onKeyDown}
+        />
+      </div>
       <div class="page-controls">
         <span class="page-label">Page {props.index + 1}</span>
         <button
@@ -82,7 +83,9 @@ export default function EditorPageTile(props: Props) {
           disabled={props.busy}
           onClick={props.onRotate}
         >
-          &#x21BB;
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M15.5 7A6 6 0 1 0 16 11M15.5 7V3.5M15.5 7H12" />
+          </svg>
         </button>
       </div>
     </li>

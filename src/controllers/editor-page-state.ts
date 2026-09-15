@@ -1,5 +1,7 @@
 import type { PageState } from "../types/interfaces";
 
+export type DeletionAction = "mark" | "restore" | "toggle";
+
 export function createPageStates(
   file: File,
   pageCount: number,
@@ -26,12 +28,41 @@ export function toggleSelection(selectedIndices: Set<number>, index: number): Se
   return next;
 }
 
+export function areAllPagesSelected(pageCount: number, selectedIndices: Set<number>): boolean {
+  if (pageCount <= 0 || selectedIndices.size !== pageCount) return false;
+
+  for (let index = 0; index < pageCount; index += 1) {
+    if (!selectedIndices.has(index)) return false;
+  }
+
+  return true;
+}
+
 export function toggleSelectAll(pageCount: number, selectedIndices: Set<number>): Set<number> {
-  if (selectedIndices.size === pageCount) {
+  if (areAllPagesSelected(pageCount, selectedIndices)) {
     return new Set<number>();
   }
 
   return new Set(Array.from({ length: pageCount }, (_, index) => index));
+}
+
+export function getDeletionAction(
+  pages: Pick<PageState, "markedForDeletion">[],
+  selectedIndices: Set<number>
+): DeletionAction {
+  const selectedDeletionStates = Array.from(selectedIndices)
+    .map((index) => pages[index]?.markedForDeletion)
+    .filter((marked): marked is boolean => marked !== undefined);
+
+  if (selectedDeletionStates.length === 0 || selectedDeletionStates.every((marked) => !marked)) {
+    return "mark";
+  }
+
+  if (selectedDeletionStates.every((marked) => marked)) {
+    return "restore";
+  }
+
+  return "toggle";
 }
 
 export function remapSelectionAfterMove(

@@ -29,16 +29,16 @@ export default function EditorPageGrid(props: Props) {
   let scrollContainer!: HTMLDivElement;
 
   return (
-    <div ref={scrollContainer} class="editor-page-scroll flex-1 overflow-y-auto p-4">
+    <div ref={scrollContainer} class="editor-page-scroll">
       <p id="editor-page-grid-help" class="sr-only">
-        Select a page. Hold Alt and press the Left or Right Arrow key to move it.
+        Select a page. Hold Alt and press the left or right arrow key to move it.
       </p>
       <ul
-        aria-label="PDF pages"
+        aria-label="Pages"
         aria-describedby="editor-page-grid-help"
         aria-busy={props.busy}
         data-testid="editor-page-grid"
-        class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3 items-start"
+        class="editor-page-grid"
         onClick={(e) => {
           if (e.target === e.currentTarget) props.onClearSelection();
         }}

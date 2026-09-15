@@ -17,4 +17,4 @@ export const OUTPUT_FILENAME = "interleaf-output.pdf";
 export const EXTRACT_FILENAME = "interleaf-extract.pdf";
 
 /** Title shown in the password prompt modal for encrypted PDFs */
-export const PASSWORD_MODAL_TITLE = "PASSWORD REQUIRED";
+export const PASSWORD_MODAL_TITLE = "Password required";

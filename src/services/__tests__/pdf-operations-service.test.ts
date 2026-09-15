@@ -1,5 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PageState } from "../../types/interfaces";
+
+const pdfServiceMock = vi.hoisted(() => ({
+  renderPage: vi.fn(),
+}));
 
 const createMockPage = (overrides: Partial<PageState> = {}): PageState => ({
   id: "page-1",
@@ -10,16 +14,39 @@ const createMockPage = (overrides: Partial<PageState> = {}): PageState => ({
   ...overrides,
 });
 
-const mockPDFDoc = {
-  copyPages: vi.fn().mockResolvedValue([{ setRotation: vi.fn() }]),
-  addPage: vi.fn(),
+const mockSourcePage = {
+  getHeight: vi.fn().mockReturnValue(792),
+  getRotation: vi.fn().mockReturnValue({ angle: 0 }),
+  getWidth: vi.fn().mockReturnValue(612),
+};
+
+const mockCopiedPage = {
+  getRotation: vi.fn().mockReturnValue({ angle: 0 }),
+  setRotation: vi.fn(),
+};
+
+const mockOutputPage = {
+  drawImage: vi.fn(),
+  setRotation: vi.fn(),
+};
+
+const mockEmbeddedImage = {};
+
+const mockSourceDoc = {
+  getPage: vi.fn().mockReturnValue(mockSourcePage),
+  isEncrypted: false,
+};
+
+const mockOutputDoc = {
+  addPage: vi.fn().mockReturnValue(mockOutputPage),
+  copyPages: vi.fn().mockResolvedValue([mockCopiedPage]),
+  embedPng: vi.fn().mockResolvedValue(mockEmbeddedImage),
   save: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])),
-  getPageCount: vi.fn().mockReturnValue(1),
 };
 
 const mockPDFDocument = {
-  load: vi.fn().mockResolvedValue(mockPDFDoc),
-  create: vi.fn().mockResolvedValue(mockPDFDoc),
+  load: vi.fn().mockResolvedValue(mockSourceDoc),
+  create: vi.fn().mockResolvedValue(mockOutputDoc),
 };
 
 vi.mock("pdf-lib", () => ({
@@ -30,13 +57,26 @@ vi.mock("pdf-lib", () => ({
   degrees: vi.fn((deg) => deg),
 }));
 
+vi.mock("../pdf-service", () => ({
+  pdfService: pdfServiceMock,
+}));
+
 describe("PDFOperationsService", () => {
   let PDFOperationsService: typeof import("../pdf-operations-service").PDFOperationsService;
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    mockSourceDoc.isEncrypted = false;
+    mockSourcePage.getRotation.mockReturnValue({ angle: 0 });
+    mockCopiedPage.getRotation.mockReturnValue({ angle: 0 });
+    mockPDFDocument.load.mockResolvedValue(mockSourceDoc);
+    mockPDFDocument.create.mockResolvedValue(mockOutputDoc);
     const module = await import("../pdf-operations-service");
     PDFOperationsService = module.PDFOperationsService;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe("buildPDF", () => {
@@ -68,13 +108,62 @@ describe("PDFOperationsService", () => {
       await expect(service.buildPDF([])).rejects.toThrow("No pages to include in the PDF");
     });
 
-    it("should handle page rotation", async () => {
+    it("composes editor rotation with the source page rotation", async () => {
       const service = new PDFOperationsService();
       const rotatedPage = createMockPage({ rotation: 90 });
+      mockCopiedPage.getRotation.mockReturnValue({ angle: 90 });
 
       const result = await service.buildPDF([rotatedPage]);
 
       expect(result.data).toBeInstanceOf(Uint8Array);
+      expect(mockCopiedPage.setRotation).toHaveBeenCalledWith(180);
+    });
+
+    it("normalizes a composed rotation that wraps past 360 degrees", async () => {
+      const service = new PDFOperationsService();
+      const rotatedPage = createMockPage({ rotation: 90 });
+      mockCopiedPage.getRotation.mockReturnValue({ angle: 270 });
+
+      await service.buildPDF([rotatedPage]);
+
+      expect(mockCopiedPage.setRotation).toHaveBeenCalledWith(0);
+    });
+
+    it("exports an unlocked encrypted page through a local render", async () => {
+      const service = new PDFOperationsService();
+      const file = new File(["encrypted"], "protected.pdf", { type: "application/pdf" });
+      const page = createMockPage({ sourceFile: file, rotation: 90 });
+      mockSourceDoc.isEncrypted = true;
+      mockSourcePage.getRotation.mockReturnValue({ angle: 90 });
+      pdfServiceMock.renderPage.mockImplementation(
+        async (_file, _pageNumber, canvas: HTMLCanvasElement) => {
+          canvas.width = 1224;
+          canvas.height = 1584;
+        }
+      );
+      vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
+        "data:image/png;base64,rendered-page"
+      );
+
+      const result = await service.buildPDF([page]);
+
+      expect(result.data).toBeInstanceOf(Uint8Array);
+      expect(mockOutputDoc.copyPages).not.toHaveBeenCalled();
+      expect(pdfServiceMock.renderPage).toHaveBeenCalledWith(
+        file,
+        1,
+        expect.any(HTMLCanvasElement),
+        2,
+        0
+      );
+      expect(mockOutputDoc.embedPng).toHaveBeenCalledWith("data:image/png;base64,rendered-page");
+      expect(mockOutputPage.drawImage).toHaveBeenCalledWith(mockEmbeddedImage, {
+        x: 0,
+        y: 0,
+        width: 612,
+        height: 792,
+      });
+      expect(mockOutputPage.setRotation).toHaveBeenCalledWith(180);
     });
 
     it("should throw error when all pages are deleted", async () => {

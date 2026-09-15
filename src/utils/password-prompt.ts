@@ -13,13 +13,11 @@ export function promptForPassword(fileName: string, isRetry: boolean): Promise<s
 
     // Backdrop
     const backdrop = document.createElement("div");
-    backdrop.className =
-      "fixed inset-0 bg-black/50 z-50 flex items-center justify-center overscroll-contain p-4";
+    backdrop.className = "password-modal-backdrop";
 
     // Modal panel
     const modal = document.createElement("div");
-    modal.className =
-      "bg-white p-8 min-w-[320px] max-w-[420px] w-[90%] max-h-[calc(100dvh-2rem)] overflow-y-auto font-display";
+    modal.className = "password-modal";
     modal.setAttribute("role", "dialog");
     modal.setAttribute("aria-modal", "true");
     modal.setAttribute("aria-labelledby", "password-modal-title");
@@ -28,19 +26,18 @@ export function promptForPassword(fileName: string, isRetry: boolean): Promise<s
     const title = document.createElement("h2");
     title.id = "password-modal-title";
     title.textContent = PASSWORD_MODAL_TITLE;
-    title.className = "text-2xl tracking-[0.05em] text-primary mb-1.5";
+    title.className = "password-modal-title";
 
     // File name
     const fileLabel = document.createElement("div");
     fileLabel.textContent = fileName;
-    fileLabel.className =
-      "text-[11px] tracking-[0.1em] uppercase text-muted mb-4 font-mono whitespace-nowrap overflow-hidden text-ellipsis";
+    fileLabel.className = "password-modal-file";
 
     // Error message (only when retrying)
     const errorMsg = document.createElement("div");
     errorMsg.textContent = "Incorrect password. Try again.";
     errorMsg.setAttribute("aria-live", "polite");
-    errorMsg.className = `text-accent text-xs tracking-[0.05em] mb-3 font-mono${isRetry ? "" : " hidden"}`;
+    errorMsg.className = `password-modal-error${isRetry ? "" : " is-hidden"}`;
 
     // Password input
     const input = document.createElement("input");
@@ -49,22 +46,19 @@ export function promptForPassword(fileName: string, isRetry: boolean): Promise<s
     input.setAttribute("aria-label", "PDF password");
     input.name = "pdf-password";
     input.autocomplete = "off";
-    input.className =
-      "w-full box-border px-3 py-2.5 border border-border text-sm font-mono mb-5 focus:border-primary focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2";
+    input.className = "password-modal-input";
 
     // Button row
     const buttonRow = document.createElement("div");
-    buttonRow.className = "flex gap-3 justify-end";
+    buttonRow.className = "password-modal-actions";
 
     const cancelBtn = document.createElement("button");
     cancelBtn.textContent = "Cancel";
-    cancelBtn.className =
-      "py-2 px-5 border border-primary bg-white text-primary cursor-pointer font-display text-sm tracking-[0.05em] focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2";
+    cancelBtn.className = "password-modal-button password-modal-button-secondary";
 
     const unlockBtn = document.createElement("button");
     unlockBtn.textContent = "Unlock";
-    unlockBtn.className =
-      "py-2 px-5 border border-primary bg-primary text-white cursor-pointer font-display text-sm tracking-[0.05em] focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2";
+    unlockBtn.className = "password-modal-button password-modal-button-primary";
 
     buttonRow.appendChild(cancelBtn);
     buttonRow.appendChild(unlockBtn);
