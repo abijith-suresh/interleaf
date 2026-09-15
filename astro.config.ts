@@ -6,7 +6,7 @@ import { defineConfig } from "astro/config";
 // https://astro.build/config
 export default defineConfig({
   integrations: [solid(), sitemap()],
-  site: "https://interleaf.page",
+  site: "https://interleaf-snowy.vercel.app",
   vite: {
     plugins: [tailwindcss()],
     resolve: {
