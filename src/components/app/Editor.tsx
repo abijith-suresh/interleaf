@@ -24,7 +24,7 @@ import {
 } from "../../utils/toast";
 import EditorPageGrid from "./EditorPageGrid";
 import EditorSidebar from "./EditorSidebar";
-import EditorUploader from "./EditorUploader";
+import EditorWorkflowStart from "./EditorWorkflowStart";
 
 interface DragOverTarget {
   index: number;
@@ -461,7 +461,7 @@ export default function Editor() {
         <Show
           when={phase() === "edit"}
           fallback={
-            <EditorUploader
+            <EditorWorkflowStart
               busy={isBusy()}
               statusMessage={statusMessage()}
               onFileSelected={handleInitialUpload}
