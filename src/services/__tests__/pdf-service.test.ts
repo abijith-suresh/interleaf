@@ -105,6 +105,42 @@ describe("PDFService", () => {
     expect(service.getPageCount()).toBe(5);
   });
 
+  it("reuses a cached document when the same file is loaded again", async () => {
+    const service = new PDFService();
+    const file = new File(["plain"], "test.pdf", { type: "application/pdf" });
+
+    await service.loadPDF(file);
+    await service.loadPDF(file);
+
+    expect(pdfLibLoadMock).toHaveBeenCalledTimes(1);
+    expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("deduplicates concurrent loads for the same file", async () => {
+    const service = new PDFService();
+    const file = new File(["plain"], "test.pdf", { type: "application/pdf" });
+
+    await Promise.all([service.loadPDF(file), service.loadPDF(file)]);
+
+    expect(pdfLibLoadMock).toHaveBeenCalledTimes(1);
+    expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows a retry after a document load fails", async () => {
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: Promise.reject(new Error("temporary PDF.js failure")),
+    }));
+
+    const service = new PDFService();
+    const file = new File(["plain"], "test.pdf", { type: "application/pdf" });
+
+    await expect(service.loadPDF(file)).rejects.toThrow("temporary PDF.js failure");
+    await service.loadPDF(file);
+
+    expect(service.getPageCount()).toBe(5);
+    expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(2);
+  });
+
   it("loads an owner-password encrypted PDF without prompting for a password", async () => {
     const service = new PDFService();
     const file = new File(["owner-encrypted"], "owner-protected.pdf", {
@@ -194,6 +230,18 @@ describe("PDFService", () => {
     await service.renderPage(file, 1, canvas, 1, 90);
 
     expect(canvas.width).toBeGreaterThan(canvas.height);
+  });
+
+  it("throws when the target canvas has no 2D context", async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+
+    const service = new PDFService();
+    const file = new File(["plain"], "test.pdf", { type: "application/pdf" });
+    await service.loadPDF(file);
+
+    await expect(service.renderPage(file, 1, document.createElement("canvas"))).rejects.toThrow(
+      "Could not get canvas context"
+    );
   });
 
   it("resets cached documents and passwords for the session", async () => {
