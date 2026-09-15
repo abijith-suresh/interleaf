@@ -584,22 +584,6 @@ body:has([data-page="editor"]) {
   background: var(--editor-paper);
   box-shadow: 0 0.35rem 1rem rgb(36 36 33 / 3%);
   color: var(--editor-ink);
-  text-decoration: none;
-  touch-action: manipulation;
-  transition:
-    border-color 160ms var(--ease-out),
-    box-shadow 160ms var(--ease-out),
-    transform 160ms var(--ease-out);
-}
-
-.editor-task-card:hover {
-  border-color: var(--editor-line-strong);
-  box-shadow: 0 0.75rem 1.5rem rgb(36 36 33 / 7%);
-  transform: translateY(-2px);
-}
-
-.editor-task-card:focus-visible {
-  border-color: var(--editor-accent);
 }
 
 .editor-task-index {
@@ -647,17 +631,6 @@ body:has([data-page="editor"]) {
   color: var(--editor-body);
   font-size: 0.6875rem;
   line-height: 1.45;
-}
-
-.editor-task-arrow {
-  width: 1rem;
-  height: 1rem;
-  flex-shrink: 0;
-  fill: none;
-  stroke: var(--editor-muted);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.5;
 }
 
 .editor-start > .editor-uploader {

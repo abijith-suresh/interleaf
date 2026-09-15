@@ -64,10 +64,9 @@ export default function EditorWorkflowStart(props: Props) {
           <div class="editor-task-grid">
             <For each={workflows}>
               {(workflow) => (
-                <a
+                <article
                   class="editor-task-card"
                   data-testid={`editor-workflow-task-${workflow.slug}`}
-                  href="#editor-upload-dropzone"
                 >
                   <span class="editor-task-index" aria-hidden="true">
                     {workflow.number}
@@ -76,10 +75,7 @@ export default function EditorWorkflowStart(props: Props) {
                     <strong>{workflow.title}</strong>
                     <span>{workflow.description}</span>
                   </span>
-                  <svg class="editor-task-arrow" viewBox="0 0 20 20" aria-hidden="true">
-                    <path d="M4 10h11m-4-4 4 4-4 4" />
-                  </svg>
-                </a>
+                </article>
               )}
             </For>
           </div>

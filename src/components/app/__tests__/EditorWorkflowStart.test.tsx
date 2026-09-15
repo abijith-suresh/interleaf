@@ -16,10 +16,7 @@ describe("EditorWorkflowStart", () => {
 
     expect(getByRole("heading", { name: "Make the pages behave." })).toBeInTheDocument();
     expect(getByRole("heading", { name: "Edit and organize" })).toBeInTheDocument();
-    expect(getByTestId("editor-workflow-task-arrange")).toHaveAttribute(
-      "href",
-      "#editor-upload-dropzone"
-    );
+    expect(getByTestId("editor-workflow-task-arrange").tagName).toBe("ARTICLE");
     expect(getByTestId("editor-workflow-task-combine")).toHaveTextContent("Combine PDFs");
     expect(getByTestId("editor-workflow-task-extract")).toHaveTextContent("Extract pages");
     expect(getByTestId("editor-workflow-task-unlock")).toHaveTextContent("Unlock a protected PDF");
