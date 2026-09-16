@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.3](https://github.com/abijith-suresh/interleaf/compare/0.0.2...0.0.3) (2026-09-16)
+
+
+### Features
+
+* refresh editor workspace ([#220](https://github.com/abijith-suresh/interleaf/issues/220)) ([ceda1d5](https://github.com/abijith-suresh/interleaf/commit/ceda1d5dfce37e28543bb11fde5f7ff8e30e8060))
+
+
+### Bug Fixes
+
+* align marketing page heroes ([a166f59](https://github.com/abijith-suresh/interleaf/commit/a166f59a73acc4e778be96ad77638b2f1d869824))
+* **brand:** replace file glyph with interleaf mark ([#226](https://github.com/abijith-suresh/interleaf/issues/226)) ([9124c17](https://github.com/abijith-suresh/interleaf/commit/9124c17eb1bc8293da2a49eddafd96db904bc0ec))
+* **deploy:** update temporary canonical URL ([#227](https://github.com/abijith-suresh/interleaf/issues/227)) ([78881d6](https://github.com/abijith-suresh/interleaf/commit/78881d6fc210b001e687659f14cad8239bce47b7))
+
 ## [0.0.2](https://github.com/abijith-suresh/interleaf/compare/0.0.1...0.0.2) (2026-09-13)
 
 
