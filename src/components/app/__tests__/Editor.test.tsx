@@ -88,6 +88,30 @@ describe("Editor", () => {
     expect(pdfServiceMocks.reset).toHaveBeenCalled();
   });
 
+  it("shows the working set and selects pages from one source file", async () => {
+    const { findAllByTestId, getByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile("brief.pdf"));
+    await findAllByTestId("editor-page-tile");
+
+    selectFile("editor-add-pdf-input", makeFile("appendix.pdf"));
+    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(6));
+
+    const fileItems = await findAllByTestId("editor-file-item");
+    expect(fileItems).toHaveLength(2);
+
+    fireEvent.click(fileItems[1]);
+
+    await waitFor(async () => {
+      const tiles = await findAllByTestId("editor-page-tile");
+      expect(tiles.slice(0, 3).every((tile) => tile.dataset.selected === "false")).toBe(true);
+      expect(tiles.slice(3).every((tile) => tile.dataset.selected === "true")).toBe(true);
+    });
+    expect(getByTestId("editor-status-message")).toHaveTextContent(
+      "Selected 3 pages from appendix.pdf."
+    );
+  });
+
   it("keeps editor actions disabled until they have usable input", async () => {
     const { getByTestId, findAllByTestId } = render(() => <Editor />);
 
@@ -98,10 +122,6 @@ describe("Editor", () => {
     expect(getByTestId("editor-delete-button")).toBeDisabled();
     expect(getByTestId("editor-extract-button")).toBeDisabled();
     expect(getByTestId("editor-download-button")).toBeEnabled();
-    expect(getByTestId("editor-rotate-button-mobile")).toBeDisabled();
-    expect(getByTestId("editor-delete-button-mobile")).toBeDisabled();
-    expect(getByTestId("editor-extract-button-mobile")).toBeDisabled();
-    expect(getByTestId("editor-download-button-mobile")).toBeEnabled();
 
     fireEvent.click((await findAllByTestId("editor-page-tile"))[0]);
     await waitFor(() => expect(getByTestId("editor-rotate-button")).toBeEnabled());
@@ -127,11 +147,6 @@ describe("Editor", () => {
     await waitFor(() => {
       expect(getByTestId("editor-select-all-button")).toHaveTextContent("Deselect all");
       expect(getByTestId("editor-select-all-button")).toHaveAttribute(
-        "aria-label",
-        "Deselect all pages"
-      );
-      expect(getByTestId("editor-select-all-button-mobile")).toHaveTextContent("Deselect all");
-      expect(getByTestId("editor-select-all-button-mobile")).toHaveAttribute(
         "aria-label",
         "Deselect all pages"
       );
@@ -223,8 +238,6 @@ describe("Editor", () => {
     await waitFor(() => expect(tiles[0].dataset.selected).toBe("true"));
 
     expect(getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
-    expect(getByTestId("editor-delete-button-mobile")).toHaveTextContent("Mark for deletion");
-
     fireEvent.click(getByTestId("editor-delete-button"));
 
     await waitFor(() =>
@@ -232,14 +245,8 @@ describe("Editor", () => {
     );
     expect(getByTestId("editor-status-bar")).toHaveTextContent("3 pages (0 active)");
     expect(getByTestId("editor-download-button")).toBeDisabled();
-    expect(getByTestId("editor-download-button-mobile")).toBeDisabled();
     expect(getByTestId("editor-delete-button")).toHaveTextContent("Restore from deletion");
     expect(getByTestId("editor-delete-button")).toHaveAttribute(
-      "aria-label",
-      "Restore selected pages from deletion"
-    );
-    expect(getByTestId("editor-delete-button-mobile")).toHaveTextContent("Restore from deletion");
-    expect(getByTestId("editor-delete-button-mobile")).toHaveAttribute(
       "aria-label",
       "Restore selected pages from deletion"
     );
@@ -271,7 +278,7 @@ describe("Editor", () => {
     expect(getByTestId("editor-status-message")).toHaveTextContent("Moved page 3 to position 2.");
   });
 
-  it("reorders a selected page with the mobile tap controls", async () => {
+  it("reorders a selected page with the action menu controls", async () => {
     const { getByTestId, findAllByTestId } = render(() => <Editor />);
 
     selectFile("editor-upload-input", makeFile());
@@ -280,20 +287,20 @@ describe("Editor", () => {
     fireEvent.click(tiles[1]);
 
     await waitFor(() => {
-      expect(getByTestId("editor-move-earlier-button-mobile")).toBeEnabled();
-      expect(getByTestId("editor-move-later-button-mobile")).toBeEnabled();
+      expect(getByTestId("editor-move-earlier-button")).toBeEnabled();
+      expect(getByTestId("editor-move-later-button")).toBeEnabled();
     });
 
-    fireEvent.click(getByTestId("editor-move-later-button-mobile"));
+    fireEvent.click(getByTestId("editor-move-later-button"));
 
     await waitFor(() => {
       const reorderedTiles = document.querySelectorAll('[data-testid="editor-page-tile"]');
       expect(reorderedTiles[2]).toHaveAttribute("data-source-page", "2");
       expect(reorderedTiles[2]).toHaveAttribute("data-selected", "true");
-      expect(getByTestId("editor-move-later-button-mobile")).toBeDisabled();
+      expect(getByTestId("editor-move-later-button")).toBeDisabled();
     });
 
-    fireEvent.click(getByTestId("editor-move-earlier-button-mobile"));
+    fireEvent.click(getByTestId("editor-move-earlier-button"));
 
     await waitFor(() => {
       const reorderedTiles = document.querySelectorAll('[data-testid="editor-page-tile"]');

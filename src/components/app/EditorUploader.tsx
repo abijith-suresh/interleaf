@@ -25,8 +25,8 @@ export default function EditorUploader(props: Props) {
       <div class="editor-uploader-inner">
         <div class="editor-uploader-intro">
           <span class="editor-uploader-mark" aria-hidden="true" />
-          <h2>Start with a PDF.</h2>
-          <p>Arrange pages, then export.</p>
+          <h2>Start a workspace.</h2>
+          <p>Open a PDF to arrange pages, then add more PDFs.</p>
         </div>
         <button
           type="button"
@@ -80,7 +80,12 @@ export default function EditorUploader(props: Props) {
             e.currentTarget.value = "";
           }}
         />
-        <p class="editor-upload-status" data-testid="editor-upload-status">
+        <p
+          class="editor-upload-status"
+          data-testid="editor-upload-status"
+          role="status"
+          aria-live="polite"
+        >
           {props.busy
             ? props.statusMessage
             : "Your file stays on your device. Nothing is uploaded."}

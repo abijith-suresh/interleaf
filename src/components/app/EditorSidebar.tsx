@@ -1,40 +1,53 @@
+import { For } from "solid-js";
+
+export interface EditorWorkspaceFile {
+  file: File;
+  pageCount: number;
+  selectedCount: number;
+}
+
 interface Props {
   busy: boolean;
-  selectedCount: number;
-  activePageCount: number;
-  allPagesSelected: boolean;
-  deletionLabel: string;
-  deletionAriaLabel: string;
-  onSelectAll: () => void;
-  onRotate: () => void;
-  onDelete: () => void;
-  onExtract: () => void;
-  onDownload: () => void;
+  files: EditorWorkspaceFile[];
+  activeFile: File | null;
   onAddPdf: (file: File) => void;
+  onSelectFile: (file: File) => void;
+}
+
+function formatPageCount(pageCount: number) {
+  return `${pageCount} page${pageCount === 1 ? "" : "s"}`;
 }
 
 export default function EditorSidebar(props: Props) {
   let addPdfInput!: HTMLInputElement;
-  const hasSelection = () => props.selectedCount > 0;
-  const selectAllLabel = () => (props.allPagesSelected ? "Deselect all" : "Select all");
+  const totalPageCount = () => props.files.reduce((total, file) => total + file.pageCount, 0);
 
   return (
-    <aside class="editor-sidebar">
+    <aside class="editor-sidebar" aria-labelledby="editor-files-title">
       <div class="editor-sidebar-scroll">
         <section class="editor-sidebar-section">
-          <h2 class="editor-sidebar-label">File</h2>
-          <button
-            type="button"
-            data-testid="editor-add-pdf-button"
-            onClick={() => addPdfInput.click()}
-            disabled={props.busy}
-            class="editor-add-pdf"
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M10 4v12M4 10h12" />
-            </svg>
-            <span>{props.busy ? "Working…" : "+ Add PDF"}</span>
-          </button>
+          <div class="editor-sidebar-heading">
+            <div>
+              <p class="editor-sidebar-kicker">Working set</p>
+              <h2 id="editor-files-title">Files</h2>
+            </div>
+            <button
+              type="button"
+              data-testid="editor-add-pdf-button"
+              aria-label="Add another PDF"
+              onClick={() => addPdfInput.click()}
+              disabled={props.busy}
+              class="editor-add-pdf editor-add-pdf-icon"
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M10 4v12M4 10h12" />
+              </svg>
+            </button>
+          </div>
+          <p class="editor-sidebar-summary">
+            {props.files.length} file{props.files.length === 1 ? "" : "s"} · {totalPageCount()}{" "}
+            pages
+          </p>
           <input
             ref={addPdfInput}
             data-testid="editor-add-pdf-input"
@@ -50,83 +63,54 @@ export default function EditorSidebar(props: Props) {
               e.currentTarget.value = "";
             }}
           />
-        </section>
 
-        <section class="editor-sidebar-section">
-          <h2 class="editor-sidebar-label">Pages</h2>
-          <button
-            type="button"
-            data-testid="editor-select-all-button"
-            onClick={props.onSelectAll}
-            aria-label={`${selectAllLabel()} pages`}
-            disabled={props.busy}
-            class="editor-sidebar-action"
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M4 5h12M4 10h12M4 15h8" />
-            </svg>
-            <span>{selectAllLabel()}</span>
-          </button>
-        </section>
+          <ul class="editor-file-list">
+            <For each={props.files}>
+              {(workspaceFile) => {
+                const isActive = () => props.activeFile === workspaceFile.file;
 
-        <section class="editor-sidebar-section">
-          <h2 class="editor-sidebar-label">Adjust</h2>
-          <button
-            type="button"
-            data-testid="editor-rotate-button"
-            onClick={props.onRotate}
-            aria-label="Rotate selected pages 90 degrees"
-            disabled={props.busy || !hasSelection()}
-            class="editor-sidebar-action"
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M15.5 7A6 6 0 1 0 16 11M15.5 7V3.5M15.5 7H12" />
-            </svg>
-            <span>Rotate</span>
-          </button>
-          <button
-            type="button"
-            data-testid="editor-delete-button"
-            onClick={props.onDelete}
-            aria-label={props.deletionAriaLabel}
-            disabled={props.busy || !hasSelection()}
-            class="editor-sidebar-action editor-sidebar-action-danger"
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M4.5 6.5h11M8 6.5V4h4v2.5M6.5 8.5v6m3.5-6v6m3.5-6v6M5.5 6.5l.5 10h8l.5-10" />
-            </svg>
-            <span>{props.deletionLabel}</span>
-          </button>
-          <button
-            type="button"
-            data-testid="editor-extract-button"
-            onClick={props.onExtract}
-            aria-label="Extract selected pages to a new PDF"
-            disabled={props.busy || !hasSelection()}
-            class="editor-sidebar-action"
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M6 3.5h6l3 3v10H6zM12 3.5v3h3M9 10h4M11 8l2 2-2 2" />
-            </svg>
-            <span>Extract</span>
-          </button>
+                return (
+                  <li>
+                    <button
+                      type="button"
+                      data-testid="editor-file-item"
+                      class="editor-file-item"
+                      classList={{ "is-active": isActive() }}
+                      aria-pressed={isActive()}
+                      aria-label={
+                        "Select " +
+                        workspaceFile.file.name +
+                        ", " +
+                        formatPageCount(workspaceFile.pageCount)
+                      }
+                      onClick={() => props.onSelectFile(workspaceFile.file)}
+                      disabled={props.busy}
+                    >
+                      <span class="editor-file-icon" aria-hidden="true">
+                        PDF
+                      </span>
+                      <span class="editor-file-copy">
+                        <strong>{workspaceFile.file.name}</strong>
+                        <span>{formatPageCount(workspaceFile.pageCount)}</span>
+                      </span>
+                      <span class="editor-file-count" aria-hidden="true">
+                        {workspaceFile.selectedCount > 0 ? workspaceFile.selectedCount : ""}
+                      </span>
+                    </button>
+                  </li>
+                );
+              }}
+            </For>
+          </ul>
         </section>
       </div>
 
-      <section class="editor-sidebar-download">
-        <button
-          type="button"
-          data-testid="editor-download-button"
-          onClick={props.onDownload}
-          disabled={props.busy || props.activePageCount === 0}
-          class="editor-download-action"
-        >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M10 3v9m0 0 3-3m-3 3-3-3M4 14v3h12v-3" />
-          </svg>
-          <span>{props.busy ? "Working…" : "Download PDF"}</span>
-        </button>
-      </section>
+      <div class="editor-sidebar-footer">
+        <p>Everything stays on your device.</p>
+        <span class="editor-local-status">
+          <i aria-hidden="true" /> Local only
+        </span>
+      </div>
     </aside>
   );
 }

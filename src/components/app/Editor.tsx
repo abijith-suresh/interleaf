@@ -1,4 +1,4 @@
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { ROTATION_STEP } from "../../constants";
 import {
@@ -22,8 +22,9 @@ import {
   TOAST_EVENT_NAME,
   type ToastDetail,
 } from "../../utils/toast";
+import EditorActionBar from "./EditorActionBar";
 import EditorPageGrid from "./EditorPageGrid";
-import EditorSidebar from "./EditorSidebar";
+import EditorSidebar, { type EditorWorkspaceFile } from "./EditorSidebar";
 import EditorUploader from "./EditorUploader";
 
 interface DragOverTarget {
@@ -79,11 +80,44 @@ export default function Editor() {
   const allPagesSelected = () => areAllPagesSelected(pages.length, selectedIndices());
   const selectedDeletionAction = () => getDeletionAction(pages, selectedIndices());
   const deletionCopy = () => deletionActionCopy[selectedDeletionAction()];
-  const selectAllLabel = () => (allPagesSelected() ? "Deselect all" : "Select all");
   const selectedPageIndex = () => {
     if (selectedIndices().size !== 1) return null;
     return Array.from(selectedIndices())[0] ?? null;
   };
+
+  const workspaceFiles = createMemo<EditorWorkspaceFile[]>(() => {
+    const groups = new Map<File, EditorWorkspaceFile>();
+
+    pages.forEach((page, index) => {
+      let workspaceFile = groups.get(page.sourceFile);
+      if (!workspaceFile) {
+        workspaceFile = {
+          file: page.sourceFile,
+          pageCount: 0,
+          selectedCount: 0,
+        };
+        groups.set(page.sourceFile, workspaceFile);
+      }
+
+      workspaceFile.pageCount += 1;
+      if (selectedIndices().has(index)) workspaceFile.selectedCount += 1;
+    });
+
+    return Array.from(groups.values());
+  });
+
+  const activeFile = () => {
+    const selectedFiles = new Set(
+      Array.from(selectedIndices())
+        .map((index) => pages[index]?.sourceFile)
+        .filter((file): file is File => Boolean(file))
+    );
+
+    return selectedFiles.size === 1 ? (selectedFiles.values().next().value ?? null) : null;
+  };
+
+  const workspaceSummary = () =>
+    `${workspaceFiles().length} file${workspaceFiles().length === 1 ? "" : "s"} · ${formatPageCount(pages.length)}`;
 
   function setReadyStatus() {
     setOperation("idle");
@@ -228,6 +262,19 @@ export default function Editor() {
     if (isBusy() || selectedIndices().size === 0) return;
     setSelectedIndices(new Set<number>());
     setStatusMessage("Selection cleared.");
+  }
+
+  function handleWorkspaceFileClick(file: File): void {
+    if (isBusy()) return;
+
+    const nextSelection = new Set<number>();
+    pages.forEach((page, index) => {
+      if (page.sourceFile === file) nextSelection.add(index);
+    });
+
+    if (nextSelection.size === 0) return;
+    setSelectedIndices(nextSelection);
+    setStatusMessage(`Selected ${formatPageCount(nextSelection.size)} from ${file.name}.`);
   }
 
   function handleSelectAll(): void {
@@ -441,8 +488,8 @@ export default function Editor() {
             <Show when={phase() === "edit"}>
               <span class="editor-header-divider" aria-hidden="true" />
               <div class="editor-document-meta">
-                <span class="editor-document-context">PDF workspace</span>
-                <span class="editor-header-count">{formatPageCount(pages.length)}</span>
+                <span class="editor-document-context">Workspace</span>
+                <span class="editor-header-count">{workspaceSummary()}</span>
               </div>
             </Show>
           </div>
@@ -471,20 +518,21 @@ export default function Editor() {
           <div class="editor-workspace">
             <EditorSidebar
               busy={isBusy()}
-              selectedCount={selectedIndices().size}
-              activePageCount={activePageCount()}
-              allPagesSelected={allPagesSelected()}
-              deletionLabel={deletionCopy().label}
-              deletionAriaLabel={deletionCopy().ariaLabel}
-              onSelectAll={handleSelectAll}
-              onRotate={handleRotateSelected}
-              onDelete={handleDeleteSelected}
-              onExtract={handleExtract}
-              onDownload={handleDownload}
+              files={workspaceFiles()}
+              activeFile={activeFile()}
               onAddPdf={handleAddPdf}
+              onSelectFile={handleWorkspaceFileClick}
             />
 
-            <section class="editor-workspace-main" aria-label="PDF workspace">
+            <section class="editor-workspace-main" aria-labelledby="editor-pages-title">
+              <div class="editor-canvas-header">
+                <div>
+                  <p class="editor-canvas-kicker">Workspace</p>
+                  <h2 id="editor-pages-title">Pages</h2>
+                </div>
+                <span class="editor-canvas-count">{formatPageCount(pages.length)}</span>
+              </div>
+
               <EditorPageGrid
                 busy={isBusy()}
                 pages={pages}
@@ -503,110 +551,23 @@ export default function Editor() {
                 onDragEnd={handleDragEnd}
               />
 
-              <div class="editor-mobile-toolbar" role="toolbar" aria-label="Page actions">
-                <div class="editor-mobile-primary-actions">
-                  <button
-                    type="button"
-                    data-testid="editor-select-all-button-mobile"
-                    disabled={isBusy()}
-                    onClick={handleSelectAll}
-                    aria-label={`${selectAllLabel()} pages`}
-                    class="editor-toolbar-action"
-                  >
-                    {selectAllLabel()}
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="editor-add-pdf-button-mobile"
-                    disabled={isBusy()}
-                    onClick={() => {
-                      if (isBusy()) return;
-                      const input = document.createElement("input");
-                      input.type = "file";
-                      input.accept = "application/pdf";
-                      input.name = "additional-pdf-mobile";
-                      input.setAttribute("aria-label", "Choose an additional PDF");
-                      input.onchange = () => {
-                        const file = input.files?.[0];
-                        if (file) handleAddPdf(file);
-                      };
-                      input.click();
-                    }}
-                    class="editor-toolbar-action"
-                  >
-                    Add PDF
-                  </button>
-                </div>
-                <details class="editor-mobile-more" open={selectedIndices().size > 0}>
-                  <summary class="editor-mobile-more-trigger">
-                    <span>Page actions</span>
-                    <svg viewBox="0 0 20 20" aria-hidden="true">
-                      <path d="m5 7.5 5 5 5-5" />
-                    </svg>
-                  </summary>
-                  <div class="editor-mobile-actions">
-                    <Show when={selectedIndices().size === 1}>
-                      <button
-                        type="button"
-                        data-testid="editor-move-earlier-button-mobile"
-                        disabled={isBusy() || !canMoveSelectedPage("earlier")}
-                        onClick={() => moveSelectedPage("earlier")}
-                        aria-label="Move selected page earlier"
-                        class="editor-toolbar-action"
-                      >
-                        Move earlier
-                      </button>
-                      <button
-                        type="button"
-                        data-testid="editor-move-later-button-mobile"
-                        disabled={isBusy() || !canMoveSelectedPage("later")}
-                        onClick={() => moveSelectedPage("later")}
-                        aria-label="Move selected page later"
-                        class="editor-toolbar-action"
-                      >
-                        Move later
-                      </button>
-                    </Show>
-                    <button
-                      type="button"
-                      data-testid="editor-rotate-button-mobile"
-                      disabled={isBusy() || selectedIndices().size === 0}
-                      onClick={handleRotateSelected}
-                      class="editor-toolbar-action"
-                    >
-                      Rotate
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="editor-delete-button-mobile"
-                      disabled={isBusy() || selectedIndices().size === 0}
-                      onClick={handleDeleteSelected}
-                      aria-label={deletionCopy().ariaLabel}
-                      class="editor-toolbar-action editor-toolbar-action-danger"
-                    >
-                      {deletionCopy().label}
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="editor-extract-button-mobile"
-                      disabled={isBusy() || selectedIndices().size === 0}
-                      onClick={handleExtract}
-                      class="editor-toolbar-action"
-                    >
-                      Extract
-                    </button>
-                  </div>
-                </details>
-                <button
-                  type="button"
-                  data-testid="editor-download-button-mobile"
-                  disabled={isBusy() || activePageCount() === 0}
-                  onClick={handleDownload}
-                  class="editor-download-action editor-mobile-download"
-                >
-                  {isBusy() ? "Working…" : "Download"}
-                </button>
-              </div>
+              <EditorActionBar
+                busy={isBusy()}
+                selectedCount={selectedIndices().size}
+                activePageCount={activePageCount()}
+                allPagesSelected={allPagesSelected()}
+                deletionLabel={deletionCopy().label}
+                deletionAriaLabel={deletionCopy().ariaLabel}
+                canMoveEarlier={canMoveSelectedPage("earlier")}
+                canMoveLater={canMoveSelectedPage("later")}
+                onSelectAll={handleSelectAll}
+                onRotate={handleRotateSelected}
+                onDelete={handleDeleteSelected}
+                onExtract={handleExtract}
+                onMoveEarlier={() => moveSelectedPage("earlier")}
+                onMoveLater={() => moveSelectedPage("later")}
+                onDownload={handleDownload}
+              />
 
               <div
                 role="status"
