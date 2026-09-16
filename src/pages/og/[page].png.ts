@@ -176,7 +176,7 @@ export const GET: APIRoute = async ({ params }) => {
                     color: "#555",
                     letterSpacing: "0.05em",
                   },
-                  children: "interleaf.page",
+                  children: "interleaf-snowy.vercel.app",
                 },
               },
             ],
