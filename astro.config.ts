@@ -5,7 +5,7 @@ import { defineConfig } from "astro/config";
 
 // https://astro.build/config
 export default defineConfig({
-  integrations: [solid(), sitemap()],
+  integrations: [solid(), sitemap({ filter: (page) => !page.includes("/mock/") })],
   site: "https://interleaf-snowy.vercel.app",
   vite: {
     plugins: [tailwindcss()],
