@@ -58,11 +58,12 @@ describe("editor page state controller", () => {
   it("describes the action needed for the selected deletion states", () => {
     const pages = createPageStates(file, 3, 1234);
 
+    expect(getDeletionAction(pages, new Set())).toBe("mark");
     expect(getDeletionAction(pages, new Set([0]))).toBe("mark");
 
     pages[0].markedForDeletion = true;
     expect(getDeletionAction(pages, new Set([0]))).toBe("restore");
-    expect(getDeletionAction(pages, new Set([0, 1]))).toBe("toggle");
+    expect(getDeletionAction(pages, new Set([0, 1]))).toBe("mark");
   });
 
   it("remaps selections when an item moves forward", () => {

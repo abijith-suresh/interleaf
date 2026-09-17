@@ -125,7 +125,7 @@ body:has([data-page="editor"]) {
   --editor-paper: #fcfbf8;
   --editor-ink: #242421;
   --editor-body: #5e5c56;
-  --editor-muted: #85827a;
+  --editor-muted: #706e67;
   --editor-line: #dedbd4;
   --editor-line-strong: #c8c4bb;
   --editor-hover: #edeae3;
@@ -421,7 +421,8 @@ body:has([data-page="editor"]) {
   stroke-width: 1.5;
 }
 
-.editor-page .btn-page-rotate svg {
+.editor-page .btn-page-rotate svg,
+.editor-page .btn-page-delete svg {
   width: 1rem;
   height: 1rem;
   flex-shrink: 0;
@@ -492,7 +493,7 @@ body:has([data-page="editor"]) {
 }
 
 .editor-sidebar-kicker,
-.editor-action-eyebrow,
+.editor-selection-eyebrow,
 .editor-canvas-kicker {
   margin: 0 0 0.45rem;
   color: var(--editor-muted);
@@ -512,8 +513,8 @@ body:has([data-page="editor"]) {
 
 .editor-add-pdf {
   display: inline-flex;
-  min-height: 2.25rem;
-  min-width: 2.25rem;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
@@ -662,7 +663,7 @@ body:has([data-page="editor"]) {
 }
 
 .editor-sidebar button:disabled,
-.editor-action-bar button:disabled {
+.editor-selection-bar button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
@@ -830,7 +831,7 @@ body:has([data-page="editor"]) {
 
 .editor-page-canvas-retry {
   display: inline-flex;
-  min-height: 2rem;
+  min-height: 2.75rem;
   align-items: center;
   justify-content: center;
   padding: 0.4rem 0.75rem;
@@ -898,7 +899,14 @@ body:has([data-page="editor"]) {
   white-space: nowrap;
 }
 
-.btn-page-rotate {
+.page-action-buttons {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 0.15rem;
+}
+
+.btn-page-rotate,
+.btn-page-delete {
   display: inline-flex;
   min-width: 2.75rem;
   min-height: 2.75rem;
@@ -921,7 +929,18 @@ body:has([data-page="editor"]) {
   color: var(--editor-ink);
 }
 
-.btn-page-rotate:disabled {
+.btn-page-delete {
+  color: var(--editor-danger-ink);
+}
+
+.btn-page-delete:hover:not(:disabled),
+.btn-page-delete.is-marked {
+  background: var(--editor-danger-bg);
+  color: var(--editor-danger-ink);
+}
+
+.btn-page-rotate:disabled,
+.btn-page-delete:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
@@ -957,7 +976,7 @@ body:has([data-page="editor"]) {
   font-variant-numeric: tabular-nums;
 }
 
-.editor-action-bar {
+.editor-selection-bar {
   display: flex;
   min-height: 4.5rem;
   flex-shrink: 0;
@@ -968,17 +987,17 @@ body:has([data-page="editor"]) {
   background: var(--editor-paper);
 }
 
-.editor-action-summary {
+.editor-selection-summary {
   display: grid;
   min-width: 9rem;
   gap: 0.25rem;
 }
 
-.editor-action-eyebrow {
+.editor-selection-eyebrow {
   margin: 0;
 }
 
-.editor-action-summary strong {
+.editor-selection-summary strong {
   overflow: hidden;
   color: var(--editor-ink);
   font-size: 0.75rem;
@@ -987,59 +1006,10 @@ body:has([data-page="editor"]) {
   white-space: nowrap;
 }
 
-.editor-action-menu {
-  min-width: 0;
-}
-
-.editor-action-menu-trigger {
-  display: inline-flex;
-  min-height: 2.75rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--editor-line);
-  border-radius: 0.45rem;
-  background: var(--editor-paper);
-  color: var(--editor-body);
-  cursor: pointer;
-  font-size: 0.75rem;
-  font-weight: 500;
-  list-style: none;
-  touch-action: manipulation;
-}
-
-.editor-action-menu-trigger::-webkit-details-marker {
-  display: none;
-}
-
-.editor-action-menu-trigger:hover {
-  border-color: var(--editor-line-strong);
-  background: var(--editor-hover);
-  color: var(--editor-ink);
-}
-
-.editor-app .editor-action-menu-trigger svg {
-  width: 1rem;
-  height: 1rem;
-  flex-shrink: 0;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.5;
-  transition: transform 160ms var(--ease-out);
-}
-
-.editor-action-menu[open] .editor-action-menu-trigger svg {
-  transform: rotate(180deg);
-}
-
-.editor-action-menu-panel {
+.editor-selection-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  margin-top: 0.35rem;
 }
 
 .editor-toolbar-action {
@@ -1087,7 +1057,7 @@ body:has([data-page="editor"]) {
   padding: 0.75rem 1rem;
   border: 0;
   border-radius: 0.5rem;
-  background: var(--editor-accent);
+  background: var(--editor-accent-hover);
   color: var(--editor-paper);
   cursor: pointer;
   font-size: 0.8125rem;
@@ -1100,7 +1070,7 @@ body:has([data-page="editor"]) {
 }
 
 .editor-download-action:hover:not(:disabled) {
-  background: var(--editor-accent-hover);
+  background: #a52c26;
 }
 
 .editor-download-action:active:not(:disabled) {
@@ -1112,7 +1082,7 @@ body:has([data-page="editor"]) {
   opacity: 0.45;
 }
 
-.editor-action-bar .editor-download-action {
+.editor-selection-bar .editor-download-action {
   flex-shrink: 0;
 }
 
@@ -1141,6 +1111,20 @@ body:has([data-page="editor"]) {
 @media (min-width: 1080px) {
   .editor-page-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1079px) {
+  .editor-selection-bar {
+    flex-wrap: wrap;
+  }
+
+  .editor-selection-summary {
+    flex: 1 1 8rem;
+  }
+
+  .editor-selection-actions {
+    flex: 1 1 auto;
   }
 }
 
@@ -1180,11 +1164,8 @@ body:has([data-page="editor"]) {
     gap: 0.5rem;
     margin: 0.75rem -0.35rem 0;
     padding: 0.1rem 0.35rem 0.35rem;
-    scrollbar-width: none;
-  }
-
-  .editor-file-list::-webkit-scrollbar {
-    display: none;
+    scrollbar-color: var(--editor-line-strong) transparent;
+    scrollbar-width: thin;
   }
 
   .editor-file-list li {
@@ -1232,7 +1213,7 @@ body:has([data-page="editor"]) {
     padding: 0.75rem 1rem 0.65rem;
   }
 
-  .editor-action-bar {
+  .editor-selection-bar {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: stretch;
@@ -1240,7 +1221,7 @@ body:has([data-page="editor"]) {
     padding: 0.65rem 0.75rem calc(0.65rem + env(safe-area-inset-bottom));
   }
 
-  .editor-action-summary {
+  .editor-selection-summary {
     min-width: 0;
     align-content: center;
   }
@@ -1249,24 +1230,17 @@ body:has([data-page="editor"]) {
     min-height: 2.75rem;
   }
 
-  .editor-action-menu {
+  .editor-selection-actions {
     grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
   }
 
-  .editor-action-menu-trigger {
-    width: 100%;
+  .editor-selection-actions .editor-toolbar-action {
+    flex: 0 0 auto;
   }
 
-  .editor-action-menu-panel {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .editor-action-menu-panel .editor-toolbar-action {
-    width: 100%;
-  }
-
-  .editor-action-bar .editor-download-action {
+  .editor-selection-bar .editor-download-action {
     grid-column: 1 / -1;
     width: 100%;
     margin-left: 0;

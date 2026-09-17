@@ -193,7 +193,7 @@ describe("PDFOperationsService", () => {
 
       await service.buildPDF(
         [createMockPage(), createMockPage({ id: "page-2", sourcePageNumber: 2 })],
-        onProgress
+        { onProgress }
       );
 
       expect(onProgress).toHaveBeenNthCalledWith(1, { completed: 1, total: 2 });
@@ -201,51 +201,64 @@ describe("PDFOperationsService", () => {
     });
   });
 
-  describe("buildPDFFromSubset", () => {
-    it("should extract specific pages", async () => {
+  describe("selected pages", () => {
+    it("should export specific active pages", async () => {
       const service = new PDFOperationsService();
       const pages = [createMockPage()];
 
-      const result = await service.buildPDFFromSubset(pages, [0]);
+      const result = await service.buildPDF(pages, { selectedIndices: [0] });
 
       expect(result.data).toBeInstanceOf(Uint8Array);
-      expect(result.suggestedFileName).toBe("interleaf-extract.pdf");
+      expect(result.suggestedFileName).toBe("interleaf-output.pdf");
     });
 
-    it("should report progress while extracting", async () => {
+    it("should skip marked pages from a selected export", async () => {
+      const service = new PDFOperationsService();
+      const pages = [
+        createMockPage({ id: "page-1" }),
+        createMockPage({ id: "page-2", sourcePageNumber: 2, markedForDeletion: true }),
+      ];
+
+      await service.buildPDF(pages, { selectedIndices: [0, 1] });
+
+      expect(mockOutputDoc.copyPages).toHaveBeenCalledTimes(1);
+      expect(mockOutputDoc.copyPages).toHaveBeenCalledWith(mockSourceDoc, [0]);
+    });
+
+    it("should report progress while exporting selected pages", async () => {
       const service = new PDFOperationsService();
       const onProgress = vi.fn();
 
-      await service.buildPDFFromSubset([createMockPage()], [0], onProgress);
+      await service.buildPDF([createMockPage()], { selectedIndices: [0], onProgress });
 
       expect(onProgress).toHaveBeenCalledWith({ completed: 1, total: 1 });
     });
 
-    it("should handle multiple indices", async () => {
+    it("should export selected pages in the requested order", async () => {
       const service = new PDFOperationsService();
       const pages = [
         createMockPage({ id: "page-1", sourcePageNumber: 1 }),
         createMockPage({ id: "page-2", sourcePageNumber: 2 }),
       ];
 
-      const result = await service.buildPDFFromSubset(pages, [0, 1]);
+      const result = await service.buildPDF(pages, { selectedIndices: [1, 0] });
 
       expect(result.data).toBeInstanceOf(Uint8Array);
     });
 
-    it("should throw error for invalid indices", async () => {
+    it("should throw error when selected indices contain no pages", async () => {
       const service = new PDFOperationsService();
       const pages = [createMockPage()];
 
-      await expect(service.buildPDFFromSubset(pages, [5])).rejects.toThrow();
+      await expect(service.buildPDF(pages, { selectedIndices: [5] })).rejects.toThrow();
     });
 
-    it("should throw error when no pages selected", async () => {
+    it("should throw error when selected pages are all marked for deletion", async () => {
       const service = new PDFOperationsService();
-      const pages = [createMockPage()];
+      const pages = [createMockPage({ markedForDeletion: true })];
 
-      await expect(service.buildPDFFromSubset(pages, [])).rejects.toThrow(
-        "No pages selected for extraction"
+      await expect(service.buildPDF(pages, { selectedIndices: [0] })).rejects.toThrow(
+        "No pages to include in the PDF"
       );
     });
   });

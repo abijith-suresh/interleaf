@@ -78,10 +78,13 @@ export default function EditorSidebar(props: Props) {
                       classList={{ "is-active": isActive() }}
                       aria-pressed={isActive()}
                       aria-label={
-                        "Select " +
+                        "Select all " +
+                        formatPageCount(workspaceFile.pageCount) +
+                        " from " +
                         workspaceFile.file.name +
-                        ", " +
-                        formatPageCount(workspaceFile.pageCount)
+                        (workspaceFile.selectedCount > 0
+                          ? `, ${workspaceFile.selectedCount} selected`
+                          : "")
                       }
                       onClick={() => props.onSelectFile(workspaceFile.file)}
                       disabled={props.busy}
@@ -93,8 +96,10 @@ export default function EditorSidebar(props: Props) {
                         <strong>{workspaceFile.file.name}</strong>
                         <span>{formatPageCount(workspaceFile.pageCount)}</span>
                       </span>
-                      <span class="editor-file-count" aria-hidden="true">
-                        {workspaceFile.selectedCount > 0 ? workspaceFile.selectedCount : ""}
+                      <span class="editor-file-count">
+                        {workspaceFile.selectedCount > 0
+                          ? `${workspaceFile.selectedCount} selected`
+                          : ""}
                       </span>
                     </button>
                   </li>

@@ -12,7 +12,6 @@ const pdfServiceMocks = vi.hoisted(() => ({
 
 const pdfOperationsMocks = vi.hoisted(() => ({
   buildPDF: vi.fn(),
-  buildPDFFromSubset: vi.fn(),
   clearCache: vi.fn(),
 }));
 
@@ -52,10 +51,6 @@ describe("Editor", () => {
     pdfOperationsMocks.buildPDF.mockResolvedValue({
       data: new Uint8Array([1, 2, 3]),
       suggestedFileName: "interleaf-output.pdf",
-    });
-    pdfOperationsMocks.buildPDFFromSubset.mockResolvedValue({
-      data: new Uint8Array([1]),
-      suggestedFileName: "interleaf-extract.pdf",
     });
   });
 
@@ -112,22 +107,28 @@ describe("Editor", () => {
     );
   });
 
-  it("keeps editor actions disabled until they have usable input", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+  it("keeps selection actions disabled until they have usable input", async () => {
+    const { getByTestId, queryByTestId, findAllByTestId } = render(() => <Editor />);
 
     selectFile("editor-upload-input", makeFile());
     await findAllByTestId("editor-page-tile");
 
-    expect(getByTestId("editor-rotate-button")).toBeDisabled();
-    expect(getByTestId("editor-delete-button")).toBeDisabled();
-    expect(getByTestId("editor-extract-button")).toBeDisabled();
+    const rotateButtons = await findAllByTestId("editor-page-rotate-button");
+    expect(rotateButtons.every((button) => (button as HTMLButtonElement).disabled)).toBe(false);
+    expect(
+      (await findAllByTestId("editor-page-delete-button")).every(
+        (button) => !(button as HTMLButtonElement).disabled
+      )
+    ).toBe(true);
+    expect(queryByTestId("editor-rotate-button")).not.toBeInTheDocument();
+    expect(queryByTestId("editor-delete-button")).not.toBeInTheDocument();
     expect(getByTestId("editor-download-button")).toBeEnabled();
 
     fireEvent.click((await findAllByTestId("editor-page-tile"))[0]);
-    await waitFor(() => expect(getByTestId("editor-rotate-button")).toBeEnabled());
+    await waitFor(() => expect(rotateButtons[0]).toBeEnabled());
 
-    expect(getByTestId("editor-delete-button")).toBeEnabled();
-    expect(getByTestId("editor-extract-button")).toBeEnabled();
+    expect(getByTestId("editor-clear-selection-button")).toBeEnabled();
+    expect(getByTestId("editor-download-button")).toHaveTextContent("Export 1 selected page");
   });
 
   it("labels the select-all action as deselect when every page is selected", async () => {
@@ -136,7 +137,7 @@ describe("Editor", () => {
     selectFile("editor-upload-input", makeFile());
     await findAllByTestId("editor-page-tile");
 
-    expect(getByTestId("editor-select-all-button")).toHaveTextContent("Select all");
+    expect(getByTestId("editor-select-all-button")).toHaveTextContent("Select all pages");
     expect(getByTestId("editor-select-all-button")).toHaveAttribute(
       "aria-label",
       "Select all pages"
@@ -145,7 +146,7 @@ describe("Editor", () => {
     fireEvent.click(getByTestId("editor-select-all-button"));
 
     await waitFor(() => {
-      expect(getByTestId("editor-select-all-button")).toHaveTextContent("Deselect all");
+      expect(getByTestId("editor-select-all-button")).toHaveTextContent("Deselect all pages");
       expect(getByTestId("editor-select-all-button")).toHaveAttribute(
         "aria-label",
         "Deselect all pages"
@@ -237,7 +238,9 @@ describe("Editor", () => {
     fireEvent.click(getByTestId("editor-select-all-button"));
     await waitFor(() => expect(tiles[0].dataset.selected).toBe("true"));
 
-    expect(getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
+    expect(getByTestId("editor-delete-button")).toHaveTextContent(
+      "Mark selected pages for deletion"
+    );
     fireEvent.click(getByTestId("editor-delete-button"));
 
     await waitFor(() =>
@@ -245,10 +248,10 @@ describe("Editor", () => {
     );
     expect(getByTestId("editor-status-bar")).toHaveTextContent("3 pages (0 active)");
     expect(getByTestId("editor-download-button")).toBeDisabled();
-    expect(getByTestId("editor-delete-button")).toHaveTextContent("Restore from deletion");
+    expect(getByTestId("editor-delete-button")).toHaveTextContent("Restore selected pages");
     expect(getByTestId("editor-delete-button")).toHaveAttribute(
       "aria-label",
-      "Restore selected pages from deletion"
+      "Restore selected pages"
     );
 
     fireEvent.click(getByTestId("editor-delete-button"));
@@ -259,7 +262,9 @@ describe("Editor", () => {
         "false",
         "false",
       ]);
-      expect(getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
+      expect(getByTestId("editor-delete-button")).toHaveTextContent(
+        "Mark selected pages for deletion"
+      );
     });
   });
 
@@ -278,34 +283,65 @@ describe("Editor", () => {
     expect(getByTestId("editor-status-message")).toHaveTextContent("Moved page 3 to position 2.");
   });
 
-  it("reorders a selected page with the action menu controls", async () => {
+  it("rotates and marks a page from its direct controls", async () => {
     const { getByTestId, findAllByTestId } = render(() => <Editor />);
 
     selectFile("editor-upload-input", makeFile());
     const tiles = await findAllByTestId("editor-page-tile");
 
+    const rotateButtons = await findAllByTestId("editor-page-rotate-button");
+    fireEvent.click(rotateButtons[1]);
+
+    await waitFor(() =>
+      expect(getByTestId("editor-status-message")).toHaveTextContent("Rotated page 2.")
+    );
+
+    const deleteButtons = await findAllByTestId("editor-page-delete-button");
+    fireEvent.click(deleteButtons[1]);
+
+    await waitFor(() => {
+      expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "true");
+      expect(tiles[1]).toHaveAttribute("data-selected", "false");
+      expect(deleteButtons[1]).toHaveAttribute("aria-label", "Restore page 2 from deletion");
+    });
+
+    fireEvent.click(deleteButtons[1]);
+
+    await waitFor(() => {
+      expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "false");
+    });
+  });
+
+  it("labels exports by active selected pages", async () => {
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile());
+    const tiles = await findAllByTestId("editor-page-tile");
+    const deleteButtons = await findAllByTestId("editor-page-delete-button");
+
+    fireEvent.click(tiles[0]);
+    fireEvent.click(deleteButtons[0]);
     fireEvent.click(tiles[1]);
 
     await waitFor(() => {
-      expect(getByTestId("editor-move-earlier-button")).toBeEnabled();
-      expect(getByTestId("editor-move-later-button")).toBeEnabled();
+      expect(getByTestId("editor-selection-title")).toHaveTextContent(
+        "2 pages selected · 1 exportable"
+      );
+      expect(getByTestId("editor-download-button")).toHaveTextContent("Export 1 selected page");
     });
 
-    fireEvent.click(getByTestId("editor-move-later-button"));
+    expect(getByTestId("editor-delete-button")).toHaveTextContent(
+      "Mark selected pages for deletion"
+    );
+    fireEvent.click(getByTestId("editor-delete-button"));
 
     await waitFor(() => {
-      const reorderedTiles = document.querySelectorAll('[data-testid="editor-page-tile"]');
-      expect(reorderedTiles[2]).toHaveAttribute("data-source-page", "2");
-      expect(reorderedTiles[2]).toHaveAttribute("data-selected", "true");
-      expect(getByTestId("editor-move-later-button")).toBeDisabled();
-    });
-
-    fireEvent.click(getByTestId("editor-move-earlier-button"));
-
-    await waitFor(() => {
-      const reorderedTiles = document.querySelectorAll('[data-testid="editor-page-tile"]');
-      expect(reorderedTiles[1]).toHaveAttribute("data-source-page", "2");
-      expect(reorderedTiles[1]).toHaveAttribute("data-selected", "true");
+      expect(tiles[0]).toHaveAttribute("data-marked-for-deletion", "true");
+      expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "true");
+      expect(getByTestId("editor-selection-title")).toHaveTextContent(
+        "2 pages selected · 0 exportable"
+      );
+      expect(getByTestId("editor-delete-button")).toHaveTextContent("Restore selected pages");
     });
   });
 
@@ -340,7 +376,7 @@ describe("Editor", () => {
     await waitFor(() => expect(tiles[1].dataset.selected).toBe("false"));
   });
 
-  it("extracts the selected pages through the operations service", async () => {
+  it("exports the selected pages through the operations service", async () => {
     const { getByTestId, findAllByTestId } = render(() => <Editor />);
 
     selectFile("editor-upload-input", makeFile());
@@ -349,11 +385,11 @@ describe("Editor", () => {
     fireEvent.click(tiles[2]);
     await waitFor(() => expect(tiles[2].dataset.selected).toBe("true"));
 
-    fireEvent.click(getByTestId("editor-extract-button"));
+    fireEvent.click(getByTestId("editor-download-button"));
 
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
-    expect(pdfOperationsMocks.buildPDFFromSubset).toHaveBeenCalledTimes(1);
-    expect(pdfOperationsMocks.buildPDFFromSubset.mock.calls[0][1]).toEqual([2]);
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledTimes(1);
+    expect(pdfOperationsMocks.buildPDF.mock.calls[0][1].selectedIndices).toEqual([2]);
   });
 
   it("downloads a PDF built from the active pages", async () => {

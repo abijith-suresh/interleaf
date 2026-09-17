@@ -17,6 +17,7 @@ interface Props {
   onClearSelection: () => void;
   onPageKeyDown: (index: number, e: KeyboardEvent) => void;
   onPageRotate: (index: number, e: MouseEvent) => void;
+  onPageDelete: (index: number, e: MouseEvent) => void;
   onDragStart: (index: number, e: DragEvent) => void;
   onDragOver: (e: DragEvent) => void;
   onDragEnter: (index: number, e: DragEvent) => void;
@@ -64,6 +65,7 @@ export default function EditorPageGrid(props: Props) {
               onClick={() => props.onPageClick(index())}
               onKeyDown={(e) => props.onPageKeyDown(index(), e)}
               onRotate={(e) => props.onPageRotate(index(), e)}
+              onDelete={(e) => props.onPageDelete(index(), e)}
               onDragStart={(e) => props.onDragStart(index(), e)}
               onDragOver={props.onDragOver}
               onDragEnter={(e) => props.onDragEnter(index(), e)}

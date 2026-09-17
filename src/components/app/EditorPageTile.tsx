@@ -12,6 +12,7 @@ interface Props {
   onClick: () => void;
   onKeyDown: (e: KeyboardEvent) => void;
   onRotate: (e: MouseEvent) => void;
+  onDelete: (e: MouseEvent) => void;
   onDragStart: (e: DragEvent) => void;
   onDragOver: (e: DragEvent) => void;
   onDragEnter: (e: DragEvent) => void;
@@ -74,19 +75,48 @@ export default function EditorPageTile(props: Props) {
       </div>
       <div class="page-controls">
         <span class="page-label">Page {props.index + 1}</span>
-        <button
-          type="button"
-          data-testid="editor-page-rotate-button"
-          class="btn-page-rotate"
-          title="Rotate 90°"
-          aria-label={`Rotate page ${props.index + 1} 90 degrees`}
-          disabled={props.busy}
-          onClick={props.onRotate}
-        >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M15.5 7A6 6 0 1 0 16 11M15.5 7V3.5M15.5 7H12" />
-          </svg>
-        </button>
+        <span class="page-action-buttons">
+          <button
+            type="button"
+            data-testid="editor-page-delete-button"
+            class="btn-page-delete"
+            classList={{ "is-marked": props.page.markedForDeletion }}
+            title={props.page.markedForDeletion ? "Restore page" : "Mark page for deletion"}
+            aria-label={
+              props.page.markedForDeletion
+                ? `Restore page ${props.index + 1} from deletion`
+                : `Mark page ${props.index + 1} for deletion`
+            }
+            aria-pressed={props.page.markedForDeletion}
+            disabled={props.busy}
+            draggable={false}
+            onClick={props.onDelete}
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path
+                d={
+                  props.page.markedForDeletion
+                    ? "M4 8.5a6 6 0 1 1 2 4.5M4 8.5V4.5M4 8.5h4"
+                    : "M4.5 6.5h11M8 6.5V4h4v2.5M6.5 8.5v6m3.5-6v6m3.5-6v6M5.5 6.5l.5 10h8l.5-10"
+                }
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
+            data-testid="editor-page-rotate-button"
+            class="btn-page-rotate"
+            title="Rotate 90°"
+            aria-label={`Rotate page ${props.index + 1} 90 degrees`}
+            disabled={props.busy}
+            draggable={false}
+            onClick={props.onRotate}
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M15.5 7A6 6 0 1 0 16 11M15.5 7V3.5M15.5 7H12" />
+            </svg>
+          </button>
+        </span>
       </div>
     </li>
   );

@@ -22,9 +22,9 @@ import {
   TOAST_EVENT_NAME,
   type ToastDetail,
 } from "../../utils/toast";
-import EditorActionBar from "./EditorActionBar";
 import EditorPageGrid from "./EditorPageGrid";
 import EditorSidebar, { type EditorWorkspaceFile } from "./EditorSidebar";
+import EditorSelectionBar from "./EditorSelectionBar";
 import EditorUploader from "./EditorUploader";
 
 interface DragOverTarget {
@@ -32,7 +32,7 @@ interface DragOverTarget {
   direction: "before" | "after";
 }
 
-type EditorOperation = "idle" | "uploading" | "adding" | "extracting" | "building";
+type EditorOperation = "idle" | "uploading" | "adding" | "building";
 type ToastTone = "success" | "error" | "info";
 
 interface Toast {
@@ -43,16 +43,12 @@ interface Toast {
 
 const deletionActionCopy: Record<DeletionAction, { label: string; ariaLabel: string }> = {
   mark: {
-    label: "Mark for deletion",
+    label: "Mark selected pages for deletion",
     ariaLabel: "Mark selected pages for deletion",
   },
   restore: {
-    label: "Restore from deletion",
-    ariaLabel: "Restore selected pages from deletion",
-  },
-  toggle: {
-    label: "Toggle deletion",
-    ariaLabel: "Toggle deletion for selected pages",
+    label: "Restore selected pages",
+    ariaLabel: "Restore selected pages",
   },
 };
 
@@ -76,14 +72,12 @@ export default function Editor() {
   });
 
   const activePageCount = () => pages.filter((p) => !p.markedForDeletion).length;
+  const selectedActivePageCount = () =>
+    Array.from(selectedIndices()).filter((index) => !pages[index]?.markedForDeletion).length;
   const isBusy = () => operation() !== "idle";
   const allPagesSelected = () => areAllPagesSelected(pages.length, selectedIndices());
   const selectedDeletionAction = () => getDeletionAction(pages, selectedIndices());
   const deletionCopy = () => deletionActionCopy[selectedDeletionAction()];
-  const selectedPageIndex = () => {
-    if (selectedIndices().size !== 1) return null;
-    return Array.from(selectedIndices())[0] ?? null;
-  };
 
   const workspaceFiles = createMemo<EditorWorkspaceFile[]>(() => {
     const groups = new Map<File, EditorWorkspaceFile>();
@@ -255,7 +249,9 @@ export default function Editor() {
 
   function handlePageClick(index: number): void {
     if (isBusy()) return;
-    setSelectedIndices((previousSelection) => toggleSelection(previousSelection, index));
+    const nextSelection = toggleSelection(selectedIndices(), index);
+    setSelectedIndices(nextSelection);
+    setStatusMessage(`${nextSelection.has(index) ? "Selected" : "Deselected"} page ${index + 1}.`);
   }
 
   function clearSelection(): void {
@@ -279,7 +275,11 @@ export default function Editor() {
 
   function handleSelectAll(): void {
     if (isBusy()) return;
-    setSelectedIndices((previousSelection) => toggleSelectAll(pages.length, previousSelection));
+    const nextSelection = toggleSelectAll(pages.length, selectedIndices());
+    setSelectedIndices(nextSelection);
+    setStatusMessage(
+      nextSelection.size === pages.length ? "All pages selected." : "Selection cleared."
+    );
   }
 
   // --- Rotation ---
@@ -289,6 +289,19 @@ export default function Editor() {
     if (isBusy()) return;
     setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360);
     setStatusMessage(`Rotated page ${index + 1}.`);
+  }
+
+  function handlePageDelete(index: number, e: MouseEvent): void {
+    e.stopPropagation();
+    if (isBusy()) return;
+
+    const markedForDeletion = pages[index]?.markedForDeletion ?? false;
+    setPages(index, "markedForDeletion", !markedForDeletion);
+    setStatusMessage(
+      markedForDeletion
+        ? `Restored page ${index + 1} from deletion.`
+        : `Marked page ${index + 1} for deletion.`
+    );
   }
 
   function handleRotateSelected(): void {
@@ -305,58 +318,45 @@ export default function Editor() {
 
   function handleDeleteSelected(): void {
     if (isBusy() || selectedIndices().size === 0) return;
+    const action = selectedDeletionAction();
+    const markForDeletion = action === "mark";
+
     for (const index of selectedIndices()) {
-      setPages(index, "markedForDeletion", (v) => !v);
+      setPages(index, "markedForDeletion", markForDeletion);
     }
     setStatusMessage(
-      `Updated deletion state for ${selectedIndices().size} selected page${selectedIndices().size === 1 ? "" : "s"}.`
+      `${markForDeletion ? "Marked" : "Restored"} ${selectedIndices().size} selected page${selectedIndices().size === 1 ? "" : "s"} ${markForDeletion ? "for deletion" : "from deletion"}.`
     );
-  }
-
-  // --- Extract / Download ---
-
-  async function handleExtract(): Promise<void> {
-    if (isBusy()) return;
-    const indices = Array.from(selectedIndices()).sort((a, b) => a - b);
-    if (indices.length === 0) return;
-
-    setOperation("extracting");
-    setStatusMessage(`Extracting pages… 0/${indices.length}`);
-
-    try {
-      const result = await pdfOperationsService.buildPDFFromSubset(
-        pages,
-        indices,
-        ({ completed, total }) => {
-          setStatusMessage(`Extracting pages… ${completed}/${total}`);
-        }
-      );
-      downloadPDF(result);
-      setStatusMessage("Extracted PDF download started.");
-    } catch (_err) {
-      dispatchToast("Failed to extract selected pages.", "error");
-    } finally {
-      setReadyStatus();
-    }
   }
 
   async function handleDownload(): Promise<void> {
     if (isBusy()) return;
-    const totalPages = activePageCount();
+    const selection = selectedIndices();
+    const selectedPageIndices =
+      selection.size > 0 ? Array.from(selection).sort((a, b) => a - b) : undefined;
+    const totalPages = selectedPageIndices ? selectedActivePageCount() : activePageCount();
 
     setOperation("building");
-    setStatusMessage(`Building PDF… 0/${totalPages}`);
+    setStatusMessage(
+      `${selectedPageIndices ? "Building selected PDF" : "Building PDF"}… 0/${totalPages}`
+    );
 
     try {
-      const result = await pdfOperationsService.buildPDF(pages, ({ completed, total }) => {
-        setStatusMessage(`Building PDF… ${completed}/${total}`);
+      const result = await pdfOperationsService.buildPDF(pages, {
+        selectedIndices: selectedPageIndices,
+        onProgress: ({ completed, total }) => {
+          setStatusMessage(
+            `${selectedPageIndices ? "Building selected PDF" : "Building PDF"}… ${completed}/${total}`
+          );
+        },
       });
       downloadPDF(result);
-      setStatusMessage("Download started.");
+      setStatusMessage("Export started.");
     } catch (_err) {
       dispatchToast("Failed to build the PDF.", "error");
+      setStatusMessage("Export failed. Try again.");
     } finally {
-      setReadyStatus();
+      setOperation("idle");
     }
   }
 
@@ -391,23 +391,6 @@ export default function Editor() {
       e.preventDefault();
       movePage(index, index + 1);
     }
-  }
-
-  function moveSelectedPage(direction: "earlier" | "later"): void {
-    if (isBusy()) return;
-
-    const index = selectedPageIndex();
-    if (index === null) return;
-
-    const target = direction === "earlier" ? index - 1 : index + 1;
-    movePage(index, target);
-  }
-
-  function canMoveSelectedPage(direction: "earlier" | "later"): boolean {
-    const index = selectedPageIndex();
-    if (index === null) return false;
-
-    return direction === "earlier" ? index > 0 : index < pages.length - 1;
   }
 
   function handleDragOver(e: DragEvent): void {
@@ -543,6 +526,7 @@ export default function Editor() {
                 onClearSelection={clearSelection}
                 onPageKeyDown={handlePageKeyDown}
                 onPageRotate={handlePageRotate}
+                onPageDelete={handlePageDelete}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDragEnter={handleDragEnter}
@@ -551,21 +535,19 @@ export default function Editor() {
                 onDragEnd={handleDragEnd}
               />
 
-              <EditorActionBar
+              <EditorSelectionBar
                 busy={isBusy()}
                 selectedCount={selectedIndices().size}
-                activePageCount={activePageCount()}
+                selectedActiveCount={
+                  selectedIndices().size > 0 ? selectedActivePageCount() : activePageCount()
+                }
                 allPagesSelected={allPagesSelected()}
                 deletionLabel={deletionCopy().label}
                 deletionAriaLabel={deletionCopy().ariaLabel}
-                canMoveEarlier={canMoveSelectedPage("earlier")}
-                canMoveLater={canMoveSelectedPage("later")}
                 onSelectAll={handleSelectAll}
+                onClearSelection={clearSelection}
                 onRotate={handleRotateSelected}
                 onDelete={handleDeleteSelected}
-                onExtract={handleExtract}
-                onMoveEarlier={() => moveSelectedPage("earlier")}
-                onMoveLater={() => moveSelectedPage("later")}
                 onDownload={handleDownload}
               />
 

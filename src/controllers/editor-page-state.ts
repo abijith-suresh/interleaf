@@ -1,6 +1,6 @@
 import type { PageState } from "../types/interfaces";
 
-export type DeletionAction = "mark" | "restore" | "toggle";
+export type DeletionAction = "mark" | "restore";
 
 export function createPageStates(
   file: File,
@@ -54,15 +54,11 @@ export function getDeletionAction(
     .map((index) => pages[index]?.markedForDeletion)
     .filter((marked): marked is boolean => marked !== undefined);
 
-  if (selectedDeletionStates.length === 0 || selectedDeletionStates.every((marked) => !marked)) {
+  if (selectedDeletionStates.length === 0 || selectedDeletionStates.some((marked) => !marked)) {
     return "mark";
   }
 
-  if (selectedDeletionStates.every((marked) => marked)) {
-    return "restore";
-  }
-
-  return "toggle";
+  return "restore";
 }
 
 export function remapSelectionAfterMove(

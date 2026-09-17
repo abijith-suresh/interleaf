@@ -1,9 +1,14 @@
 import { degrees, PDFDocument } from "pdf-lib";
-import { EXTRACT_FILENAME, OUTPUT_FILENAME } from "../constants";
+import { OUTPUT_FILENAME } from "../constants";
 import type { PageState, PDFBuildProgress, PDFOperationResult } from "../types/interfaces";
 import { pdfService } from "./pdf-service";
 
 const ENCRYPTED_PAGE_RENDER_SCALE = 2;
+
+interface PDFBuildOptions {
+  selectedIndices?: number[];
+  onProgress?: (progress: PDFBuildProgress) => void;
+}
 
 function normalizeRotation(rotation: number): number {
   const normalized = rotation % 360;
@@ -11,7 +16,7 @@ function normalizeRotation(rotation: number): number {
 }
 
 export class PDFOperationsService {
-  // Class-level cache: avoids re-reading the same File on multiple build/extract
+  // Class-level cache: avoids re-reading the same File on multiple build
   // calls within one session. Cleared on session reset via clearCache().
   private sourceDocCache = new Map<File, PDFDocument>();
 
@@ -25,50 +30,25 @@ export class PDFOperationsService {
   }
 
   /**
-   * Builds a new PDF from every page that is not marked for deletion.
+   * Builds a new PDF from every active page, or from the selected active pages.
    *
    * @param pages - The current editor page state to export.
-   * @param onProgress - Optional callback invoked after each page is copied.
+   * @param options - Optional selected page indices and progress callback.
    * @returns The generated PDF bytes and a suggested download filename.
    * @throws {Error} When there are no active pages to include in the output.
    */
-  async buildPDF(
-    pages: PageState[],
-    onProgress?: (progress: PDFBuildProgress) => void
-  ): Promise<PDFOperationResult> {
-    const activePages = pages.filter((page) => !page.markedForDeletion);
+  async buildPDF(pages: PageState[], options: PDFBuildOptions = {}): Promise<PDFOperationResult> {
+    const pagesToBuild = options.selectedIndices
+      ? options.selectedIndices
+          .map((index) => pages[index])
+          .filter((page): page is PageState => Boolean(page) && !page.markedForDeletion)
+      : pages.filter((page) => !page.markedForDeletion);
 
     return this.buildOutputFromPages(
-      activePages,
+      pagesToBuild,
       "No pages to include in the PDF",
       OUTPUT_FILENAME,
-      onProgress
-    );
-  }
-
-  /**
-   * Builds a new PDF from a subset of the current editor pages.
-   *
-   * @param pages - The full editor page state for the current session.
-   * @param indices - The page indices to include in the extracted output.
-   * @param onProgress - Optional callback invoked after each selected page is copied.
-   * @returns The generated PDF bytes and a suggested extract filename.
-   * @throws {Error} When the requested subset resolves to no exportable pages.
-   */
-  async buildPDFFromSubset(
-    pages: PageState[],
-    indices: number[],
-    onProgress?: (progress: PDFBuildProgress) => void
-  ): Promise<PDFOperationResult> {
-    const subsetPages = indices
-      .map((index) => pages[index])
-      .filter((page): page is PageState => Boolean(page));
-
-    return this.buildOutputFromPages(
-      subsetPages,
-      "No pages selected for extraction",
-      EXTRACT_FILENAME,
-      onProgress
+      options.onProgress
     );
   }
 
