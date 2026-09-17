@@ -537,6 +537,7 @@ export default function Editor() {
 
               <EditorSelectionBar
                 busy={isBusy()}
+                busyLabel={statusMessage()}
                 selectedCount={selectedIndices().size}
                 selectedActiveCount={
                   selectedIndices().size > 0 ? selectedActivePageCount() : activePageCount()

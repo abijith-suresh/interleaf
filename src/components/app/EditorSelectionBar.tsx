@@ -2,6 +2,7 @@ import { Show } from "solid-js";
 
 interface Props {
   busy: boolean;
+  busyLabel: string;
   selectedCount: number;
   selectedActiveCount: number;
   allPagesSelected: boolean;
@@ -35,13 +36,6 @@ export default function EditorSelectionBar(props: Props) {
       props.selectedActiveCount === 1 ? "" : "s"
     }`;
   };
-  const busyLabel = () =>
-    hasSelection()
-      ? `Exporting ${props.selectedActiveCount} selected page${
-          props.selectedActiveCount === 1 ? "" : "s"
-        }…`
-      : "Exporting PDF…";
-
   return (
     <section class="editor-selection-bar" aria-labelledby="editor-selection-title">
       <div class="editor-selection-summary">
@@ -103,10 +97,10 @@ export default function EditorSelectionBar(props: Props) {
         data-testid="editor-download-button"
         disabled={props.busy || props.selectedActiveCount === 0}
         onClick={props.onDownload}
-        aria-label={props.busy ? busyLabel() : exportLabel()}
+        aria-label={props.busy ? props.busyLabel : exportLabel()}
         class="editor-download-action"
       >
-        {props.busy ? busyLabel() : exportLabel()}
+        {props.busy ? props.busyLabel : exportLabel()}
       </button>
     </section>
   );
