@@ -74,7 +74,9 @@ export default function EditorPageTile(props: Props) {
         />
       </div>
       <div class="page-controls">
-        <span class="page-label">Page {props.index + 1}</span>
+        <span class="page-label" aria-hidden="true">
+          {props.index + 1}
+        </span>
         <span class="page-action-buttons">
           <button
             type="button"

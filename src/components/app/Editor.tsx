@@ -43,11 +43,11 @@ interface Toast {
 
 const deletionActionCopy: Record<DeletionAction, { label: string; ariaLabel: string }> = {
   mark: {
-    label: "Mark selected pages for deletion",
+    label: "Mark for deletion",
     ariaLabel: "Mark selected pages for deletion",
   },
   restore: {
-    label: "Restore selected pages",
+    label: "Restore",
     ariaLabel: "Restore selected pages",
   },
 };
@@ -109,9 +109,6 @@ export default function Editor() {
 
     return selectedFiles.size === 1 ? (selectedFiles.values().next().value ?? null) : null;
   };
-
-  const workspaceSummary = () =>
-    `${workspaceFiles().length} file${workspaceFiles().length === 1 ? "" : "s"} · ${formatPageCount(pages.length)}`;
 
   function setReadyStatus() {
     setOperation("idle");
@@ -468,13 +465,6 @@ export default function Editor() {
             <a href={base} class="editor-brand" translate="no">
               interleaf
             </a>
-            <Show when={phase() === "edit"}>
-              <span class="editor-header-divider" aria-hidden="true" />
-              <div class="editor-document-meta">
-                <span class="editor-document-context">Workspace</span>
-                <span class="editor-header-count">{workspaceSummary()}</span>
-              </div>
-            </Show>
           </div>
           <h1 class="sr-only">Interleaf PDF editor</h1>
           <div class="editor-header-right">
@@ -509,10 +499,7 @@ export default function Editor() {
 
             <section class="editor-workspace-main" aria-labelledby="editor-pages-title">
               <div class="editor-canvas-header">
-                <div>
-                  <p class="editor-canvas-kicker">Workspace</p>
-                  <h2 id="editor-pages-title">Pages</h2>
-                </div>
+                <h2 id="editor-pages-title">Pages</h2>
                 <span class="editor-canvas-count">{formatPageCount(pages.length)}</span>
               </div>
 

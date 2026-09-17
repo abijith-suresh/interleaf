@@ -202,8 +202,7 @@ body:has([data-page="editor"]) {
 }
 
 .editor-header-left,
-.editor-header-right,
-.editor-document-meta {
+.editor-header-right {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -236,33 +235,6 @@ body:has([data-page="editor"]) {
   border-radius: 999px;
   background: var(--editor-accent);
   content: "";
-}
-
-.editor-header-divider {
-  width: 1px;
-  height: 1.5rem;
-  flex-shrink: 0;
-  background: var(--editor-line-strong);
-}
-
-.editor-document-meta {
-  gap: 0.65rem;
-  overflow: hidden;
-  font-size: 0.75rem;
-  line-height: 1.2;
-}
-
-.editor-document-context {
-  overflow: hidden;
-  color: var(--editor-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.editor-header-count {
-  color: var(--editor-ink);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 .editor-back {
@@ -492,25 +464,6 @@ body:has([data-page="editor"]) {
   line-height: 1.15;
 }
 
-.editor-sidebar-kicker,
-.editor-selection-eyebrow,
-.editor-canvas-kicker {
-  margin: 0 0 0.45rem;
-  color: var(--editor-muted);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
-
-.editor-sidebar-summary {
-  margin: 0.75rem 0 0;
-  color: var(--editor-muted);
-  font-size: 0.75rem;
-  line-height: 1.5;
-}
-
 .editor-add-pdf {
   display: inline-flex;
   min-height: 2.75rem;
@@ -593,10 +546,6 @@ body:has([data-page="editor"]) {
   border-radius: 0.3rem;
   background: var(--editor-page);
   color: var(--editor-muted);
-  font-size: 0.55rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  line-height: 1;
 }
 
 .editor-file-copy {
@@ -632,18 +581,10 @@ body:has([data-page="editor"]) {
 }
 
 .editor-sidebar-footer {
-  display: grid;
+  display: flex;
   flex-shrink: 0;
-  gap: 0.6rem;
-  padding: 1rem 1.25rem 1.25rem;
+  padding: 0.85rem 1.25rem 1rem;
   border-top: 1px solid var(--editor-line);
-}
-
-.editor-sidebar-footer p {
-  margin: 0;
-  color: var(--editor-muted);
-  font-size: 0.75rem;
-  line-height: 1.5;
 }
 
 .editor-local-status {
@@ -949,7 +890,7 @@ body:has([data-page="editor"]) {
   display: flex;
   min-height: 4.25rem;
   flex-shrink: 0;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem clamp(1rem, 3vw, 2.5rem) 0.85rem;
@@ -964,10 +905,6 @@ body:has([data-page="editor"]) {
   letter-spacing: -0.04em;
   line-height: 1.15;
   text-wrap: balance;
-}
-
-.editor-canvas-kicker {
-  margin-bottom: 0.35rem;
 }
 
 .editor-canvas-count {
@@ -990,11 +927,7 @@ body:has([data-page="editor"]) {
 .editor-selection-summary {
   display: grid;
   min-width: 9rem;
-  gap: 0.25rem;
-}
-
-.editor-selection-eyebrow {
-  margin: 0;
+  align-content: center;
 }
 
 .editor-selection-summary strong {
@@ -1141,7 +1074,7 @@ body:has([data-page="editor"]) {
 
   .editor-sidebar {
     width: auto;
-    max-height: 10.75rem;
+    max-height: 8.25rem;
     border-right: 0;
     border-bottom: 1px solid var(--editor-line);
   }
@@ -1151,25 +1084,21 @@ body:has([data-page="editor"]) {
   }
 
   .editor-sidebar-section {
-    padding: 0.75rem 1rem 0.5rem;
-  }
-
-  .editor-sidebar-summary {
-    margin-top: 0.5rem;
+    padding: 0.6rem 1rem 0.4rem;
   }
 
   .editor-file-list {
     display: flex;
     overflow-x: auto;
     gap: 0.5rem;
-    margin: 0.75rem -0.35rem 0;
+    margin: 0.55rem -0.35rem 0;
     padding: 0.1rem 0.35rem 0.35rem;
     scrollbar-color: var(--editor-line-strong) transparent;
     scrollbar-width: thin;
   }
 
   .editor-file-list li {
-    min-width: 13rem;
+    min-width: 11.5rem;
     flex: 0 0 auto;
   }
 
@@ -1178,7 +1107,7 @@ body:has([data-page="editor"]) {
   }
 
   .editor-header {
-    min-height: calc(3.75rem + env(safe-area-inset-top));
+    min-height: calc(3.25rem + env(safe-area-inset-top));
     padding: env(safe-area-inset-top) 1rem 0;
   }
 
@@ -1190,10 +1119,6 @@ body:has([data-page="editor"]) {
     gap: 0.65rem;
   }
 
-  .editor-document-meta {
-    gap: 0;
-  }
-
   .editor-back-wide {
     display: none;
   }
@@ -1203,22 +1128,27 @@ body:has([data-page="editor"]) {
   }
 
   .editor-toast-region {
-    top: calc(4.25rem + env(safe-area-inset-top));
+    top: calc(3.75rem + env(safe-area-inset-top));
     right: 0.75rem;
     width: min(22rem, calc(100vw - 1.5rem));
   }
 
   .editor-canvas-header {
-    min-height: 3.75rem;
-    padding: 0.75rem 1rem 0.65rem;
+    min-height: 3rem;
+    padding: 0.55rem 0.75rem 0.5rem;
+  }
+
+  .editor-canvas-count {
+    display: none;
   }
 
   .editor-selection-bar {
     display: grid;
+    min-height: 0;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: stretch;
     gap: 0.5rem;
-    padding: 0.65rem 0.75rem calc(0.65rem + env(safe-area-inset-bottom));
+    padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom));
   }
 
   .editor-selection-summary {
@@ -1236,18 +1166,39 @@ body:has([data-page="editor"]) {
     flex-wrap: wrap;
   }
 
+  .editor-selection-bar.has-selection .editor-select-all-action {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .editor-selection-bar.has-selection .editor-selection-actions {
+    grid-row: 2;
+  }
+
   .editor-selection-actions .editor-toolbar-action {
     flex: 0 0 auto;
   }
 
   .editor-selection-bar .editor-download-action {
-    grid-column: 1 / -1;
-    width: 100%;
     margin-left: 0;
   }
 
+  .editor-selection-bar.has-selection .editor-download-action {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    width: 100%;
+  }
+
   .editor-page-scroll {
-    padding: 1rem;
+    padding: 0.75rem;
+  }
+
+  .editor-page-grid {
+    gap: 0.625rem;
+  }
+
+  .editor-page {
+    padding: 0.35rem;
   }
 }
 

@@ -20,7 +20,6 @@ function formatPageCount(pageCount: number) {
 
 export default function EditorSidebar(props: Props) {
   let addPdfInput!: HTMLInputElement;
-  const totalPageCount = () => props.files.reduce((total, file) => total + file.pageCount, 0);
 
   return (
     <aside class="editor-sidebar" aria-labelledby="editor-files-title">
@@ -28,7 +27,6 @@ export default function EditorSidebar(props: Props) {
         <section class="editor-sidebar-section">
           <div class="editor-sidebar-heading">
             <div>
-              <p class="editor-sidebar-kicker">Working set</p>
               <h2 id="editor-files-title">Files</h2>
             </div>
             <button
@@ -44,10 +42,6 @@ export default function EditorSidebar(props: Props) {
               </svg>
             </button>
           </div>
-          <p class="editor-sidebar-summary">
-            {props.files.length} file{props.files.length === 1 ? "" : "s"} · {totalPageCount()}{" "}
-            pages
-          </p>
           <input
             ref={addPdfInput}
             data-testid="editor-add-pdf-input"
@@ -90,7 +84,9 @@ export default function EditorSidebar(props: Props) {
                       disabled={props.busy}
                     >
                       <span class="editor-file-icon" aria-hidden="true">
-                        PDF
+                        <svg viewBox="0 0 20 20" aria-hidden="true">
+                          <path d="M5 2.5h6l4 4v11H5zM11 2.5v4h4" />
+                        </svg>
                       </span>
                       <span class="editor-file-copy">
                         <strong>{workspaceFile.file.name}</strong>
@@ -111,7 +107,6 @@ export default function EditorSidebar(props: Props) {
       </div>
 
       <div class="editor-sidebar-footer">
-        <p>Everything stays on your device.</p>
         <span class="editor-local-status">
           <i aria-hidden="true" /> Local only
         </span>

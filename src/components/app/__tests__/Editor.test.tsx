@@ -137,7 +137,7 @@ describe("Editor", () => {
     selectFile("editor-upload-input", makeFile());
     await findAllByTestId("editor-page-tile");
 
-    expect(getByTestId("editor-select-all-button")).toHaveTextContent("Select all pages");
+    expect(getByTestId("editor-select-all-button")).toHaveTextContent("Select all");
     expect(getByTestId("editor-select-all-button")).toHaveAttribute(
       "aria-label",
       "Select all pages"
@@ -146,7 +146,7 @@ describe("Editor", () => {
     fireEvent.click(getByTestId("editor-select-all-button"));
 
     await waitFor(() => {
-      expect(getByTestId("editor-select-all-button")).toHaveTextContent("Deselect all pages");
+      expect(getByTestId("editor-select-all-button")).toHaveTextContent("Deselect all");
       expect(getByTestId("editor-select-all-button")).toHaveAttribute(
         "aria-label",
         "Deselect all pages"
@@ -238,9 +238,7 @@ describe("Editor", () => {
     fireEvent.click(getByTestId("editor-select-all-button"));
     await waitFor(() => expect(tiles[0].dataset.selected).toBe("true"));
 
-    expect(getByTestId("editor-delete-button")).toHaveTextContent(
-      "Mark selected pages for deletion"
-    );
+    expect(getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
     fireEvent.click(getByTestId("editor-delete-button"));
 
     await waitFor(() =>
@@ -248,7 +246,7 @@ describe("Editor", () => {
     );
     expect(getByTestId("editor-status-bar")).toHaveTextContent("3 pages (0 active)");
     expect(getByTestId("editor-download-button")).toBeDisabled();
-    expect(getByTestId("editor-delete-button")).toHaveTextContent("Restore selected pages");
+    expect(getByTestId("editor-delete-button")).toHaveTextContent("Restore");
     expect(getByTestId("editor-delete-button")).toHaveAttribute(
       "aria-label",
       "Restore selected pages"
@@ -262,9 +260,7 @@ describe("Editor", () => {
         "false",
         "false",
       ]);
-      expect(getByTestId("editor-delete-button")).toHaveTextContent(
-        "Mark selected pages for deletion"
-      );
+      expect(getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
     });
   });
 
@@ -324,24 +320,18 @@ describe("Editor", () => {
     fireEvent.click(tiles[1]);
 
     await waitFor(() => {
-      expect(getByTestId("editor-selection-title")).toHaveTextContent(
-        "2 pages selected · 1 exportable"
-      );
+      expect(getByTestId("editor-selection-title")).toHaveTextContent("2 selected · 1 exportable");
       expect(getByTestId("editor-download-button")).toHaveTextContent("Export 1 selected page");
     });
 
-    expect(getByTestId("editor-delete-button")).toHaveTextContent(
-      "Mark selected pages for deletion"
-    );
+    expect(getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
     fireEvent.click(getByTestId("editor-delete-button"));
 
     await waitFor(() => {
       expect(tiles[0]).toHaveAttribute("data-marked-for-deletion", "true");
       expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "true");
-      expect(getByTestId("editor-selection-title")).toHaveTextContent(
-        "2 pages selected · 0 exportable"
-      );
-      expect(getByTestId("editor-delete-button")).toHaveTextContent("Restore selected pages");
+      expect(getByTestId("editor-selection-title")).toHaveTextContent("2 selected · 0 exportable");
+      expect(getByTestId("editor-delete-button")).toHaveTextContent("Restore");
     });
   });
 

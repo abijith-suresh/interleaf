@@ -19,13 +19,13 @@ export default function EditorSelectionBar(props: Props) {
   const hasSelection = () => props.selectedCount > 0;
   const hasBatchSelection = () => props.selectedCount > 1;
   const selectAllLabel = () => (props.allPagesSelected ? "Deselect all pages" : "Select all pages");
+  const selectAllText = () => (props.allPagesSelected ? "Deselect all" : "Select all");
   const selectionLabel = () => {
-    if (!hasSelection()) return "No pages selected";
     const activeLabel =
       props.selectedActiveCount === props.selectedCount
         ? ""
         : ` · ${props.selectedActiveCount} exportable`;
-    return `${props.selectedCount} page${props.selectedCount === 1 ? "" : "s"} selected${activeLabel}`;
+    return `${props.selectedCount} selected${activeLabel}`;
   };
   const exportLabel = () => {
     if (props.selectedActiveCount === 0) {
@@ -37,13 +37,18 @@ export default function EditorSelectionBar(props: Props) {
     }`;
   };
   return (
-    <section class="editor-selection-bar" aria-labelledby="editor-selection-title">
-      <div class="editor-selection-summary">
-        <p class="editor-selection-eyebrow">Selection</p>
-        <strong id="editor-selection-title" data-testid="editor-selection-title">
-          {selectionLabel()}
-        </strong>
-      </div>
+    <section
+      class="editor-selection-bar"
+      classList={{ "has-selection": hasSelection() }}
+      aria-label="Page selection and export"
+    >
+      <Show when={hasSelection()}>
+        <div class="editor-selection-summary">
+          <strong id="editor-selection-title" data-testid="editor-selection-title">
+            {selectionLabel()}
+          </strong>
+        </div>
+      </Show>
 
       <Show when={hasSelection()}>
         <div class="editor-selection-actions">
@@ -52,9 +57,10 @@ export default function EditorSelectionBar(props: Props) {
             data-testid="editor-clear-selection-button"
             disabled={props.busy}
             onClick={props.onClearSelection}
+            aria-label="Clear page selection"
             class="editor-toolbar-action editor-clear-selection-action"
           >
-            Clear selection
+            Clear
           </button>
           <Show when={hasBatchSelection()}>
             <button
@@ -65,7 +71,7 @@ export default function EditorSelectionBar(props: Props) {
               aria-label="Rotate selected pages 90 degrees"
               class="editor-toolbar-action"
             >
-              Rotate selected
+              Rotate
             </button>
             <button
               type="button"
@@ -89,7 +95,7 @@ export default function EditorSelectionBar(props: Props) {
         aria-label={selectAllLabel()}
         class="editor-toolbar-action editor-select-all-action"
       >
-        {selectAllLabel()}
+        {selectAllText()}
       </button>
 
       <button
