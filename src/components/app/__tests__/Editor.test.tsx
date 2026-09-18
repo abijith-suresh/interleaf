@@ -55,10 +55,11 @@ describe("Editor", () => {
   });
 
   it("renders the upload dropzone before any file is loaded", () => {
-    const { getByTestId, queryByTestId } = render(() => <Editor />);
+    const { getByTestId, queryByTestId, container } = render(() => <Editor />);
 
     expect(getByTestId("editor-upload-dropzone")).toBeInTheDocument();
     expect(queryByTestId("editor-page-grid")).not.toBeInTheDocument();
+    expect(container.querySelector(".editor-uploader-mark")).not.toBeInTheDocument();
   });
 
   it("rejects non-PDF files with an error toast", async () => {
@@ -88,11 +89,13 @@ describe("Editor", () => {
 
     selectFile("editor-upload-input", makeFile("brief.pdf"));
     await findAllByTestId("editor-page-tile");
-    expect(getByTestId("editor-files-button")).toBeDisabled();
-    expect(getByTestId("editor-files-button")).toHaveAttribute(
-      "aria-label",
-      "Add another PDF to enable Files"
-    );
+    expect(getByTestId("editor-files-button")).toBeEnabled();
+    expect(getByTestId("editor-files-button")).toHaveAttribute("aria-label", "Open 1 file");
+    fireEvent.click(getByTestId("editor-files-button"));
+    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    expect(await findAllByTestId("editor-file-item")).toHaveLength(1);
+    fireEvent.click(getByTestId("editor-files-close-button"));
+    await waitFor(() => expect(getByTestId("editor-files-dialog")).not.toHaveAttribute("open"));
 
     selectFile("editor-add-pdf-input", makeFile("appendix.pdf"));
     await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(6));

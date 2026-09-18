@@ -310,14 +310,6 @@ body:has([data-page="editor"]) {
   gap: 0.45rem;
 }
 
-.editor-uploader-mark {
-  width: 0.75rem;
-  height: 0.75rem;
-  margin-bottom: 0.35rem;
-  border-radius: 999px;
-  background: var(--editor-accent);
-}
-
 .editor-uploader-intro h2 {
   max-width: 28rem;
   margin: 0;

@@ -24,7 +24,6 @@ export default function EditorUploader(props: Props) {
     <div class="editor-uploader">
       <div class="editor-uploader-inner">
         <div class="editor-uploader-intro">
-          <span class="editor-uploader-mark" aria-hidden="true" />
           <h2>Open a PDF.</h2>
         </div>
         <button

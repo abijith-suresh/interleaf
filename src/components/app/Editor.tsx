@@ -101,11 +101,8 @@ export default function Editor() {
 
     return Array.from(groups.values());
   });
-  const hasMultipleWorkspaceFiles = () => workspaceFiles().length > 1;
   const filesButtonLabel = () =>
-    hasMultipleWorkspaceFiles()
-      ? `Open ${workspaceFiles().length} files`
-      : "Add another PDF to enable Files";
+    `Open ${workspaceFiles().length} file${workspaceFiles().length === 1 ? "" : "s"}`;
 
   function setReadyStatus() {
     setOperation("idle");
@@ -546,7 +543,7 @@ export default function Editor() {
                       aria-expanded={filesOpen()}
                       title={filesButtonLabel()}
                       onClick={() => setFilesOpen(true)}
-                      disabled={isBusy() || !hasMultipleWorkspaceFiles()}
+                      disabled={isBusy()}
                     >
                       <svg viewBox="0 0 20 20" aria-hidden="true">
                         <path d="M5 2.5h6l4 4v11H5zM11 2.5v4h4" />
