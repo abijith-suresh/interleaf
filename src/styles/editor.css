@@ -484,7 +484,7 @@ body:has([data-page="editor"]) {
 .editor-file-item {
   display: grid;
   width: 100%;
-  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  grid-template-columns: 2rem minmax(0, 1fr);
   align-items: center;
   gap: 0.65rem;
   min-height: 3.25rem;
@@ -541,15 +541,6 @@ body:has([data-page="editor"]) {
 .editor-file-copy span {
   color: var(--editor-muted);
   font-size: 0.6875rem;
-}
-
-.editor-file-count {
-  min-width: 1rem;
-  color: var(--editor-accent);
-  font-size: 0.6875rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  text-align: right;
 }
 
 .editor-selection-bar button:disabled {
@@ -625,14 +616,6 @@ body:has([data-page="editor"]) {
   font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1.15;
-}
-
-.editor-files-dialog-header span {
-  display: block;
-  margin-top: 0.25rem;
-  color: var(--editor-muted);
-  font-size: 0.6875rem;
-  font-variant-numeric: tabular-nums;
 }
 
 .editor-files-close {

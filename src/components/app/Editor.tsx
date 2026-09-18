@@ -86,19 +86,17 @@ export default function Editor() {
   const workspaceFiles = createMemo<EditorWorkspaceFile[]>(() => {
     const groups = new Map<File, EditorWorkspaceFile>();
 
-    pages.forEach((page, index) => {
+    pages.forEach((page) => {
       let workspaceFile = groups.get(page.sourceFile);
       if (!workspaceFile) {
         workspaceFile = {
           file: page.sourceFile,
           pageCount: 0,
-          selectedCount: 0,
         };
         groups.set(page.sourceFile, workspaceFile);
       }
 
       workspaceFile.pageCount += 1;
-      if (selectedIndices().has(index)) workspaceFile.selectedCount += 1;
     });
 
     return Array.from(groups.values());
@@ -526,7 +524,7 @@ export default function Editor() {
                       aria-label="Add another PDF"
                       onClick={requestAddPdf}
                       disabled={isBusy()}
-                      class="editor-add-pdf editor-add-pdf-icon"
+                      class="editor-add-pdf"
                     >
                       <svg viewBox="0 0 20 20" aria-hidden="true">
                         <path d="M10 4v12M4 10h12" />

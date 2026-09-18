@@ -61,7 +61,7 @@ export default function EditorSelectionBar(props: Props) {
             disabled={props.busy}
             onClick={props.onClearSelection}
             aria-label="Clear page selection"
-            class="editor-toolbar-action editor-clear-selection-action"
+            class="editor-toolbar-action"
           >
             Clear
           </button>

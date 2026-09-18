@@ -3,7 +3,6 @@ import { createEffect, For } from "solid-js";
 export interface EditorWorkspaceFile {
   file: File;
   pageCount: number;
-  selectedCount: number;
 }
 
 interface Props {
@@ -58,10 +57,6 @@ export default function EditorFilesDialog(props: Props) {
     props.onClose();
   }
 
-  function selectFile(file: File): void {
-    props.onSelectFile(file);
-  }
-
   return (
     <dialog
       ref={dialog}
@@ -86,7 +81,6 @@ export default function EditorFilesDialog(props: Props) {
         <header class="editor-files-dialog-header">
           <div>
             <h2 id="editor-files-title">Files</h2>
-            <span>{props.files.length} files</span>
           </div>
           <button
             type="button"
@@ -102,7 +96,7 @@ export default function EditorFilesDialog(props: Props) {
         </header>
 
         <div class="editor-files-dialog-body">
-          <ul class="editor-file-list" aria-label="Uploaded PDFs">
+          <ul class="editor-file-list" aria-label="PDF files">
             <For each={props.files}>
               {(workspaceFile) => {
                 return (
@@ -111,16 +105,8 @@ export default function EditorFilesDialog(props: Props) {
                       type="button"
                       data-testid="editor-file-item"
                       class="editor-file-item"
-                      aria-label={
-                        "Select all " +
-                        formatPageCount(workspaceFile.pageCount) +
-                        " from " +
-                        workspaceFile.file.name +
-                        (workspaceFile.selectedCount > 0
-                          ? `, ${workspaceFile.selectedCount} selected`
-                          : "")
-                      }
-                      onClick={() => selectFile(workspaceFile.file)}
+                      aria-label={`Select all ${formatPageCount(workspaceFile.pageCount)} from ${workspaceFile.file.name}`}
+                      onClick={() => props.onSelectFile(workspaceFile.file)}
                       disabled={props.busy}
                     >
                       <span class="editor-file-icon" aria-hidden="true">
@@ -131,11 +117,6 @@ export default function EditorFilesDialog(props: Props) {
                       <span class="editor-file-copy">
                         <strong>{workspaceFile.file.name}</strong>
                         <span>{formatPageCount(workspaceFile.pageCount)}</span>
-                      </span>
-                      <span class="editor-file-count">
-                        {workspaceFile.selectedCount > 0
-                          ? `${workspaceFile.selectedCount} selected`
-                          : ""}
                       </span>
                     </button>
                   </li>
