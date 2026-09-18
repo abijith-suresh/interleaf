@@ -1,6 +1,7 @@
+import { Effect, Fiber } from "effect";
 import { createSignal, onCleanup, onMount } from "solid-js";
 import { THUMBNAIL_INTERSECTION_MARGIN, THUMBNAIL_SCALE } from "../../constants";
-import { pdfService } from "../../services/pdf-service";
+import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
 
 const PAGE_FRAME_RATIO = 3 / 4;
@@ -9,6 +10,7 @@ interface Props {
   page: PageState;
   rotation: number;
   scrollRoot: HTMLDivElement;
+  runtime: PDFRuntime;
 }
 
 export default function EditorPageCanvas(props: Props) {
@@ -21,6 +23,7 @@ export default function EditorPageCanvas(props: Props) {
   let observer: IntersectionObserver | null = null;
   let renderAttempt = 0;
   let renderInFlight = false;
+  let renderFiber: Fiber.Fiber<unknown, unknown> | null = null;
   let disposed = false;
 
   const frameStyle = () => {
@@ -50,7 +53,7 @@ export default function EditorPageCanvas(props: Props) {
   const canUpdateRenderState = (attempt: number) =>
     !disposed && attempt === renderAttempt && container.isConnected;
 
-  const renderThumbnail = async () => {
+  const renderThumbnail = () => {
     if (disposed || renderInFlight) return;
 
     renderInFlight = true;
@@ -59,31 +62,43 @@ export default function EditorPageCanvas(props: Props) {
     canvas.height = 0;
     setRenderState("loading");
 
-    try {
-      // Render the source page once. UI rotation happens on the existing canvas;
-      // the export service applies the selected rotation to the output PDF.
-      await pdfService.renderPage(
-        props.page.sourceFile,
-        props.page.sourcePageNumber,
-        canvas,
-        THUMBNAIL_SCALE,
-        0
-      );
+    const fiber = props.runtime.runFork(
+      PDFProcessing.use((service) =>
+        service.renderPage(
+          props.page.sourceFile,
+          props.page.sourcePageNumber,
+          canvas,
+          THUMBNAIL_SCALE,
+          0
+        )
+      )
+    );
+    renderFiber = fiber;
 
-      if (!canUpdateRenderState(attempt)) return;
-      if (canvas.width > 0 && canvas.height > 0) {
-        setBaseAspectRatio(canvas.width / canvas.height);
-      }
-      setRenderState("ready");
-    } catch (_err) {
-      if (canUpdateRenderState(attempt)) {
-        setRenderState("error");
-      }
-    } finally {
-      if (attempt === renderAttempt) {
-        renderInFlight = false;
-      }
-    }
+    void props.runtime
+      .runPromise(Fiber.join(fiber))
+      .then(
+        () => {
+          if (!canUpdateRenderState(attempt)) return;
+          if (canvas.width > 0 && canvas.height > 0) {
+            setBaseAspectRatio(canvas.width / canvas.height);
+          }
+          setRenderState("ready");
+        },
+        () => {
+          if (canUpdateRenderState(attempt)) {
+            setRenderState("error");
+          }
+        }
+      )
+      .finally(() => {
+        if (attempt === renderAttempt) {
+          renderInFlight = false;
+        }
+        if (renderFiber === fiber) {
+          renderFiber = null;
+        }
+      });
   };
 
   const observeForRender = () => {
@@ -102,7 +117,7 @@ export default function EditorPageCanvas(props: Props) {
         }
         nextObserver.disconnect();
         observer = null;
-        void renderThumbnail();
+        renderThumbnail();
       },
       {
         root: props.scrollRoot,
@@ -130,6 +145,11 @@ export default function EditorPageCanvas(props: Props) {
     onCleanup(() => {
       disposed = true;
       renderAttempt += 1;
+      const fiber = renderFiber;
+      renderFiber = null;
+      if (fiber) {
+        void Effect.runPromise(Fiber.interrupt(fiber)).catch(() => undefined);
+      }
       canvas.width = 0;
       canvas.height = 0;
       observer?.disconnect();

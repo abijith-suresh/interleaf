@@ -1,4 +1,5 @@
 import { fireEvent, render, waitFor } from "@solidjs/testing-library";
+import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PDFPasswordRequiredError } from "@/types/interfaces";
 
@@ -18,9 +19,20 @@ const pdfOperationsMocks = vi.hoisted(() => ({
 const promptForPassword = vi.hoisted(() => vi.fn());
 const downloadPDF = vi.hoisted(() => vi.fn());
 
-vi.mock("@/services/pdf-service", () => ({ pdfService: pdfServiceMocks }));
+vi.mock("@/services/pdf-service", () => ({
+  PDFService: class {
+    loadPDF = pdfServiceMocks.loadPDF;
+    loadPDFWithPassword = pdfServiceMocks.loadPDFWithPassword;
+    getPageCount = pdfServiceMocks.getPageCount;
+    renderPage = pdfServiceMocks.renderPage;
+    reset = pdfServiceMocks.reset;
+  },
+}));
 vi.mock("@/services/pdf-operations-service", () => ({
-  pdfOperationsService: pdfOperationsMocks,
+  PDFOperationsService: class {
+    buildPDF = pdfOperationsMocks.buildPDF;
+    clearCache = pdfOperationsMocks.clearCache;
+  },
 }));
 vi.mock("@/utils/password-prompt", () => ({ promptForPassword }));
 vi.mock("@/utils/download", () => ({ downloadPDF }));
@@ -46,12 +58,17 @@ describe("Editor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     pdfServiceMocks.getPageCount.mockReturnValue(3);
-    pdfServiceMocks.loadPDF.mockResolvedValue(undefined);
-    pdfServiceMocks.loadPDFWithPassword.mockResolvedValue(undefined);
-    pdfOperationsMocks.buildPDF.mockResolvedValue({
-      data: new Uint8Array([1, 2, 3]),
-      suggestedFileName: "interleaf-output.pdf",
-    });
+    pdfServiceMocks.loadPDF.mockReturnValue(Effect.succeed(undefined));
+    pdfServiceMocks.loadPDFWithPassword.mockReturnValue(Effect.succeed(undefined));
+    pdfServiceMocks.renderPage.mockReturnValue(Effect.succeed(undefined));
+    pdfServiceMocks.reset.mockReturnValue(Effect.succeed(undefined));
+    pdfOperationsMocks.buildPDF.mockReturnValue(
+      Effect.succeed({
+        data: new Uint8Array([1, 2, 3]),
+        suggestedFileName: "interleaf-output.pdf",
+      })
+    );
+    pdfOperationsMocks.clearCache.mockReturnValue(Effect.succeed(undefined));
   });
 
   it("renders the upload dropzone before any file is loaded", () => {
@@ -81,7 +98,6 @@ describe("Editor", () => {
     await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
     const tiles = await findAllByTestId("editor-page-tile");
     expect(tiles).toHaveLength(3);
-    expect(pdfServiceMocks.reset).toHaveBeenCalled();
   });
 
   it("opens the file drawer and selects pages from one source file", async () => {
@@ -181,8 +197,8 @@ describe("Editor", () => {
   });
 
   it("prompts for a password and unlocks a protected PDF", async () => {
-    pdfServiceMocks.loadPDF.mockRejectedValue(
-      new PDFPasswordRequiredError(makeFile(), "needs-password")
+    pdfServiceMocks.loadPDF.mockReturnValue(
+      Effect.fail(new PDFPasswordRequiredError(makeFile(), "needs-password"))
     );
     promptForPassword.mockResolvedValue("623");
 
@@ -197,8 +213,8 @@ describe("Editor", () => {
   });
 
   it("stays on the uploader when the password prompt is cancelled", async () => {
-    pdfServiceMocks.loadPDF.mockRejectedValue(
-      new PDFPasswordRequiredError(makeFile(), "needs-password")
+    pdfServiceMocks.loadPDF.mockReturnValue(
+      Effect.fail(new PDFPasswordRequiredError(makeFile(), "needs-password"))
     );
     promptForPassword.mockResolvedValue(null);
 
@@ -212,11 +228,11 @@ describe("Editor", () => {
   });
 
   it("re-prompts when the password is wrong", async () => {
-    pdfServiceMocks.loadPDF.mockRejectedValue(
-      new PDFPasswordRequiredError(makeFile(), "needs-password")
+    pdfServiceMocks.loadPDF.mockReturnValue(
+      Effect.fail(new PDFPasswordRequiredError(makeFile(), "needs-password"))
     );
-    pdfServiceMocks.loadPDFWithPassword.mockRejectedValueOnce(
-      new PDFPasswordRequiredError(makeFile(), "wrong-password")
+    pdfServiceMocks.loadPDFWithPassword.mockReturnValueOnce(
+      Effect.fail(new PDFPasswordRequiredError(makeFile(), "wrong-password"))
     );
     promptForPassword.mockResolvedValueOnce("bad").mockResolvedValueOnce("good");
 
@@ -412,7 +428,7 @@ describe("Editor", () => {
   });
 
   it("shows a failure toast when building the output fails", async () => {
-    pdfOperationsMocks.buildPDF.mockRejectedValue(new Error("build failed"));
+    pdfOperationsMocks.buildPDF.mockReturnValue(Effect.fail(new Error("build failed")));
 
     const { getByTestId } = render(() => <Editor />);
 

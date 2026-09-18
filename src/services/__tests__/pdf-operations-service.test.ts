@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PageState } from "../../types/interfaces";
 
@@ -49,16 +50,14 @@ const mockPDFDocument = {
   create: vi.fn().mockResolvedValue(mockOutputDoc),
 };
 
+const runEffect = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect);
+
 vi.mock("pdf-lib", () => ({
   PDFDocument: {
     load: mockPDFDocument.load,
     create: mockPDFDocument.create,
   },
   degrees: vi.fn((deg) => deg),
-}));
-
-vi.mock("../pdf-service", () => ({
-  pdfService: pdfServiceMock,
 }));
 
 describe("PDFOperationsService", () => {
@@ -71,6 +70,7 @@ describe("PDFOperationsService", () => {
     mockCopiedPage.getRotation.mockReturnValue({ angle: 0 });
     mockPDFDocument.load.mockResolvedValue(mockSourceDoc);
     mockPDFDocument.create.mockResolvedValue(mockOutputDoc);
+    pdfServiceMock.renderPage.mockReturnValue(Effect.void);
     const module = await import("../pdf-operations-service");
     PDFOperationsService = module.PDFOperationsService;
   });
@@ -81,71 +81,74 @@ describe("PDFOperationsService", () => {
 
   describe("buildPDF", () => {
     it("should create PDF from valid pages", async () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
       const pages = [createMockPage()];
 
-      const result = await service.buildPDF(pages);
+      const result = await runEffect(service.buildPDF(pages));
 
       expect(result.data).toBeInstanceOf(Uint8Array);
       expect(result.suggestedFileName).toBe("interleaf-output.pdf");
     });
 
     it("should handle multiple pages", async () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
       const pages = [
         createMockPage({ id: "page-1", sourcePageNumber: 1 }),
         createMockPage({ id: "page-2", sourcePageNumber: 2 }),
       ];
 
-      const result = await service.buildPDF(pages);
+      const result = await runEffect(service.buildPDF(pages));
 
       expect(result.data).toBeInstanceOf(Uint8Array);
     });
 
     it("should throw error when no pages provided", async () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
 
-      await expect(service.buildPDF([])).rejects.toThrow("No pages to include in the PDF");
+      await expect(runEffect(service.buildPDF([]))).rejects.toThrow(
+        "No pages to include in the PDF"
+      );
     });
 
     it("composes editor rotation with the source page rotation", async () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
       const rotatedPage = createMockPage({ rotation: 90 });
       mockCopiedPage.getRotation.mockReturnValue({ angle: 90 });
 
-      const result = await service.buildPDF([rotatedPage]);
+      const result = await runEffect(service.buildPDF([rotatedPage]));
 
       expect(result.data).toBeInstanceOf(Uint8Array);
       expect(mockCopiedPage.setRotation).toHaveBeenCalledWith(180);
     });
 
     it("normalizes a composed rotation that wraps past 360 degrees", async () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
       const rotatedPage = createMockPage({ rotation: 90 });
       mockCopiedPage.getRotation.mockReturnValue({ angle: 270 });
 
-      await service.buildPDF([rotatedPage]);
+      await runEffect(service.buildPDF([rotatedPage]));
 
       expect(mockCopiedPage.setRotation).toHaveBeenCalledWith(0);
     });
 
     it("exports an unlocked encrypted page through a local render", async () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
       const file = new File(["encrypted"], "protected.pdf", { type: "application/pdf" });
       const page = createMockPage({ sourceFile: file, rotation: 90 });
       mockSourceDoc.isEncrypted = true;
       mockSourcePage.getRotation.mockReturnValue({ angle: 90 });
       pdfServiceMock.renderPage.mockImplementation(
-        async (_file, _pageNumber, canvas: HTMLCanvasElement) => {
-          canvas.width = 1224;
-          canvas.height = 1584;
-        }
+        (_file, _pageNumber, canvas: HTMLCanvasElement) =>
+          Effect.sync(() => {
+            canvas.width = 1224;
+            canvas.height = 1584;
+          })
       );
       vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
         "data:image/png;base64,rendered-page"
       );
 
-      const result = await service.buildPDF([page]);
+      const result = await runEffect(service.buildPDF([page]));
 
       expect(result.data).toBeInstanceOf(Uint8Array);
       expect(mockOutputDoc.copyPages).not.toHaveBeenCalled();
@@ -167,33 +170,35 @@ describe("PDFOperationsService", () => {
     });
 
     it("should throw error when all pages are deleted", async () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
       const deletedPage = createMockPage({ markedForDeletion: true });
 
-      await expect(service.buildPDF([deletedPage])).rejects.toThrow(
+      await expect(runEffect(service.buildPDF([deletedPage]))).rejects.toThrow(
         "No pages to include in the PDF"
       );
     });
 
     it("should filter out deleted pages", async () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
       const pages = [
         createMockPage({ id: "page-1", markedForDeletion: false }),
         createMockPage({ id: "page-2", markedForDeletion: true }),
       ];
 
-      const result = await service.buildPDF(pages);
+      const result = await runEffect(service.buildPDF(pages));
 
       expect(result.data).toBeInstanceOf(Uint8Array);
     });
 
     it("should report progress while building", async () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
       const onProgress = vi.fn();
 
-      await service.buildPDF(
-        [createMockPage(), createMockPage({ id: "page-2", sourcePageNumber: 2 })],
-        { onProgress }
+      await runEffect(
+        service.buildPDF(
+          [createMockPage(), createMockPage({ id: "page-2", sourcePageNumber: 2 })],
+          { onProgress }
+        )
       );
 
       expect(onProgress).toHaveBeenNthCalledWith(1, { completed: 1, total: 2 });
@@ -203,61 +208,61 @@ describe("PDFOperationsService", () => {
 
   describe("selected pages", () => {
     it("should export specific active pages", async () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
       const pages = [createMockPage()];
 
-      const result = await service.buildPDF(pages, { selectedIndices: [0] });
+      const result = await runEffect(service.buildPDF(pages, { selectedIndices: [0] }));
 
       expect(result.data).toBeInstanceOf(Uint8Array);
       expect(result.suggestedFileName).toBe("interleaf-output.pdf");
     });
 
     it("should skip marked pages from a selected export", async () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
       const pages = [
         createMockPage({ id: "page-1" }),
         createMockPage({ id: "page-2", sourcePageNumber: 2, markedForDeletion: true }),
       ];
 
-      await service.buildPDF(pages, { selectedIndices: [0, 1] });
+      await runEffect(service.buildPDF(pages, { selectedIndices: [0, 1] }));
 
       expect(mockOutputDoc.copyPages).toHaveBeenCalledTimes(1);
       expect(mockOutputDoc.copyPages).toHaveBeenCalledWith(mockSourceDoc, [0]);
     });
 
     it("should report progress while exporting selected pages", async () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
       const onProgress = vi.fn();
 
-      await service.buildPDF([createMockPage()], { selectedIndices: [0], onProgress });
+      await runEffect(service.buildPDF([createMockPage()], { selectedIndices: [0], onProgress }));
 
       expect(onProgress).toHaveBeenCalledWith({ completed: 1, total: 1 });
     });
 
     it("should export selected pages in the requested order", async () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
       const pages = [
         createMockPage({ id: "page-1", sourcePageNumber: 1 }),
         createMockPage({ id: "page-2", sourcePageNumber: 2 }),
       ];
 
-      const result = await service.buildPDF(pages, { selectedIndices: [1, 0] });
+      const result = await runEffect(service.buildPDF(pages, { selectedIndices: [1, 0] }));
 
       expect(result.data).toBeInstanceOf(Uint8Array);
     });
 
     it("should throw error when selected indices contain no pages", async () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
       const pages = [createMockPage()];
 
-      await expect(service.buildPDF(pages, { selectedIndices: [5] })).rejects.toThrow();
+      await expect(runEffect(service.buildPDF(pages, { selectedIndices: [5] }))).rejects.toThrow();
     });
 
     it("should throw error when selected pages are all marked for deletion", async () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
       const pages = [createMockPage({ markedForDeletion: true })];
 
-      await expect(service.buildPDF(pages, { selectedIndices: [0] })).rejects.toThrow(
+      await expect(runEffect(service.buildPDF(pages, { selectedIndices: [0] }))).rejects.toThrow(
         "No pages to include in the PDF"
       );
     });
@@ -265,9 +270,9 @@ describe("PDFOperationsService", () => {
 
   describe("clearCache", () => {
     it("should clear the cache", () => {
-      const service = new PDFOperationsService();
+      const service = new PDFOperationsService(pdfServiceMock);
 
-      expect(() => service.clearCache()).not.toThrow();
+      expect(() => Effect.runSync(service.clearCache())).not.toThrow();
     });
   });
 });
