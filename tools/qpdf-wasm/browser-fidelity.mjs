@@ -7,6 +7,11 @@ const page = await browser.newPage();
 try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error" && !message.text().startsWith("WARNING: interleaf input.pdf")) {
+      errors.push(message.text());
+    }
+  });
 
   await page.goto("http://127.0.0.1:4173/fidelity.html");
   await page.waitForFunction(
@@ -53,8 +58,34 @@ try {
       }
     }
 
+    if (output.name.includes("encrypted PDF with its password")) {
+      await expectPasswordFailure(output.bytes, undefined, `${output.name}: missing password`);
+      await expectPasswordFailure(output.bytes, "wrong", `${output.name}: wrong password`);
+    }
+
     await loadingTask.destroy();
   }
 } finally {
   await browser.close();
+}
+
+async function expectPasswordFailure(bytes, password, label) {
+  const loadingTask = getDocument({
+    data: Uint8Array.from(bytes),
+    disableWorker: true,
+    password,
+  });
+
+  try {
+    await loadingTask.promise;
+    throw new Error(`${label}: encrypted output opened unexpectedly`);
+  } catch (error) {
+    if (error?.name !== "PasswordException") throw error;
+  } finally {
+    try {
+      await loadingTask.destroy();
+    } catch {
+      // PDF.js may already have disposed the rejected loading task.
+    }
+  }
 }

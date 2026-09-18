@@ -100,16 +100,25 @@
   }
 
   function makeSignedMarkerPdf() {
-    return makePdf([
-      "<< /AcroForm 6 0 R /Pages 2 0 R /Type /Catalog >>",
+    const signatureContents = "0".repeat(64);
+    const byteRangePlaceholder = "0000000000 0000000000 0000000000 0000000000";
+    const unsigned = makePdf([
+      "<< /AcroForm 5 0 R /Pages 2 0 R /Type /Catalog >>",
       "<< /Count 1 /Kids [3 0 R] /Type /Pages >>",
       "<< /Annots [7 0 R] /Contents 4 0 R /MediaBox [0 0 100 100] /Parent 2 0 R /Type /Page >>",
       makeStream("", new Uint8Array()),
-      "<< /Fields [7 0 R] >>",
-      "<< /FT /Sig /T (AppliedSignature) /V 8 0 R >>",
+      "<< /Fields [6 0 R] >>",
+      `<< /FT /Sig /T (AppliedSignature) /V << /ByteRange [${byteRangePlaceholder}] /Contents <${signatureContents}> /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Type /Sig >> >>`,
       "<< /Parent 6 0 R /Rect [10 10 200 30] /Subtype /Widget /Type /Annot >>",
-      "<< /ByteRange [0 10 20 30] /Contents <00000000000000000000000000000000> /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Type /Sig >>",
     ]);
+
+    const text = decoder.decode(unsigned);
+    const contentsStart = text.indexOf(`<${signatureContents}`) + 1;
+    const contentsEnd = contentsStart + signatureContents.length + 1;
+    const byteRange = [0, contentsStart, contentsEnd, unsigned.byteLength - contentsEnd]
+      .map((value) => String(value).padStart(10, "0"))
+      .join(" ");
+    return encoder.encode(text.replace(byteRangePlaceholder, byteRange));
   }
 
   function makeRepairablePdf() {
@@ -206,7 +215,7 @@
         expectError: true,
       },
       {
-        name: "rejects a signed PDF marker",
+        name: "rejects an applied signature dictionary",
         input: makeSignedMarkerPdf(),
         expectError: true,
       },
