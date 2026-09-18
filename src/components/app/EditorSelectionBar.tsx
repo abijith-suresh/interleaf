@@ -18,8 +18,6 @@ interface Props {
 export default function EditorSelectionBar(props: Props) {
   const hasSelection = () => props.selectedCount > 0;
   const hasBatchSelection = () => props.selectedCount > 1;
-  const selectAllLabel = () => "Select all pages";
-  const selectAllText = () => "Select all";
   const selectionLabel = () => {
     const activeLabel =
       props.selectedActiveCount === props.selectedCount
@@ -96,10 +94,10 @@ export default function EditorSelectionBar(props: Props) {
           data-testid="editor-select-all-button"
           disabled={props.busy}
           onClick={props.onSelectAll}
-          aria-label={selectAllLabel()}
+          aria-label="Select all pages"
           class="editor-toolbar-action editor-select-all-action"
         >
-          {selectAllText()}
+          Select all
         </button>
       </Show>
 
