@@ -1,4 +1,5 @@
 import { For } from "solid-js";
+import type { PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
 import EditorPageTile from "./EditorPageTile";
 
@@ -10,6 +11,7 @@ interface DragOverTarget {
 interface Props {
   busy: boolean;
   pages: PageState[];
+  runtime: PDFRuntime;
   selectedIndices: Set<number>;
   dragSourceIndex: number | null;
   dragOverTarget: DragOverTarget | null;
@@ -54,6 +56,7 @@ export default function EditorPageGrid(props: Props) {
           {(page, index) => (
             <EditorPageTile
               page={page}
+              runtime={props.runtime}
               index={index()}
               selected={props.selectedIndices.has(index())}
               isDragSource={props.dragSourceIndex === index()}

@@ -1,8 +1,10 @@
+import type { PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
 import EditorPageCanvas from "./EditorPageCanvas";
 
 interface Props {
   page: PageState;
+  runtime: PDFRuntime;
   index: number;
   busy: boolean;
   selected: boolean;
@@ -50,6 +52,7 @@ export default function EditorPageTile(props: Props) {
       <div class="editor-page-preview">
         <EditorPageCanvas
           page={props.page}
+          runtime={props.runtime}
           rotation={props.page.rotation}
           scrollRoot={props.scrollRoot}
         />

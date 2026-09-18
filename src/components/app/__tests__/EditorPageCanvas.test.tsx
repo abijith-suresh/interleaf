@@ -1,13 +1,30 @@
 import { fireEvent, render, waitFor } from "@solidjs/testing-library";
+import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { THUMBNAIL_SCALE } from "@/constants";
+import { makePDFRuntime, type PDFRuntime } from "@/services/pdf-runtime";
 import type { PageState } from "@/types/interfaces";
 
 const pdfServiceMocks = vi.hoisted(() => ({
   renderPage: vi.fn(),
+  reset: vi.fn(),
 }));
 
-vi.mock("@/services/pdf-service", () => ({ pdfService: pdfServiceMocks }));
+const pdfOperationsMocks = vi.hoisted(() => ({
+  clearCache: vi.fn(),
+}));
+
+vi.mock("@/services/pdf-service", () => ({
+  PDFService: class {
+    renderPage = pdfServiceMocks.renderPage;
+    reset = pdfServiceMocks.reset;
+  },
+}));
+vi.mock("@/services/pdf-operations-service", () => ({
+  PDFOperationsService: class {
+    clearCache = pdfOperationsMocks.clearCache;
+  },
+}));
 
 import EditorPageCanvas from "../EditorPageCanvas";
 
@@ -45,27 +62,36 @@ const makePage = (): PageState => ({
 });
 
 describe("EditorPageCanvas", () => {
+  let runtime: PDFRuntime;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    pdfServiceMocks.renderPage.mockReturnValue(Effect.succeed(undefined));
+    pdfServiceMocks.reset.mockReturnValue(Effect.succeed(undefined));
+    pdfOperationsMocks.clearCache.mockReturnValue(Effect.succeed(undefined));
+    runtime = makePDFRuntime();
     TestIntersectionObserver.instances = [];
     vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await runtime.dispose();
     vi.unstubAllGlobals();
   });
 
   it("keeps rendering lazy and offers an accessible retry after a failure", async () => {
     pdfServiceMocks.renderPage
-      .mockRejectedValueOnce(new Error("thumbnail failed"))
-      .mockImplementationOnce(async (_file, _pageNumber, canvas: HTMLCanvasElement) => {
-        canvas.width = 612;
-        canvas.height = 792;
-      });
+      .mockReturnValueOnce(Effect.fail(new Error("thumbnail failed")))
+      .mockImplementationOnce((_file, _pageNumber, canvas: HTMLCanvasElement) =>
+        Effect.sync(() => {
+          canvas.width = 612;
+          canvas.height = 792;
+        })
+      );
 
     const scrollRoot = document.createElement("div");
     const { getByTestId, queryByTestId } = render(() => (
-      <EditorPageCanvas page={makePage()} rotation={90} scrollRoot={scrollRoot} />
+      <EditorPageCanvas page={makePage()} rotation={90} scrollRoot={scrollRoot} runtime={runtime} />
     ));
 
     expect(pdfServiceMocks.renderPage).not.toHaveBeenCalled();

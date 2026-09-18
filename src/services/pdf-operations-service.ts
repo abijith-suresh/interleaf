@@ -1,13 +1,20 @@
+import { Deferred, Effect, Fiber } from "effect";
 import { degrees, PDFDocument } from "pdf-lib";
 import { OUTPUT_FILENAME } from "../constants";
-import type { PageState, PDFBuildProgress, PDFOperationResult } from "../types/interfaces";
-import { pdfService } from "./pdf-service";
+import type {
+  PageState,
+  PDFBuildProgress,
+  PDFError,
+  PDFOperationResult,
+} from "../types/interfaces";
+import { PDFNoPagesError, PDFProcessingError } from "../types/interfaces";
+import type { PDFService } from "./pdf-service";
 
 const ENCRYPTED_PAGE_RENDER_SCALE = 2;
 
-interface PDFBuildOptions {
-  selectedIndices?: number[];
-  onProgress?: (progress: PDFBuildProgress) => void;
+export interface PDFBuildOptions {
+  readonly selectedIndices?: readonly number[];
+  readonly onProgress?: (progress: PDFBuildProgress) => void;
 }
 
 function normalizeRotation(rotation: number): number {
@@ -15,29 +22,50 @@ function normalizeRotation(rotation: number): number {
   return normalized < 0 ? normalized + 360 : normalized;
 }
 
-export class PDFOperationsService {
-  // Class-level cache: avoids re-reading the same File on multiple build
-  // calls within one session. Cleared on session reset via clearCache().
-  private sourceDocCache = new Map<File, PDFDocument>();
+function errorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof Error && cause.message) return cause.message;
+  if (typeof cause === "string" && cause.length > 0) return cause;
+  return fallback;
+}
 
-  /**
-   * Clears cached source documents for the current editor session.
-   *
-   * @returns Nothing.
-   */
-  clearCache(): void {
-    this.sourceDocCache.clear();
+function processingError(operation: string, file: File, cause: unknown): PDFProcessingError {
+  return new PDFProcessingError({
+    operation,
+    file,
+    cause,
+    message: errorMessage(cause, `PDF ${operation} failed.`),
+  });
+}
+
+interface InFlightSourceDocument {
+  readonly deferred: Deferred.Deferred<PDFDocument, PDFProcessingError>;
+  fiber: Fiber.Fiber<PDFDocument, PDFProcessingError> | null;
+}
+
+export class PDFOperationsService {
+  private sourceDocCache = new Map<File, PDFDocument>();
+  private sourceDocEffects = new Map<File, InFlightSourceDocument>();
+  private cacheVersion = 0;
+
+  constructor(private readonly pdfService: Pick<PDFService, "renderPage">) {}
+
+  clearCache(): Effect.Effect<void> {
+    return Effect.suspend(() => {
+      const fibers = Array.from(this.sourceDocEffects.values())
+        .map((load) => load.fiber)
+        .filter((fiber): fiber is Fiber.Fiber<PDFDocument, PDFProcessingError> => fiber !== null);
+      this.sourceDocCache.clear();
+      this.sourceDocEffects.clear();
+      this.cacheVersion += 1;
+
+      return Effect.forEach(fibers, Fiber.interrupt, { discard: true });
+    });
   }
 
-  /**
-   * Builds a new PDF from every active page, or from the selected active pages.
-   *
-   * @param pages - The current editor page state to export.
-   * @param options - Optional selected page indices and progress callback.
-   * @returns The generated PDF bytes and a suggested download filename.
-   * @throws {Error} When there are no active pages to include in the output.
-   */
-  async buildPDF(pages: PageState[], options: PDFBuildOptions = {}): Promise<PDFOperationResult> {
+  buildPDF(
+    pages: readonly PageState[],
+    options: PDFBuildOptions = {}
+  ): Effect.Effect<PDFOperationResult, PDFError> {
     const pagesToBuild = options.selectedIndices
       ? options.selectedIndices
           .map((index) => pages[index])
@@ -52,91 +80,167 @@ export class PDFOperationsService {
     );
   }
 
-  private async buildOutputFromPages(
-    pagesToBuild: PageState[],
+  private buildOutputFromPages(
+    pagesToBuild: readonly PageState[],
     emptyStateMessage: string,
     suggestedFileName: string,
     onProgress?: (progress: PDFBuildProgress) => void
-  ): Promise<PDFOperationResult> {
+  ): Effect.Effect<PDFOperationResult, PDFError> {
     if (pagesToBuild.length === 0) {
-      throw new Error(emptyStateMessage);
+      return Effect.fail(new PDFNoPagesError({ message: emptyStateMessage }));
     }
 
-    const outputDoc = await PDFDocument.create();
+    return Effect.gen({ self: this }, function* () {
+      const outputDoc = yield* Effect.tryPromise({
+        try: () => PDFDocument.create(),
+        catch: (cause) => processingError("create-output", pagesToBuild[0].sourceFile, cause),
+      });
 
-    for (const [index, page] of pagesToBuild.entries()) {
-      const sourceDoc = await this.getOrLoadSourceDoc(page.sourceFile);
+      for (const [index, page] of pagesToBuild.entries()) {
+        const sourceDoc = yield* this.getOrLoadSourceDoc(page.sourceFile);
+        const isEncrypted = yield* Effect.try({
+          try: () => sourceDoc.isEncrypted,
+          catch: (cause) => processingError("inspect-source", page.sourceFile, cause),
+        });
 
-      if (sourceDoc.isEncrypted) {
-        await this.addEncryptedPage(outputDoc, sourceDoc, page);
-      } else {
-        const [copiedPage] = await outputDoc.copyPages(sourceDoc, [page.sourcePageNumber - 1]);
-        const sourceRotation = normalizeRotation(copiedPage.getRotation().angle);
-        const combinedRotation = normalizeRotation(sourceRotation + page.rotation);
+        if (isEncrypted) {
+          yield* this.addEncryptedPage(outputDoc, sourceDoc, page);
+        } else {
+          const [copiedPage] = yield* Effect.tryPromise({
+            try: () => outputDoc.copyPages(sourceDoc, [page.sourcePageNumber - 1]),
+            catch: (cause) => processingError("copy-page", page.sourceFile, cause),
+          });
+          yield* Effect.try({
+            try: () => {
+              if (!copiedPage) {
+                throw new Error("PDF source page was not returned");
+              }
 
-        if (combinedRotation !== sourceRotation) {
-          copiedPage.setRotation(degrees(combinedRotation));
+              const sourceRotation = normalizeRotation(copiedPage.getRotation().angle);
+              const combinedRotation = normalizeRotation(sourceRotation + page.rotation);
+
+              if (combinedRotation !== sourceRotation) {
+                copiedPage.setRotation(degrees(combinedRotation));
+              }
+
+              outputDoc.addPage(copiedPage);
+            },
+            catch: (cause) => processingError("add-page", page.sourceFile, cause),
+          });
         }
 
-        outputDoc.addPage(copiedPage);
+        yield* Effect.try({
+          try: () => {
+            onProgress?.({ completed: index + 1, total: pagesToBuild.length });
+          },
+          catch: (cause) => processingError("report-progress", page.sourceFile, cause),
+        });
       }
 
-      onProgress?.({ completed: index + 1, total: pagesToBuild.length });
-    }
+      const data = yield* Effect.tryPromise({
+        try: () => outputDoc.save(),
+        catch: (cause) => processingError("save-output", pagesToBuild[0].sourceFile, cause),
+      });
 
-    const data = await outputDoc.save();
-
-    return {
-      data: new Uint8Array(data),
-      suggestedFileName,
-    };
+      return yield* Effect.try({
+        try: () => ({
+          data: new Uint8Array(data),
+          suggestedFileName,
+        }),
+        catch: (cause) => processingError("serialize-output", pagesToBuild[0].sourceFile, cause),
+      });
+    });
   }
 
-  private async getOrLoadSourceDoc(file: File): Promise<PDFDocument> {
-    const cachedDocument = this.sourceDocCache.get(file);
-    if (cachedDocument) {
-      return cachedDocument;
-    }
+  private getOrLoadSourceDoc(file: File): Effect.Effect<PDFDocument, PDFProcessingError> {
+    return Effect.suspend(() => {
+      const cachedDocument = this.sourceDocCache.get(file);
+      if (cachedDocument) return Effect.succeed(cachedDocument);
 
-    const buffer = await file.arrayBuffer();
-    // ignoreEncryption: true is a no-op for unencrypted PDFs and allows loading
-    // owner-password PDFs. For user-password PDFs, content streams remain encrypted
-    // (pdf-lib has no decryption support), so output quality is not guaranteed.
-    const sourceDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
-    this.sourceDocCache.set(file, sourceDoc);
-    return sourceDoc;
+      const inFlight = this.sourceDocEffects.get(file);
+      if (inFlight) return Deferred.await(inFlight.deferred);
+
+      const deferred = Deferred.makeUnsafe<PDFDocument, PDFProcessingError>();
+      const load: InFlightSourceDocument = { deferred, fiber: null };
+      this.sourceDocEffects.set(file, load);
+      const version = this.cacheVersion;
+      const loadEffect = Effect.tryPromise({
+        try: async () => {
+          const buffer = await file.arrayBuffer();
+          // ignoreEncryption allows pdf-lib to read the page tree. Encrypted page
+          // content is rasterized through the already-unlocked PDF.js document.
+          return PDFDocument.load(buffer, { ignoreEncryption: true });
+        },
+        catch: (cause) => processingError("load-source", file, cause),
+      }).pipe(
+        Effect.tap((sourceDoc) =>
+          Effect.sync(() => {
+            if (version === this.cacheVersion) {
+              this.sourceDocCache.set(file, sourceDoc);
+            }
+          })
+        ),
+        Effect.onExit((exit) =>
+          Deferred.done(load.deferred, exit).pipe(
+            Effect.andThen(
+              Effect.sync(() => {
+                if (this.sourceDocEffects.get(file) !== load) return;
+                this.sourceDocEffects.delete(file);
+              })
+            )
+          )
+        )
+      );
+
+      return Effect.gen(function* () {
+        load.fiber = yield* Effect.forkDetach(loadEffect);
+        return yield* Deferred.await(load.deferred);
+      });
+    });
   }
 
-  private async addEncryptedPage(
+  private addEncryptedPage(
     outputDoc: PDFDocument,
     sourceDoc: PDFDocument,
     page: PageState
-  ): Promise<void> {
-    // pdf-lib can read the page tree of an encrypted document with
-    // ignoreEncryption, but it cannot decrypt the page content streams. PDF.js
-    // already has the unlocked document for the editor, so render the page
-    // locally and place that result into a fresh, unencrypted PDF page.
-    const sourcePage = sourceDoc.getPage(page.sourcePageNumber - 1);
-    const sourceRotation = normalizeRotation(sourcePage.getRotation().angle);
-    const combinedRotation = normalizeRotation(sourceRotation + page.rotation);
-    const width = sourcePage.getWidth();
-    const height = sourcePage.getHeight();
-    const canvas = document.createElement("canvas");
+  ): Effect.Effect<void, PDFError> {
+    return Effect.gen({ self: this }, function* () {
+      const { canvas, combinedRotation, height, width } = yield* Effect.try({
+        try: () => {
+          const sourcePage = sourceDoc.getPage(page.sourcePageNumber - 1);
+          const sourceRotation = normalizeRotation(sourcePage.getRotation().angle);
+          const combinedRotation = normalizeRotation(sourceRotation + page.rotation);
 
-    await pdfService.renderPage(
-      page.sourceFile,
-      page.sourcePageNumber,
-      canvas,
-      ENCRYPTED_PAGE_RENDER_SCALE,
-      0
-    );
+          return {
+            canvas: document.createElement("canvas"),
+            combinedRotation,
+            height: sourcePage.getHeight(),
+            width: sourcePage.getWidth(),
+          };
+        },
+        catch: (cause) => processingError("prepare-page", page.sourceFile, cause),
+      });
 
-    const image = await outputDoc.embedPng(canvas.toDataURL("image/png"));
-    const outputPage = outputDoc.addPage([width, height]);
+      yield* this.pdfService.renderPage(
+        page.sourceFile,
+        page.sourcePageNumber,
+        canvas,
+        ENCRYPTED_PAGE_RENDER_SCALE,
+        0
+      );
 
-    outputPage.drawImage(image, { x: 0, y: 0, width, height });
-    outputPage.setRotation(degrees(combinedRotation));
+      const image = yield* Effect.tryPromise({
+        try: () => outputDoc.embedPng(canvas.toDataURL("image/png")),
+        catch: (cause) => processingError("embed-page", page.sourceFile, cause),
+      });
+      yield* Effect.try({
+        try: () => {
+          const outputPage = outputDoc.addPage([width, height]);
+          outputPage.drawImage(image, { x: 0, y: 0, width, height });
+          outputPage.setRotation(degrees(combinedRotation));
+        },
+        catch: (cause) => processingError("add-page", page.sourceFile, cause),
+      });
+    });
   }
 }
-
-export const pdfOperationsService = new PDFOperationsService();

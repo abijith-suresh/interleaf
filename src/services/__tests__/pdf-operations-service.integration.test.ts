@@ -1,17 +1,15 @@
+import { Effect } from "effect";
 import { PDFDocument } from "pdf-lib";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PDFOperationsService } from "../pdf-operations-service";
+import { PDFService } from "../pdf-service";
 import { createPageState, createPdfFile } from "./pdf-fixtures";
-
-vi.mock("../pdf-service", () => ({
-  pdfService: {
-    renderPage: vi.fn(),
-  },
-}));
 
 async function loadPdf(data: Uint8Array): Promise<PDFDocument> {
   return PDFDocument.load(data);
 }
+
+const runEffect = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect);
 
 describe("PDFOperationsService with real PDF documents", () => {
   afterEach(() => {
@@ -30,7 +28,7 @@ describe("PDFOperationsService with real PDF documents", () => {
       createPageState(sourceFile, 2, { rotation: 90 }),
     ];
 
-    const result = await new PDFOperationsService().buildPDF(pages);
+    const result = await runEffect(new PDFOperationsService(new PDFService()).buildPDF(pages));
     const output = await loadPdf(result.data);
 
     expect(result.suggestedFileName).toBe("interleaf-output.pdf");
@@ -54,7 +52,7 @@ describe("PDFOperationsService with real PDF documents", () => {
       createPageState(secondFile, 1),
     ];
 
-    const result = await new PDFOperationsService().buildPDF(pages);
+    const result = await runEffect(new PDFOperationsService(new PDFService()).buildPDF(pages));
     const output = await loadPdf(result.data);
 
     expect(output.getPages().map((page) => [page.getWidth(), page.getHeight()])).toEqual([
@@ -77,10 +75,12 @@ describe("PDFOperationsService with real PDF documents", () => {
     ];
     const onProgress = vi.fn();
 
-    const result = await new PDFOperationsService().buildPDF(pages, {
-      selectedIndices: [2, 0],
-      onProgress,
-    });
+    const result = await runEffect(
+      new PDFOperationsService(new PDFService()).buildPDF(pages, {
+        selectedIndices: [2, 0],
+        onProgress,
+      })
+    );
     const output = await loadPdf(result.data);
 
     expect(result.suggestedFileName).toBe("interleaf-output.pdf");
@@ -98,15 +98,15 @@ describe("PDFOperationsService with real PDF documents", () => {
     const sourceFile = await createPdfFile("source.pdf", [{ width: 200, height: 300 }]);
     const page = createPageState(sourceFile, 1);
     const loadSpy = vi.spyOn(PDFDocument, "load");
-    const service = new PDFOperationsService();
+    const service = new PDFOperationsService(new PDFService());
 
-    await service.buildPDF([page]);
-    await service.buildPDF([page], { selectedIndices: [0] });
+    await runEffect(service.buildPDF([page]));
+    await runEffect(service.buildPDF([page], { selectedIndices: [0] }));
 
     expect(loadSpy).toHaveBeenCalledTimes(1);
 
-    service.clearCache();
-    await service.buildPDF([page]);
+    await runEffect(service.clearCache());
+    await runEffect(service.buildPDF([page]));
 
     expect(loadSpy).toHaveBeenCalledTimes(2);
   });

@@ -1,3 +1,4 @@
+import { Effect, Fiber } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PDFPasswordRequiredError } from "../../types/interfaces";
 
@@ -12,6 +13,9 @@ const decodeData = (value: ArrayBuffer | ArrayBufferView | undefined) => {
 
   return new TextDecoder().decode(new Uint8Array(value));
 };
+
+const loadingTaskDestroyMock = vi.fn().mockResolvedValue(undefined);
+const renderCancelMock = vi.fn();
 
 const pdfLibLoadMock = vi.fn().mockImplementation(async (buffer: ArrayBuffer, options?: object) => {
   const label = decodeData(buffer);
@@ -65,10 +69,14 @@ const pdfjsGetDocumentMock = vi
 
             return { width, height };
           }),
-          render: vi.fn().mockReturnValue({ promise: Promise.resolve() }),
+          render: vi.fn().mockReturnValue({
+            promise: Promise.resolve(),
+            cancel: renderCancelMock,
+          }),
         }),
         cleanup: vi.fn().mockResolvedValue(undefined),
       }),
+      destroy: loadingTaskDestroyMock,
     };
   });
 
@@ -100,7 +108,7 @@ describe("PDFService", () => {
     const service = new PDFService();
     const file = new File(["plain"], "test.pdf", { type: "application/pdf" });
 
-    await service.loadPDF(file);
+    await Effect.runPromise(service.loadPDF(file));
 
     expect(service.getPageCount()).toBe(5);
   });
@@ -109,8 +117,8 @@ describe("PDFService", () => {
     const service = new PDFService();
     const file = new File(["plain"], "test.pdf", { type: "application/pdf" });
 
-    await service.loadPDF(file);
-    await service.loadPDF(file);
+    await Effect.runPromise(service.loadPDF(file));
+    await Effect.runPromise(service.loadPDF(file));
 
     expect(pdfLibLoadMock).toHaveBeenCalledTimes(1);
     expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(1);
@@ -120,10 +128,77 @@ describe("PDFService", () => {
     const service = new PDFService();
     const file = new File(["plain"], "test.pdf", { type: "application/pdf" });
 
-    await Promise.all([service.loadPDF(file), service.loadPDF(file)]);
+    await Promise.all([
+      Effect.runPromise(service.loadPDF(file)),
+      Effect.runPromise(service.loadPDF(file)),
+    ]);
 
     expect(pdfLibLoadMock).toHaveBeenCalledTimes(1);
     expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a shared load alive when one consumer is interrupted", async () => {
+    let resolveLoading!: (document: unknown) => void;
+    const loadingPromise = new Promise((resolve) => {
+      resolveLoading = resolve;
+    });
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: loadingPromise,
+      destroy: loadingTaskDestroyMock,
+    }));
+
+    const service = new PDFService();
+    const file = new File(["plain"], "shared-pending.pdf", { type: "application/pdf" });
+    const firstConsumer = Effect.runFork(service.loadPDF(file));
+    const secondConsumer = Effect.runFork(service.loadPDF(file));
+
+    await vi.waitFor(() => expect(pdfjsGetDocumentMock).toHaveBeenCalled());
+    await Effect.runPromise(Fiber.interrupt(firstConsumer));
+    resolveLoading({ getPageCount: vi.fn().mockReturnValue(5) });
+    await Effect.runPromise(Fiber.join(secondConsumer));
+
+    expect(loadingTaskDestroyMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps a detached PDF.js load alive until the session resets", async () => {
+    let resolveLoading!: (document: unknown) => void;
+    const loadingPromise = new Promise((resolve) => {
+      resolveLoading = resolve;
+    });
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: loadingPromise,
+      destroy: loadingTaskDestroyMock,
+    }));
+
+    const service = new PDFService();
+    const file = new File(["plain"], "pending.pdf", { type: "application/pdf" });
+    const fiber = Effect.runFork(service.loadPDF(file));
+
+    await vi.waitFor(() => expect(pdfjsGetDocumentMock).toHaveBeenCalled());
+    await Effect.runPromise(Fiber.interrupt(fiber));
+
+    expect(loadingTaskDestroyMock).not.toHaveBeenCalled();
+    await Effect.runPromise(service.reset());
+    expect(loadingTaskDestroyMock).toHaveBeenCalledTimes(1);
+    resolveLoading(undefined);
+  });
+
+  it("interrupts an in-flight PDF.js load when the session resets", async () => {
+    const loadingPromise = new Promise(() => undefined);
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: loadingPromise,
+      destroy: loadingTaskDestroyMock,
+    }));
+
+    const service = new PDFService();
+    const file = new File(["plain"], "reset-pending.pdf", { type: "application/pdf" });
+    const fiber = Effect.runFork(service.loadPDF(file));
+
+    await vi.waitFor(() => expect(pdfjsGetDocumentMock).toHaveBeenCalled());
+    await Effect.runPromise(service.reset());
+    await Effect.runPromise(Fiber.await(fiber));
+
+    expect(loadingTaskDestroyMock).toHaveBeenCalledTimes(1);
   });
 
   it("allows a retry after a document load fails", async () => {
@@ -134,8 +209,10 @@ describe("PDFService", () => {
     const service = new PDFService();
     const file = new File(["plain"], "test.pdf", { type: "application/pdf" });
 
-    await expect(service.loadPDF(file)).rejects.toThrow("temporary PDF.js failure");
-    await service.loadPDF(file);
+    await expect(Effect.runPromise(service.loadPDF(file))).rejects.toThrow(
+      "temporary PDF.js failure"
+    );
+    await Effect.runPromise(service.loadPDF(file));
 
     expect(service.getPageCount()).toBe(5);
     expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(2);
@@ -147,7 +224,7 @@ describe("PDFService", () => {
       type: "application/pdf",
     });
 
-    await service.loadPDF(file);
+    await Effect.runPromise(service.loadPDF(file));
 
     expect(service.getPageCount()).toBe(5);
   });
@@ -158,7 +235,7 @@ describe("PDFService", () => {
       type: "application/pdf",
     });
 
-    await expect(service.loadPDF(file)).rejects.toEqual(
+    await expect(Effect.runPromise(service.loadPDF(file))).rejects.toEqual(
       expect.objectContaining({
         name: "PDFPasswordRequiredError",
         reason: "needs-password",
@@ -173,7 +250,7 @@ describe("PDFService", () => {
       type: "application/pdf",
     });
 
-    await service.loadPDFWithPassword(file, "623");
+    await Effect.runPromise(service.loadPDFWithPassword(file, "623"));
 
     expect(service.getPageCount()).toBe(5);
   });
@@ -184,7 +261,7 @@ describe("PDFService", () => {
       type: "application/pdf",
     });
 
-    await expect(service.loadPDFWithPassword(file, "wrong")).rejects.toEqual(
+    await expect(Effect.runPromise(service.loadPDFWithPassword(file, "wrong"))).rejects.toEqual(
       expect.objectContaining({
         name: "PDFPasswordRequiredError",
         reason: "wrong-password",
@@ -202,15 +279,15 @@ describe("PDFService", () => {
     const portraitFile = new File(["plain"], "portrait.pdf", { type: "application/pdf" });
     const wideFile = new File(["wide two-pages"], "wide.pdf", { type: "application/pdf" });
 
-    await service.loadPDF(portraitFile);
-    await service.loadPDF(wideFile);
+    await Effect.runPromise(service.loadPDF(portraitFile));
+    await Effect.runPromise(service.loadPDF(wideFile));
 
     const portraitCanvas = document.createElement("canvas");
     const wideCanvas = document.createElement("canvas");
 
     await Promise.all([
-      service.renderPage(portraitFile, 1, portraitCanvas, 1, 0),
-      service.renderPage(wideFile, 1, wideCanvas, 1, 0),
+      Effect.runPromise(service.renderPage(portraitFile, 1, portraitCanvas, 1, 0)),
+      Effect.runPromise(service.renderPage(wideFile, 1, wideCanvas, 1, 0)),
     ]);
 
     expect(portraitCanvas.height).toBeGreaterThan(portraitCanvas.width);
@@ -224,12 +301,46 @@ describe("PDFService", () => {
 
     const service = new PDFService();
     const file = new File(["plain"], "test.pdf", { type: "application/pdf" });
-    await service.loadPDF(file);
+    await Effect.runPromise(service.loadPDF(file));
 
     const canvas = document.createElement("canvas");
-    await service.renderPage(file, 1, canvas, 1, 90);
+    await Effect.runPromise(service.renderPage(file, 1, canvas, 1, 90));
 
     expect(canvas.width).toBeGreaterThan(canvas.height);
+  });
+
+  it("cancels an in-flight PDF.js render when the fiber is interrupted", async () => {
+    let renderStarted = false;
+    let resolveRender!: () => void;
+    const renderPromise = new Promise<void>((resolve) => {
+      resolveRender = resolve;
+    });
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: Promise.resolve({
+        getPage: vi.fn().mockResolvedValue({
+          getViewport: vi.fn().mockReturnValue({ width: 100, height: 200 }),
+          render: vi.fn().mockImplementation(() => {
+            renderStarted = true;
+            return { promise: renderPromise, cancel: renderCancelMock };
+          }),
+        }),
+        cleanup: vi.fn().mockResolvedValue(undefined),
+      }),
+      destroy: loadingTaskDestroyMock,
+    }));
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      {} as unknown as CanvasRenderingContext2D
+    );
+
+    const service = new PDFService();
+    const file = new File(["plain"], "pending-render.pdf", { type: "application/pdf" });
+    const fiber = Effect.runFork(service.renderPage(file, 1, document.createElement("canvas")));
+
+    await vi.waitFor(() => expect(renderStarted).toBe(true));
+    await Effect.runPromise(Fiber.interrupt(fiber));
+
+    expect(renderCancelMock).toHaveBeenCalledTimes(1);
+    resolveRender();
   });
 
   it("throws when the target canvas has no 2D context", async () => {
@@ -237,11 +348,11 @@ describe("PDFService", () => {
 
     const service = new PDFService();
     const file = new File(["plain"], "test.pdf", { type: "application/pdf" });
-    await service.loadPDF(file);
+    await Effect.runPromise(service.loadPDF(file));
 
-    await expect(service.renderPage(file, 1, document.createElement("canvas"))).rejects.toThrow(
-      "Could not get canvas context"
-    );
+    await expect(
+      Effect.runPromise(service.renderPage(file, 1, document.createElement("canvas")))
+    ).rejects.toThrow("Could not get canvas context");
   });
 
   it("resets cached documents and passwords for the session", async () => {
@@ -254,17 +365,17 @@ describe("PDFService", () => {
       type: "application/pdf",
     });
 
-    await service.loadPDFWithPassword(file, "623");
+    await Effect.runPromise(service.loadPDFWithPassword(file, "623"));
     const firstCanvas = document.createElement("canvas");
-    await service.renderPage(file, 1, firstCanvas, 1, 0);
+    await Effect.runPromise(service.renderPage(file, 1, firstCanvas, 1, 0));
 
-    service.reset();
+    await Effect.runPromise(service.reset());
 
     expect(service.getPageCount()).toBe(0);
 
     const secondCanvas = document.createElement("canvas");
-    await expect(service.renderPage(file, 1, secondCanvas, 1, 0)).rejects.toBeInstanceOf(
-      PDFPasswordRequiredError
-    );
+    await expect(
+      Effect.runPromise(service.renderPage(file, 1, secondCanvas, 1, 0))
+    ).rejects.toBeInstanceOf(PDFPasswordRequiredError);
   });
 });

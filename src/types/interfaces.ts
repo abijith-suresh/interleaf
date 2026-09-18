@@ -1,16 +1,33 @@
-type EncryptionReason = "needs-password" | "wrong-password";
+import { Data } from "effect";
 
-export class PDFPasswordRequiredError extends Error {
+export type EncryptionReason = "needs-password" | "wrong-password";
+
+export class PDFPasswordRequiredError extends Data.TaggedError("PDFPasswordRequiredError")<{
   readonly file: File;
   readonly reason: EncryptionReason;
-
+  readonly message: string;
+}> {
   constructor(file: File, reason: EncryptionReason = "needs-password") {
-    super(`PDF requires a password: ${file.name}`);
-    this.name = "PDFPasswordRequiredError";
-    this.file = file;
-    this.reason = reason;
+    super({
+      file,
+      reason,
+      message: `PDF requires a password: ${file.name}`,
+    });
   }
 }
+
+export class PDFProcessingError extends Data.TaggedError("PDFProcessingError")<{
+  readonly operation: string;
+  readonly file?: File;
+  readonly cause: unknown;
+  readonly message: string;
+}> {}
+
+export class PDFNoPagesError extends Data.TaggedError("PDFNoPagesError")<{
+  readonly message: string;
+}> {}
+
+export type PDFError = PDFPasswordRequiredError | PDFProcessingError | PDFNoPagesError;
 
 export interface PageState {
   id: string;

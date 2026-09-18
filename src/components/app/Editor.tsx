@@ -1,4 +1,5 @@
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { Effect, Fiber } from "effect";
+import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { ROTATION_STEP } from "../../constants";
 import {
@@ -10,8 +11,7 @@ import {
   toggleSelectAll,
   toggleSelection,
 } from "../../controllers/editor-page-state";
-import { pdfOperationsService } from "../../services/pdf-operations-service";
-import { pdfService } from "../../services/pdf-service";
+import { makePDFRuntime, PDFProcessing } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
 import { PDFPasswordRequiredError } from "../../types/interfaces";
 import { downloadPDF } from "../../utils/download";
@@ -22,8 +22,8 @@ import {
   TOAST_EVENT_NAME,
   type ToastDetail,
 } from "../../utils/toast";
-import EditorFilesDialog from "./EditorFilesDialog";
 import type { EditorWorkspaceFile } from "./EditorFilesDialog";
+import EditorFilesDialog from "./EditorFilesDialog";
 import EditorPageGrid from "./EditorPageGrid";
 import EditorSelectionBar from "./EditorSelectionBar";
 import EditorUploader from "./EditorUploader";
@@ -58,7 +58,10 @@ export default function Editor() {
   let addPdfInput!: HTMLInputElement;
   let filesButton!: HTMLButtonElement;
   let nextToastId = 0;
+  let activeOperationFiber: Fiber.Fiber<unknown, unknown> | null = null;
   const toastTimers = new Map<number, number>();
+  const pdfRuntime = makePDFRuntime();
+  let disposed = false;
 
   const [phase, setPhase] = createSignal<"upload" | "edit">("upload");
   const [pages, setPages] = createStore<PageState[]>([]);
@@ -69,11 +72,6 @@ export default function Editor() {
   const [operation, setOperation] = createSignal<EditorOperation>("idle");
   const [statusMessage, setStatusMessage] = createSignal("Drop a PDF to begin");
   const [toasts, setToasts] = createSignal<Toast[]>([]);
-
-  onMount(() => {
-    pdfService.reset();
-    pdfOperationsService.clearCache();
-  });
 
   const activePageCount = () => pages.filter((p) => !p.markedForDeletion).length;
   const selectedActivePageCount = () =>
@@ -105,6 +103,7 @@ export default function Editor() {
     `Open ${workspaceFiles().length} file${workspaceFiles().length === 1 ? "" : "s"}`;
 
   function setReadyStatus() {
+    if (disposed) return;
     setOperation("idle");
     setStatusMessage(phase() === "edit" ? "Ready" : "Drop a PDF to begin");
   }
@@ -119,6 +118,7 @@ export default function Editor() {
   }
 
   function addToast(message: string, tone: ToastTone) {
+    if (disposed) return;
     const id = ++nextToastId;
     const timer = window.setTimeout(() => dismissToast(id), getToastDismissTimeout());
     toastTimers.set(id, timer);
@@ -135,6 +135,7 @@ export default function Editor() {
   }
 
   onCleanup(() => {
+    disposed = true;
     if (typeof document !== "undefined") {
       document.removeEventListener(TOAST_EVENT_NAME, handleToast);
     }
@@ -142,9 +143,26 @@ export default function Editor() {
       window.clearTimeout(timer);
     }
     toastTimers.clear();
-    pdfService.reset();
-    pdfOperationsService.clearCache();
+    const fiber = activeOperationFiber;
+    activeOperationFiber = null;
+    const interrupt = fiber
+      ? Effect.runPromise(Fiber.interrupt(fiber)).catch(() => undefined)
+      : Promise.resolve();
+    void interrupt.then(() => pdfRuntime.dispose()).catch(() => undefined);
   });
+
+  async function runPDF<A, E>(program: Effect.Effect<A, E, PDFProcessing>): Promise<A> {
+    const fiber = pdfRuntime.runFork(program);
+    activeOperationFiber = fiber;
+
+    try {
+      return await pdfRuntime.runPromise(Fiber.join(fiber));
+    } finally {
+      if (activeOperationFiber === fiber) {
+        activeOperationFiber = null;
+      }
+    }
+  }
 
   function formatPageCount(pageCount: number) {
     return `${pageCount} page${pageCount === 1 ? "" : "s"}`;
@@ -158,8 +176,9 @@ export default function Editor() {
   }
 
   async function unlockPdf(file: File, isRetry: boolean): Promise<number | null> {
+    if (disposed) return null;
     const password = await promptForPassword(file.name, isRetry);
-    if (password === null) {
+    if (disposed || password === null) {
       setReadyStatus();
       return null;
     }
@@ -167,9 +186,11 @@ export default function Editor() {
     setStatusMessage("Unlocking PDF…");
 
     try {
-      await pdfService.loadPDFWithPassword(file, password);
-      return pdfService.getPageCount();
+      await runPDF(PDFProcessing.use((service) => service.loadPDFWithPassword(file, password)));
+      if (disposed) return null;
+      return await runPDF(PDFProcessing.use((service) => service.getPageCount));
     } catch (err) {
+      if (disposed) return null;
       if (err instanceof PDFPasswordRequiredError) {
         return unlockPdf(file, true);
       }
@@ -180,7 +201,8 @@ export default function Editor() {
   }
 
   async function loadPdfFile(file: File, mode: "upload" | "add"): Promise<number | null> {
-    if (file.type !== "application/pdf" && !/\.pdf$/i.test(file.name)) {
+    if (disposed || (file.type !== "application/pdf" && !/\.pdf$/i.test(file.name))) {
+      if (disposed) return null;
       dispatchToast("Please upload a valid PDF file.", "error");
       return null;
     }
@@ -189,9 +211,11 @@ export default function Editor() {
     setStatusMessage(mode === "upload" ? "Loading PDF…" : "Adding PDF…");
 
     try {
-      await pdfService.loadPDF(file);
-      return pdfService.getPageCount();
+      await runPDF(PDFProcessing.use((service) => service.loadPDF(file)));
+      if (disposed) return null;
+      return await runPDF(PDFProcessing.use((service) => service.getPageCount));
     } catch (err) {
+      if (disposed) return null;
       if (err instanceof PDFPasswordRequiredError) {
         return unlockPdf(file, err.reason === "wrong-password");
       }
@@ -212,7 +236,7 @@ export default function Editor() {
   }
 
   async function handleAddPdf(file: File): Promise<void> {
-    if (isBusy()) return;
+    if (disposed || isBusy()) return;
 
     const pageCount = await loadPdfFile(file, "add");
     if (pageCount === null) return;
@@ -247,7 +271,7 @@ export default function Editor() {
   }
 
   async function handleInitialUpload(file: File): Promise<void> {
-    if (isBusy()) return;
+    if (disposed || isBusy()) return;
 
     const pageCount = await loadPdfFile(file, "upload");
     if (pageCount === null) return;
@@ -341,7 +365,7 @@ export default function Editor() {
   }
 
   async function handleDownload(): Promise<void> {
-    if (isBusy()) return;
+    if (disposed || isBusy()) return;
     const selection = selectedIndices();
     const selectedPageIndices =
       selection.size > 0 ? Array.from(selection).sort((a, b) => a - b) : undefined;
@@ -353,21 +377,28 @@ export default function Editor() {
     );
 
     try {
-      const result = await pdfOperationsService.buildPDF(pages, {
-        selectedIndices: selectedPageIndices,
-        onProgress: ({ completed, total }) => {
-          setStatusMessage(
-            `${selectedPageIndices ? "Building selected PDF" : "Building PDF"}… ${completed}/${total}`
-          );
-        },
-      });
+      const result = await runPDF(
+        PDFProcessing.use((service) =>
+          service.buildPDF(pages, {
+            selectedIndices: selectedPageIndices,
+            onProgress: ({ completed, total }) => {
+              if (disposed) return;
+              setStatusMessage(
+                `${selectedPageIndices ? "Building selected PDF" : "Building PDF"}… ${completed}/${total}`
+              );
+            },
+          })
+        )
+      );
+      if (disposed) return;
       downloadPDF(result);
       setStatusMessage("Export started.");
     } catch (_err) {
+      if (disposed) return;
       dispatchToast("Failed to build the PDF.", "error");
       setStatusMessage("Export failed. Try again.");
     } finally {
-      setOperation("idle");
+      if (!disposed) setOperation("idle");
     }
   }
 
@@ -558,6 +589,7 @@ export default function Editor() {
               <EditorPageGrid
                 busy={isBusy()}
                 pages={pages}
+                runtime={pdfRuntime}
                 selectedIndices={selectedIndices()}
                 dragSourceIndex={dragSourceIndex()}
                 dragOverTarget={dragOverTarget()}
