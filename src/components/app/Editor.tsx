@@ -101,6 +101,11 @@ export default function Editor() {
 
     return Array.from(groups.values());
   });
+  const hasMultipleWorkspaceFiles = () => workspaceFiles().length > 1;
+  const filesButtonLabel = () =>
+    hasMultipleWorkspaceFiles()
+      ? `Open ${workspaceFiles().length} files`
+      : "Add another PDF to enable Files";
 
   function setReadyStatus() {
     setOperation("idle");
@@ -531,25 +536,24 @@ export default function Editor() {
                       </svg>
                       <span class="editor-add-pdf-label">Add PDF</span>
                     </button>
-                    <Show when={workspaceFiles().length > 1}>
-                      <button
-                        ref={filesButton}
-                        type="button"
-                        data-testid="editor-files-button"
-                        class="editor-toolbar-action editor-files-button"
-                        aria-label={`Open ${workspaceFiles().length} files`}
-                        aria-controls="editor-files-dialog"
-                        aria-expanded={filesOpen()}
-                        onClick={() => setFilesOpen(true)}
-                        disabled={isBusy()}
-                      >
-                        <svg viewBox="0 0 20 20" aria-hidden="true">
-                          <path d="M5 2.5h6l4 4v11H5zM11 2.5v4h4" />
-                        </svg>
-                        <span class="editor-files-button-label">Files</span>
-                        <span class="editor-files-button-count">{workspaceFiles().length}</span>
-                      </button>
-                    </Show>
+                    <button
+                      ref={filesButton}
+                      type="button"
+                      data-testid="editor-files-button"
+                      class="editor-toolbar-action editor-files-button"
+                      aria-label={filesButtonLabel()}
+                      aria-controls="editor-files-dialog"
+                      aria-expanded={filesOpen()}
+                      title={filesButtonLabel()}
+                      onClick={() => setFilesOpen(true)}
+                      disabled={isBusy() || !hasMultipleWorkspaceFiles()}
+                    >
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M5 2.5h6l4 4v11H5zM11 2.5v4h4" />
+                      </svg>
+                      <span class="editor-files-button-label">Files</span>
+                      <span class="editor-files-button-count">{workspaceFiles().length}</span>
+                    </button>
                   </div>
                 </div>
               </div>

@@ -973,12 +973,15 @@ body:has([data-page="editor"]) {
 }
 
 .editor-files-button-count {
+  min-width: 1.5em;
   color: var(--editor-muted);
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
 .editor-selection-bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) auto minmax(8.25rem, auto);
   min-height: 4.5rem;
   flex-shrink: 0;
   align-items: center;
@@ -990,7 +993,7 @@ body:has([data-page="editor"]) {
 
 .editor-selection-summary {
   display: grid;
-  min-width: 9rem;
+  min-width: 0;
   align-content: center;
 }
 
@@ -1005,8 +1008,25 @@ body:has([data-page="editor"]) {
 
 .editor-selection-actions {
   display: flex;
-  flex-wrap: wrap;
+  min-width: 0;
+  flex-wrap: nowrap;
   gap: 0.35rem;
+}
+
+.editor-selection-clear-action {
+  width: 4.5rem;
+}
+
+.editor-selection-rotate-action {
+  width: 4.75rem;
+}
+
+.editor-selection-delete-action {
+  width: 9.25rem;
+}
+
+.editor-select-all-action {
+  width: 5.5rem;
 }
 
 .editor-toolbar-action {
@@ -1020,6 +1040,7 @@ body:has([data-page="editor"]) {
   font-size: 0.75rem;
   font-weight: 500;
   line-height: 1.2;
+  white-space: nowrap;
   touch-action: manipulation;
   transition:
     background-color 160ms var(--ease-out),
@@ -1047,10 +1068,10 @@ body:has([data-page="editor"]) {
   display: inline-flex;
   min-height: 3rem;
   min-width: 8.25rem;
+  width: 12rem;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  margin-left: auto;
   padding: 0.75rem 1rem;
   border: 0;
   border-radius: 0.5rem;
@@ -1060,6 +1081,9 @@ body:has([data-page="editor"]) {
   font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   touch-action: manipulation;
   transition:
     background-color 160ms var(--ease-out),
@@ -1113,15 +1137,31 @@ body:has([data-page="editor"]) {
 
 @media (min-width: 768px) and (max-width: 1079px) {
   .editor-selection-bar {
-    flex-wrap: wrap;
+    grid-template-columns: minmax(0, 1fr) minmax(8.25rem, auto);
+    grid-template-rows: auto auto;
   }
 
   .editor-selection-summary {
-    flex: 1 1 8rem;
+    grid-column: 1;
+    grid-row: 1;
   }
 
   .editor-selection-actions {
-    flex: 1 1 auto;
+    display: grid;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .editor-selection-actions .editor-toolbar-action {
+    min-width: 0;
+    width: auto;
+    white-space: normal;
+  }
+
+  .editor-selection-bar .editor-download-action {
+    grid-column: 2;
+    grid-row: 1;
   }
 }
 
@@ -1189,56 +1229,41 @@ body:has([data-page="editor"]) {
   .editor-selection-bar {
     display: grid;
     min-height: 0;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
     align-items: stretch;
     gap: 0.5rem;
     padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom));
   }
 
   .editor-selection-summary {
+    grid-column: 1;
+    grid-row: 1;
     min-width: 0;
     align-content: center;
   }
 
-  .editor-select-all-action {
-    min-height: 2.75rem;
-  }
-
   .editor-selection-actions {
-    grid-column: 1 / -1;
-    display: flex;
-    flex-wrap: wrap;
-  }
-
-  .editor-selection-bar.has-selection .editor-select-all-action {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .editor-selection-bar.has-selection .editor-selection-actions {
+    display: grid;
+    grid-column: 1;
     grid-row: 2;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .editor-selection-actions .editor-toolbar-action {
-    flex: 0 0 auto;
+    min-width: 0;
+    width: auto;
+    padding-right: 0.35rem;
+    padding-left: 0.35rem;
+    white-space: normal;
   }
 
   .editor-selection-bar .editor-download-action {
-    margin-left: 0;
-  }
-
-  .editor-selection-bar.has-selection .editor-download-action {
-    grid-column: 1 / -1;
+    grid-column: 1;
     grid-row: 3;
     width: 100%;
-  }
-
-  .editor-selection-bar.all-pages-selected .editor-selection-actions {
-    grid-row: 1;
-  }
-
-  .editor-selection-bar.all-pages-selected .editor-download-action {
-    grid-row: 2;
+    min-width: 0;
+    margin-left: 0;
   }
 
   .editor-page-scroll {

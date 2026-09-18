@@ -88,10 +88,16 @@ describe("Editor", () => {
 
     selectFile("editor-upload-input", makeFile("brief.pdf"));
     await findAllByTestId("editor-page-tile");
+    expect(getByTestId("editor-files-button")).toBeDisabled();
+    expect(getByTestId("editor-files-button")).toHaveAttribute(
+      "aria-label",
+      "Add another PDF to enable Files"
+    );
 
     selectFile("editor-add-pdf-input", makeFile("appendix.pdf"));
     await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(6));
 
+    expect(getByTestId("editor-files-button")).toBeEnabled();
     expect(getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
     fireEvent.click(getByTestId("editor-files-button"));
 
@@ -113,7 +119,7 @@ describe("Editor", () => {
   });
 
   it("keeps selection actions disabled until they have usable input", async () => {
-    const { getByTestId, queryByTestId, findAllByTestId } = render(() => <Editor />);
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
 
     selectFile("editor-upload-input", makeFile());
     await findAllByTestId("editor-page-tile");
@@ -125,19 +131,23 @@ describe("Editor", () => {
         (button) => !(button as HTMLButtonElement).disabled
       )
     ).toBe(true);
-    expect(queryByTestId("editor-rotate-button")).not.toBeInTheDocument();
-    expect(queryByTestId("editor-delete-button")).not.toBeInTheDocument();
+    expect(getByTestId("editor-clear-selection-button")).toBeDisabled();
+    expect(getByTestId("editor-rotate-button")).toBeDisabled();
+    expect(getByTestId("editor-delete-button")).toBeDisabled();
+    expect(getByTestId("editor-select-all-button")).toBeEnabled();
     expect(getByTestId("editor-download-button")).toBeEnabled();
 
     fireEvent.click((await findAllByTestId("editor-page-tile"))[0]);
     await waitFor(() => expect(rotateButtons[0]).toBeEnabled());
 
     expect(getByTestId("editor-clear-selection-button")).toBeEnabled();
+    expect(getByTestId("editor-rotate-button")).toBeEnabled();
+    expect(getByTestId("editor-delete-button")).toBeEnabled();
     expect(getByTestId("editor-download-button")).toHaveTextContent("Export 1 selected page");
   });
 
   it("uses one clear control after every page is selected", async () => {
-    const { getByTestId, queryByTestId, findAllByTestId } = render(() => <Editor />);
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
 
     selectFile("editor-upload-input", makeFile());
     await findAllByTestId("editor-page-tile");
@@ -151,7 +161,8 @@ describe("Editor", () => {
     fireEvent.click(getByTestId("editor-select-all-button"));
 
     await waitFor(() => {
-      expect(queryByTestId("editor-select-all-button")).not.toBeInTheDocument();
+      expect(getByTestId("editor-select-all-button")).toHaveTextContent("All selected");
+      expect(getByTestId("editor-select-all-button")).toBeDisabled();
       expect(getByTestId("editor-clear-selection-button")).toHaveTextContent("Clear");
       expect(getByTestId("editor-clear-selection-button")).toHaveAttribute(
         "aria-label",
