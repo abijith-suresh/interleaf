@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "build:qpdf-wasm": "./tools/qpdf-wasm/build-qpdf-wasm.sh",
     "preview": "astro preview",
     "astro": "astro",
     "type-check": "astro sync && astro check && tsc --noEmit",

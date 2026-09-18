@@ -26,6 +26,12 @@ The active product supports:
 
 These are the only current public product promises.
 
+### Approved In-Progress Work
+
+Lossless PDF compression is approved for development as a client-side workflow. Until it is
+integrated into the editor and released, it is not part of the current product surface or a public
+promise.
+
 ### Non-Goals
 
 The product does not include, and must not gain without this section changing first:
@@ -33,7 +39,7 @@ The product does not include, and must not gain without this section changing fi
 - server-side PDF processing or uploads of any kind
 - accounts, signups, sync, or collaboration
 - ads, tracking, analytics, cookies, or fingerprinting
-- speculative code kept only for possible future expansion
+- unapproved speculative code kept only for possible future expansion
 - public promises for features that are not implemented
 
 ## Documentation

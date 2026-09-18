@@ -1,0 +1,75 @@
+name: qpdf WASM
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/qpdf-wasm.yml"
+      - "package.json"
+      - "bun.lock"
+      - "src/services/qpdf-processing.ts"
+      - "tools/qpdf-wasm/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build-qpdf-wasm
+    runs-on: ubuntu-latest
+    container: emscripten/emsdk:3.1.72
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build pinned qpdf module
+        run: ./tools/qpdf-wasm/build-qpdf-wasm.sh /tmp/interleaf-qpdf
+
+      - name: Check generated assets
+        run: |
+          test -s /tmp/interleaf-qpdf/qpdf.mjs
+          test -s /tmp/interleaf-qpdf/qpdf.wasm
+          test -s /tmp/interleaf-qpdf/qpdf-worker.js
+          test -s /tmp/interleaf-qpdf/smoke.html
+          grep -F "qpdf version: 12.4.1" /tmp/interleaf-qpdf/build-info.txt
+
+      - name: Upload browser smoke assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: qpdf-wasm-smoke-assets
+          path: /tmp/interleaf-qpdf
+
+  browser-smoke:
+    name: browser-smoke
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Download browser smoke assets
+        uses: actions/download-artifact@v4
+        with:
+          name: qpdf-wasm-smoke-assets
+          path: /tmp/interleaf-qpdf
+
+      - name: Install Chromium runner
+        run: npm install --no-save --no-package-lock playwright@1.55.0
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Serve smoke page
+        run: |
+          python3 -m http.server 4173 --directory /tmp/interleaf-qpdf >/tmp/qpdf-http.log 2>&1 &
+          sleep 1
+
+      - name: Run browser smoke test
+        run: node tools/qpdf-wasm/browser-smoke.mjs
