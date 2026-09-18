@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.4](https://github.com/abijith-suresh/interleaf/compare/0.0.3...0.0.4) (2026-09-18)
+
+
+### Features
+
+* **editor:** move to universal workspace ([#230](https://github.com/abijith-suresh/interleaf/issues/230)) ([fd34ba2](https://github.com/abijith-suresh/interleaf/commit/fd34ba2a1af6f28071eae4064b2c36ce5d5e31aa))
+
 ## [0.0.3](https://github.com/abijith-suresh/interleaf/compare/0.0.2...0.0.3) (2026-09-16)
 
 
