@@ -83,7 +83,7 @@ describe("Editor", () => {
     expect(pdfServiceMocks.reset).toHaveBeenCalled();
   });
 
-  it("shows the working set and selects pages from one source file", async () => {
+  it("opens the file drawer and selects pages from one source file", async () => {
     const { findAllByTestId, getByTestId } = render(() => <Editor />);
 
     selectFile("editor-upload-input", makeFile("brief.pdf"));
@@ -92,6 +92,10 @@ describe("Editor", () => {
     selectFile("editor-add-pdf-input", makeFile("appendix.pdf"));
     await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(6));
 
+    expect(getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
+    fireEvent.click(getByTestId("editor-files-button"));
+
+    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
     const fileItems = await findAllByTestId("editor-file-item");
     expect(fileItems).toHaveLength(2);
 
@@ -102,6 +106,7 @@ describe("Editor", () => {
       expect(tiles.slice(0, 3).every((tile) => tile.dataset.selected === "false")).toBe(true);
       expect(tiles.slice(3).every((tile) => tile.dataset.selected === "true")).toBe(true);
     });
+    expect(getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
     expect(getByTestId("editor-status-message")).toHaveTextContent(
       "Selected 3 pages from appendix.pdf."
     );
@@ -131,8 +136,8 @@ describe("Editor", () => {
     expect(getByTestId("editor-download-button")).toHaveTextContent("Export 1 selected page");
   });
 
-  it("labels the select-all action as deselect when every page is selected", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+  it("uses one clear control after every page is selected", async () => {
+    const { getByTestId, queryByTestId, findAllByTestId } = render(() => <Editor />);
 
     selectFile("editor-upload-input", makeFile());
     await findAllByTestId("editor-page-tile");
@@ -146,20 +151,18 @@ describe("Editor", () => {
     fireEvent.click(getByTestId("editor-select-all-button"));
 
     await waitFor(() => {
-      expect(getByTestId("editor-select-all-button")).toHaveTextContent("Deselect all");
-      expect(getByTestId("editor-select-all-button")).toHaveAttribute(
+      expect(queryByTestId("editor-select-all-button")).not.toBeInTheDocument();
+      expect(getByTestId("editor-clear-selection-button")).toHaveTextContent("Clear");
+      expect(getByTestId("editor-clear-selection-button")).toHaveAttribute(
         "aria-label",
-        "Deselect all pages"
+        "Clear page selection"
       );
     });
 
-    fireEvent.click(getByTestId("editor-select-all-button"));
+    fireEvent.click(getByTestId("editor-clear-selection-button"));
 
     await waitFor(() =>
-      expect(getByTestId("editor-select-all-button")).toHaveAttribute(
-        "aria-label",
-        "Select all pages"
-      )
+      expect(getByTestId("editor-select-all-button")).toHaveTextContent("Select all")
     );
   });
 

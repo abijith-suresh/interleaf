@@ -22,8 +22,9 @@ import {
   TOAST_EVENT_NAME,
   type ToastDetail,
 } from "../../utils/toast";
+import EditorFilesDialog from "./EditorFilesDialog";
+import type { EditorWorkspaceFile } from "./EditorFilesDialog";
 import EditorPageGrid from "./EditorPageGrid";
-import EditorSidebar, { type EditorWorkspaceFile } from "./EditorSidebar";
 import EditorSelectionBar from "./EditorSelectionBar";
 import EditorUploader from "./EditorUploader";
 
@@ -54,6 +55,8 @@ const deletionActionCopy: Record<DeletionAction, { label: string; ariaLabel: str
 
 export default function Editor() {
   const base = import.meta.env.BASE_URL;
+  let addPdfInput!: HTMLInputElement;
+  let filesButton!: HTMLButtonElement;
   let nextToastId = 0;
   const toastTimers = new Map<number, number>();
 
@@ -62,6 +65,7 @@ export default function Editor() {
   const [selectedIndices, setSelectedIndices] = createSignal<Set<number>>(new Set<number>());
   const [dragSourceIndex, setDragSourceIndex] = createSignal<number | null>(null);
   const [dragOverTarget, setDragOverTarget] = createSignal<DragOverTarget | null>(null);
+  const [filesOpen, setFilesOpen] = createSignal(false);
   const [operation, setOperation] = createSignal<EditorOperation>("idle");
   const [statusMessage, setStatusMessage] = createSignal("Drop a PDF to begin");
   const [toasts, setToasts] = createSignal<Toast[]>([]);
@@ -99,16 +103,6 @@ export default function Editor() {
 
     return Array.from(groups.values());
   });
-
-  const activeFile = () => {
-    const selectedFiles = new Set(
-      Array.from(selectedIndices())
-        .map((index) => pages[index]?.sourceFile)
-        .filter((file): file is File => Boolean(file))
-    );
-
-    return selectedFiles.size === 1 ? (selectedFiles.values().next().value ?? null) : null;
-  };
 
   function setReadyStatus() {
     setOperation("idle");
@@ -233,6 +227,25 @@ export default function Editor() {
     setStatusMessage(`Added ${formatPageCount(pageCount)} from ${file.name}.`);
   }
 
+  function requestAddPdf(): void {
+    if (isBusy()) return;
+    setFilesOpen(false);
+    addPdfInput.click();
+  }
+
+  function handleAddPdfInput(event: Event): void {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    void handleAddPdf(file);
+  }
+
+  function closeFilesDialog(): void {
+    setFilesOpen(false);
+    queueMicrotask(() => filesButton?.focus());
+  }
+
   async function handleInitialUpload(file: File): Promise<void> {
     if (isBusy()) return;
 
@@ -267,6 +280,7 @@ export default function Editor() {
 
     if (nextSelection.size === 0) return;
     setSelectedIndices(nextSelection);
+    closeFilesDialog();
     setStatusMessage(`Selected ${formatPageCount(nextSelection.size)} from ${file.name}.`);
   }
 
@@ -489,18 +503,57 @@ export default function Editor() {
           }
         >
           <div class="editor-workspace">
-            <EditorSidebar
-              busy={isBusy()}
-              files={workspaceFiles()}
-              activeFile={activeFile()}
-              onAddPdf={handleAddPdf}
-              onSelectFile={handleWorkspaceFileClick}
-            />
-
             <section class="editor-workspace-main" aria-labelledby="editor-pages-title">
+              <input
+                ref={addPdfInput}
+                data-testid="editor-add-pdf-input"
+                type="file"
+                accept="application/pdf"
+                name="additional-pdf"
+                aria-label="Choose an additional PDF"
+                class="hidden"
+                disabled={isBusy()}
+                onChange={handleAddPdfInput}
+              />
               <div class="editor-canvas-header">
                 <h2 id="editor-pages-title">Pages</h2>
-                <span class="editor-canvas-count">{formatPageCount(pages.length)}</span>
+                <div class="editor-canvas-tools">
+                  <span class="editor-canvas-count">{formatPageCount(pages.length)}</span>
+                  <div class="editor-canvas-actions">
+                    <button
+                      type="button"
+                      data-testid="editor-add-pdf-button"
+                      aria-label="Add another PDF"
+                      onClick={requestAddPdf}
+                      disabled={isBusy()}
+                      class="editor-add-pdf editor-add-pdf-icon"
+                    >
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M10 4v12M4 10h12" />
+                      </svg>
+                      <span class="editor-add-pdf-label">Add PDF</span>
+                    </button>
+                    <Show when={workspaceFiles().length > 1}>
+                      <button
+                        ref={filesButton}
+                        type="button"
+                        data-testid="editor-files-button"
+                        class="editor-toolbar-action editor-files-button"
+                        aria-label={`Open ${workspaceFiles().length} files`}
+                        aria-controls="editor-files-dialog"
+                        aria-expanded={filesOpen()}
+                        onClick={() => setFilesOpen(true)}
+                        disabled={isBusy()}
+                      >
+                        <svg viewBox="0 0 20 20" aria-hidden="true">
+                          <path d="M5 2.5h6l4 4v11H5zM11 2.5v4h4" />
+                        </svg>
+                        <span class="editor-files-button-label">Files</span>
+                        <span class="editor-files-button-count">{workspaceFiles().length}</span>
+                      </button>
+                    </Show>
+                  </div>
+                </div>
               </div>
 
               <EditorPageGrid
@@ -550,6 +603,13 @@ export default function Editor() {
                 <span data-testid="editor-status-message">{statusMessage()}</span>
               </div>
             </section>
+            <EditorFilesDialog
+              open={filesOpen()}
+              busy={isBusy()}
+              files={workspaceFiles()}
+              onClose={closeFilesDialog}
+              onSelectFile={handleWorkspaceFileClick}
+            />
           </div>
         </Show>
       </div>

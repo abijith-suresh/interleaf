@@ -254,9 +254,10 @@ body:has([data-page="editor"]) {
 }
 
 .editor-back svg,
-.editor-sidebar svg,
 .editor-download-action svg,
-.editor-dropzone-icon svg {
+.editor-dropzone-icon svg,
+.editor-files-button svg,
+.editor-files-dialog svg {
   width: 1rem;
   height: 1rem;
   flex-shrink: 0;
@@ -429,41 +430,6 @@ body:has([data-page="editor"]) {
   text-align: center;
 }
 
-.editor-sidebar {
-  display: flex;
-  width: 15rem;
-  flex-shrink: 0;
-  flex-direction: column;
-  border-right: 1px solid var(--editor-line);
-  background: var(--editor-paper);
-}
-
-.editor-sidebar-scroll {
-  min-height: 0;
-  flex: 1;
-  overflow-y: auto;
-}
-
-.editor-sidebar-section {
-  padding: 1.25rem;
-}
-
-.editor-sidebar-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.editor-sidebar-heading h2 {
-  margin: 0;
-  color: var(--editor-ink);
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: -0.025em;
-  line-height: 1.15;
-}
-
 .editor-add-pdf {
   display: inline-flex;
   min-height: 2.75rem;
@@ -492,6 +458,11 @@ body:has([data-page="editor"]) {
   color: var(--editor-ink);
 }
 
+.editor-add-pdf:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .editor-app .editor-add-pdf svg {
   width: 1rem;
   height: 1rem;
@@ -505,7 +476,7 @@ body:has([data-page="editor"]) {
 .editor-file-list {
   display: grid;
   gap: 0.35rem;
-  margin: 1.25rem 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
@@ -516,7 +487,8 @@ body:has([data-page="editor"]) {
   grid-template-columns: 2rem minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.65rem 0.5rem;
+  min-height: 3.25rem;
+  padding: 0.6rem 0.5rem;
   border: 1px solid transparent;
   border-radius: 0.45rem;
   background: transparent;
@@ -530,7 +502,7 @@ body:has([data-page="editor"]) {
 }
 
 .editor-file-item:hover:not(:disabled),
-.editor-file-item.is-active {
+.editor-file-item:focus-visible {
   border-color: var(--editor-line);
   background: var(--editor-hover);
   color: var(--editor-ink);
@@ -580,33 +552,115 @@ body:has([data-page="editor"]) {
   text-align: right;
 }
 
-.editor-sidebar-footer {
-  display: flex;
-  flex-shrink: 0;
-  padding: 0.85rem 1.25rem 1rem;
-  border-top: 1px solid var(--editor-line);
-}
-
-.editor-local-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--editor-body);
-  font-size: 0.6875rem;
-  font-weight: 600;
-}
-
-.editor-local-status i {
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: 999px;
-  background: #5a8a5c;
-}
-
-.editor-sidebar button:disabled,
 .editor-selection-bar button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.editor-files-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  justify-content: flex-end;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.editor-files-layer:not([open]) {
+  display: none;
+}
+
+.editor-files-layer::backdrop {
+  background: rgb(36 36 33 / 24%);
+}
+
+.editor-files-scrim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.editor-files-dialog {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: min(24rem, calc(100vw - 1rem));
+  max-height: 100%;
+  flex-direction: column;
+  border-left: 1px solid var(--editor-line);
+  background: var(--editor-paper);
+  box-shadow: -1rem 0 2.5rem rgb(36 36 33 / 9%);
+  overscroll-behavior: contain;
+}
+
+.editor-files-dialog-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: calc(1rem + env(safe-area-inset-top)) 1.25rem 1rem;
+  border-bottom: 1px solid var(--editor-line);
+}
+
+.editor-files-dialog-header h2 {
+  margin: 0;
+  color: var(--editor-ink);
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.editor-files-dialog-header span {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--editor-muted);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-files-close {
+  display: inline-flex;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  border: 1px solid var(--editor-line);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--editor-body);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.editor-files-close:hover {
+  border-color: var(--editor-line-strong);
+  background: var(--editor-hover);
+  color: var(--editor-ink);
+}
+
+.editor-files-dialog-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.25rem calc(1rem + env(safe-area-inset-bottom));
 }
 
 .editor-page-scroll {
@@ -913,6 +967,33 @@ body:has([data-page="editor"]) {
   font-variant-numeric: tabular-nums;
 }
 
+.editor-canvas-tools,
+.editor-canvas-actions {
+  display: flex;
+  align-items: center;
+}
+
+.editor-canvas-tools {
+  gap: 0.75rem;
+}
+
+.editor-canvas-actions {
+  gap: 0.4rem;
+}
+
+.editor-files-button {
+  display: inline-flex;
+  min-width: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.editor-files-button-count {
+  color: var(--editor-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .editor-selection-bar {
   display: flex;
   min-height: 4.5rem;
@@ -1072,40 +1153,6 @@ body:has([data-page="editor"]) {
     flex-direction: column;
   }
 
-  .editor-sidebar {
-    width: auto;
-    max-height: 8.25rem;
-    border-right: 0;
-    border-bottom: 1px solid var(--editor-line);
-  }
-
-  .editor-sidebar-scroll {
-    overflow: hidden;
-  }
-
-  .editor-sidebar-section {
-    padding: 0.6rem 1rem 0.4rem;
-  }
-
-  .editor-file-list {
-    display: flex;
-    overflow-x: auto;
-    gap: 0.5rem;
-    margin: 0.55rem -0.35rem 0;
-    padding: 0.1rem 0.35rem 0.35rem;
-    scrollbar-color: var(--editor-line-strong) transparent;
-    scrollbar-width: thin;
-  }
-
-  .editor-file-list li {
-    min-width: 11.5rem;
-    flex: 0 0 auto;
-  }
-
-  .editor-sidebar-footer {
-    display: none;
-  }
-
   .editor-header {
     min-height: calc(3.25rem + env(safe-area-inset-top));
     padding: env(safe-area-inset-top) 1rem 0;
@@ -1138,8 +1185,22 @@ body:has([data-page="editor"]) {
     padding: 0.55rem 0.75rem 0.5rem;
   }
 
+  .editor-canvas-tools {
+    gap: 0.4rem;
+  }
+
   .editor-canvas-count {
     display: none;
+  }
+
+  .editor-add-pdf-label,
+  .editor-files-button-label {
+    display: none;
+  }
+
+  .editor-files-button {
+    padding-right: 0.55rem;
+    padding-left: 0.55rem;
   }
 
   .editor-selection-bar {
@@ -1189,6 +1250,14 @@ body:has([data-page="editor"]) {
     width: 100%;
   }
 
+  .editor-selection-bar.all-pages-selected .editor-selection-actions {
+    grid-row: 1;
+  }
+
+  .editor-selection-bar.all-pages-selected .editor-download-action {
+    grid-row: 2;
+  }
+
   .editor-page-scroll {
     padding: 0.75rem;
   }
@@ -1199,6 +1268,31 @@ body:has([data-page="editor"]) {
 
   .editor-page {
     padding: 0.35rem;
+  }
+
+  .editor-files-layer {
+    align-items: flex-end;
+  }
+
+  .editor-files-dialog {
+    width: 100%;
+    max-height: min(75dvh, 32rem);
+    border-top: 1px solid var(--editor-line);
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 0.8rem 0.8rem 0 0;
+    box-shadow: 0 -1rem 2.5rem rgb(36 36 33 / 9%);
+  }
+
+  .editor-files-dialog-header {
+    padding-top: 1rem;
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
+  .editor-files-dialog-body {
+    padding: 0.75rem 1rem;
   }
 }
 
