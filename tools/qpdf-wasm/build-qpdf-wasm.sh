@@ -58,7 +58,7 @@ readonly PORT_FLAGS="-fexceptions -sUSE_ZLIB=1 -sUSE_LIBJPEG=1"
 emcmake cmake \
   -S "$QPDF_SOURCE_DIR" \
   -B "$QPDF_BUILD_DIR" \
-  -G Ninja \
+  -G "Unix Makefiles" \
   -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_SHARED_LIBS=OFF \
   -DBUILD_STATIC_LIBS=ON \
