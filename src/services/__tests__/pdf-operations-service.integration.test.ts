@@ -64,7 +64,7 @@ describe("PDFOperationsService with real PDF documents", () => {
     ]);
   });
 
-  it("extracts selected pages in the requested order and reports progress", async () => {
+  it("exports selected pages in the requested order and reports progress", async () => {
     const sourceFile = await createPdfFile("source.pdf", [
       { width: 100, height: 200 },
       { width: 300, height: 400 },
@@ -77,10 +77,13 @@ describe("PDFOperationsService with real PDF documents", () => {
     ];
     const onProgress = vi.fn();
 
-    const result = await new PDFOperationsService().buildPDFFromSubset(pages, [2, 0], onProgress);
+    const result = await new PDFOperationsService().buildPDF(pages, {
+      selectedIndices: [2, 0],
+      onProgress,
+    });
     const output = await loadPdf(result.data);
 
-    expect(result.suggestedFileName).toBe("interleaf-extract.pdf");
+    expect(result.suggestedFileName).toBe("interleaf-output.pdf");
     expect(output.getPages().map((page) => [page.getWidth(), page.getHeight()])).toEqual([
       [500, 600],
       [100, 200],
@@ -98,7 +101,7 @@ describe("PDFOperationsService with real PDF documents", () => {
     const service = new PDFOperationsService();
 
     await service.buildPDF([page]);
-    await service.buildPDFFromSubset([page], [0]);
+    await service.buildPDF([page], { selectedIndices: [0] });
 
     expect(loadSpy).toHaveBeenCalledTimes(1);
 

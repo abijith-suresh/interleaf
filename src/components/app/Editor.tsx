@@ -1,4 +1,4 @@
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { ROTATION_STEP } from "../../constants";
 import {
@@ -22,8 +22,10 @@ import {
   TOAST_EVENT_NAME,
   type ToastDetail,
 } from "../../utils/toast";
+import EditorFilesDialog from "./EditorFilesDialog";
+import type { EditorWorkspaceFile } from "./EditorFilesDialog";
 import EditorPageGrid from "./EditorPageGrid";
-import EditorSidebar from "./EditorSidebar";
+import EditorSelectionBar from "./EditorSelectionBar";
 import EditorUploader from "./EditorUploader";
 
 interface DragOverTarget {
@@ -31,7 +33,7 @@ interface DragOverTarget {
   direction: "before" | "after";
 }
 
-type EditorOperation = "idle" | "uploading" | "adding" | "extracting" | "building";
+type EditorOperation = "idle" | "uploading" | "adding" | "building";
 type ToastTone = "success" | "error" | "info";
 
 interface Toast {
@@ -46,17 +48,15 @@ const deletionActionCopy: Record<DeletionAction, { label: string; ariaLabel: str
     ariaLabel: "Mark selected pages for deletion",
   },
   restore: {
-    label: "Restore from deletion",
-    ariaLabel: "Restore selected pages from deletion",
-  },
-  toggle: {
-    label: "Toggle deletion",
-    ariaLabel: "Toggle deletion for selected pages",
+    label: "Restore",
+    ariaLabel: "Restore selected pages",
   },
 };
 
 export default function Editor() {
   const base = import.meta.env.BASE_URL;
+  let addPdfInput!: HTMLInputElement;
+  let filesButton!: HTMLButtonElement;
   let nextToastId = 0;
   const toastTimers = new Map<number, number>();
 
@@ -65,6 +65,7 @@ export default function Editor() {
   const [selectedIndices, setSelectedIndices] = createSignal<Set<number>>(new Set<number>());
   const [dragSourceIndex, setDragSourceIndex] = createSignal<number | null>(null);
   const [dragOverTarget, setDragOverTarget] = createSignal<DragOverTarget | null>(null);
+  const [filesOpen, setFilesOpen] = createSignal(false);
   const [operation, setOperation] = createSignal<EditorOperation>("idle");
   const [statusMessage, setStatusMessage] = createSignal("Drop a PDF to begin");
   const [toasts, setToasts] = createSignal<Toast[]>([]);
@@ -75,15 +76,33 @@ export default function Editor() {
   });
 
   const activePageCount = () => pages.filter((p) => !p.markedForDeletion).length;
+  const selectedActivePageCount = () =>
+    Array.from(selectedIndices()).filter((index) => !pages[index]?.markedForDeletion).length;
   const isBusy = () => operation() !== "idle";
   const allPagesSelected = () => areAllPagesSelected(pages.length, selectedIndices());
   const selectedDeletionAction = () => getDeletionAction(pages, selectedIndices());
   const deletionCopy = () => deletionActionCopy[selectedDeletionAction()];
-  const selectAllLabel = () => (allPagesSelected() ? "Deselect all" : "Select all");
-  const selectedPageIndex = () => {
-    if (selectedIndices().size !== 1) return null;
-    return Array.from(selectedIndices())[0] ?? null;
-  };
+
+  const workspaceFiles = createMemo<EditorWorkspaceFile[]>(() => {
+    const groups = new Map<File, EditorWorkspaceFile>();
+
+    pages.forEach((page) => {
+      let workspaceFile = groups.get(page.sourceFile);
+      if (!workspaceFile) {
+        workspaceFile = {
+          file: page.sourceFile,
+          pageCount: 0,
+        };
+        groups.set(page.sourceFile, workspaceFile);
+      }
+
+      workspaceFile.pageCount += 1;
+    });
+
+    return Array.from(groups.values());
+  });
+  const filesButtonLabel = () =>
+    `Open ${workspaceFiles().length} file${workspaceFiles().length === 1 ? "" : "s"}`;
 
   function setReadyStatus() {
     setOperation("idle");
@@ -208,6 +227,25 @@ export default function Editor() {
     setStatusMessage(`Added ${formatPageCount(pageCount)} from ${file.name}.`);
   }
 
+  function requestAddPdf(): void {
+    if (isBusy()) return;
+    setFilesOpen(false);
+    addPdfInput.click();
+  }
+
+  function handleAddPdfInput(event: Event): void {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    void handleAddPdf(file);
+  }
+
+  function closeFilesDialog(): void {
+    setFilesOpen(false);
+    queueMicrotask(() => filesButton?.focus());
+  }
+
   async function handleInitialUpload(file: File): Promise<void> {
     if (isBusy()) return;
 
@@ -221,7 +259,9 @@ export default function Editor() {
 
   function handlePageClick(index: number): void {
     if (isBusy()) return;
-    setSelectedIndices((previousSelection) => toggleSelection(previousSelection, index));
+    const nextSelection = toggleSelection(selectedIndices(), index);
+    setSelectedIndices(nextSelection);
+    setStatusMessage(`${nextSelection.has(index) ? "Selected" : "Deselected"} page ${index + 1}.`);
   }
 
   function clearSelection(): void {
@@ -230,9 +270,27 @@ export default function Editor() {
     setStatusMessage("Selection cleared.");
   }
 
+  function handleWorkspaceFileClick(file: File): void {
+    if (isBusy()) return;
+
+    const nextSelection = new Set<number>();
+    pages.forEach((page, index) => {
+      if (page.sourceFile === file) nextSelection.add(index);
+    });
+
+    if (nextSelection.size === 0) return;
+    setSelectedIndices(nextSelection);
+    closeFilesDialog();
+    setStatusMessage(`Selected ${formatPageCount(nextSelection.size)} from ${file.name}.`);
+  }
+
   function handleSelectAll(): void {
     if (isBusy()) return;
-    setSelectedIndices((previousSelection) => toggleSelectAll(pages.length, previousSelection));
+    const nextSelection = toggleSelectAll(pages.length, selectedIndices());
+    setSelectedIndices(nextSelection);
+    setStatusMessage(
+      nextSelection.size === pages.length ? "All pages selected." : "Selection cleared."
+    );
   }
 
   // --- Rotation ---
@@ -242,6 +300,19 @@ export default function Editor() {
     if (isBusy()) return;
     setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360);
     setStatusMessage(`Rotated page ${index + 1}.`);
+  }
+
+  function handlePageDelete(index: number, e: MouseEvent): void {
+    e.stopPropagation();
+    if (isBusy()) return;
+
+    const markedForDeletion = pages[index]?.markedForDeletion ?? false;
+    setPages(index, "markedForDeletion", !markedForDeletion);
+    setStatusMessage(
+      markedForDeletion
+        ? `Restored page ${index + 1} from deletion.`
+        : `Marked page ${index + 1} for deletion.`
+    );
   }
 
   function handleRotateSelected(): void {
@@ -258,58 +329,45 @@ export default function Editor() {
 
   function handleDeleteSelected(): void {
     if (isBusy() || selectedIndices().size === 0) return;
+    const action = selectedDeletionAction();
+    const markForDeletion = action === "mark";
+
     for (const index of selectedIndices()) {
-      setPages(index, "markedForDeletion", (v) => !v);
+      setPages(index, "markedForDeletion", markForDeletion);
     }
     setStatusMessage(
-      `Updated deletion state for ${selectedIndices().size} selected page${selectedIndices().size === 1 ? "" : "s"}.`
+      `${markForDeletion ? "Marked" : "Restored"} ${selectedIndices().size} selected page${selectedIndices().size === 1 ? "" : "s"} ${markForDeletion ? "for deletion" : "from deletion"}.`
     );
-  }
-
-  // --- Extract / Download ---
-
-  async function handleExtract(): Promise<void> {
-    if (isBusy()) return;
-    const indices = Array.from(selectedIndices()).sort((a, b) => a - b);
-    if (indices.length === 0) return;
-
-    setOperation("extracting");
-    setStatusMessage(`Extracting pages… 0/${indices.length}`);
-
-    try {
-      const result = await pdfOperationsService.buildPDFFromSubset(
-        pages,
-        indices,
-        ({ completed, total }) => {
-          setStatusMessage(`Extracting pages… ${completed}/${total}`);
-        }
-      );
-      downloadPDF(result);
-      setStatusMessage("Extracted PDF download started.");
-    } catch (_err) {
-      dispatchToast("Failed to extract selected pages.", "error");
-    } finally {
-      setReadyStatus();
-    }
   }
 
   async function handleDownload(): Promise<void> {
     if (isBusy()) return;
-    const totalPages = activePageCount();
+    const selection = selectedIndices();
+    const selectedPageIndices =
+      selection.size > 0 ? Array.from(selection).sort((a, b) => a - b) : undefined;
+    const totalPages = selectedPageIndices ? selectedActivePageCount() : activePageCount();
 
     setOperation("building");
-    setStatusMessage(`Building PDF… 0/${totalPages}`);
+    setStatusMessage(
+      `${selectedPageIndices ? "Building selected PDF" : "Building PDF"}… 0/${totalPages}`
+    );
 
     try {
-      const result = await pdfOperationsService.buildPDF(pages, ({ completed, total }) => {
-        setStatusMessage(`Building PDF… ${completed}/${total}`);
+      const result = await pdfOperationsService.buildPDF(pages, {
+        selectedIndices: selectedPageIndices,
+        onProgress: ({ completed, total }) => {
+          setStatusMessage(
+            `${selectedPageIndices ? "Building selected PDF" : "Building PDF"}… ${completed}/${total}`
+          );
+        },
       });
       downloadPDF(result);
-      setStatusMessage("Download started.");
+      setStatusMessage("Export started.");
     } catch (_err) {
       dispatchToast("Failed to build the PDF.", "error");
+      setStatusMessage("Export failed. Try again.");
     } finally {
-      setReadyStatus();
+      setOperation("idle");
     }
   }
 
@@ -344,23 +402,6 @@ export default function Editor() {
       e.preventDefault();
       movePage(index, index + 1);
     }
-  }
-
-  function moveSelectedPage(direction: "earlier" | "later"): void {
-    if (isBusy()) return;
-
-    const index = selectedPageIndex();
-    if (index === null) return;
-
-    const target = direction === "earlier" ? index - 1 : index + 1;
-    movePage(index, target);
-  }
-
-  function canMoveSelectedPage(direction: "earlier" | "later"): boolean {
-    const index = selectedPageIndex();
-    if (index === null) return false;
-
-    return direction === "earlier" ? index > 0 : index < pages.length - 1;
   }
 
   function handleDragOver(e: DragEvent): void {
@@ -438,13 +479,6 @@ export default function Editor() {
             <a href={base} class="editor-brand" translate="no">
               interleaf
             </a>
-            <Show when={phase() === "edit"}>
-              <span class="editor-header-divider" aria-hidden="true" />
-              <div class="editor-document-meta">
-                <span class="editor-document-context">PDF workspace</span>
-                <span class="editor-header-count">{formatPageCount(pages.length)}</span>
-              </div>
-            </Show>
           </div>
           <h1 class="sr-only">Interleaf PDF editor</h1>
           <div class="editor-header-right">
@@ -469,22 +503,58 @@ export default function Editor() {
           }
         >
           <div class="editor-workspace">
-            <EditorSidebar
-              busy={isBusy()}
-              selectedCount={selectedIndices().size}
-              activePageCount={activePageCount()}
-              allPagesSelected={allPagesSelected()}
-              deletionLabel={deletionCopy().label}
-              deletionAriaLabel={deletionCopy().ariaLabel}
-              onSelectAll={handleSelectAll}
-              onRotate={handleRotateSelected}
-              onDelete={handleDeleteSelected}
-              onExtract={handleExtract}
-              onDownload={handleDownload}
-              onAddPdf={handleAddPdf}
-            />
+            <section class="editor-workspace-main" aria-labelledby="editor-pages-title">
+              <input
+                ref={addPdfInput}
+                data-testid="editor-add-pdf-input"
+                type="file"
+                accept="application/pdf"
+                name="additional-pdf"
+                aria-label="Choose an additional PDF"
+                class="hidden"
+                disabled={isBusy()}
+                onChange={handleAddPdfInput}
+              />
+              <div class="editor-canvas-header">
+                <h2 id="editor-pages-title">Pages</h2>
+                <div class="editor-canvas-tools">
+                  <span class="editor-canvas-count">{formatPageCount(pages.length)}</span>
+                  <div class="editor-canvas-actions">
+                    <button
+                      type="button"
+                      data-testid="editor-add-pdf-button"
+                      aria-label="Add another PDF"
+                      onClick={requestAddPdf}
+                      disabled={isBusy()}
+                      class="editor-add-pdf"
+                    >
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M10 4v12M4 10h12" />
+                      </svg>
+                      <span class="editor-add-pdf-label">Add PDF</span>
+                    </button>
+                    <button
+                      ref={filesButton}
+                      type="button"
+                      data-testid="editor-files-button"
+                      class="editor-toolbar-action editor-files-button"
+                      aria-label={filesButtonLabel()}
+                      aria-controls="editor-files-dialog"
+                      aria-expanded={filesOpen()}
+                      title={filesButtonLabel()}
+                      onClick={() => setFilesOpen(true)}
+                      disabled={isBusy()}
+                    >
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M5 2.5h6l4 4v11H5zM11 2.5v4h4" />
+                      </svg>
+                      <span class="editor-files-button-label">Files</span>
+                      <span class="editor-files-button-count">{workspaceFiles().length}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-            <section class="editor-workspace-main" aria-label="PDF workspace">
               <EditorPageGrid
                 busy={isBusy()}
                 pages={pages}
@@ -495,6 +565,7 @@ export default function Editor() {
                 onClearSelection={clearSelection}
                 onPageKeyDown={handlePageKeyDown}
                 onPageRotate={handlePageRotate}
+                onPageDelete={handlePageDelete}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDragEnter={handleDragEnter}
@@ -503,110 +574,22 @@ export default function Editor() {
                 onDragEnd={handleDragEnd}
               />
 
-              <div class="editor-mobile-toolbar" role="toolbar" aria-label="Page actions">
-                <div class="editor-mobile-primary-actions">
-                  <button
-                    type="button"
-                    data-testid="editor-select-all-button-mobile"
-                    disabled={isBusy()}
-                    onClick={handleSelectAll}
-                    aria-label={`${selectAllLabel()} pages`}
-                    class="editor-toolbar-action"
-                  >
-                    {selectAllLabel()}
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="editor-add-pdf-button-mobile"
-                    disabled={isBusy()}
-                    onClick={() => {
-                      if (isBusy()) return;
-                      const input = document.createElement("input");
-                      input.type = "file";
-                      input.accept = "application/pdf";
-                      input.name = "additional-pdf-mobile";
-                      input.setAttribute("aria-label", "Choose an additional PDF");
-                      input.onchange = () => {
-                        const file = input.files?.[0];
-                        if (file) handleAddPdf(file);
-                      };
-                      input.click();
-                    }}
-                    class="editor-toolbar-action"
-                  >
-                    Add PDF
-                  </button>
-                </div>
-                <details class="editor-mobile-more" open={selectedIndices().size > 0}>
-                  <summary class="editor-mobile-more-trigger">
-                    <span>Page actions</span>
-                    <svg viewBox="0 0 20 20" aria-hidden="true">
-                      <path d="m5 7.5 5 5 5-5" />
-                    </svg>
-                  </summary>
-                  <div class="editor-mobile-actions">
-                    <Show when={selectedIndices().size === 1}>
-                      <button
-                        type="button"
-                        data-testid="editor-move-earlier-button-mobile"
-                        disabled={isBusy() || !canMoveSelectedPage("earlier")}
-                        onClick={() => moveSelectedPage("earlier")}
-                        aria-label="Move selected page earlier"
-                        class="editor-toolbar-action"
-                      >
-                        Move earlier
-                      </button>
-                      <button
-                        type="button"
-                        data-testid="editor-move-later-button-mobile"
-                        disabled={isBusy() || !canMoveSelectedPage("later")}
-                        onClick={() => moveSelectedPage("later")}
-                        aria-label="Move selected page later"
-                        class="editor-toolbar-action"
-                      >
-                        Move later
-                      </button>
-                    </Show>
-                    <button
-                      type="button"
-                      data-testid="editor-rotate-button-mobile"
-                      disabled={isBusy() || selectedIndices().size === 0}
-                      onClick={handleRotateSelected}
-                      class="editor-toolbar-action"
-                    >
-                      Rotate
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="editor-delete-button-mobile"
-                      disabled={isBusy() || selectedIndices().size === 0}
-                      onClick={handleDeleteSelected}
-                      aria-label={deletionCopy().ariaLabel}
-                      class="editor-toolbar-action editor-toolbar-action-danger"
-                    >
-                      {deletionCopy().label}
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="editor-extract-button-mobile"
-                      disabled={isBusy() || selectedIndices().size === 0}
-                      onClick={handleExtract}
-                      class="editor-toolbar-action"
-                    >
-                      Extract
-                    </button>
-                  </div>
-                </details>
-                <button
-                  type="button"
-                  data-testid="editor-download-button-mobile"
-                  disabled={isBusy() || activePageCount() === 0}
-                  onClick={handleDownload}
-                  class="editor-download-action editor-mobile-download"
-                >
-                  {isBusy() ? "Working…" : "Download"}
-                </button>
-              </div>
+              <EditorSelectionBar
+                busy={isBusy()}
+                busyLabel={statusMessage()}
+                selectedCount={selectedIndices().size}
+                selectedActiveCount={
+                  selectedIndices().size > 0 ? selectedActivePageCount() : activePageCount()
+                }
+                allPagesSelected={allPagesSelected()}
+                deletionLabel={deletionCopy().label}
+                deletionAriaLabel={deletionCopy().ariaLabel}
+                onSelectAll={handleSelectAll}
+                onClearSelection={clearSelection}
+                onRotate={handleRotateSelected}
+                onDelete={handleDeleteSelected}
+                onDownload={handleDownload}
+              />
 
               <div
                 role="status"
@@ -619,6 +602,13 @@ export default function Editor() {
                 <span data-testid="editor-status-message">{statusMessage()}</span>
               </div>
             </section>
+            <EditorFilesDialog
+              open={filesOpen()}
+              busy={isBusy()}
+              files={workspaceFiles()}
+              onClose={closeFilesDialog}
+              onSelectFile={handleWorkspaceFileClick}
+            />
           </div>
         </Show>
       </div>
