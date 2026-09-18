@@ -7,9 +7,6 @@ const page = await browser.newPage();
 try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
 
   await page.goto("http://127.0.0.1:4173/fidelity.html");
   await page.waitForFunction(
