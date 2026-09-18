@@ -87,7 +87,7 @@ function defaultWorkerFactory(workerUrl: string | URL): QpdfWorkerPort {
 
 export function makeQpdfProcessing(options: QpdfProcessingOptions): QpdfProcessingShape {
   const workerFactory = options.workerFactory ?? defaultWorkerFactory;
-  const activeWorkers = new Set<QpdfWorkerPort>();
+  const activeCancellations = new Set<() => void>();
   let nextRequestId = 0;
   let closed = false;
 
@@ -129,14 +129,13 @@ export function makeQpdfProcessing(options: QpdfProcessingOptions): QpdfProcessi
           );
           return;
         }
-        activeWorkers.add(worker);
-
         const id = `qpdf-${++nextRequestId}`;
         let finished = false;
+        let cancel: (() => void) | undefined;
         const cleanup = () => {
           if (finished) return;
           finished = true;
-          activeWorkers.delete(worker);
+          if (cancel) activeCancellations.delete(cancel);
           worker.removeEventListener("message", onMessage);
           worker.removeEventListener("error", onError);
           worker.terminate();
@@ -185,6 +184,18 @@ export function makeQpdfProcessing(options: QpdfProcessingOptions): QpdfProcessi
           );
         };
 
+        cancel = () =>
+          finish(
+            Effect.fail(
+              new QpdfProcessingError({
+                operation: "optimize",
+                cause: new Error("Qpdf processing was closed"),
+                message: "Qpdf processing was closed.",
+              })
+            )
+          );
+        activeCancellations.add(cancel);
+
         worker.addEventListener("message", onMessage);
         worker.addEventListener("error", onError);
 
@@ -218,10 +229,9 @@ export function makeQpdfProcessing(options: QpdfProcessingOptions): QpdfProcessi
 
     close() {
       closed = true;
-      for (const worker of activeWorkers) {
-        worker.terminate();
+      for (const cancel of [...activeCancellations]) {
+        cancel();
       }
-      activeWorkers.clear();
     },
   };
 }

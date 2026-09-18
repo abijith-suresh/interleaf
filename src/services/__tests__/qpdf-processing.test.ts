@@ -140,4 +140,19 @@ describe("QpdfProcessing", () => {
 
     expect(worker.terminated).toBe(true);
   });
+
+  it("fails an in-flight operation when the service closes", async () => {
+    const worker = new FakeWorker();
+    const service = makeService(worker);
+    const resultPromise = Effect.runPromise(service.optimizeLosslessly(new Uint8Array([1])));
+
+    service.close();
+
+    await expect(resultPromise).rejects.toMatchObject({
+      _tag: "QpdfProcessingError",
+      operation: "optimize",
+      message: "Qpdf processing was closed.",
+    });
+    expect(worker.terminated).toBe(true);
+  });
 });

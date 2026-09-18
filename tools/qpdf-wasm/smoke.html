@@ -35,21 +35,34 @@
 
   const worker = new Worker("./qpdf-worker.js", { type: "module" });
   const input = makePdf();
+  const inputSize = input.byteLength;
   const id = "smoke";
+  const timeout = setTimeout(() => {
+    output.textContent = "FAIL: qpdf worker timed out";
+    worker.terminate();
+  }, 30000);
 
   worker.addEventListener("message", (event) => {
     const result = event.data;
+    clearTimeout(timeout);
     if (result.type === "error") {
       output.textContent = `FAIL: ${result.message}`;
+      worker.terminate();
       return;
     }
 
     const bytes = new Uint8Array(result.output);
     const validHeader = new TextDecoder().decode(bytes.slice(0, 5)) === "%PDF-";
     output.textContent =
-      validHeader && result.inputSize === input.byteLength && result.reduced
+      validHeader && result.inputSize === inputSize && result.reduced
         ? `PASS: ${result.inputSize} bytes → ${bytes.byteLength} bytes (candidate ${result.candidateSize})`
         : "FAIL: qpdf returned an invalid smoke-test result";
+    worker.terminate();
+  });
+
+  worker.addEventListener("error", (event) => {
+    clearTimeout(timeout);
+    output.textContent = `FAIL: ${event.message || "qpdf worker failed"}`;
     worker.terminate();
   });
 

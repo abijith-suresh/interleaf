@@ -1,7 +1,7 @@
-# qpdf WASM spike
+# qpdf WASM foundation
 
-This directory contains the first browser boundary for lossless PDF optimization. It is deliberately
-not connected to the editor yet.
+This directory contains the approved browser boundary for lossless PDF optimization. It is not
+connected to the editor yet, so it does not change the current public product surface.
 
 The build pins qpdf 12.4.1 to the official release archive and checks its SHA-256 before compiling it
 with Emscripten 3.1.72. The generated worker uses qpdf's in-memory C++ API, so PDF bytes do not pass
@@ -54,8 +54,9 @@ Serve that directory and open `smoke.html` in a browser to exercise the real wor
 python3 -m http.server 8080 --directory /tmp/interleaf-qpdf
 ```
 
-The smoke page is intentionally small: it checks the worker boundary, output header, and size
-decision. It is not a substitute for the later fidelity fixture suite.
+The smoke page is intentionally small: it checks the real worker boundary, output header, and size
+decision. CI opens it in Chromium after building the generated assets. It is not a substitute for
+the later fidelity fixture suite.
 
 The generated `qpdf-worker.js` imports `qpdf.mjs` beside it. The later integration PR should load that
 worker through `QpdfProcessing` and add the generated files to the application asset pipeline only

@@ -17,6 +17,10 @@ function readCString(module, pointer) {
   return new TextDecoder().decode(new Uint8Array(bytes));
 }
 
+function readUint32(module, pointer) {
+  return new DataView(module.HEAPU8.buffer).getUint32(pointer, true);
+}
+
 function fail(id, code, message) {
   self.postMessage({ type: "error", id, code, message });
 }
@@ -49,9 +53,9 @@ self.addEventListener("message", async (event) => {
         outputSizePointer,
         errorPointerPointer
       );
-      const outputPointer = module.HEAPU32[outputPointerPointer >> 2];
-      const candidateSize = module.HEAPU32[outputSizePointer >> 2];
-      const errorPointer = module.HEAPU32[errorPointerPointer >> 2];
+      const outputPointer = readUint32(module, outputPointerPointer);
+      const candidateSize = readUint32(module, outputSizePointer);
+      const errorPointer = readUint32(module, errorPointerPointer);
 
       if (status !== 0) {
         const message = readCString(module, errorPointer) || "qpdf could not optimize the PDF";
@@ -75,8 +79,8 @@ self.addEventListener("message", async (event) => {
         [output.buffer]
       );
     } finally {
-      const outputPointer = module.HEAPU32[outputPointerPointer >> 2];
-      const errorPointer = module.HEAPU32[errorPointerPointer >> 2];
+      const outputPointer = readUint32(module, outputPointerPointer);
+      const errorPointer = readUint32(module, errorPointerPointer);
       if (outputPointer) module._qpdf_free(outputPointer);
       if (errorPointer) module._qpdf_free(errorPointer);
       module._free(inputPointer);
