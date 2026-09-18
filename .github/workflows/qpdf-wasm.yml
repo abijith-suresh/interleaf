@@ -32,6 +32,8 @@ jobs:
           test -s /tmp/interleaf-qpdf/qpdf.wasm
           test -s /tmp/interleaf-qpdf/qpdf-worker.js
           test -s /tmp/interleaf-qpdf/smoke.html
+          test -s /tmp/interleaf-qpdf/fidelity.html
+          test -s /tmp/interleaf-qpdf/fixtures/encrypted-40-bit-r3.b64
           grep -F "qpdf version: 12.4.1" /tmp/interleaf-qpdf/build-info.txt
 
       - name: Upload browser smoke assets
@@ -61,7 +63,7 @@ jobs:
           path: /tmp/interleaf-qpdf
 
       - name: Install Chromium runner
-        run: npm install --no-save --no-package-lock playwright@1.55.0
+        run: npm install --no-save --no-package-lock playwright@1.55.0 pdfjs-dist@6.3.289
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
@@ -73,3 +75,6 @@ jobs:
 
       - name: Run browser smoke test
         run: node tools/qpdf-wasm/browser-smoke.mjs
+
+      - name: Run browser fidelity tests
+        run: node tools/qpdf-wasm/browser-fidelity.mjs

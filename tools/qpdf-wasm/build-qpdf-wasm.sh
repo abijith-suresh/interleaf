@@ -48,9 +48,10 @@ fi
 [[ "$(sha256 "$QPDF_ARCHIVE")" == "$QPDF_ARCHIVE_SHA256" ]] ||
   die "qpdf source archive checksum did not match the pinned release"
 
-if [[ ! -f "$QPDF_SOURCE_DIR/CMakeLists.txt" ]]; then
-  tar --extract --gzip --file "$QPDF_ARCHIVE" --directory "$WORK_DIR"
-fi
+# Always extract the verified archive into a clean source directory. This keeps
+# a locally cached source tree from silently bypassing the archive checksum.
+rm -rf "$QPDF_SOURCE_DIR"
+tar --extract --gzip --file "$QPDF_ARCHIVE" --directory "$WORK_DIR"
 
 readonly EMSCRIPTEN_SYSROOT="$(em-config CACHE)/sysroot"
 readonly PORT_FLAGS="-fexceptions -sUSE_ZLIB=1 -sUSE_LIBJPEG=1"
@@ -105,6 +106,9 @@ em++ \
 
 cp "${SCRIPT_DIR}/qpdf-worker.js" "${OUTPUT_DIR}/qpdf-worker.js"
 cp "${SCRIPT_DIR}/smoke.html" "${OUTPUT_DIR}/smoke.html"
+cp "${SCRIPT_DIR}/fidelity.html" "${OUTPUT_DIR}/fidelity.html"
+mkdir -p "${OUTPUT_DIR}/fixtures"
+cp "${SCRIPT_DIR}/fixtures/encrypted-40-bit-r3.b64" "${OUTPUT_DIR}/fixtures/encrypted-40-bit-r3.b64"
 
 cat >"${OUTPUT_DIR}/build-info.txt" <<EOF
 qpdf version: ${QPDF_VERSION}

@@ -49,7 +49,6 @@ namespace
             }
 
             if (dictionary.isDictionaryOfType("/Sig") ||
-                dictionary.getKey("/FT").isNameAndEquals("/Sig") ||
                 (dictionary.hasKey("/ByteRange") && dictionary.hasKey("/Contents"))) {
                 return true;
             }
