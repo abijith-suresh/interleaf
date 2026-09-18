@@ -1,0 +1,62 @@
+# qpdf WASM spike
+
+This directory contains the first browser boundary for lossless PDF optimization. It is deliberately
+not connected to the editor yet.
+
+The build pins qpdf 12.4.1 to the official release archive and checks its SHA-256 before compiling it
+with Emscripten 3.1.72. The generated worker uses qpdf's in-memory C++ API, so PDF bytes do not pass
+through a server or a temporary browser file.
+
+The optimization profile is intentionally narrow:
+
+- generalized and specialized non-lossy filters may be decoded;
+- Flate streams are recompressed at level 9;
+- object streams are generated for PDFs that already support PDF 1.5 object streams; older PDFs
+  keep their existing object-stream mode and version;
+- encryption is preserved when the caller supplies the password;
+- signed PDFs are rejected because any rewrite would invalidate their signature;
+- image optimization, JPEG decoding/re-encoding, metadata removal, decryption, and rasterization are
+  not enabled.
+
+qpdf reparses its output before returning it. It may still produce an output that is larger than the
+input. The worker returns the original bytes in that case and reports the candidate size, so a later
+product surface can honestly say that no reduction was available.
+
+## Build
+
+Use an Emscripten environment matching the pinned toolchain. The repository does not commit the
+generated loader or WASM binary while this boundary is being reviewed.
+
+```sh
+./tools/qpdf-wasm/build-qpdf-wasm.sh
+```
+
+The script also works from the official Emscripten Docker image:
+
+```sh
+docker run --rm -it \
+  -v "$PWD":/src \
+  -w /src \
+  emscripten/emsdk:3.1.72 \
+  ./tools/qpdf-wasm/build-qpdf-wasm.sh
+```
+
+Pass an output directory as the first argument when the generated files need to be served by a local
+browser smoke test:
+
+```sh
+./tools/qpdf-wasm/build-qpdf-wasm.sh /tmp/interleaf-qpdf
+```
+
+Serve that directory and open `smoke.html` in a browser to exercise the real worker and WASM module:
+
+```sh
+python3 -m http.server 8080 --directory /tmp/interleaf-qpdf
+```
+
+The smoke page is intentionally small: it checks the worker boundary, output header, and size
+decision. It is not a substitute for the later fidelity fixture suite.
+
+The generated `qpdf-worker.js` imports `qpdf.mjs` beside it. The later integration PR should load that
+worker through `QpdfProcessing` and add the generated files to the application asset pipeline only
+after the real browser smoke test and PDF fidelity fixtures pass.

@@ -1,6 +1,7 @@
 # Build output
 dist/
 .output/
+.qpdf-wasm-build/
 
 # Astro
 .astro/
