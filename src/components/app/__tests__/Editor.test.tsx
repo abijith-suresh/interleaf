@@ -77,6 +77,18 @@ function expectLastToast(text: string) {
   expect(toasts.at(-1)).toHaveTextContent(text);
 }
 
+type TestIdQuery = (testId: string) => HTMLElement;
+
+async function openEditMenu(getByTestId: TestIdQuery) {
+  fireEvent.click(getByTestId("editor-edit-menu-button"));
+  await waitFor(() => expect(getByTestId("editor-edit-menu")).toBeVisible());
+}
+
+async function openDownloadMenu(getByTestId: TestIdQuery) {
+  fireEvent.click(getByTestId("editor-download-options-button"));
+  await waitFor(() => expect(getByTestId("editor-download-options-menu")).toBeVisible());
+}
+
 describe("Editor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -190,13 +202,20 @@ describe("Editor", () => {
         (button) => !(button as HTMLButtonElement).disabled
       )
     ).toBe(true);
-    expect(getByTestId("editor-clear-selection-button")).toBeDisabled();
-    expect(getByTestId("editor-rotate-button")).toBeDisabled();
-    expect(getByTestId("editor-delete-button")).toBeDisabled();
+    expect(getByTestId("editor-edit-menu-button")).toBeEnabled();
+    expect(getByTestId("editor-download-options-button")).toBeEnabled();
+
+    await openEditMenu(getByTestId);
+    expect(getByTestId("editor-clear-selection-button")).toHaveAttribute("aria-disabled", "true");
+    expect(getByTestId("editor-rotate-button")).toHaveAttribute("aria-disabled", "true");
+    expect(getByTestId("editor-delete-button")).toHaveAttribute("aria-disabled", "true");
     expect(getByTestId("editor-select-all-button")).toBeEnabled();
     expect(getByTestId("editor-download-button")).toBeEnabled();
+    expect(getByTestId("editor-edit-menu-button")).toHaveAttribute("aria-expanded", "true");
+
+    await openDownloadMenu(getByTestId);
     expect(getByTestId("editor-export-images-button")).toBeEnabled();
-    expect(getByTestId("editor-export-images-button")).toHaveTextContent("PNG ZIP");
+    expect(getByTestId("editor-export-images-button")).toHaveTextContent("Export PNG images");
     expect(getByTestId("editor-export-images-button")).toHaveAccessibleName(
       "Export pages as PNG images in a ZIP archive"
     );
@@ -205,12 +224,14 @@ describe("Editor", () => {
     fireEvent.click((await findAllByTestId("editor-page-tile"))[0]);
     await waitFor(() => expect(rotateButtons[0]).toBeEnabled());
 
+    await openEditMenu(getByTestId);
     expect(getByTestId("editor-clear-selection-button")).toBeEnabled();
     expect(getByTestId("editor-rotate-button")).toBeEnabled();
     expect(getByTestId("editor-delete-button")).toBeEnabled();
-    expect(getByTestId("editor-download-button")).toHaveTextContent("Export 1 selected page");
+    expect(getByTestId("editor-download-button")).toHaveTextContent("Download PDF");
+    await openDownloadMenu(getByTestId);
     expect(getByTestId("editor-export-images-button")).toBeEnabled();
-    expect(getByTestId("editor-compress-button")).toBeDisabled();
+    expect(getByTestId("editor-compress-button")).toHaveAttribute("aria-disabled", "true");
   });
 
   it("uses one clear control after every page is selected", async () => {
@@ -219,7 +240,8 @@ describe("Editor", () => {
     selectFile("editor-upload-input", makeFile());
     await findAllByTestId("editor-page-tile");
 
-    expect(getByTestId("editor-select-all-button")).toHaveTextContent("Select all");
+    await openEditMenu(getByTestId);
+    expect(getByTestId("editor-select-all-button")).toHaveTextContent("Select all pages");
     expect(getByTestId("editor-select-all-button")).toHaveAttribute(
       "aria-label",
       "Select all pages"
@@ -227,10 +249,11 @@ describe("Editor", () => {
 
     fireEvent.click(getByTestId("editor-select-all-button"));
 
+    await openEditMenu(getByTestId);
     await waitFor(() => {
-      expect(getByTestId("editor-select-all-button")).toHaveTextContent("All selected");
-      expect(getByTestId("editor-select-all-button")).toBeDisabled();
-      expect(getByTestId("editor-clear-selection-button")).toHaveTextContent("Clear");
+      expect(getByTestId("editor-select-all-button")).toHaveAccessibleName("All pages selected");
+      expect(getByTestId("editor-select-all-button")).toHaveAttribute("aria-disabled", "true");
+      expect(getByTestId("editor-clear-selection-button")).toHaveTextContent("Clear selection");
       expect(getByTestId("editor-clear-selection-button")).toHaveAttribute(
         "aria-label",
         "Clear page selection"
@@ -239,8 +262,9 @@ describe("Editor", () => {
 
     fireEvent.click(getByTestId("editor-clear-selection-button"));
 
+    await openEditMenu(getByTestId);
     await waitFor(() =>
-      expect(getByTestId("editor-select-all-button")).toHaveTextContent("Select all")
+      expect(getByTestId("editor-select-all-button")).toHaveTextContent("Select all pages")
     );
   });
 
@@ -299,12 +323,14 @@ describe("Editor", () => {
     selectFile("editor-upload-input", makeFile());
     const tiles = await findAllByTestId("editor-page-tile");
 
+    await openEditMenu(getByTestId);
     fireEvent.click(getByTestId("editor-select-all-button"));
 
     await waitFor(() =>
       expect(tiles.map((tile) => tile.dataset.selected)).toEqual(["true", "true", "true"])
     );
 
+    await openEditMenu(getByTestId);
     fireEvent.click(getByTestId("editor-rotate-button"));
     const status = await findByTestId("editor-status-message");
     await waitFor(() => expect(status).toHaveTextContent("Rotated 3 selected pages."));
@@ -316,9 +342,11 @@ describe("Editor", () => {
     selectFile("editor-upload-input", makeFile());
     const tiles = await findAllByTestId("editor-page-tile");
 
+    await openEditMenu(getByTestId);
     fireEvent.click(getByTestId("editor-select-all-button"));
     await waitFor(() => expect(tiles[0].dataset.selected).toBe("true"));
 
+    await openEditMenu(getByTestId);
     expect(getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
     fireEvent.click(getByTestId("editor-delete-button"));
 
@@ -327,8 +355,10 @@ describe("Editor", () => {
     );
     expect(getByTestId("editor-status-bar")).toHaveTextContent("3 pages (0 active)");
     expect(getByTestId("editor-download-button")).toBeDisabled();
-    expect(getByTestId("editor-export-images-button")).toBeDisabled();
-    expect(getByTestId("editor-export-images-button")).toHaveTextContent("Restore pages");
+    await openDownloadMenu(getByTestId);
+    expect(getByTestId("editor-export-images-button")).toHaveAttribute("aria-disabled", "true");
+    expect(getByTestId("editor-export-images-button")).toHaveTextContent("Export PNG images");
+    await openEditMenu(getByTestId);
     expect(getByTestId("editor-delete-button")).toHaveTextContent("Restore");
     expect(getByTestId("editor-delete-button")).toHaveAttribute(
       "aria-label",
@@ -337,6 +367,7 @@ describe("Editor", () => {
 
     fireEvent.click(getByTestId("editor-delete-button"));
 
+    await openEditMenu(getByTestId);
     await waitFor(() => {
       expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual([
         "false",
@@ -404,12 +435,17 @@ describe("Editor", () => {
 
     await waitFor(() => {
       expect(getByTestId("editor-selection-title")).toHaveTextContent("2 selected · 1 exportable");
-      expect(getByTestId("editor-download-button")).toHaveTextContent("Export 1 selected page");
+      expect(getByTestId("editor-download-button")).toHaveTextContent("Download PDF");
+      expect(getByTestId("editor-download-button")).toHaveAccessibleName(
+        "Download a PDF with 1 selected active page"
+      );
     });
 
+    await openEditMenu(getByTestId);
     expect(getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
     fireEvent.click(getByTestId("editor-delete-button"));
 
+    await openEditMenu(getByTestId);
     await waitFor(() => {
       expect(tiles[0]).toHaveAttribute("data-marked-for-deletion", "true");
       expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "true");
@@ -485,6 +521,7 @@ describe("Editor", () => {
 
     fireEvent.click(tiles[1]);
     await waitFor(() => expect(tiles[1].dataset.selected).toBe("true"));
+    await openDownloadMenu(getByTestId);
     fireEvent.click(getByTestId("editor-export-images-button"));
 
     await waitFor(() => expect(downloadFile).toHaveBeenCalledTimes(1));
@@ -503,6 +540,7 @@ describe("Editor", () => {
     const file = makeFile("source.pdf");
     selectFile("editor-upload-input", file);
     await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
+    await openDownloadMenu(getByTestId);
     fireEvent.click(getByTestId("editor-compress-button"));
 
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
@@ -528,6 +566,7 @@ describe("Editor", () => {
     selectFile("editor-upload-input", makeFile());
     await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
 
+    await openDownloadMenu(getByTestId);
     fireEvent.click(getByTestId("editor-compress-button"));
 
     await waitFor(() =>
@@ -545,6 +584,7 @@ describe("Editor", () => {
     selectFile("editor-upload-input", makeFile());
     await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
 
+    await openDownloadMenu(getByTestId);
     fireEvent.click(getByTestId("editor-compress-button"));
 
     await waitFor(() => expectLastToast("Failed to compress the PDF."));
