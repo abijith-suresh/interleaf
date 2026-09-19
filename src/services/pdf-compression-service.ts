@@ -1,18 +1,11 @@
 import { Data, Effect } from "effect";
-import type {
-  PageState,
-  PDFBuildProgress,
-  PDFCompressionResult,
-  PDFError,
-} from "../types/interfaces";
-import type { PDFBuildOptions, PDFOperationsService } from "./pdf-operations-service";
+import type { PDFCompressionResult, PDFError } from "../types/interfaces";
+import { PDFProcessingError } from "../types/interfaces";
 import type { QpdfProcessingError, QpdfProcessingShape } from "./qpdf-processing";
 
 export type PDFCompressionStage = "compressing";
 
 export interface PDFCompressionOptions {
-  readonly selectedIndices?: readonly number[];
-  readonly onProgress?: (progress: PDFBuildProgress) => void;
   readonly onCompressionStage?: (stage: PDFCompressionStage) => void;
 }
 
@@ -29,24 +22,24 @@ function messageFromCause(cause: unknown): string {
 }
 
 export class PDFCompressionService {
-  constructor(
-    private readonly operationsService: Pick<PDFOperationsService, "buildPDF">,
-    private readonly qpdfProcessing: Pick<QpdfProcessingShape, "optimizeLosslessly">
-  ) {}
+  constructor(private readonly qpdfProcessing: Pick<QpdfProcessingShape, "optimizeLosslessly">) {}
 
   compressPDF(
-    pages: readonly PageState[],
+    file: File,
+    password: string | undefined,
     options: PDFCompressionOptions = {}
   ): Effect.Effect<PDFCompressionResult, PDFError | QpdfProcessingError | PDFCompressionError> {
-    const buildOptions: PDFBuildOptions = {
-      ...(options.selectedIndices === undefined
-        ? {}
-        : { selectedIndices: options.selectedIndices }),
-      ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
-    };
-
     return Effect.gen({ self: this }, function* () {
-      const built = yield* this.operationsService.buildPDF(pages, buildOptions);
+      const input = yield* Effect.tryPromise({
+        try: async () => new Uint8Array(await file.arrayBuffer()),
+        catch: (cause) =>
+          new PDFProcessingError({
+            operation: "read-file",
+            file,
+            cause,
+            message: errorMessage(cause, `Could not read ${file.name}.`),
+          }),
+      });
 
       yield* Effect.try({
         try: () => options.onCompressionStage?.("compressing"),
@@ -58,16 +51,27 @@ export class PDFCompressionService {
           }),
       });
 
-      const optimized = yield* this.qpdfProcessing.optimizeLosslessly(built.data);
+      const optimized = yield* this.qpdfProcessing.optimizeLosslessly(input, password);
 
       return {
         data: optimized.data,
         inputBytes: optimized.inputBytes,
         candidateBytes: optimized.candidateBytes,
         outputBytes: optimized.outputBytes,
-        suggestedFileName: built.suggestedFileName,
+        suggestedFileName: compressedFileName(file.name),
         reduced: optimized.reduced,
       };
     });
   }
+}
+
+function compressedFileName(fileName: string): string {
+  const baseName = fileName.replace(/\.pdf$/i, "");
+  return `${baseName || "interleaf"}-compressed.pdf`;
+}
+
+function errorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof Error && cause.message) return cause.message;
+  if (typeof cause === "string" && cause.length > 0) return cause;
+  return fallback;
 }

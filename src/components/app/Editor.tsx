@@ -12,6 +12,7 @@ import {
   toggleSelection,
 } from "../../controllers/editor-page-state";
 import { makePDFRuntime, PDFProcessing } from "../../services/pdf-runtime";
+import { QpdfProcessingError } from "../../services/qpdf-processing";
 import type { PageState } from "../../types/interfaces";
 import { PDFPasswordRequiredError } from "../../types/interfaces";
 import { downloadPDF } from "../../utils/download";
@@ -80,6 +81,33 @@ export default function Editor() {
   const allPagesSelected = () => areAllPagesSelected(pages.length, selectedIndices());
   const selectedDeletionAction = () => getDeletionAction(pages, selectedIndices());
   const deletionCopy = () => deletionActionCopy[selectedDeletionAction()];
+
+  function getUnmodifiedSourceFile(): File | null {
+    if (pages.length === 0 || selectedIndices().size > 0) return null;
+
+    const sourceFile = pages[0]?.sourceFile;
+    if (!sourceFile) return null;
+
+    const isUnmodified = pages.every(
+      (page, index) =>
+        page.sourceFile === sourceFile &&
+        page.sourcePageNumber === index + 1 &&
+        page.rotation === 0 &&
+        !page.markedForDeletion
+    );
+
+    return isUnmodified ? sourceFile : null;
+  }
+
+  function compressionDisabledReason(): string {
+    if (selectedIndices().size > 0) {
+      return "Clear page selection to compress the original PDF";
+    }
+    if (pages.length === 0 || activePageCount() === 0) {
+      return "No active pages to compress";
+    }
+    return "Compression is available before page edits";
+  }
 
   const workspaceFiles = createMemo<EditorWorkspaceFile[]>(() => {
     const groups = new Map<File, EditorWorkspaceFile>();
@@ -409,28 +437,16 @@ export default function Editor() {
   }
 
   async function handleCompress(): Promise<void> {
-    if (disposed || isBusy()) return;
-    const selection = selectedIndices();
-    const selectedPageIndices =
-      selection.size > 0 ? Array.from(selection).sort((a, b) => a - b) : undefined;
-    const totalPages = selectedPageIndices ? selectedActivePageCount() : activePageCount();
+    const file = getUnmodifiedSourceFile();
+    if (disposed || isBusy() || !file) return;
 
     setOperation("compressing");
-    setStatusMessage(
-      `${selectedPageIndices ? "Building selected PDF" : "Building PDF"}… 0/${totalPages}`
-    );
+    setStatusMessage("Compressing PDF…");
 
     try {
       const result = await runPDF(
         PDFProcessing.use((service) =>
-          service.compressPDF(pages, {
-            selectedIndices: selectedPageIndices,
-            onProgress: ({ completed, total }) => {
-              if (disposed) return;
-              setStatusMessage(
-                `${selectedPageIndices ? "Building selected PDF" : "Building PDF"}… ${completed}/${total}`
-              );
-            },
+          service.compressPDF(file, {
             onCompressionStage: () => {
               if (!disposed) setStatusMessage("Compressing PDF…");
             },
@@ -449,9 +465,14 @@ export default function Editor() {
         dispatchToast("No smaller file was available. Downloaded the current PDF.", "info");
         setStatusMessage("Current PDF download started.");
       }
-    } catch (_err) {
+    } catch (error) {
       if (disposed) return;
-      dispatchToast("Failed to compress the PDF.", "error");
+      dispatchToast(
+        error instanceof QpdfProcessingError
+          ? `Failed to compress the PDF: ${error.message}`
+          : "Failed to compress the PDF.",
+        "error"
+      );
       setStatusMessage("Compression failed. Try again.");
     } finally {
       if (!disposed) setOperation("idle");
@@ -678,6 +699,8 @@ export default function Editor() {
                 onDelete={handleDeleteSelected}
                 onDownload={handleDownload}
                 onCompress={handleCompress}
+                compressionAvailable={getUnmodifiedSourceFile() !== null}
+                compressionDisabledReason={compressionDisabledReason()}
               />
 
               <div

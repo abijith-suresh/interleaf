@@ -68,6 +68,10 @@ editor-level regression tests.
 The generated `qpdf-worker.js` imports `qpdf.mjs` beside it. The editor loads that worker through
 `QpdfProcessing` when the compression workflow runs.
 
+The current compression workflow sends the untouched uploaded source file to qpdf. It stays
+disabled after page edits or selection so compression cannot silently discard document-level data
+that the editor's page-building path does not preserve yet.
+
 The application keeps the verified runtime in `public/qpdf/`. CI rebuilds qpdf and compares those
 three deployed assets byte-for-byte with the build output using `check-app-assets.sh`. The
 `SHA256SUMS` file in that directory records the checked-in bytes.

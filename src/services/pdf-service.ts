@@ -92,6 +92,10 @@ export class PDFService {
     return this.documentCache.get(this.activeFile)?.pdfDocument.getPageCount() ?? 0;
   }
 
+  getPassword(file: File): string | undefined {
+    return this.passwordRegistry.get(file);
+  }
+
   renderPage(
     file: File,
     pageNumber: number,

@@ -6,6 +6,8 @@ interface Props {
   allPagesSelected: boolean;
   deletionLabel: string;
   deletionAriaLabel: string;
+  compressionAvailable: boolean;
+  compressionDisabledReason: string;
   onSelectAll: () => void;
   onClearSelection: () => void;
   onRotate: () => void;
@@ -118,17 +120,21 @@ export default function EditorSelectionBar(props: Props) {
         <button
           type="button"
           data-testid="editor-compress-button"
-          disabled={props.busy || props.selectedActiveCount === 0}
+          disabled={props.busy || props.selectedActiveCount === 0 || !props.compressionAvailable}
           onClick={props.onCompress}
           aria-label={
-            props.selectedActiveCount === 0
-              ? "No active pages to compress"
-              : "Compress the current PDF"
+            props.busy || props.compressionAvailable
+              ? props.busy
+                ? props.busyLabel
+                : "Compress the original PDF"
+              : props.compressionDisabledReason
           }
           title={
-            props.selectedActiveCount === 0
-              ? "No active pages to compress"
-              : "Compress the current PDF"
+            props.busy || props.compressionAvailable
+              ? props.busy
+                ? props.busyLabel
+                : "Compress the original PDF"
+              : props.compressionDisabledReason
           }
           class="editor-compress-action"
         >

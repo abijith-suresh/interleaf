@@ -7,6 +7,7 @@ const pdfServiceMocks = vi.hoisted(() => ({
   loadPDF: vi.fn(),
   loadPDFWithPassword: vi.fn(),
   getPageCount: vi.fn(),
+  getPassword: vi.fn(),
   renderPage: vi.fn(),
   reset: vi.fn(),
 }));
@@ -28,6 +29,7 @@ vi.mock("@/services/pdf-service", () => ({
     loadPDF = pdfServiceMocks.loadPDF;
     loadPDFWithPassword = pdfServiceMocks.loadPDFWithPassword;
     getPageCount = pdfServiceMocks.getPageCount;
+    getPassword = pdfServiceMocks.getPassword;
     renderPage = pdfServiceMocks.renderPage;
     reset = pdfServiceMocks.reset;
   },
@@ -183,6 +185,7 @@ describe("Editor", () => {
     expect(getByTestId("editor-rotate-button")).toBeEnabled();
     expect(getByTestId("editor-delete-button")).toBeEnabled();
     expect(getByTestId("editor-download-button")).toHaveTextContent("Export 1 selected page");
+    expect(getByTestId("editor-compress-button")).toBeDisabled();
   });
 
   it("uses one clear control after every page is selected", async () => {
@@ -447,18 +450,18 @@ describe("Editor", () => {
     expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledTimes(1);
   });
 
-  it("compresses the current workspace with the selected pages", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+  it("compresses the original uploaded PDF before page edits", async () => {
+    const { getByTestId } = render(() => <Editor />);
 
-    selectFile("editor-upload-input", makeFile());
-    const tiles = await findAllByTestId("editor-page-tile");
-    fireEvent.click(tiles[1]);
+    const file = makeFile("source.pdf");
+    selectFile("editor-upload-input", file);
+    await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
     fireEvent.click(getByTestId("editor-compress-button"));
 
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
     expect(pdfCompressionMocks.compressPDF).toHaveBeenCalledTimes(1);
-    expect(pdfCompressionMocks.compressPDF.mock.calls[0][0]).toHaveLength(3);
-    expect(pdfCompressionMocks.compressPDF.mock.calls[0][1].selectedIndices).toEqual([1]);
+    expect(pdfCompressionMocks.compressPDF.mock.calls[0][0]).toBe(file);
+    expect(pdfCompressionMocks.compressPDF.mock.calls[0][1]).toBeUndefined();
     expect(getByTestId("editor-toast")).toHaveTextContent("Compressed 10 B to 2 B.");
   });
 

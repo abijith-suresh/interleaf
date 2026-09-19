@@ -6,6 +6,7 @@ const pdfServiceMock = vi.hoisted(() => ({
   loadPDF: vi.fn(),
   loadPDFWithPassword: vi.fn(),
   getPageCount: vi.fn(),
+  getPassword: vi.fn(),
   renderPage: vi.fn(),
   reset: vi.fn(),
 }));
@@ -15,11 +16,17 @@ const operationsServiceMock = vi.hoisted(() => ({
   clearCache: vi.fn(),
 }));
 
+const qpdfProcessingMock = vi.hoisted(() => ({
+  optimizeLosslessly: vi.fn(),
+  close: vi.fn(),
+}));
+
 vi.mock("../pdf-service", () => ({
   PDFService: class {
     loadPDF = pdfServiceMock.loadPDF;
     loadPDFWithPassword = pdfServiceMock.loadPDFWithPassword;
     getPageCount = pdfServiceMock.getPageCount;
+    getPassword = pdfServiceMock.getPassword;
     renderPage = pdfServiceMock.renderPage;
     reset = pdfServiceMock.reset;
   },
@@ -29,6 +36,9 @@ vi.mock("../pdf-operations-service", () => ({
     buildPDF = operationsServiceMock.buildPDF;
     clearCache = operationsServiceMock.clearCache;
   },
+}));
+vi.mock("../qpdf-processing", () => ({
+  makeQpdfProcessing: () => qpdfProcessingMock,
 }));
 
 import { makePDFRuntime, PDFProcessing } from "../pdf-runtime";
@@ -73,3 +83,42 @@ it.effect("interrupts all runtime-owned fibers before disposing services", () =>
     expect(Exit.isFailure(exit)).toBe(true);
   })
 );
+
+it.effect("passes the unlocked source PDF to lossless compression", () => {
+  vi.clearAllMocks();
+  pdfServiceMock.getPassword.mockReturnValue("623");
+  pdfServiceMock.reset.mockReturnValue(Effect.succeed(undefined));
+  operationsServiceMock.clearCache.mockReturnValue(Effect.succeed(undefined));
+  qpdfProcessingMock.optimizeLosslessly.mockReturnValue(
+    Effect.succeed({
+      data: new Uint8Array([4, 5]),
+      inputBytes: 6,
+      candidateBytes: 2,
+      outputBytes: 2,
+      reduced: true,
+    })
+  );
+
+  return Effect.tryPromise({
+    try: async () => {
+      const runtime = makePDFRuntime({ qpdfWorkerUrl: "/qpdf/qpdf-worker.js" });
+      const file = new File(["source"], "source.pdf", { type: "application/pdf" });
+
+      await expect(
+        runtime.runPromise(PDFProcessing.use((service) => service.compressPDF(file)))
+      ).resolves.toMatchObject({
+        inputBytes: 6,
+        outputBytes: 2,
+        suggestedFileName: "source-compressed.pdf",
+      });
+      expect(qpdfProcessingMock.optimizeLosslessly).toHaveBeenCalledWith(
+        new Uint8Array(await file.arrayBuffer()),
+        "623"
+      );
+
+      await runtime.dispose();
+      expect(qpdfProcessingMock.close).toHaveBeenCalledTimes(1);
+    },
+    catch: (cause) => cause,
+  });
+});

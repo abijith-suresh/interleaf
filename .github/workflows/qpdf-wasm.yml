@@ -37,7 +37,7 @@ jobs:
             exit 1
           }
 
-          if printf '%s\n' "$changed_files" | grep -Eq '^(\.github/workflows/(ci|qpdf-wasm)\.yml|package\.json|bun\.lock|public/qpdf/|src/services/qpdf-processing\.ts|tools/qpdf-wasm/)'; then
+          if printf '%s\n' "$changed_files" | grep -Eq '^(\.github/workflows/(ci|qpdf-wasm)\.yml|package\.json|bun\.lock|public/qpdf/|src/services/(pdf-compression-service|pdf-runtime|qpdf-processing)\.ts|tools/qpdf-wasm/)'; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"
