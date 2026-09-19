@@ -70,31 +70,32 @@
   }
 
   function makeStructuredPdf() {
-    const content = "q Q\n".repeat(100);
+    const content = `BT /F1 18 Tf 72 720 Td (Interleaf fidelity text) Tj ET\n${"q Q\n".repeat(100)}`;
     return makePdf([
       "<< /AcroForm 6 0 R /Pages 2 0 R /Type /Catalog >>",
       "<< /Count 1 /Kids [3 0 R] /Type /Pages >>",
-      "<< /Annots [5 0 R 9 0 R 10 0 R] /Contents 4 0 R /MediaBox [0 0 612 792] /Parent 2 0 R /Type /Page >>",
+      "<< /Annots [5 0 R 9 0 R 10 0 R] /Contents 4 0 R /MediaBox [0 0 612 792] /Parent 2 0 R /Resources << /Font << /F1 11 0 R >> >> /Type /Page >>",
       makeStream("", content),
       "<< /Contents (fixture note) /P 3 0 R /Rect [10 10 100 100] /Subtype /Text /Type /Annot >>",
-      "<< /Fields [7 0 R 8 0 R] >>",
-      "<< /FT /Tx /Kids [9 0 R] /T (Name) /V (Interleaf) >>",
+      "<< /DA (/F1 12 Tf 0 g) /DR << /Font << /F1 11 0 R >> >> /Fields [7 0 R 8 0 R] >>",
+      "<< /DA (/F1 12 Tf 0 g) /FT /Tx /Kids [9 0 R] /T (Name) /V (Interleaf) >>",
       "<< /FT /Sig /Kids [10 0 R] /T (UnsignedSignature) >>",
       "<< /Parent 7 0 R /Rect [10 10 200 30] /Subtype /Widget /Type /Annot >>",
       "<< /Parent 8 0 R /Rect [10 40 200 60] /Subtype /Widget /Type /Annot >>",
+      "<< /BaseFont /Helvetica /Subtype /Type1 /Type /Font >>",
     ]);
   }
 
   function makeImagePdf() {
-    const content = "/Im1 Do\n";
+    const content = "100 0 0 100 0 0 cm\n/Im1 Do\n";
     return makePdf([
       "<< /Pages 2 0 R /Type /Catalog >>",
       "<< /Count 1 /Kids [3 0 R] /Type /Pages >>",
       "<< /Contents 4 0 R /MediaBox [0 0 100 100] /Parent 2 0 R /Resources << /XObject << /Im1 5 0 R >> >> /Type /Page >>",
       makeStream("", content),
       makeStream(
-        "/BitsPerComponent 8 /ColorSpace /DeviceGray /Height 1 /Subtype /Image /Type /XObject /Width 1",
-        "0"
+        "/BitsPerComponent 8 /ColorSpace /DeviceRGB /Height 1 /Subtype /Image /Type /XObject /Width 1",
+        Uint8Array.from([255, 0, 0])
       ),
     ]);
   }
@@ -144,13 +145,17 @@
         resolve({ inputSize, original, result });
       };
       const timeout = setTimeout(
-        () => finish({ type: "error", message: "worker timed out" }),
+        () => finish({ type: "runner-error", code: "QPDF_TIMEOUT", message: "qpdf worker timed out" }),
         45_000
       );
 
       worker.addEventListener("message", (event) => finish(event.data));
       worker.addEventListener("error", (event) =>
-        finish({ type: "error", message: event.message || "worker failed" })
+        finish({
+          type: "runner-error",
+          code: "QPDF_WORKER_FAILED",
+          message: event.message || "qpdf worker failed",
+        })
       );
 
       worker.postMessage(
@@ -166,9 +171,14 @@
   }
 
   async function main() {
-    const fixtureResponse = await fetch("./fixtures/encrypted-40-bit-r3.b64");
-    if (!fixtureResponse.ok) throw new Error("encrypted fixture could not be loaded");
-    const encryptedFixture = decodeBase64(await fixtureResponse.text());
+    async function loadFixture(name) {
+      const response = await fetch(`./fixtures/${name}`);
+      if (!response.ok) throw new Error(`${name} could not be loaded`);
+      return decodeBase64(await response.text());
+    }
+
+    const encrypted40BitFixture = await loadFixture("encrypted-40-bit-r3.b64");
+    const encrypted256BitFixture = await loadFixture("encrypted-256-bit-r6.b64");
 
     const cases = [
       {
@@ -181,28 +191,55 @@
         name: "preserves forms, annotations, and unsigned signature fields",
         input: makeStructuredPdf(),
         contains: ["/Subtype /Text", "/FT /Tx", "/FT /Sig"],
+        text: "Interleaf fidelity text",
+        structured: true,
       },
       {
         name: "preserves image XObjects",
         input: makeImagePdf(),
         contains: ["/Subtype /Image"],
+        image: true,
       },
       {
-        name: "opens and rewrites an encrypted PDF with its password",
-        input: encryptedFixture,
+        name: "opens and rewrites a 40-bit encrypted PDF with its password",
+        input: encrypted40BitFixture,
         password: "623",
         contains: ["/Filter /Standard"],
+        encrypted: true,
       },
       {
-        name: "rejects an encrypted PDF without a password",
-        input: encryptedFixture.slice(),
+        name: "opens and rewrites an AES-256 R6 encrypted PDF with its password",
+        input: encrypted256BitFixture,
+        password: "wwwww",
+        contains: ["/Filter /Standard", "/V 5", "/R 6"],
+        encrypted: true,
+        expectedPages: 30,
+      },
+      {
+        name: "rejects a 40-bit encrypted PDF without a password",
+        input: encrypted40BitFixture.slice(),
         expectError: true,
+        errorMessage: /password|encrypted/i,
       },
       {
-        name: "rejects an encrypted PDF with a wrong password",
-        input: encryptedFixture.slice(),
+        name: "rejects an AES-256 R6 encrypted PDF without a password",
+        input: encrypted256BitFixture.slice(),
+        expectError: true,
+        errorMessage: /password|encrypted/i,
+      },
+      {
+        name: "rejects a 40-bit encrypted PDF with a wrong password",
+        input: encrypted40BitFixture.slice(),
         password: "wrong",
         expectError: true,
+        errorMessage: /password|encrypted/i,
+      },
+      {
+        name: "rejects an AES-256 R6 encrypted PDF with a wrong password",
+        input: encrypted256BitFixture.slice(),
+        password: "wrong",
+        expectError: true,
+        errorMessage: /password|encrypted/i,
       },
       {
         name: "repairs a malformed xref offset",
@@ -213,11 +250,13 @@
         name: "rejects truncated input",
         input: encoder.encode("%PDF-1.7\n1 0 obj\n<<"),
         expectError: true,
+        errorMessage: /PDF|trailer|xref|syntax/i,
       },
       {
         name: "rejects an applied signature dictionary",
         input: makeSignedMarkerPdf(),
         expectError: true,
+        errorMessage: /signed PDFs cannot be rewritten losslessly/i,
       },
     ];
 
@@ -225,7 +264,16 @@
     for (const testCase of cases) {
       const { original, result, inputSize } = await runWorker(testCase.input, testCase.password);
       if (testCase.expectError) {
-        if (result.type !== "error") failures.push(`${testCase.name}: expected an error`);
+        const message = result.message ?? "";
+        if (
+          result.type !== "error" ||
+          result.code !== "QPDF_EXEC_FAILED" ||
+          !testCase.errorMessage.test(message)
+        ) {
+          failures.push(
+            `${testCase.name}: expected QPDF_EXEC_FAILED with ${testCase.errorMessage}, got ${result.code ?? result.type}: ${message}`
+          );
+        }
         continue;
       }
 
@@ -259,8 +307,13 @@
       } else {
         window.__fidelityOutputs.push({
           bytes: Array.from(bytes),
+          encrypted: testCase.encrypted === true,
+          expectedPages: testCase.expectedPages ?? 1,
+          image: testCase.image === true,
           name: testCase.name,
           password: testCase.password,
+          structured: testCase.structured === true,
+          text: testCase.text,
         });
       }
     }
