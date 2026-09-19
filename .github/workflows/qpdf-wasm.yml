@@ -2,20 +2,51 @@ name: qpdf WASM
 
 on:
   pull_request:
-    paths:
-      - ".github/workflows/qpdf-wasm.yml"
-      - "package.json"
-      - "bun.lock"
-      - "src/services/qpdf-processing.ts"
-      - "tools/qpdf-wasm/**"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  scope:
+    name: qpdf-scope
+    runs-on: ubuntu-latest
+    outputs:
+      relevant: ${{ steps.scope.outputs.relevant }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check whether qpdf changed
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed_files="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")" || {
+            echo "Could not determine the pull request diff."
+            exit 1
+          }
+
+          if printf '%s\n' "$changed_files" | grep -Eq '^(\.github/workflows/qpdf-wasm\.yml|package\.json|bun\.lock|src/services/qpdf-processing\.ts|tools/qpdf-wasm/)'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: build-qpdf-wasm
+    if: needs.scope.outputs.relevant == 'true'
+    needs: scope
     runs-on: ubuntu-latest
     container: emscripten/emsdk:3.1.72
 
@@ -34,7 +65,9 @@ jobs:
           test -s /tmp/interleaf-qpdf/smoke.html
           test -s /tmp/interleaf-qpdf/fidelity.html
           test -s /tmp/interleaf-qpdf/fixtures/encrypted-40-bit-r3.b64
+          test -s /tmp/interleaf-qpdf/fixtures/encrypted-256-bit-r6.b64
           test "$(base64 --decode /tmp/interleaf-qpdf/fixtures/encrypted-40-bit-r3.b64 | sha256sum | awk '{print $1}')" = "221b17165d2c807500165c7890f6f8f355b6cf62ecdb430d9bae71cec17b8369"
+          test "$(base64 --decode /tmp/interleaf-qpdf/fixtures/encrypted-256-bit-r6.b64 | sha256sum | awk '{print $1}')" = "94ce7ecade61858c0c0cf8b20b92fdf639550a50aa5a1b6bde767d713544e376"
           grep -F "qpdf version: 12.4.1" /tmp/interleaf-qpdf/build-info.txt
 
       - name: Upload browser smoke assets
@@ -45,7 +78,8 @@ jobs:
 
   browser-smoke:
     name: browser-smoke
-    needs: build
+    if: needs.scope.outputs.relevant == 'true'
+    needs: [scope, build]
     runs-on: ubuntu-latest
 
     steps:
@@ -79,3 +113,33 @@ jobs:
 
       - name: Run browser fidelity tests
         run: node tools/qpdf-wasm/browser-fidelity.mjs
+
+  qpdf:
+    name: qpdf
+    if: always()
+    needs: [scope, build, browser-smoke]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Verify qpdf checks passed
+        env:
+          BROWSER_SMOKE_RESULT: ${{ needs.browser-smoke.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          RELEVANT: ${{ needs.scope.outputs.relevant }}
+          SCOPE_RESULT: ${{ needs.scope.result }}
+        run: |
+          if [[ "$SCOPE_RESULT" != "success" ]]; then
+            echo "qpdf scope check: $SCOPE_RESULT"
+            exit 1
+          fi
+
+          if [[ "$RELEVANT" != "true" ]]; then
+            echo "No qpdf-affecting files changed."
+            exit 0
+          fi
+
+          if [[ "$BUILD_RESULT" != "success" || "$BROWSER_SMOKE_RESULT" != "success" ]]; then
+            echo "build-qpdf-wasm: $BUILD_RESULT"
+            echo "browser-smoke: $BROWSER_SMOKE_RESULT"
+            exit 1
+          fi

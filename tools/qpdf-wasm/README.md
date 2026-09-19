@@ -59,9 +59,10 @@ The smoke page is intentionally small: it checks the real worker boundary, outpu
 decision. CI opens it in Chromium after building the generated assets.
 
 `fidelity.html` is the pre-integration fixture suite. It exercises real qpdf WASM behavior for
-recompression, forms, annotations, images, encrypted input, wrong passwords, malformed input, and
-signed-document rejection. The encrypted fixture provenance and license are recorded in
-`fixtures/README.md`. This suite is still not a substitute for editor-level regression tests.
+recompression, page text, forms, annotations, images, 40-bit R3 and AES-256 R6 encrypted input,
+wrong passwords, malformed input, and signed-document rejection. The encrypted fixture provenance
+and license are recorded in `fixtures/README.md`. This suite is still not a substitute for
+editor-level regression tests.
 
 The generated `qpdf-worker.js` imports `qpdf.mjs` beside it. The later integration PR should load that
 worker through `QpdfProcessing` and add the generated files to the application asset pipeline only
