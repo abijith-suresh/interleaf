@@ -1,0 +1,330 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Interleaf qpdf WASM fidelity tests</title>
+<pre id="output">Running…</pre>
+<script type="module">
+  const output = document.querySelector("#output");
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  window.__fidelityOutputs = [];
+
+  function concatBytes(...values) {
+    const chunks = values.map((value) => (value instanceof Uint8Array ? value : encoder.encode(value)));
+    const result = new Uint8Array(chunks.reduce((length, chunk) => length + chunk.byteLength, 0));
+    let offset = 0;
+    for (const chunk of chunks) {
+      result.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return result;
+  }
+
+  function makeStream(dictionary, data) {
+    const bytes = data instanceof Uint8Array ? data : encoder.encode(data);
+    return concatBytes(`<< ${dictionary} /Length ${bytes.byteLength} >>\nstream\n`, bytes, "\nendstream");
+  }
+
+  function makePdf(objects, version = "1.4") {
+    const chunks = [];
+    const offsets = [];
+    let byteLength = 0;
+
+    const append = (value) => {
+      const bytes = value instanceof Uint8Array ? value : encoder.encode(value);
+      chunks.push(bytes);
+      byteLength += bytes.byteLength;
+    };
+
+    append(`%PDF-${version}\n`);
+
+    objects.forEach((body, index) => {
+      offsets.push(byteLength);
+      append(`${index + 1} 0 obj\n`);
+      append(body);
+      append("\nendobj\n");
+    });
+
+    const xrefOffset = byteLength;
+    append(`xref\n0 ${objects.length + 1}\n`);
+    append("0000000000 65535 f \n");
+    append(offsets.map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join(""));
+    append(`trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
+
+    const result = new Uint8Array(byteLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      result.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return result;
+  }
+
+  function makeCompressionPdf() {
+    const content = "% repeated lossless fixture content\n".repeat(400);
+    return makePdf([
+      "<< /Pages 2 0 R /Type /Catalog >>",
+      "<< /Count 1 /Kids [3 0 R] /Type /Pages >>",
+      "<< /Contents 4 0 R /MediaBox [0 0 612 792] /Parent 2 0 R /Type /Page >>",
+      makeStream("", content),
+    ]);
+  }
+
+  function makeStructuredPdf() {
+    const content = `BT /F1 18 Tf 72 720 Td (Interleaf fidelity text) Tj ET\n${"q Q\n".repeat(100)}`;
+    return makePdf([
+      "<< /AcroForm 6 0 R /Pages 2 0 R /Type /Catalog >>",
+      "<< /Count 1 /Kids [3 0 R] /Type /Pages >>",
+      "<< /Annots [5 0 R 9 0 R 10 0 R] /Contents 4 0 R /MediaBox [0 0 612 792] /Parent 2 0 R /Resources << /Font << /F1 11 0 R >> >> /Type /Page >>",
+      makeStream("", content),
+      "<< /Contents (fixture note) /P 3 0 R /Rect [10 78 32 100] /Subtype /Text /Type /Annot >>",
+      "<< /DA (/F1 12 Tf 0 g) /DR << /Font << /F1 11 0 R >> >> /Fields [7 0 R 8 0 R] >>",
+      "<< /DA (/F1 12 Tf 0 g) /FT /Tx /Kids [9 0 R] /T (Name) /V (Interleaf) >>",
+      "<< /FT /Sig /Kids [10 0 R] /T (UnsignedSignature) >>",
+      "<< /Parent 7 0 R /Rect [10 10 200 30] /Subtype /Widget /Type /Annot >>",
+      "<< /Parent 8 0 R /Rect [10 40 200 60] /Subtype /Widget /Type /Annot >>",
+      "<< /BaseFont /Helvetica /Subtype /Type1 /Type /Font >>",
+    ]);
+  }
+
+  function makeImagePdf() {
+    const content = "100 0 0 100 0 0 cm\n/Im1 Do\n";
+    return makePdf([
+      "<< /Pages 2 0 R /Type /Catalog >>",
+      "<< /Count 1 /Kids [3 0 R] /Type /Pages >>",
+      "<< /Contents 4 0 R /MediaBox [0 0 100 100] /Parent 2 0 R /Resources << /XObject << /Im1 5 0 R >> >> /Type /Page >>",
+      makeStream("", content),
+      makeStream(
+        "/BitsPerComponent 8 /ColorSpace /DeviceRGB /Height 1 /Subtype /Image /Type /XObject /Width 1",
+        Uint8Array.from([255, 0, 0])
+      ),
+    ]);
+  }
+
+  function makeSignedMarkerPdf() {
+    const signatureContents = "0".repeat(64);
+    const byteRangePlaceholder = "0000000000 0000000000 0000000000 0000000000";
+    const unsigned = makePdf([
+      "<< /AcroForm 5 0 R /Pages 2 0 R /Type /Catalog >>",
+      "<< /Count 1 /Kids [3 0 R] /Type /Pages >>",
+      "<< /Annots [7 0 R] /Contents 4 0 R /MediaBox [0 0 100 100] /Parent 2 0 R /Type /Page >>",
+      makeStream("", new Uint8Array()),
+      "<< /Fields [6 0 R] >>",
+      `<< /FT /Sig /T (AppliedSignature) /V << /ByteRange [${byteRangePlaceholder}] /Contents <${signatureContents}> /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Type /Sig >> >>`,
+      "<< /Parent 6 0 R /Rect [10 10 200 30] /Subtype /Widget /Type /Annot >>",
+    ]);
+
+    const text = decoder.decode(unsigned);
+    const contentsStart = text.indexOf(`<${signatureContents}`) + 1;
+    const contentsEnd = contentsStart + signatureContents.length + 1;
+    const byteRange = [0, contentsStart, contentsEnd, unsigned.byteLength - contentsEnd]
+      .map((value) => String(value).padStart(10, "0"))
+      .join(" ");
+    return encoder.encode(text.replace(byteRangePlaceholder, byteRange));
+  }
+
+  function makeRepairablePdf() {
+    const input = makeCompressionPdf();
+    const text = decoder.decode(input);
+    return encoder.encode(text.replace(/startxref\n\d+/, "startxref\n0"));
+  }
+
+  function decodeBase64(value) {
+    const binary = atob(value.replace(/\s/g, ""));
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  }
+
+  function runWorker(input, password) {
+    const inputSize = input.byteLength;
+    const original = input.slice();
+    const worker = new Worker("./qpdf-worker.js", { type: "module" });
+
+    return new Promise((resolve) => {
+      const finish = (result) => {
+        clearTimeout(timeout);
+        worker.terminate();
+        resolve({ inputSize, original, result });
+      };
+      const timeout = setTimeout(
+        () => finish({ type: "runner-error", code: "QPDF_TIMEOUT", message: "qpdf worker timed out" }),
+        45_000
+      );
+
+      worker.addEventListener("message", (event) => finish(event.data));
+      worker.addEventListener("error", (event) =>
+        finish({
+          type: "runner-error",
+          code: "QPDF_WORKER_FAILED",
+          message: event.message || "qpdf worker failed",
+        })
+      );
+
+      worker.postMessage(
+        {
+          type: "optimize",
+          id: "fidelity",
+          input: input.buffer,
+          ...(password === undefined ? {} : { password }),
+        },
+        [input.buffer]
+      );
+    });
+  }
+
+  async function main() {
+    async function loadFixture(name) {
+      const response = await fetch(`./fixtures/${name}`);
+      if (!response.ok) throw new Error(`${name} could not be loaded`);
+      return decodeBase64(await response.text());
+    }
+
+    const encrypted40BitFixture = await loadFixture("encrypted-40-bit-r3.b64");
+    const encrypted256BitFixture = await loadFixture("encrypted-256-bit-r6.b64");
+
+    const cases = [
+      {
+        name: "recompresses repeated streams",
+        input: makeCompressionPdf(),
+        expectReduced: true,
+        contains: ["/Type /Page"],
+      },
+      {
+        name: "preserves forms, annotations, and unsigned signature fields",
+        input: makeStructuredPdf(),
+        contains: ["/Subtype /Text", "/FT /Tx", "/FT /Sig"],
+        text: "Interleaf fidelity text",
+        structured: true,
+      },
+      {
+        name: "preserves image XObjects",
+        input: makeImagePdf(),
+        contains: ["/Subtype /Image"],
+        image: true,
+      },
+      {
+        name: "opens and rewrites a 40-bit encrypted PDF with its password",
+        input: encrypted40BitFixture,
+        password: "623",
+        contains: ["/Filter /Standard"],
+        encrypted: true,
+      },
+      {
+        name: "opens and rewrites an AES-256 R6 encrypted PDF with its password",
+        input: encrypted256BitFixture,
+        password: "wwwww",
+        contains: ["/Filter /Standard", "/V 5", "/R 6"],
+        encrypted: true,
+        expectedPages: 30,
+      },
+      {
+        name: "rejects a 40-bit encrypted PDF without a password",
+        input: encrypted40BitFixture.slice(),
+        expectError: true,
+        errorMessage: /password|encrypted/i,
+      },
+      {
+        name: "rejects an AES-256 R6 encrypted PDF without a password",
+        input: encrypted256BitFixture.slice(),
+        expectError: true,
+        errorMessage: /password|encrypted/i,
+      },
+      {
+        name: "rejects a 40-bit encrypted PDF with a wrong password",
+        input: encrypted40BitFixture.slice(),
+        password: "wrong",
+        expectError: true,
+        errorMessage: /password|encrypted/i,
+      },
+      {
+        name: "rejects an AES-256 R6 encrypted PDF with a wrong password",
+        input: encrypted256BitFixture.slice(),
+        password: "wrong",
+        expectError: true,
+        errorMessage: /password|encrypted/i,
+      },
+      {
+        name: "repairs a malformed xref offset",
+        input: makeRepairablePdf(),
+        contains: ["/Type /Page"],
+      },
+      {
+        name: "rejects truncated input",
+        input: encoder.encode("%PDF-1.7\n1 0 obj\n<<"),
+        expectError: true,
+        errorMessage: /PDF|trailer|xref|syntax/i,
+      },
+      {
+        name: "rejects an applied signature dictionary",
+        input: makeSignedMarkerPdf(),
+        expectError: true,
+        errorMessage: /signed PDFs cannot be rewritten losslessly/i,
+      },
+    ];
+
+    const failures = [];
+    for (const testCase of cases) {
+      const { original, result, inputSize } = await runWorker(testCase.input, testCase.password);
+      if (testCase.expectError) {
+        const message = result.message ?? "";
+        if (
+          result.type !== "error" ||
+          result.code !== "QPDF_EXEC_FAILED" ||
+          !testCase.errorMessage.test(message)
+        ) {
+          failures.push(
+            `${testCase.name}: expected QPDF_EXEC_FAILED with ${testCase.errorMessage}, got ${result.code ?? result.type}: ${message}`
+          );
+        }
+        continue;
+      }
+
+      const bytes = new Uint8Array(result.output ?? new ArrayBuffer(0));
+      const text = decoder.decode(bytes);
+      const validPdf = decoder.decode(bytes.slice(0, 5)) === "%PDF-";
+      const sizeMatches = result.type === "result" && result.inputSize === inputSize;
+      const outputSizeMatches =
+        result.type === "result" && bytes.byteLength === (result.reduced ? result.candidateSize : inputSize);
+      const reductionInvariant =
+        result.type === "result" && result.reduced === (result.candidateSize < inputSize);
+      const originalMatches =
+        result.type === "result" &&
+        result.reduced === false &&
+        bytes.length === original.length &&
+        bytes.every((byte, index) => byte === original[index]);
+      const reductionMatches = !testCase.expectReduced || result.reduced === true;
+      const contentMatches = (testCase.contains ?? []).every((marker) => text.includes(marker));
+
+      if (
+        result.type !== "result" ||
+        !validPdf ||
+        !sizeMatches ||
+        !outputSizeMatches ||
+        !reductionInvariant ||
+        (result.reduced === false && !originalMatches) ||
+        !reductionMatches ||
+        !contentMatches
+      ) {
+        failures.push(`${testCase.name}: invalid output`);
+      } else {
+        window.__fidelityOutputs.push({
+          bytes: Array.from(bytes),
+          encrypted: testCase.encrypted === true,
+          expectedPages: testCase.expectedPages ?? 1,
+          image: testCase.image === true,
+          name: testCase.name,
+          password: testCase.password,
+          structured: testCase.structured === true,
+          text: testCase.text,
+        });
+      }
+    }
+
+    output.textContent =
+      failures.length === 0
+        ? `PASS: ${cases.length} qpdf fidelity cases`
+        : `FAIL: ${failures.join("; ")}`;
+  }
+
+  main().catch((error) => {
+    output.textContent = `FAIL: ${error instanceof Error ? error.message : String(error)}`;
+  });
+</script>

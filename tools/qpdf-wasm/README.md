@@ -14,7 +14,8 @@ The optimization profile is intentionally narrow:
 - object streams are generated for PDFs that already support PDF 1.5 object streams; older PDFs
   keep their existing object-stream mode and version;
 - encryption is preserved when the caller supplies the password;
-- signed PDFs are rejected because any rewrite would invalidate their signature;
+- applied signed PDFs are rejected because any rewrite would invalidate their signature; empty
+  signature fields are preserved;
 - image optimization, JPEG decoding/re-encoding, metadata removal, decryption, and rasterization are
   not enabled.
 
@@ -55,9 +56,14 @@ python3 -m http.server 8080 --directory /tmp/interleaf-qpdf
 ```
 
 The smoke page is intentionally small: it checks the real worker boundary, output header, and size
-decision. CI opens it in Chromium after building the generated assets. It is not a substitute for
-the later fidelity fixture suite.
+decision. CI opens it in Chromium after building the generated assets.
+
+`fidelity.html` is the pre-integration fixture suite. It exercises real qpdf WASM behavior for
+recompression, page text, forms, annotations, images, 40-bit R3 and AES-256 R6 encrypted input,
+wrong passwords, malformed input, and signed-document rejection. The encrypted fixture provenance
+and license are recorded in `fixtures/README.md`. This suite is still not a substitute for
+editor-level regression tests.
 
 The generated `qpdf-worker.js` imports `qpdf.mjs` beside it. The later integration PR should load that
 worker through `QpdfProcessing` and add the generated files to the application asset pipeline only
-after the real browser smoke test and PDF fidelity fixtures pass.
+after the browser smoke and fidelity suites pass.

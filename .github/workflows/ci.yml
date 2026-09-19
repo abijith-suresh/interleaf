@@ -27,20 +27,28 @@ jobs:
       - name: Dependency review
         uses: actions/dependency-review-action@v5
 
+  qpdf:
+    name: qpdf
+    uses: ./.github/workflows/qpdf-wasm.yml
+    permissions:
+      contents: read
+
   quality:
     name: quality
     runs-on: ubuntu-latest
     if: always()
-    needs: [bun-quality, dependency-review]
+    needs: [bun-quality, dependency-review, qpdf]
 
     steps:
       - name: Verify required checks passed
         env:
           BUN_QUALITY_RESULT: ${{ needs.bun-quality.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
+          QPDF_RESULT: ${{ needs.qpdf.result }}
         run: |
-          if [[ "$BUN_QUALITY_RESULT" != "success" || "$DEPENDENCY_REVIEW_RESULT" != "success" ]]; then
+          if [[ "$BUN_QUALITY_RESULT" != "success" || "$DEPENDENCY_REVIEW_RESULT" != "success" || "$QPDF_RESULT" != "success" ]]; then
             echo "bun-quality: $BUN_QUALITY_RESULT"
             echo "dependency-review: $DEPENDENCY_REVIEW_RESULT"
+            echo "qpdf: $QPDF_RESULT"
             exit 1
           fi
