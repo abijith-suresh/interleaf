@@ -973,7 +973,7 @@ body:has([data-page="editor"]) {
 
 .editor-selection-bar {
   display: grid;
-  grid-template-columns: minmax(10rem, 1fr) auto minmax(8.25rem, auto);
+  grid-template-columns: minmax(10rem, 1fr) auto minmax(20rem, auto);
   min-height: 4.5rem;
   flex-shrink: 0;
   align-items: center;
@@ -1003,6 +1003,13 @@ body:has([data-page="editor"]) {
   min-width: 0;
   flex-wrap: nowrap;
   gap: 0.35rem;
+}
+
+.editor-export-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 12rem) minmax(7.5rem, 1fr);
+  min-width: 0;
+  gap: 0.4rem;
 }
 
 .editor-selection-clear-action {
@@ -1082,6 +1089,36 @@ body:has([data-page="editor"]) {
     transform 160ms var(--ease-out);
 }
 
+.editor-compress-action {
+  min-height: 3rem;
+  min-width: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--editor-line-strong);
+  border-radius: 0.5rem;
+  background: var(--editor-paper);
+  color: var(--editor-body);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  touch-action: manipulation;
+  transition:
+    background-color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    color 160ms var(--ease-out);
+}
+
+.editor-compress-action:hover:not(:disabled) {
+  background: var(--editor-hover);
+  color: var(--editor-ink);
+}
+
+.editor-compress-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .editor-download-action:hover:not(:disabled) {
   background: #a52c26;
 }
@@ -1093,10 +1130,6 @@ body:has([data-page="editor"]) {
 .editor-download-action:disabled {
   cursor: not-allowed;
   opacity: 0.45;
-}
-
-.editor-selection-bar .editor-download-action {
-  flex-shrink: 0;
 }
 
 .editor-toolbar-action:disabled {
@@ -1129,7 +1162,7 @@ body:has([data-page="editor"]) {
 
 @media (min-width: 768px) and (max-width: 1079px) {
   .editor-selection-bar {
-    grid-template-columns: minmax(0, 1fr) minmax(8.25rem, auto);
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, auto);
     grid-template-rows: auto auto;
   }
 
@@ -1152,6 +1185,12 @@ body:has([data-page="editor"]) {
   }
 
   .editor-selection-bar .editor-download-action {
+    grid-column: auto;
+    grid-row: auto;
+    width: auto;
+  }
+
+  .editor-selection-bar .editor-export-actions {
     grid-column: 2;
     grid-row: 1;
   }
@@ -1251,11 +1290,21 @@ body:has([data-page="editor"]) {
   }
 
   .editor-selection-bar .editor-download-action {
-    grid-column: 1;
-    grid-row: 3;
+    grid-column: auto;
+    grid-row: auto;
     width: 100%;
     min-width: 0;
     margin-left: 0;
+  }
+
+  .editor-selection-bar .editor-export-actions {
+    grid-column: 1;
+    grid-row: 3;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .editor-compress-action {
+    width: 100%;
   }
 
   .editor-page-scroll {

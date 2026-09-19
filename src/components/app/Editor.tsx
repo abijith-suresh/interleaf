@@ -33,7 +33,7 @@ interface DragOverTarget {
   direction: "before" | "after";
 }
 
-type EditorOperation = "idle" | "uploading" | "adding" | "building";
+type EditorOperation = "idle" | "uploading" | "adding" | "building" | "compressing";
 type ToastTone = "success" | "error" | "info";
 
 interface Toast {
@@ -166,6 +166,12 @@ export default function Editor() {
 
   function formatPageCount(pageCount: number) {
     return `${pageCount} page${pageCount === 1 ? "" : "s"}`;
+  }
+
+  function formatFileSize(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   function getLoadErrorMessage(file: File, error: unknown) {
@@ -402,6 +408,56 @@ export default function Editor() {
     }
   }
 
+  async function handleCompress(): Promise<void> {
+    if (disposed || isBusy()) return;
+    const selection = selectedIndices();
+    const selectedPageIndices =
+      selection.size > 0 ? Array.from(selection).sort((a, b) => a - b) : undefined;
+    const totalPages = selectedPageIndices ? selectedActivePageCount() : activePageCount();
+
+    setOperation("compressing");
+    setStatusMessage(
+      `${selectedPageIndices ? "Building selected PDF" : "Building PDF"}… 0/${totalPages}`
+    );
+
+    try {
+      const result = await runPDF(
+        PDFProcessing.use((service) =>
+          service.compressPDF(pages, {
+            selectedIndices: selectedPageIndices,
+            onProgress: ({ completed, total }) => {
+              if (disposed) return;
+              setStatusMessage(
+                `${selectedPageIndices ? "Building selected PDF" : "Building PDF"}… ${completed}/${total}`
+              );
+            },
+            onCompressionStage: () => {
+              if (!disposed) setStatusMessage("Compressing PDF…");
+            },
+          })
+        )
+      );
+      if (disposed) return;
+      downloadPDF(result);
+      if (result.reduced) {
+        dispatchToast(
+          `Compressed ${formatFileSize(result.inputBytes)} to ${formatFileSize(result.outputBytes)}.`,
+          "success"
+        );
+        setStatusMessage("Compressed PDF download started.");
+      } else {
+        dispatchToast("No smaller file was available. Downloaded the current PDF.", "info");
+        setStatusMessage("Current PDF download started.");
+      }
+    } catch (_err) {
+      if (disposed) return;
+      dispatchToast("Failed to compress the PDF.", "error");
+      setStatusMessage("Compression failed. Try again.");
+    } finally {
+      if (!disposed) setOperation("idle");
+    }
+  }
+
   // --- Drag and drop ---
 
   function handleDragStart(index: number, e: DragEvent): void {
@@ -621,6 +677,7 @@ export default function Editor() {
                 onRotate={handleRotateSelected}
                 onDelete={handleDeleteSelected}
                 onDownload={handleDownload}
+                onCompress={handleCompress}
               />
 
               <div

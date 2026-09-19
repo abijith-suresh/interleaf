@@ -37,7 +37,7 @@ jobs:
             exit 1
           }
 
-          if printf '%s\n' "$changed_files" | grep -Eq '^(\.github/workflows/(ci|qpdf-wasm)\.yml|package\.json|bun\.lock|src/services/qpdf-processing\.ts|tools/qpdf-wasm/)'; then
+          if printf '%s\n' "$changed_files" | grep -Eq '^(\.github/workflows/(ci|qpdf-wasm)\.yml|package\.json|bun\.lock|public/qpdf/|src/services/qpdf-processing\.ts|tools/qpdf-wasm/)'; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"
@@ -69,6 +69,7 @@ jobs:
           test "$(base64 --decode /tmp/interleaf-qpdf/fixtures/encrypted-40-bit-r3.b64 | sha256sum | awk '{print $1}')" = "221b17165d2c807500165c7890f6f8f355b6cf62ecdb430d9bae71cec17b8369"
           test "$(base64 --decode /tmp/interleaf-qpdf/fixtures/encrypted-256-bit-r6.b64 | sha256sum | awk '{print $1}')" = "94ce7ecade61858c0c0cf8b20b92fdf639550a50aa5a1b6bde767d713544e376"
           grep -F "qpdf version: 12.4.1" /tmp/interleaf-qpdf/build-info.txt
+          ./tools/qpdf-wasm/check-app-assets.sh /tmp/interleaf-qpdf public/qpdf
 
       - name: Upload browser smoke assets
         uses: actions/upload-artifact@v4

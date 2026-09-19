@@ -11,6 +11,7 @@ interface Props {
   onRotate: () => void;
   onDelete: () => void;
   onDownload: () => void;
+  onCompress: () => void;
 }
 
 export default function EditorSelectionBar(props: Props) {
@@ -103,16 +104,37 @@ export default function EditorSelectionBar(props: Props) {
         </button>
       </div>
 
-      <button
-        type="button"
-        data-testid="editor-download-button"
-        disabled={props.busy || props.selectedActiveCount === 0}
-        onClick={props.onDownload}
-        aria-label={props.busy ? props.busyLabel : exportLabel()}
-        class="editor-download-action"
-      >
-        {props.busy ? props.busyLabel : exportLabel()}
-      </button>
+      <div class="editor-export-actions">
+        <button
+          type="button"
+          data-testid="editor-download-button"
+          disabled={props.busy || props.selectedActiveCount === 0}
+          onClick={props.onDownload}
+          aria-label={props.busy ? props.busyLabel : exportLabel()}
+          class="editor-download-action"
+        >
+          {props.busy ? props.busyLabel : exportLabel()}
+        </button>
+        <button
+          type="button"
+          data-testid="editor-compress-button"
+          disabled={props.busy || props.selectedActiveCount === 0}
+          onClick={props.onCompress}
+          aria-label={
+            props.selectedActiveCount === 0
+              ? "No active pages to compress"
+              : "Compress the current PDF"
+          }
+          title={
+            props.selectedActiveCount === 0
+              ? "No active pages to compress"
+              : "Compress the current PDF"
+          }
+          class="editor-compress-action"
+        >
+          Compress
+        </button>
+      </div>
     </section>
   );
 }
