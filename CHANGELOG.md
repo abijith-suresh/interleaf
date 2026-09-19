@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.6](https://github.com/abijith-suresh/interleaf/compare/0.0.5...0.0.6) (2026-09-19)
+
+
+### Features
+
+* **pdf:** export pages as PNG images ([#241](https://github.com/abijith-suresh/interleaf/issues/241)) ([e79f894](https://github.com/abijith-suresh/interleaf/commit/e79f894f7ced4ca3ba8cb49b8c796f16c33b265d))
+
 ## [0.0.5](https://github.com/abijith-suresh/interleaf/compare/0.0.4...0.0.5) (2026-09-19)
 
 
