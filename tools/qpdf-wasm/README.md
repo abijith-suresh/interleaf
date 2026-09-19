@@ -1,8 +1,8 @@
-# qpdf WASM foundation
+# qpdf WASM runtime
 
-This directory contains the approved browser boundary for lossless PDF optimization. The editor
-uses it for the in-progress compression workflow; it is not a public product promise until that
-workflow is released.
+This directory contains the browser boundary for Interleaf's lossless PDF compression workflow.
+The editor uses it to optimize an untouched, single uploaded PDF without sending its bytes to a
+server.
 
 The build pins qpdf 12.4.1 to the official release archive and checks its SHA-256 before compiling it
 with Emscripten 3.1.72. The generated worker uses qpdf's in-memory C++ API, so PDF bytes do not pass
@@ -59,7 +59,7 @@ python3 -m http.server 8080 --directory /tmp/interleaf-qpdf
 The smoke page is intentionally small: it checks the real worker boundary, output header, and size
 decision. CI opens it in Chromium after building the generated assets.
 
-`fidelity.html` is the pre-integration fixture suite. It exercises real qpdf WASM behavior for
+`fidelity.html` is the qpdf fidelity fixture suite. It exercises real qpdf WASM behavior for
 recompression, page text, forms, annotations, images, 40-bit R3 and AES-256 R6 encrypted input,
 wrong passwords, malformed input, and signed-document rejection. The encrypted fixture provenance
 and license are recorded in `fixtures/README.md`. This suite is still not a substitute for

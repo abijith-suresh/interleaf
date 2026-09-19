@@ -1,12 +1,12 @@
 # Interleaf
 
-Interleaf is a fully client-side PDF editor for merging, extracting, reordering, rotating, marking pages for deletion before export, and unlocking PDFs.
+Interleaf is a fully client-side PDF editor for merging, extracting, reordering, rotating, marking pages for deletion before export, unlocking PDFs, and losslessly compressing untouched PDFs.
 
 No uploads. No accounts. No tracking.
 
 ## Why
 
-Online PDF tools are ad-infested and login-walled, and they usually want your documents uploaded to a server first. Interleaf gives the opposite guarantee structurally: every operation runs in your browser with `pdf-lib` and `pdf.js`, so your files never leave your device.
+Online PDF tools are ad-infested and login-walled, and they usually want your documents uploaded to a server first. Interleaf gives the opposite guarantee structurally: every operation runs in your browser with `pdf-lib`, `pdf.js`, and qpdf where applicable, so your files never leave your device.
 
 ## What it does
 
@@ -16,6 +16,7 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Rotate individual pages or selections in 90-degree steps
 - Mark pages for deletion before export
 - Unlock password-protected PDFs with an in-browser prompt
+- Losslessly compress an untouched, single uploaded PDF
 - Render page thumbnails locally for inspection before export
 
 ## Privacy contract
@@ -32,6 +33,7 @@ You can verify all of this with your browser's network inspector.
 - [SolidJS](https://www.solidjs.com/) for the editor interface
 - [Tailwind CSS v4](https://tailwindcss.com) for styling
 - [pdf-lib](https://pdf-lib.js.org) and [pdf.js](https://mozilla.github.io/pdf.js/) for PDF processing and rendering
+- [qpdf](https://qpdf.readthedocs.io/) compiled to WebAssembly for lossless PDF compression
 - [Vitest](https://vitest.dev/) for unit tests
 - [Bun](https://bun.sh) via [mise](https://mise.jdx.dev) for package management and scripts
 

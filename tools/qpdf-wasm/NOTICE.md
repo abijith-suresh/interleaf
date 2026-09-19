@@ -7,8 +7,8 @@ The generated WASM module links the following permissively licensed components:
 - zlib — Zlib license, supplied through the Emscripten port.
 - libjpeg — Independent JPEG Group license, supplied through the Emscripten port.
 
-The generated asset is not shipped by this spike. When it is added to the application, carry this file
-and the upstream qpdf notice with the deployed asset. Sources:
+The generated assets are shipped in `public/qpdf/`. Carry this notice and the upstream qpdf notice
+with the deployed assets. Sources:
 
 - https://github.com/qpdf/qpdf/tree/v12.4.1
 - https://raw.githubusercontent.com/qpdf/qpdf/v12.4.1/NOTICE.md
