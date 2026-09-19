@@ -6,6 +6,7 @@ import { makePDFRuntime, type PDFRuntime } from "@/services/pdf-runtime";
 import type { PageState } from "@/types/interfaces";
 
 const pdfServiceMocks = vi.hoisted(() => ({
+  getPageRotation: vi.fn(),
   renderPage: vi.fn(),
   reset: vi.fn(),
 }));
@@ -16,6 +17,7 @@ const pdfOperationsMocks = vi.hoisted(() => ({
 
 vi.mock("@/services/pdf-service", () => ({
   PDFService: class {
+    getPageRotation = pdfServiceMocks.getPageRotation;
     renderPage = pdfServiceMocks.renderPage;
     reset = pdfServiceMocks.reset;
   },
@@ -66,6 +68,7 @@ describe("EditorPageCanvas", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(0));
     pdfServiceMocks.renderPage.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.reset.mockReturnValue(Effect.succeed(undefined));
     pdfOperationsMocks.clearCache.mockReturnValue(Effect.succeed(undefined));
@@ -80,6 +83,7 @@ describe("EditorPageCanvas", () => {
   });
 
   it("keeps rendering lazy and offers an accessible retry after a failure", async () => {
+    pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(90));
     pdfServiceMocks.renderPage
       .mockReturnValueOnce(Effect.fail(new Error("thumbnail failed")))
       .mockImplementationOnce((_file, _pageNumber, canvas: HTMLCanvasElement) =>
@@ -124,7 +128,7 @@ describe("EditorPageCanvas", () => {
       1,
       expect.any(HTMLCanvasElement),
       THUMBNAIL_SCALE,
-      0
+      90
     );
     expect(pdfServiceMocks.renderPage).toHaveBeenNthCalledWith(
       2,
@@ -132,7 +136,8 @@ describe("EditorPageCanvas", () => {
       1,
       expect.any(HTMLCanvasElement),
       THUMBNAIL_SCALE,
-      0
+      90
     );
+    expect(pdfServiceMocks.getPageRotation).toHaveBeenCalledTimes(2);
   });
 });

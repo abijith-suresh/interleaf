@@ -88,6 +88,20 @@ export class PDFService {
     return this.passwordRegistry.get(file);
   }
 
+  getPageRotation(file: File, pageNumber: number): Effect.Effect<number, PDFError> {
+    return Effect.gen({ self: this }, function* () {
+      const record = yield* this.getOrLoadDocument(file);
+      const page = yield* Effect.tryPromise({
+        try: () => record.pdfjsDocument.getPage(pageNumber),
+        catch: (cause) => processingError("get-page-rotation", file, cause),
+      });
+      return yield* Effect.try({
+        try: () => page.rotate,
+        catch: (cause) => processingError("get-page-rotation", file, cause),
+      });
+    });
+  }
+
   renderPage(
     file: File,
     pageNumber: number,

@@ -8,6 +8,7 @@ const pdfServiceMocks = vi.hoisted(() => ({
   loadPDFWithPassword: vi.fn(),
   getPageCount: vi.fn(),
   getPassword: vi.fn(),
+  getPageRotation: vi.fn(),
   renderPage: vi.fn(),
   reset: vi.fn(),
 }));
@@ -21,8 +22,13 @@ const pdfCompressionMocks = vi.hoisted(() => ({
   compressPDF: vi.fn(),
 }));
 
+const pdfImageExportMocks = vi.hoisted(() => ({
+  exportImages: vi.fn(),
+}));
+
 const promptForPassword = vi.hoisted(() => vi.fn());
 const downloadPDF = vi.hoisted(() => vi.fn());
+const downloadFile = vi.hoisted(() => vi.fn());
 
 vi.mock("@/services/pdf-service", () => ({
   PDFService: class {
@@ -30,6 +36,7 @@ vi.mock("@/services/pdf-service", () => ({
     loadPDFWithPassword = pdfServiceMocks.loadPDFWithPassword;
     getPageCount = pdfServiceMocks.getPageCount;
     getPassword = pdfServiceMocks.getPassword;
+    getPageRotation = pdfServiceMocks.getPageRotation;
     renderPage = pdfServiceMocks.renderPage;
     reset = pdfServiceMocks.reset;
   },
@@ -45,8 +52,13 @@ vi.mock("@/services/pdf-compression-service", () => ({
     compressPDF = pdfCompressionMocks.compressPDF;
   },
 }));
+vi.mock("@/services/pdf-image-export-service", () => ({
+  PDFImageExportService: class {
+    exportImages = pdfImageExportMocks.exportImages;
+  },
+}));
 vi.mock("@/utils/password-prompt", () => ({ promptForPassword }));
-vi.mock("@/utils/download", () => ({ downloadPDF }));
+vi.mock("@/utils/download", () => ({ downloadFile, downloadPDF }));
 
 import Editor from "../Editor";
 
@@ -69,6 +81,7 @@ describe("Editor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     pdfServiceMocks.getPageCount.mockReturnValue(3);
+    pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(0));
     pdfServiceMocks.loadPDF.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.loadPDFWithPassword.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.renderPage.mockReturnValue(Effect.succeed(undefined));
@@ -88,6 +101,12 @@ describe("Editor", () => {
         outputBytes: 2,
         suggestedFileName: "interleaf-output.pdf",
         reduced: true,
+      })
+    );
+    pdfImageExportMocks.exportImages.mockReturnValue(
+      Effect.succeed({
+        data: new Blob([new Uint8Array([6, 7])], { type: "application/zip" }),
+        suggestedFileName: "interleaf-images.zip",
       })
     );
   });
@@ -176,6 +195,11 @@ describe("Editor", () => {
     expect(getByTestId("editor-delete-button")).toBeDisabled();
     expect(getByTestId("editor-select-all-button")).toBeEnabled();
     expect(getByTestId("editor-download-button")).toBeEnabled();
+    expect(getByTestId("editor-export-images-button")).toBeEnabled();
+    expect(getByTestId("editor-export-images-button")).toHaveTextContent("PNG ZIP");
+    expect(getByTestId("editor-export-images-button")).toHaveAccessibleName(
+      "Export pages as PNG images in a ZIP archive"
+    );
     expect(getByTestId("editor-compress-button")).toBeEnabled();
 
     fireEvent.click((await findAllByTestId("editor-page-tile"))[0]);
@@ -185,6 +209,7 @@ describe("Editor", () => {
     expect(getByTestId("editor-rotate-button")).toBeEnabled();
     expect(getByTestId("editor-delete-button")).toBeEnabled();
     expect(getByTestId("editor-download-button")).toHaveTextContent("Export 1 selected page");
+    expect(getByTestId("editor-export-images-button")).toBeEnabled();
     expect(getByTestId("editor-compress-button")).toBeDisabled();
   });
 
@@ -302,6 +327,8 @@ describe("Editor", () => {
     );
     expect(getByTestId("editor-status-bar")).toHaveTextContent("3 pages (0 active)");
     expect(getByTestId("editor-download-button")).toBeDisabled();
+    expect(getByTestId("editor-export-images-button")).toBeDisabled();
+    expect(getByTestId("editor-export-images-button")).toHaveTextContent("Restore pages");
     expect(getByTestId("editor-delete-button")).toHaveTextContent("Restore");
     expect(getByTestId("editor-delete-button")).toHaveAttribute(
       "aria-label",
@@ -448,6 +475,26 @@ describe("Editor", () => {
 
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
     expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledTimes(1);
+  });
+
+  it("exports selected pages as PNG images", async () => {
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile());
+    const tiles = await findAllByTestId("editor-page-tile");
+
+    fireEvent.click(tiles[1]);
+    await waitFor(() => expect(tiles[1].dataset.selected).toBe("true"));
+    fireEvent.click(getByTestId("editor-export-images-button"));
+
+    await waitFor(() => expect(downloadFile).toHaveBeenCalledTimes(1));
+    expect(downloadFile).toHaveBeenCalledWith(
+      expect.objectContaining({ suggestedFileName: "interleaf-images.zip" }),
+      "application/zip"
+    );
+    expect(pdfImageExportMocks.exportImages).toHaveBeenCalledTimes(1);
+    expect(pdfImageExportMocks.exportImages.mock.calls[0][0]).toHaveLength(3);
+    expect(pdfImageExportMocks.exportImages.mock.calls[0][1].selectedIndices).toEqual([1]);
   });
 
   it("compresses the original uploaded PDF before page edits", async () => {

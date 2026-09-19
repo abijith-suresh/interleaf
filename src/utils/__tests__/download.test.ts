@@ -8,10 +8,12 @@ const mockPDFOperationResult: PDFOperationResult = {
 
 describe("download utility", () => {
   let downloadPDF: typeof import("../download").downloadPDF;
+  let downloadFile: typeof import("../download").downloadFile;
 
   beforeEach(async () => {
     const module = await import("../download");
     downloadPDF = module.downloadPDF;
+    downloadFile = module.downloadFile;
   });
 
   afterEach(() => {
@@ -25,6 +27,15 @@ describe("download utility", () => {
 
     const blobArg = urlSpy.mock.calls[0][0] as Blob;
     expect(blobArg.type).toBe("application/pdf");
+  });
+
+  it("should use the supplied MIME type for non-PDF downloads", () => {
+    const urlSpy = vi.spyOn(URL, "createObjectURL");
+
+    downloadFile({ ...mockPDFOperationResult, suggestedFileName: "pages.zip" }, "application/zip");
+
+    const blobArg = urlSpy.mock.calls[0][0] as Blob;
+    expect(blobArg.type).toBe("application/zip");
   });
 
   it("should create anchor with correct download filename", () => {

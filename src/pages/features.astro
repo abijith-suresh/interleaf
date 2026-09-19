@@ -24,12 +24,16 @@ const capabilities = [
     title: "Reduce a PDF",
     description: "Losslessly compress an untouched, single uploaded PDF in your browser.",
   },
+  {
+    title: "Take pages with you",
+    description: "Export selected or active pages as PNG images in a local ZIP archive.",
+  },
 ];
 ---
 
 <MarketingLayout
   title="Features — Interleaf"
-  description="A local workspace for bringing PDF files together, arranging their pages, opening protected documents, and compressing PDFs."
+  description="A local workspace for bringing PDF files together, arranging their pages, exporting images, opening protected documents, and compressing PDFs."
   currentPage="features"
 >
   <MarketingHero titleId="features-title">
@@ -40,8 +44,8 @@ const capabilities = [
     <div slot="secondary" class="hero-copy">
       <p>
         Interleaf is a local workspace for the work that happens before a PDF is ready to share.
-        Bring files together, shape their pages, open protected documents, and compress PDFs in the
-        browser.
+        Bring files together, shape their pages, export images, open protected documents, and
+        compress PDFs in the browser.
       </p>
       <a class="marketing-hero-action" href={`${base}app`}>
         Open editor <span aria-hidden="true"><ArrowIcon /></span>

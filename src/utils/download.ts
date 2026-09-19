@@ -1,7 +1,14 @@
 import type { PDFOperationResult } from "../types/interfaces";
 
-export function downloadPDF(result: PDFOperationResult): void {
-  const blob = new Blob([result.data as BlobPart], { type: "application/pdf" });
+type DownloadResult = Pick<PDFOperationResult, "suggestedFileName"> & {
+  data: Uint8Array | Blob;
+};
+
+export function downloadFile(result: DownloadResult, contentType: string): void {
+  const blob =
+    result.data instanceof Blob && result.data.type === contentType
+      ? result.data
+      : new Blob([result.data as BlobPart], { type: contentType });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -10,4 +17,8 @@ export function downloadPDF(result: PDFOperationResult): void {
   anchor.click();
   document.body.removeChild(anchor);
   URL.revokeObjectURL(url);
+}
+
+export function downloadPDF(result: PDFOperationResult): void {
+  downloadFile(result, "application/pdf");
 }

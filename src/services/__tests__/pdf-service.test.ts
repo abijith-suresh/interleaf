@@ -35,11 +35,13 @@ const pdfjsGetDocumentMock = vi
     const baseSize = label.includes("wide")
       ? { width: 300, height: 150 }
       : { width: 100, height: 200 };
+    const pageRotation = label.includes("rotated") ? 90 : 0;
 
     return {
       promise: Promise.resolve({
         numPages: label.includes("two-pages") ? 2 : 5,
         getPage: vi.fn().mockResolvedValue({
+          rotate: pageRotation,
           getViewport: vi.fn().mockImplementation(({ scale = 1, rotation = 0 } = {}) => {
             const width = baseSize.width * scale;
             const height = baseSize.height * scale;
@@ -289,6 +291,14 @@ describe("PDFService", () => {
     await Effect.runPromise(service.renderPage(file, 1, canvas, 1, 90));
 
     expect(canvas.width).toBeGreaterThan(canvas.height);
+  });
+
+  it("reads the source page rotation for composed exports", async () => {
+    const service = new PDFService();
+    const file = new File(["rotated"], "rotated.pdf", { type: "application/pdf" });
+    await Effect.runPromise(service.loadPDF(file));
+
+    await expect(Effect.runPromise(service.getPageRotation(file, 1))).resolves.toBe(90);
   });
 
   it("cancels an in-flight PDF.js render when the fiber is interrupted", async () => {

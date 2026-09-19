@@ -1,6 +1,6 @@
 # Interleaf
 
-Interleaf is a fully client-side PDF editor for merging, extracting, reordering, rotating, marking pages for deletion before export, unlocking PDFs, and losslessly compressing untouched PDFs.
+Interleaf is a fully client-side PDF editor for merging, extracting, reordering, rotating, marking pages for deletion before export, exporting pages as images, unlocking PDFs, and losslessly compressing untouched PDFs.
 
 No uploads. No accounts. No tracking.
 
@@ -17,6 +17,7 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Mark pages for deletion before export
 - Unlock password-protected PDFs with an in-browser prompt
 - Losslessly compress an untouched, single uploaded PDF
+- Export selected or active pages as PNG images in a ZIP archive
 - Render page thumbnails locally for inspection before export
 
 ## Privacy contract
@@ -33,6 +34,7 @@ You can verify all of this with your browser's network inspector.
 - [SolidJS](https://www.solidjs.com/) for the editor interface
 - [Tailwind CSS v4](https://tailwindcss.com) for styling
 - [pdf-lib](https://pdf-lib.js.org) and [pdf.js](https://mozilla.github.io/pdf.js/) for PDF processing and rendering
+- [fflate](https://github.com/101arrowz/fflate) for local ZIP packaging
 - [qpdf](https://qpdf.readthedocs.io/) compiled to WebAssembly for lossless PDF compression
 - [Vitest](https://vitest.dev/) for unit tests
 - [Bun](https://bun.sh) via [mise](https://mise.jdx.dev) for package management and scripts

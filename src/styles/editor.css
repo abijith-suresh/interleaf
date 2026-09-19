@@ -1007,7 +1007,7 @@ body:has([data-page="editor"]) {
 
 .editor-export-actions {
   display: grid;
-  grid-template-columns: minmax(0, 12rem) minmax(7.5rem, 1fr);
+  grid-template-columns: minmax(0, 12rem) repeat(2, minmax(7.5rem, 1fr));
   min-width: 0;
   gap: 0.4rem;
 }
@@ -1089,7 +1089,9 @@ body:has([data-page="editor"]) {
     transform 160ms var(--ease-out);
 }
 
-.editor-compress-action {
+.editor-compress-action,
+.editor-images-action {
+  overflow: hidden;
   min-height: 3rem;
   min-width: 0;
   padding: 0.75rem 1rem;
@@ -1101,6 +1103,7 @@ body:has([data-page="editor"]) {
   font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1;
+  text-overflow: ellipsis;
   white-space: nowrap;
   touch-action: manipulation;
   transition:
@@ -1109,12 +1112,14 @@ body:has([data-page="editor"]) {
     color 160ms var(--ease-out);
 }
 
-.editor-compress-action:hover:not(:disabled) {
+.editor-compress-action:hover:not(:disabled),
+.editor-images-action:hover:not(:disabled) {
   background: var(--editor-hover);
   color: var(--editor-ink);
 }
 
-.editor-compress-action:disabled {
+.editor-compress-action:disabled,
+.editor-images-action:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
@@ -1160,7 +1165,7 @@ body:has([data-page="editor"]) {
   }
 }
 
-@media (min-width: 768px) and (max-width: 1079px) {
+@media (min-width: 768px) and (max-width: 1199px) {
   .editor-selection-bar {
     grid-template-columns: minmax(0, 1fr) minmax(15rem, auto);
     grid-template-rows: auto auto;
@@ -1193,6 +1198,7 @@ body:has([data-page="editor"]) {
   .editor-selection-bar .editor-export-actions {
     grid-column: 2;
     grid-row: 1;
+    grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1300,10 +1306,11 @@ body:has([data-page="editor"]) {
   .editor-selection-bar .editor-export-actions {
     grid-column: 1;
     grid-row: 3;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
   }
 
-  .editor-compress-action {
+  .editor-compress-action,
+  .editor-images-action {
     width: 100%;
   }
 
