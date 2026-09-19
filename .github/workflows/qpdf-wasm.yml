@@ -1,7 +1,7 @@
 name: qpdf WASM
 
 on:
-  pull_request:
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -27,7 +27,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
