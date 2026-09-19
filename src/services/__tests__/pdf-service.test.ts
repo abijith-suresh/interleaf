@@ -17,33 +17,13 @@ const decodeData = (value: ArrayBuffer | ArrayBufferView | undefined) => {
 const loadingTaskDestroyMock = vi.fn().mockResolvedValue(undefined);
 const renderCancelMock = vi.fn();
 
-const pdfLibLoadMock = vi.fn().mockImplementation(async (buffer: ArrayBuffer, options?: object) => {
-  const label = decodeData(buffer);
-
-  if (label.includes("encrypted") && !Reflect.get(options ?? {}, "ignoreEncryption")) {
-    throw new Error("PDF is encrypted");
-  }
-
-  return {
-    getPageCount: vi.fn().mockReturnValue(label.includes("two-pages") ? 2 : 5),
-  };
-});
-
 const pdfjsGetDocumentMock = vi
   .fn()
   .mockImplementation((options?: { data?: Uint8Array; password?: string }) => {
     const label = decodeData(options?.data);
 
     if (label.includes("needs-password")) {
-      if (!options || options.password === "") {
-        return {
-          promise: Promise.reject(
-            Object.assign(new Error("Password required"), { name: "PasswordException" })
-          ),
-        };
-      }
-
-      if (options.password !== "623") {
+      if (options?.password !== "623") {
         return {
           promise: Promise.reject(
             Object.assign(new Error("Password required"), { name: "PasswordException" })
@@ -58,6 +38,7 @@ const pdfjsGetDocumentMock = vi
 
     return {
       promise: Promise.resolve({
+        numPages: label.includes("two-pages") ? 2 : 5,
         getPage: vi.fn().mockResolvedValue({
           getViewport: vi.fn().mockImplementation(({ scale = 1, rotation = 0 } = {}) => {
             const width = baseSize.width * scale;
@@ -79,12 +60,6 @@ const pdfjsGetDocumentMock = vi
       destroy: loadingTaskDestroyMock,
     };
   });
-
-vi.mock("pdf-lib", () => ({
-  PDFDocument: {
-    load: pdfLibLoadMock,
-  },
-}));
 
 vi.mock("pdfjs-dist", () => ({
   getDocument: pdfjsGetDocumentMock,
@@ -113,6 +88,15 @@ describe("PDFService", () => {
     expect(service.getPageCount()).toBe(5);
   });
 
+  it("uses PDF.js page metadata before an export is requested", async () => {
+    const service = new PDFService();
+    const file = new File(["two-pages"], "test.pdf", { type: "application/pdf" });
+
+    await Effect.runPromise(service.loadPDF(file));
+
+    expect(service.getPageCount()).toBe(2);
+  });
+
   it("reuses a cached document when the same file is loaded again", async () => {
     const service = new PDFService();
     const file = new File(["plain"], "test.pdf", { type: "application/pdf" });
@@ -120,7 +104,6 @@ describe("PDFService", () => {
     await Effect.runPromise(service.loadPDF(file));
     await Effect.runPromise(service.loadPDF(file));
 
-    expect(pdfLibLoadMock).toHaveBeenCalledTimes(1);
     expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(1);
   });
 
@@ -133,7 +116,6 @@ describe("PDFService", () => {
       Effect.runPromise(service.loadPDF(file)),
     ]);
 
-    expect(pdfLibLoadMock).toHaveBeenCalledTimes(1);
     expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(1);
   });
 
@@ -154,7 +136,7 @@ describe("PDFService", () => {
 
     await vi.waitFor(() => expect(pdfjsGetDocumentMock).toHaveBeenCalled());
     await Effect.runPromise(Fiber.interrupt(firstConsumer));
-    resolveLoading({ getPageCount: vi.fn().mockReturnValue(5) });
+    resolveLoading({ numPages: 5 });
     await Effect.runPromise(Fiber.join(secondConsumer));
 
     expect(loadingTaskDestroyMock).not.toHaveBeenCalled();

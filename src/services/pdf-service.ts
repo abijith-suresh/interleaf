@@ -1,5 +1,4 @@
-import { Deferred, Effect, Fiber, Result } from "effect";
-import { PDFDocument } from "pdf-lib";
+import { Deferred, Effect, Fiber } from "effect";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { type PDFError, PDFPasswordRequiredError, PDFProcessingError } from "../types/interfaces";
@@ -7,7 +6,8 @@ import { type PDFError, PDFPasswordRequiredError, PDFProcessingError } from "../
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 interface LoadedPDFRecord {
-  readonly pdfDocument: PDFDocument;
+  // PDF.js is enough for page counts, password handling, and thumbnails. The
+  // export service loads pdf-lib only when it needs to build a new document.
   readonly pdfjsDocument: pdfjsLib.PDFDocumentProxy;
 }
 
@@ -37,14 +37,6 @@ function isPasswordException(cause: unknown): boolean {
     cause !== null &&
     "name" in cause &&
     cause.name === "PasswordException"
-  );
-}
-
-function isEncryptedPDFError(error: PDFProcessingError): boolean {
-  return (
-    error.operation === "load-pdf-lib" &&
-    error.cause instanceof Error &&
-    error.cause.message.includes("is encrypted")
   );
 }
 
@@ -89,7 +81,7 @@ export class PDFService {
 
   getPageCount(): number {
     if (!this.activeFile) return 0;
-    return this.documentCache.get(this.activeFile)?.pdfDocument.getPageCount() ?? 0;
+    return this.documentCache.get(this.activeFile)?.pdfjsDocument.numPages ?? 0;
   }
 
   getPassword(file: File): string | undefined {
@@ -224,50 +216,9 @@ export class PDFService {
         try: () => file.arrayBuffer(),
         catch: (cause) => processingError("read-file", file, cause),
       });
-      const typedArray = new Uint8Array(buffer);
-
-      if (password !== undefined) {
-        return yield* this.loadEncryptedDocument(file, typedArray, buffer, password);
-      }
-
-      const pdfDocumentResult = yield* Effect.result(this.loadPdfLib(file, buffer));
-      if (Result.isFailure(pdfDocumentResult)) {
-        if (isEncryptedPDFError(pdfDocumentResult.failure)) {
-          return yield* this.loadEncryptedDocument(file, typedArray, buffer, "");
-        }
-        return yield* Effect.fail(pdfDocumentResult.failure);
-      }
-
-      const pdfjsDocument = yield* this.loadPdfJsDocument(file, typedArray);
-      return { pdfDocument: pdfDocumentResult.success, pdfjsDocument };
-    });
-  }
-
-  private loadEncryptedDocument(
-    file: File,
-    typedArray: Uint8Array,
-    buffer: ArrayBuffer,
-    password: string
-  ): Effect.Effect<LoadedPDFRecord, PDFError> {
-    return Effect.gen({ self: this }, function* () {
-      const pdfDocument = yield* this.loadPdfLib(file, buffer, true);
-      const pdfjsDocument = yield* this.loadPdfJsDocument(file, typedArray, password);
-
-      return { pdfDocument, pdfjsDocument };
-    });
-  }
-
-  private loadPdfLib(
-    file: File,
-    buffer: ArrayBuffer,
-    ignoreEncryption = false
-  ): Effect.Effect<PDFDocument, PDFProcessingError> {
-    return Effect.tryPromise({
-      try: () =>
-        ignoreEncryption
-          ? PDFDocument.load(buffer, { ignoreEncryption: true })
-          : PDFDocument.load(buffer),
-      catch: (cause) => processingError("load-pdf-lib", file, cause),
+      return {
+        pdfjsDocument: yield* this.loadPdfJsDocument(file, new Uint8Array(buffer), password),
+      };
     });
   }
 
@@ -297,7 +248,7 @@ export class PDFService {
               Effect.fail(
                 new PDFPasswordRequiredError(
                   file,
-                  password === "" ? "needs-password" : "wrong-password"
+                  password === undefined || password === "" ? "needs-password" : "wrong-password"
                 )
               )
             );
