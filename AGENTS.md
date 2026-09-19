@@ -23,14 +23,9 @@ The active product supports:
 - marking pages for deletion before export
 - unlocking password-protected PDFs with an in-browser prompt
 - locally rendered page thumbnails for inspection before export
+- losslessly compressing an untouched, single uploaded PDF in the browser
 
 These are the only current public product promises.
-
-### Approved In-Progress Work
-
-Lossless PDF compression is approved for development as a client-side workflow. Until it is
-integrated into the editor and released, it is not part of the current product surface or a public
-promise.
 
 ### Non-Goals
 
