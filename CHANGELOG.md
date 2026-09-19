@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.5](https://github.com/abijith-suresh/interleaf/compare/0.0.4...0.0.5) (2026-09-19)
+
+
+### Features
+
+* **pdf:** add lossless qpdf WASM spike ([#234](https://github.com/abijith-suresh/interleaf/issues/234)) ([f977244](https://github.com/abijith-suresh/interleaf/commit/f97724480c8f2f5acb6e388bb4e8fde46a02d40e))
+* **pdf:** integrate lossless compression workflow ([#237](https://github.com/abijith-suresh/interleaf/issues/237)) ([fee3dd7](https://github.com/abijith-suresh/interleaf/commit/fee3dd772b0d1013ba92934d41d5603f54dbc540))
+
 ## [0.0.4](https://github.com/abijith-suresh/interleaf/compare/0.0.3...0.0.4) (2026-09-18)
 
 
