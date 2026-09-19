@@ -1,8 +1,9 @@
-import { Context, Effect, Fiber, Layer, ManagedRuntime } from "effect";
+import { Context, Effect, Exit, Fiber, Layer, ManagedRuntime } from "effect";
 import type {
   PageState,
   PDFCompressionResult,
   PDFError,
+  PDFImageExportResult,
   PDFOperationResult,
 } from "../types/interfaces";
 import { PDFProcessingError } from "../types/interfaces";
@@ -11,6 +12,7 @@ import {
   type PDFCompressionOptions,
   PDFCompressionService,
 } from "./pdf-compression-service";
+import type { PDFImageExportOptions } from "./pdf-image-export-service";
 import type { PDFBuildOptions, PDFOperationsService } from "./pdf-operations-service";
 import { PDFService } from "./pdf-service";
 import { makeQpdfProcessing, type QpdfProcessingError } from "./qpdf-processing";
@@ -26,10 +28,15 @@ export interface PDFProcessingShape {
     scale?: number,
     rotation?: number
   ) => Effect.Effect<void, PDFError>;
+  readonly getPageRotation: (file: File, pageNumber: number) => Effect.Effect<number, PDFError>;
   readonly buildPDF: (
     pages: readonly PageState[],
     options?: PDFBuildOptions
   ) => Effect.Effect<PDFOperationResult, PDFError>;
+  readonly exportImages: (
+    pages: readonly PageState[],
+    options?: PDFImageExportOptions
+  ) => Effect.Effect<PDFImageExportResult, PDFError>;
   readonly compressPDF: (
     file: File,
     options?: PDFCompressionOptions
@@ -84,6 +91,25 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
               }),
           })
         );
+        const getImageExportService = yield* Effect.cachedWithTTL(
+          Effect.tryPromise({
+            try: async () => {
+              const { PDFImageExportService } = await import("./pdf-image-export-service");
+              const service = new PDFImageExportService(pdfService);
+              return service;
+            },
+            catch: (cause) =>
+              new PDFProcessingError({
+                operation: "load-pdf-image-export",
+                cause,
+                message:
+                  cause instanceof Error && cause.message
+                    ? cause.message
+                    : "Could not load PDF image export support.",
+              }),
+          }),
+          (exit) => (Exit.isSuccess(exit) ? "1 hour" : 0)
+        );
         const qpdfProcessing = makeQpdfProcessing({
           workerUrl: options.qpdfWorkerUrl ?? `${import.meta.env.BASE_URL}qpdf/qpdf-worker.js`,
         });
@@ -101,8 +127,14 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
             scale?: number,
             rotation?: number
           ) => pdfService.renderPage(file, pageNumber, canvas, scale, rotation),
+          getPageRotation: (file: File, pageNumber: number) =>
+            pdfService.getPageRotation(file, pageNumber),
           buildPDF: (pages: readonly PageState[], options?: PDFBuildOptions) =>
             Effect.flatMap(getOperationsService, (service) => service.buildPDF(pages, options)),
+          exportImages: (pages: readonly PageState[], options?: PDFImageExportOptions) =>
+            Effect.flatMap(getImageExportService, (service) =>
+              service.exportImages(pages, options)
+            ),
           compressPDF: (file: File, options?: PDFCompressionOptions) =>
             compressionService.compressPDF(file, pdfService.getPassword(file), options),
           reset: Effect.suspend(() => pdfService.reset()),

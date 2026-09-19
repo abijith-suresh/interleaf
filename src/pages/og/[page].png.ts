@@ -7,7 +7,7 @@ import satori from "satori";
 const pages: Record<string, { title: string; description: string }> = {
   index: {
     title: "Interleaf",
-    description: "Edit, merge, split — all in your browser.",
+    description: "Edit, merge, and export — all in your browser.",
   },
   app: {
     title: "Editor",
@@ -15,7 +15,7 @@ const pages: Record<string, { title: string; description: string }> = {
   },
   features: {
     title: "Features",
-    description: "Merge, split, reorder, rotate, and delete.",
+    description: "Merge, shape, export, and compress.",
   },
   about: {
     title: "About",

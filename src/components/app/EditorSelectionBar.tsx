@@ -13,6 +13,7 @@ interface Props {
   onRotate: () => void;
   onDelete: () => void;
   onDownload: () => void;
+  onExportImages: () => void;
   onCompress: () => void;
 }
 
@@ -35,6 +36,20 @@ export default function EditorSelectionBar(props: Props) {
     return `Export ${props.selectedActiveCount} selected page${
       props.selectedActiveCount === 1 ? "" : "s"
     }`;
+  };
+  const imageExportLabel = () => {
+    if (props.selectedActiveCount === 0) {
+      return hasSelection() ? "Restore pages" : "No active pages";
+    }
+    return "PNG ZIP";
+  };
+  const imageExportAriaLabel = () => {
+    if (props.selectedActiveCount === 0) {
+      return hasSelection()
+        ? "Restore pages before exporting images"
+        : "No active pages to export as images";
+    }
+    return "Export pages as PNG images in a ZIP archive";
   };
   const selectAllLabel = () => (props.allPagesSelected ? "All selected" : "Select all");
   const selectAllAriaLabel = () =>
@@ -115,7 +130,18 @@ export default function EditorSelectionBar(props: Props) {
           aria-label={props.busy ? props.busyLabel : exportLabel()}
           class="editor-download-action"
         >
-          {props.busy ? props.busyLabel : exportLabel()}
+          {exportLabel()}
+        </button>
+        <button
+          type="button"
+          data-testid="editor-export-images-button"
+          disabled={props.busy || props.selectedActiveCount === 0}
+          onClick={props.onExportImages}
+          aria-label={props.busy ? props.busyLabel : imageExportAriaLabel()}
+          title={props.busy ? props.busyLabel : imageExportAriaLabel()}
+          class="editor-images-action"
+        >
+          {imageExportLabel()}
         </button>
         <button
           type="button"

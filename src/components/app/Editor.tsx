@@ -14,8 +14,8 @@ import {
 import { makePDFRuntime, PDFProcessing } from "../../services/pdf-runtime";
 import { QpdfProcessingError } from "../../services/qpdf-processing";
 import type { PageState } from "../../types/interfaces";
-import { PDFPasswordRequiredError } from "../../types/interfaces";
-import { downloadPDF } from "../../utils/download";
+import { PDFPasswordRequiredError, PDFProcessingError } from "../../types/interfaces";
+import { downloadFile, downloadPDF } from "../../utils/download";
 import { promptForPassword } from "../../utils/password-prompt";
 import {
   showToast as dispatchToast,
@@ -34,7 +34,13 @@ interface DragOverTarget {
   direction: "before" | "after";
 }
 
-type EditorOperation = "idle" | "uploading" | "adding" | "building" | "compressing";
+type EditorOperation =
+  | "idle"
+  | "uploading"
+  | "adding"
+  | "building"
+  | "exporting-images"
+  | "compressing";
 type ToastTone = "success" | "error" | "info";
 
 interface Toast {
@@ -436,6 +442,48 @@ export default function Editor() {
     }
   }
 
+  async function handleExportImages(): Promise<void> {
+    if (disposed || isBusy()) return;
+    const selection = selectedIndices();
+    const selectedPageIndices =
+      selection.size > 0 ? Array.from(selection).sort((a, b) => a - b) : undefined;
+    const totalPages = selectedPageIndices ? selectedActivePageCount() : activePageCount();
+
+    setOperation("exporting-images");
+    setStatusMessage(
+      `${selectedPageIndices ? "Building selected images" : "Building images"}… 0/${totalPages}`
+    );
+
+    try {
+      const result = await runPDF(
+        PDFProcessing.use((service) =>
+          service.exportImages(pages, {
+            selectedIndices: selectedPageIndices,
+            onProgress: ({ completed, total }) => {
+              if (disposed) return;
+              setStatusMessage(
+                `${selectedPageIndices ? "Building selected images" : "Building images"}… ${completed}/${total}`
+              );
+            },
+          })
+        )
+      );
+      if (disposed) return;
+      downloadFile(result, "application/zip");
+      setStatusMessage("Image download started.");
+    } catch (error) {
+      if (disposed) return;
+      const message =
+        error instanceof PDFProcessingError && error.operation === "image-export-limit"
+          ? error.message
+          : "Failed to export images.";
+      dispatchToast(message, "error");
+      setStatusMessage(message);
+    } finally {
+      if (!disposed) setOperation("idle");
+    }
+  }
+
   async function handleCompress(): Promise<void> {
     const file = getUnmodifiedSourceFile();
     if (disposed || isBusy() || !file) return;
@@ -698,6 +746,7 @@ export default function Editor() {
                 onRotate={handleRotateSelected}
                 onDelete={handleDeleteSelected}
                 onDownload={handleDownload}
+                onExportImages={handleExportImages}
                 onCompress={handleCompress}
                 compressionAvailable={getUnmodifiedSourceFile() !== null}
                 compressionDisabledReason={compressionDisabledReason()}

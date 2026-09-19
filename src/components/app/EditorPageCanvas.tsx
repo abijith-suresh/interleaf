@@ -64,13 +64,19 @@ export default function EditorPageCanvas(props: Props) {
 
     const fiber = props.runtime.runFork(
       PDFProcessing.use((service) =>
-        service.renderPage(
-          props.page.sourceFile,
-          props.page.sourcePageNumber,
-          canvas,
-          THUMBNAIL_SCALE,
-          0
-        )
+        Effect.gen(function* () {
+          const sourceRotation = yield* service.getPageRotation(
+            props.page.sourceFile,
+            props.page.sourcePageNumber
+          );
+          yield* service.renderPage(
+            props.page.sourceFile,
+            props.page.sourcePageNumber,
+            canvas,
+            THUMBNAIL_SCALE,
+            sourceRotation
+          );
+        })
       )
     );
     renderFiber = fiber;

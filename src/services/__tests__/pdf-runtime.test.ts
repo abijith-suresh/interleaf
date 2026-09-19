@@ -7,6 +7,7 @@ const pdfServiceMock = vi.hoisted(() => ({
   loadPDFWithPassword: vi.fn(),
   getPageCount: vi.fn(),
   getPassword: vi.fn(),
+  getPageRotation: vi.fn(),
   renderPage: vi.fn(),
   reset: vi.fn(),
 }));
@@ -14,6 +15,11 @@ const pdfServiceMock = vi.hoisted(() => ({
 const operationsServiceMock = vi.hoisted(() => ({
   buildPDF: vi.fn(),
   clearCache: vi.fn(),
+  constructed: 0,
+}));
+
+const imageExportServiceMock = vi.hoisted(() => ({
+  exportImages: vi.fn(),
   constructed: 0,
 }));
 
@@ -28,6 +34,7 @@ vi.mock("../pdf-service", () => ({
     loadPDFWithPassword = pdfServiceMock.loadPDFWithPassword;
     getPageCount = pdfServiceMock.getPageCount;
     getPassword = pdfServiceMock.getPassword;
+    getPageRotation = pdfServiceMock.getPageRotation;
     renderPage = pdfServiceMock.renderPage;
     reset = pdfServiceMock.reset;
   },
@@ -42,6 +49,15 @@ vi.mock("../pdf-operations-service", () => ({
     clearCache = operationsServiceMock.clearCache;
   },
 }));
+vi.mock("../pdf-image-export-service", () => ({
+  PDFImageExportService: class {
+    constructor() {
+      imageExportServiceMock.constructed += 1;
+    }
+
+    exportImages = imageExportServiceMock.exportImages;
+  },
+}));
 vi.mock("../qpdf-processing", () => ({
   makeQpdfProcessing: () => qpdfProcessingMock,
 }));
@@ -54,6 +70,7 @@ beforeEach(() => {
   pdfServiceMock.loadPDFWithPassword.mockReturnValue(Effect.succeed(undefined));
   pdfServiceMock.getPageCount.mockReturnValue(0);
   pdfServiceMock.getPassword.mockReturnValue(undefined);
+  pdfServiceMock.getPageRotation.mockReturnValue(Effect.succeed(0));
   pdfServiceMock.renderPage.mockReturnValue(Effect.succeed(undefined));
   pdfServiceMock.reset.mockReturnValue(Effect.succeed(undefined));
   operationsServiceMock.buildPDF.mockReturnValue(
@@ -61,6 +78,10 @@ beforeEach(() => {
   );
   operationsServiceMock.clearCache.mockReturnValue(Effect.succeed(undefined));
   operationsServiceMock.constructed = 0;
+  imageExportServiceMock.exportImages.mockReturnValue(
+    Effect.succeed({ data: new Blob(), suggestedFileName: "document-images.zip" })
+  );
+  imageExportServiceMock.constructed = 0;
 });
 
 it.effect("runs PDF processing through a scoped Effect v4 runtime", () => {
@@ -150,6 +171,22 @@ it.effect("shares lazy PDF editing support across concurrent exports", () => {
       expect(operationsServiceMock.constructed).toBe(1);
       expect(operationsServiceMock.buildPDF).toHaveBeenCalledTimes(2);
       expect(maximumActiveBuilds).toBe(2);
+
+      await runtime.dispose();
+    },
+    catch: (cause) => cause,
+  });
+});
+
+it.effect("loads image export support only when exporting pages", () => {
+  return Effect.tryPromise({
+    try: async () => {
+      const runtime = makePDFRuntime();
+
+      expect(imageExportServiceMock.constructed).toBe(0);
+      await runtime.runPromise(PDFProcessing.use((service) => service.exportImages([])));
+      expect(imageExportServiceMock.constructed).toBe(1);
+      expect(imageExportServiceMock.exportImages).toHaveBeenCalledWith([], undefined);
 
       await runtime.dispose();
     },
