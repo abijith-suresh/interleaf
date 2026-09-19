@@ -1,6 +1,6 @@
 import { it } from "@effect/vitest";
 import { Effect, Exit, Fiber } from "effect";
-import { expect, vi } from "vitest";
+import { beforeEach, expect, vi } from "vitest";
 
 const pdfServiceMock = vi.hoisted(() => ({
   loadPDF: vi.fn(),
@@ -48,6 +48,21 @@ vi.mock("../qpdf-processing", () => ({
 
 import { makePDFRuntime, PDFProcessing } from "../pdf-runtime";
 
+beforeEach(() => {
+  vi.clearAllMocks();
+  pdfServiceMock.loadPDF.mockReturnValue(Effect.succeed(undefined));
+  pdfServiceMock.loadPDFWithPassword.mockReturnValue(Effect.succeed(undefined));
+  pdfServiceMock.getPageCount.mockReturnValue(0);
+  pdfServiceMock.getPassword.mockReturnValue(undefined);
+  pdfServiceMock.renderPage.mockReturnValue(Effect.succeed(undefined));
+  pdfServiceMock.reset.mockReturnValue(Effect.succeed(undefined));
+  operationsServiceMock.buildPDF.mockReturnValue(
+    Effect.succeed({ data: new Uint8Array(), suggestedFileName: "document.pdf" })
+  );
+  operationsServiceMock.clearCache.mockReturnValue(Effect.succeed(undefined));
+  operationsServiceMock.constructed = 0;
+});
+
 it.effect("runs PDF processing through a scoped Effect v4 runtime", () => {
   pdfServiceMock.loadPDF.mockReturnValue(Effect.succeed(undefined));
   pdfServiceMock.getPageCount.mockReturnValue(7);
@@ -90,12 +105,6 @@ it.effect("interrupts all runtime-owned fibers before disposing services", () =>
 );
 
 it.effect("loads PDF editing support only when building a document", () => {
-  operationsServiceMock.constructed = 0;
-  operationsServiceMock.buildPDF.mockReturnValue(
-    Effect.succeed({ data: new Uint8Array(), suggestedFileName: "document.pdf" })
-  );
-  operationsServiceMock.clearCache.mockReturnValue(Effect.succeed(undefined));
-
   return Effect.tryPromise({
     try: async () => {
       const runtime = makePDFRuntime();
@@ -106,6 +115,61 @@ it.effect("loads PDF editing support only when building a document", () => {
       expect(operationsServiceMock.buildPDF).toHaveBeenCalledWith([], undefined);
 
       await runtime.dispose();
+      expect(operationsServiceMock.clearCache).toHaveBeenCalledTimes(1);
+    },
+    catch: (cause) => cause,
+  });
+});
+
+it.effect("shares lazy PDF editing support across concurrent exports", () => {
+  let activeBuilds = 0;
+  let maximumActiveBuilds = 0;
+  operationsServiceMock.buildPDF.mockImplementation(() =>
+    Effect.promise(
+      () =>
+        new Promise((resolve) => {
+          activeBuilds += 1;
+          maximumActiveBuilds = Math.max(maximumActiveBuilds, activeBuilds);
+          setTimeout(() => {
+            activeBuilds -= 1;
+            resolve({ data: new Uint8Array(), suggestedFileName: "document.pdf" });
+          }, 0);
+        })
+    )
+  );
+
+  return Effect.tryPromise({
+    try: async () => {
+      const runtime = makePDFRuntime();
+
+      await Promise.all([
+        runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([]))),
+        runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([]))),
+      ]);
+
+      expect(operationsServiceMock.constructed).toBe(1);
+      expect(operationsServiceMock.buildPDF).toHaveBeenCalledTimes(2);
+      expect(maximumActiveBuilds).toBe(2);
+
+      await runtime.dispose();
+    },
+    catch: (cause) => cause,
+  });
+});
+
+it.effect("does not load PDF editing support during runtime cleanup", () => {
+  return Effect.tryPromise({
+    try: async () => {
+      const runtime = makePDFRuntime();
+      const file = new File(["plain"], "document.pdf", { type: "application/pdf" });
+
+      await runtime.runPromise(PDFProcessing.use((service) => service.loadPDF(file)));
+
+      await runtime.dispose();
+
+      expect(operationsServiceMock.constructed).toBe(0);
+      expect(operationsServiceMock.clearCache).not.toHaveBeenCalled();
+      expect(pdfServiceMock.reset).toHaveBeenCalledTimes(1);
     },
     catch: (cause) => cause,
   });
