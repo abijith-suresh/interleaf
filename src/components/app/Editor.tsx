@@ -12,6 +12,7 @@ import {
   toggleSelection,
 } from "../../controllers/editor-page-state";
 import { makePDFRuntime, PDFProcessing } from "../../services/pdf-runtime";
+import { QpdfProcessingError } from "../../services/qpdf-processing";
 import type { PageState } from "../../types/interfaces";
 import { PDFPasswordRequiredError } from "../../types/interfaces";
 import { downloadPDF } from "../../utils/download";
@@ -33,7 +34,7 @@ interface DragOverTarget {
   direction: "before" | "after";
 }
 
-type EditorOperation = "idle" | "uploading" | "adding" | "building";
+type EditorOperation = "idle" | "uploading" | "adding" | "building" | "compressing";
 type ToastTone = "success" | "error" | "info";
 
 interface Toast {
@@ -80,6 +81,33 @@ export default function Editor() {
   const allPagesSelected = () => areAllPagesSelected(pages.length, selectedIndices());
   const selectedDeletionAction = () => getDeletionAction(pages, selectedIndices());
   const deletionCopy = () => deletionActionCopy[selectedDeletionAction()];
+
+  function getUnmodifiedSourceFile(): File | null {
+    if (pages.length === 0 || selectedIndices().size > 0) return null;
+
+    const sourceFile = pages[0]?.sourceFile;
+    if (!sourceFile) return null;
+
+    const isUnmodified = pages.every(
+      (page, index) =>
+        page.sourceFile === sourceFile &&
+        page.sourcePageNumber === index + 1 &&
+        page.rotation === 0 &&
+        !page.markedForDeletion
+    );
+
+    return isUnmodified ? sourceFile : null;
+  }
+
+  function compressionDisabledReason(): string {
+    if (selectedIndices().size > 0) {
+      return "Clear page selection to compress the original PDF";
+    }
+    if (pages.length === 0 || activePageCount() === 0) {
+      return "No active pages to compress";
+    }
+    return "Compression is available before page edits";
+  }
 
   const workspaceFiles = createMemo<EditorWorkspaceFile[]>(() => {
     const groups = new Map<File, EditorWorkspaceFile>();
@@ -166,6 +194,12 @@ export default function Editor() {
 
   function formatPageCount(pageCount: number) {
     return `${pageCount} page${pageCount === 1 ? "" : "s"}`;
+  }
+
+  function formatFileSize(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   function getLoadErrorMessage(file: File, error: unknown) {
@@ -402,6 +436,49 @@ export default function Editor() {
     }
   }
 
+  async function handleCompress(): Promise<void> {
+    const file = getUnmodifiedSourceFile();
+    if (disposed || isBusy() || !file) return;
+
+    setOperation("compressing");
+    setStatusMessage("Compressing PDF…");
+
+    try {
+      const result = await runPDF(
+        PDFProcessing.use((service) =>
+          service.compressPDF(file, {
+            onCompressionStage: () => {
+              if (!disposed) setStatusMessage("Compressing PDF…");
+            },
+          })
+        )
+      );
+      if (disposed) return;
+      downloadPDF(result);
+      if (result.reduced) {
+        dispatchToast(
+          `Compressed ${formatFileSize(result.inputBytes)} to ${formatFileSize(result.outputBytes)}.`,
+          "success"
+        );
+        setStatusMessage("Compressed PDF download started.");
+      } else {
+        dispatchToast("No smaller file was available. Downloaded the current PDF.", "info");
+        setStatusMessage("Current PDF download started.");
+      }
+    } catch (error) {
+      if (disposed) return;
+      dispatchToast(
+        error instanceof QpdfProcessingError
+          ? `Failed to compress the PDF: ${error.message}`
+          : "Failed to compress the PDF.",
+        "error"
+      );
+      setStatusMessage("Compression failed. Try again.");
+    } finally {
+      if (!disposed) setOperation("idle");
+    }
+  }
+
   // --- Drag and drop ---
 
   function handleDragStart(index: number, e: DragEvent): void {
@@ -621,6 +698,9 @@ export default function Editor() {
                 onRotate={handleRotateSelected}
                 onDelete={handleDeleteSelected}
                 onDownload={handleDownload}
+                onCompress={handleCompress}
+                compressionAvailable={getUnmodifiedSourceFile() !== null}
+                compressionDisabledReason={compressionDisabledReason()}
               />
 
               <div

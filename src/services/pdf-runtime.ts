@@ -1,7 +1,18 @@
 import { Context, Effect, Fiber, Layer, ManagedRuntime } from "effect";
-import type { PageState, PDFError, PDFOperationResult } from "../types/interfaces";
+import type {
+  PageState,
+  PDFCompressionResult,
+  PDFError,
+  PDFOperationResult,
+} from "../types/interfaces";
+import {
+  type PDFCompressionError,
+  type PDFCompressionOptions,
+  PDFCompressionService,
+} from "./pdf-compression-service";
 import { type PDFBuildOptions, PDFOperationsService } from "./pdf-operations-service";
 import { PDFService } from "./pdf-service";
+import { makeQpdfProcessing, type QpdfProcessingError } from "./qpdf-processing";
 
 export interface PDFProcessingShape {
   readonly loadPDF: (file: File) => Effect.Effect<void, PDFError>;
@@ -18,6 +29,10 @@ export interface PDFProcessingShape {
     pages: readonly PageState[],
     options?: PDFBuildOptions
   ) => Effect.Effect<PDFOperationResult, PDFError>;
+  readonly compressPDF: (
+    file: File,
+    options?: PDFCompressionOptions
+  ) => Effect.Effect<PDFCompressionResult, PDFError | QpdfProcessingError | PDFCompressionError>;
   readonly reset: Effect.Effect<void>;
   readonly clearCache: Effect.Effect<void>;
 }
@@ -38,15 +53,23 @@ export interface PDFRuntime {
   readonly dispose: () => Promise<void>;
 }
 
-export function makePDFRuntime(): PDFRuntime {
+export interface PDFRuntimeOptions {
+  readonly qpdfWorkerUrl?: string | URL;
+}
+
+export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
   const live = Layer.effect(
     PDFProcessing,
     Effect.acquireRelease(
       Effect.sync(() => {
         const pdfService = new PDFService();
         const operationsService = new PDFOperationsService(pdfService);
+        const qpdfProcessing = makeQpdfProcessing({
+          workerUrl: options.qpdfWorkerUrl ?? `${import.meta.env.BASE_URL}qpdf/qpdf-worker.js`,
+        });
+        const compressionService = new PDFCompressionService(qpdfProcessing);
 
-        return {
+        const service: PDFProcessingShape & { readonly closeQpdf: () => void } = {
           loadPDF: (file: File) => pdfService.loadPDF(file),
           loadPDFWithPassword: (file: File, password: string) =>
             pdfService.loadPDFWithPassword(file, password),
@@ -60,14 +83,20 @@ export function makePDFRuntime(): PDFRuntime {
           ) => pdfService.renderPage(file, pageNumber, canvas, scale, rotation),
           buildPDF: (pages: readonly PageState[], options?: PDFBuildOptions) =>
             operationsService.buildPDF(pages, options),
+          compressPDF: (file: File, options?: PDFCompressionOptions) =>
+            compressionService.compressPDF(file, pdfService.getPassword(file), options),
           reset: Effect.suspend(() => pdfService.reset()),
           clearCache: Effect.suspend(() => operationsService.clearCache()),
-        } satisfies PDFProcessingShape;
+          closeQpdf: qpdfProcessing.close,
+        };
+
+        return service;
       }),
       (service) =>
         Effect.gen(function* () {
           yield* service.reset;
           yield* service.clearCache;
+          service.closeQpdf();
         })
     )
   );

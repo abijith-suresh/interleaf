@@ -7,6 +7,7 @@ const pdfServiceMocks = vi.hoisted(() => ({
   loadPDF: vi.fn(),
   loadPDFWithPassword: vi.fn(),
   getPageCount: vi.fn(),
+  getPassword: vi.fn(),
   renderPage: vi.fn(),
   reset: vi.fn(),
 }));
@@ -14,6 +15,10 @@ const pdfServiceMocks = vi.hoisted(() => ({
 const pdfOperationsMocks = vi.hoisted(() => ({
   buildPDF: vi.fn(),
   clearCache: vi.fn(),
+}));
+
+const pdfCompressionMocks = vi.hoisted(() => ({
+  compressPDF: vi.fn(),
 }));
 
 const promptForPassword = vi.hoisted(() => vi.fn());
@@ -24,6 +29,7 @@ vi.mock("@/services/pdf-service", () => ({
     loadPDF = pdfServiceMocks.loadPDF;
     loadPDFWithPassword = pdfServiceMocks.loadPDFWithPassword;
     getPageCount = pdfServiceMocks.getPageCount;
+    getPassword = pdfServiceMocks.getPassword;
     renderPage = pdfServiceMocks.renderPage;
     reset = pdfServiceMocks.reset;
   },
@@ -32,6 +38,11 @@ vi.mock("@/services/pdf-operations-service", () => ({
   PDFOperationsService: class {
     buildPDF = pdfOperationsMocks.buildPDF;
     clearCache = pdfOperationsMocks.clearCache;
+  },
+}));
+vi.mock("@/services/pdf-compression-service", () => ({
+  PDFCompressionService: class {
+    compressPDF = pdfCompressionMocks.compressPDF;
   },
 }));
 vi.mock("@/utils/password-prompt", () => ({ promptForPassword }));
@@ -69,6 +80,16 @@ describe("Editor", () => {
       })
     );
     pdfOperationsMocks.clearCache.mockReturnValue(Effect.succeed(undefined));
+    pdfCompressionMocks.compressPDF.mockReturnValue(
+      Effect.succeed({
+        data: new Uint8Array([4, 5]),
+        inputBytes: 10,
+        candidateBytes: 2,
+        outputBytes: 2,
+        suggestedFileName: "interleaf-output.pdf",
+        reduced: true,
+      })
+    );
   });
 
   it("renders the upload dropzone before any file is loaded", () => {
@@ -155,6 +176,7 @@ describe("Editor", () => {
     expect(getByTestId("editor-delete-button")).toBeDisabled();
     expect(getByTestId("editor-select-all-button")).toBeEnabled();
     expect(getByTestId("editor-download-button")).toBeEnabled();
+    expect(getByTestId("editor-compress-button")).toBeEnabled();
 
     fireEvent.click((await findAllByTestId("editor-page-tile"))[0]);
     await waitFor(() => expect(rotateButtons[0]).toBeEnabled());
@@ -163,6 +185,7 @@ describe("Editor", () => {
     expect(getByTestId("editor-rotate-button")).toBeEnabled();
     expect(getByTestId("editor-delete-button")).toBeEnabled();
     expect(getByTestId("editor-download-button")).toHaveTextContent("Export 1 selected page");
+    expect(getByTestId("editor-compress-button")).toBeDisabled();
   });
 
   it("uses one clear control after every page is selected", async () => {
@@ -425,6 +448,60 @@ describe("Editor", () => {
 
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
     expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledTimes(1);
+  });
+
+  it("compresses the original uploaded PDF before page edits", async () => {
+    const { getByTestId } = render(() => <Editor />);
+
+    const file = makeFile("source.pdf");
+    selectFile("editor-upload-input", file);
+    await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
+    fireEvent.click(getByTestId("editor-compress-button"));
+
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
+    expect(pdfCompressionMocks.compressPDF).toHaveBeenCalledTimes(1);
+    expect(pdfCompressionMocks.compressPDF.mock.calls[0][0]).toBe(file);
+    expect(pdfCompressionMocks.compressPDF.mock.calls[0][1]).toBeUndefined();
+    expect(getByTestId("editor-toast")).toHaveTextContent("Compressed 10 B to 2 B.");
+  });
+
+  it("reports when compression cannot make the workspace smaller", async () => {
+    pdfCompressionMocks.compressPDF.mockReturnValue(
+      Effect.succeed({
+        data: new Uint8Array([1, 2, 3]),
+        inputBytes: 3,
+        candidateBytes: 4,
+        outputBytes: 3,
+        suggestedFileName: "interleaf-output.pdf",
+        reduced: false,
+      })
+    );
+
+    const { getByTestId } = render(() => <Editor />);
+    selectFile("editor-upload-input", makeFile());
+    await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
+
+    fireEvent.click(getByTestId("editor-compress-button"));
+
+    await waitFor(() =>
+      expect(getByTestId("editor-toast")).toHaveTextContent(
+        "No smaller file was available. Downloaded the current PDF."
+      )
+    );
+    expect(downloadPDF).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a failure toast when compression fails", async () => {
+    pdfCompressionMocks.compressPDF.mockReturnValue(Effect.fail(new Error("compress failed")));
+
+    const { getByTestId } = render(() => <Editor />);
+    selectFile("editor-upload-input", makeFile());
+    await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
+
+    fireEvent.click(getByTestId("editor-compress-button"));
+
+    await waitFor(() => expectLastToast("Failed to compress the PDF."));
+    expect(downloadPDF).not.toHaveBeenCalled();
   });
 
   it("shows a failure toast when building the output fails", async () => {

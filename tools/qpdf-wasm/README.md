@@ -1,7 +1,8 @@
 # qpdf WASM foundation
 
-This directory contains the approved browser boundary for lossless PDF optimization. It is not
-connected to the editor yet, so it does not change the current public product surface.
+This directory contains the approved browser boundary for lossless PDF optimization. The editor
+uses it for the in-progress compression workflow; it is not a public product promise until that
+workflow is released.
 
 The build pins qpdf 12.4.1 to the official release archive and checks its SHA-256 before compiling it
 with Emscripten 3.1.72. The generated worker uses qpdf's in-memory C++ API, so PDF bytes do not pass
@@ -25,8 +26,8 @@ product surface can honestly say that no reduction was available.
 
 ## Build
 
-Use an Emscripten environment matching the pinned toolchain. The repository does not commit the
-generated loader or WASM binary while this boundary is being reviewed.
+Use an Emscripten environment matching the pinned toolchain. The verified loader, worker, and WASM
+binary are checked into `public/qpdf/` so normal application builds do not require Emscripten.
 
 ```sh
 ./tools/qpdf-wasm/build-qpdf-wasm.sh
@@ -64,6 +65,13 @@ wrong passwords, malformed input, and signed-document rejection. The encrypted f
 and license are recorded in `fixtures/README.md`. This suite is still not a substitute for
 editor-level regression tests.
 
-The generated `qpdf-worker.js` imports `qpdf.mjs` beside it. The later integration PR should load that
-worker through `QpdfProcessing` and add the generated files to the application asset pipeline only
-after the browser smoke and fidelity suites pass.
+The generated `qpdf-worker.js` imports `qpdf.mjs` beside it. The editor loads that worker through
+`QpdfProcessing` when the compression workflow runs.
+
+The current compression workflow sends the untouched uploaded source file to qpdf. It stays
+disabled after page edits or selection so compression cannot silently discard document-level data
+that the editor's page-building path does not preserve yet.
+
+The application keeps the verified runtime in `public/qpdf/`. CI rebuilds qpdf and compares those
+three deployed assets byte-for-byte with the build output using `check-app-assets.sh`. The
+`SHA256SUMS` file in that directory records the checked-in bytes.

@@ -6,11 +6,14 @@ interface Props {
   allPagesSelected: boolean;
   deletionLabel: string;
   deletionAriaLabel: string;
+  compressionAvailable: boolean;
+  compressionDisabledReason: string;
   onSelectAll: () => void;
   onClearSelection: () => void;
   onRotate: () => void;
   onDelete: () => void;
   onDownload: () => void;
+  onCompress: () => void;
 }
 
 export default function EditorSelectionBar(props: Props) {
@@ -103,16 +106,41 @@ export default function EditorSelectionBar(props: Props) {
         </button>
       </div>
 
-      <button
-        type="button"
-        data-testid="editor-download-button"
-        disabled={props.busy || props.selectedActiveCount === 0}
-        onClick={props.onDownload}
-        aria-label={props.busy ? props.busyLabel : exportLabel()}
-        class="editor-download-action"
-      >
-        {props.busy ? props.busyLabel : exportLabel()}
-      </button>
+      <div class="editor-export-actions">
+        <button
+          type="button"
+          data-testid="editor-download-button"
+          disabled={props.busy || props.selectedActiveCount === 0}
+          onClick={props.onDownload}
+          aria-label={props.busy ? props.busyLabel : exportLabel()}
+          class="editor-download-action"
+        >
+          {props.busy ? props.busyLabel : exportLabel()}
+        </button>
+        <button
+          type="button"
+          data-testid="editor-compress-button"
+          disabled={props.busy || props.selectedActiveCount === 0 || !props.compressionAvailable}
+          onClick={props.onCompress}
+          aria-label={
+            props.busy || props.compressionAvailable
+              ? props.busy
+                ? props.busyLabel
+                : "Compress the original PDF"
+              : props.compressionDisabledReason
+          }
+          title={
+            props.busy || props.compressionAvailable
+              ? props.busy
+                ? props.busyLabel
+                : "Compress the original PDF"
+              : props.compressionDisabledReason
+          }
+          class="editor-compress-action"
+        >
+          Compress
+        </button>
+      </div>
     </section>
   );
 }

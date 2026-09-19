@@ -42,6 +42,15 @@ export interface PDFOperationResult {
   suggestedFileName: string;
 }
 
+export interface PDFCompressionResult {
+  data: Uint8Array;
+  inputBytes: number;
+  candidateBytes: number;
+  outputBytes: number;
+  suggestedFileName: string;
+  reduced: boolean;
+}
+
 export interface PDFBuildProgress {
   completed: number;
   total: number;

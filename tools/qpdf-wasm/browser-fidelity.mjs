@@ -70,6 +70,11 @@ try {
       if (note?.contentsObj?.str !== "fixture note" || !hasRect(note, [10, 78, 32, 100])) {
         throw new Error(`${output.name}: text annotation content or geometry was not preserved`);
       }
+
+      const outline = await document.getOutline();
+      if (!outline?.some((item) => item.title === "Fidelity outline")) {
+        throw new Error(`${output.name}: outline was not preserved`);
+      }
     }
 
     if (output.image) {
