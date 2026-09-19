@@ -14,6 +14,7 @@ const pdfServiceMock = vi.hoisted(() => ({
 const operationsServiceMock = vi.hoisted(() => ({
   buildPDF: vi.fn(),
   clearCache: vi.fn(),
+  constructed: 0,
 }));
 
 const qpdfProcessingMock = vi.hoisted(() => ({
@@ -33,6 +34,10 @@ vi.mock("../pdf-service", () => ({
 }));
 vi.mock("../pdf-operations-service", () => ({
   PDFOperationsService: class {
+    constructor() {
+      operationsServiceMock.constructed += 1;
+    }
+
     buildPDF = operationsServiceMock.buildPDF;
     clearCache = operationsServiceMock.clearCache;
   },
@@ -83,6 +88,28 @@ it.effect("interrupts all runtime-owned fibers before disposing services", () =>
     expect(Exit.isFailure(exit)).toBe(true);
   })
 );
+
+it.effect("loads PDF editing support only when building a document", () => {
+  operationsServiceMock.constructed = 0;
+  operationsServiceMock.buildPDF.mockReturnValue(
+    Effect.succeed({ data: new Uint8Array(), suggestedFileName: "document.pdf" })
+  );
+  operationsServiceMock.clearCache.mockReturnValue(Effect.succeed(undefined));
+
+  return Effect.tryPromise({
+    try: async () => {
+      const runtime = makePDFRuntime();
+
+      expect(operationsServiceMock.constructed).toBe(0);
+      await runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([])));
+      expect(operationsServiceMock.constructed).toBe(1);
+      expect(operationsServiceMock.buildPDF).toHaveBeenCalledWith([], undefined);
+
+      await runtime.dispose();
+    },
+    catch: (cause) => cause,
+  });
+});
 
 it.effect("passes the unlocked source PDF to lossless compression", () => {
   vi.clearAllMocks();

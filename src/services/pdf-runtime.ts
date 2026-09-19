@@ -5,12 +5,13 @@ import type {
   PDFError,
   PDFOperationResult,
 } from "../types/interfaces";
+import { PDFProcessingError } from "../types/interfaces";
 import {
   type PDFCompressionError,
   type PDFCompressionOptions,
   PDFCompressionService,
 } from "./pdf-compression-service";
-import { type PDFBuildOptions, PDFOperationsService } from "./pdf-operations-service";
+import type { PDFBuildOptions, PDFOperationsService } from "./pdf-operations-service";
 import { PDFService } from "./pdf-service";
 import { makeQpdfProcessing, type QpdfProcessingError } from "./qpdf-processing";
 
@@ -61,9 +62,28 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
   const live = Layer.effect(
     PDFProcessing,
     Effect.acquireRelease(
-      Effect.sync(() => {
+      Effect.gen(function* () {
         const pdfService = new PDFService();
-        const operationsService = new PDFOperationsService(pdfService);
+        let operationsService: PDFOperationsService | undefined;
+        const getOperationsService = yield* Effect.cached(
+          Effect.tryPromise({
+            try: async () => {
+              const { PDFOperationsService } = await import("./pdf-operations-service");
+              const service = new PDFOperationsService(pdfService);
+              operationsService = service;
+              return service;
+            },
+            catch: (cause) =>
+              new PDFProcessingError({
+                operation: "load-pdf-operations",
+                cause,
+                message:
+                  cause instanceof Error && cause.message
+                    ? cause.message
+                    : "Could not load PDF editing support.",
+              }),
+          })
+        );
         const qpdfProcessing = makeQpdfProcessing({
           workerUrl: options.qpdfWorkerUrl ?? `${import.meta.env.BASE_URL}qpdf/qpdf-worker.js`,
         });
@@ -82,11 +102,11 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
             rotation?: number
           ) => pdfService.renderPage(file, pageNumber, canvas, scale, rotation),
           buildPDF: (pages: readonly PageState[], options?: PDFBuildOptions) =>
-            operationsService.buildPDF(pages, options),
+            Effect.flatMap(getOperationsService, (service) => service.buildPDF(pages, options)),
           compressPDF: (file: File, options?: PDFCompressionOptions) =>
             compressionService.compressPDF(file, pdfService.getPassword(file), options),
           reset: Effect.suspend(() => pdfService.reset()),
-          clearCache: Effect.suspend(() => operationsService.clearCache()),
+          clearCache: Effect.suspend(() => operationsService?.clearCache() ?? Effect.void),
           closeQpdf: qpdfProcessing.close,
         };
 
