@@ -6,11 +6,13 @@ import EditorPageCanvas from "./EditorPageCanvas";
 
 const VIEWER_MAX_PIXELS = 16_000_000;
 const VIEWER_MAX_SCALE = 1.5;
+const VIEWER_MAX_DEVICE_PIXEL_RATIO = 2;
 const VIEWER_GUTTER = 32;
 const FILMSTRIP_WINDOW_SIZE = 12;
 const FILMSTRIP_OVERSCAN = 3;
 const FILMSTRIP_DESKTOP_ITEM_EXTENT = 96;
 const FILMSTRIP_MOBILE_ITEM_EXTENT = 84;
+const VIEWER_RESIZE_DEBOUNCE_MS = 80;
 
 interface Props {
   pages: PageState[];
@@ -38,6 +40,7 @@ export default function EditorPageViewer(props: Props) {
   let renderLoopRunning = false;
   let renderFiber: Fiber.Fiber<unknown, unknown> | null = null;
   let resizeObserver: ResizeObserver | null = null;
+  let resizeTimer: number | null = null;
   let mobileMediaQuery: MediaQueryList | null = null;
   let updateMobileMode: (() => void) | null = null;
   let reviewBackground: HTMLElement | null = null;
@@ -103,17 +106,31 @@ export default function EditorPageViewer(props: Props) {
     return !disposed && attempt === renderAttempt && canvas.isConnected;
   }
 
-  function getFitScale(pageWidth: number, pageHeight: number): number {
-    const pixelSafeScale = Math.sqrt(VIEWER_MAX_PIXELS / (pageWidth * pageHeight));
-    if (stage.clientWidth === 0 || stage.clientHeight === 0) {
-      return Math.min(VIEWER_MAX_SCALE, pixelSafeScale);
-    }
+  function getViewerScale(
+    pageWidth: number,
+    pageHeight: number
+  ): {
+    cssScale: number;
+    renderScale: number;
+  } {
+    const devicePixelRatio = Math.min(
+      Math.max(window.devicePixelRatio || 1, 1),
+      VIEWER_MAX_DEVICE_PIXEL_RATIO
+    );
+    const pixelSafeRenderScale = Math.sqrt(VIEWER_MAX_PIXELS / (pageWidth * pageHeight));
+    const fitScale =
+      stage.clientWidth === 0 || stage.clientHeight === 0
+        ? VIEWER_MAX_SCALE
+        : Math.min(
+            Math.max(stage.clientWidth - VIEWER_GUTTER * 2, 1) / pageWidth,
+            Math.max(stage.clientHeight - VIEWER_GUTTER * 2, 1) / pageHeight
+          );
+    const cssScale = Math.min(VIEWER_MAX_SCALE, fitScale, pixelSafeRenderScale / devicePixelRatio);
 
-    const availableWidth = Math.max(stage.clientWidth - VIEWER_GUTTER * 2, 1);
-    const availableHeight = Math.max(stage.clientHeight - VIEWER_GUTTER * 2, 1);
-    const fitScale = Math.min(availableWidth / pageWidth, availableHeight / pageHeight);
-
-    return Math.min(VIEWER_MAX_SCALE, fitScale, pixelSafeScale);
+    return {
+      cssScale,
+      renderScale: cssScale * devicePixelRatio,
+    };
   }
 
   async function renderLoop(): Promise<void> {
@@ -151,11 +168,14 @@ export default function EditorPageViewer(props: Props) {
                   page.sourcePageNumber,
                   rotation
                 );
+                const { cssScale, renderScale } = getViewerScale(pageSize.width, pageSize.height);
+                canvas.style.width = `${pageSize.width * cssScale}px`;
+                canvas.style.height = `${pageSize.height * cssScale}px`;
                 yield* service.renderPage(
                   page.sourceFile,
                   page.sourcePageNumber,
                   canvas,
-                  getFitScale(pageSize.width, pageSize.height),
+                  renderScale,
                   rotation
                 );
               })
@@ -189,6 +209,15 @@ export default function EditorPageViewer(props: Props) {
     renderQueued = true;
     interruptRender();
     if (!renderLoopRunning) void renderLoop();
+  }
+
+  function requestResizeRender(): void {
+    if (disposed || !mounted) return;
+    if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(() => {
+      resizeTimer = null;
+      requestRender();
+    }, VIEWER_RESIZE_DEBOUNCE_MS);
   }
 
   function selectPage(pageId: string): void {
@@ -309,11 +338,12 @@ export default function EditorPageViewer(props: Props) {
     handleMobileModeChange();
     if (mobileMediaQuery.matches) reviewBackground?.setAttribute("inert", "");
     mobileMediaQuery.addEventListener("change", handleMobileModeChange);
+    window.addEventListener("resize", requestResizeRender);
     queueMicrotask(() => closeButton?.focus());
     requestRender();
 
     if (typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(requestRender);
+      resizeObserver = new ResizeObserver(requestResizeRender);
       resizeObserver.observe(stage);
     }
   });
@@ -322,11 +352,16 @@ export default function EditorPageViewer(props: Props) {
     disposed = true;
     renderQueued = false;
     renderAttempt += 1;
+    if (resizeTimer !== null) {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = null;
+    }
     resizeObserver?.disconnect();
     resizeObserver = null;
     if (mobileMediaQuery && updateMobileMode) {
       mobileMediaQuery.removeEventListener("change", updateMobileMode);
     }
+    window.removeEventListener("resize", requestResizeRender);
     updateMobileMode = null;
     reviewBackground?.removeAttribute("inert");
     reviewBackground = null;
