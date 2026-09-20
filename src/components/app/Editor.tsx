@@ -372,6 +372,20 @@ export default function Editor() {
     }
   }
 
+  async function releaseStagedFiles(
+    loadedFiles: LoadedWorkspaceFile[],
+    existingFiles: Set<File>
+  ): Promise<void> {
+    if (disposed || loadedFiles.length === 0) return;
+
+    for (const { file } of loadedFiles) {
+      if (existingFiles.has(file)) continue;
+      await runPDF(PDFProcessing.use((service) => service.releaseFile(file))).catch(
+        () => undefined
+      );
+    }
+  }
+
   function describeLoadedFiles(mode: "upload" | "add", pdfCount: number, imageCount: number) {
     const pdfLabel = `${pdfCount} PDF${pdfCount === 1 ? "" : "s"}`;
     const imageLabel = `${imageCount} image${imageCount === 1 ? "" : "s"}`;
@@ -404,53 +418,57 @@ export default function Editor() {
 
     const replaceWorkspace = mode === "upload";
     const loadedFiles: LoadedWorkspaceFile[] = [];
+    const existingFiles = new Set(pages.map((page) => page.sourceFile));
     let pdfCount = 0;
     let imageCount = 0;
     let imageGroupIndex = 0;
     const imageGroupCount = groups.filter((group) => group.kind === "images").length;
+    let committed = false;
 
-    for (const group of groups) {
-      if (disposed) return false;
+    try {
+      for (const group of groups) {
+        if (disposed) return false;
 
-      let pdfFile: File;
-      if (group.kind === "images") {
-        imageCount += group.files.length;
-        imageGroupIndex += 1;
-        setOperation("building");
-        setStatusMessage(`Creating PDF from images… 0/${group.files.length}`);
-        const generatedFile = await createPdfFromImages(
-          group.files,
-          imageGroupCount > 1
-            ? `${IMAGES_TO_PDF_FILENAME.replace(/\.pdf$/i, "")}-${imageGroupIndex}.pdf`
-            : IMAGES_TO_PDF_FILENAME
-        );
-        if (!generatedFile) {
-          if (!disposed) setReadyStatus();
-          return false;
+        let pdfFile: File;
+        if (group.kind === "images") {
+          imageCount += group.files.length;
+          imageGroupIndex += 1;
+          setOperation("building");
+          setStatusMessage(`Creating PDF from images… 0/${group.files.length}`);
+          const generatedFile = await createPdfFromImages(
+            group.files,
+            imageGroupCount > 1
+              ? `${IMAGES_TO_PDF_FILENAME.replace(/\.pdf$/i, "")}-${imageGroupIndex}.pdf`
+              : IMAGES_TO_PDF_FILENAME
+          );
+          if (!generatedFile) return false;
+          pdfFile = generatedFile;
+        } else {
+          pdfCount += group.files.length;
+          pdfFile = group.files[0];
         }
-        pdfFile = generatedFile;
-      } else {
-        pdfCount += group.files.length;
-        pdfFile = group.files[0];
+
+        const isFirstFile = loadedFiles.length === 0;
+        setOperation(mode === "upload" && isFirstFile ? "uploading" : "adding");
+        setStatusMessage(`Loading ${pdfFile.name}…`);
+        const pageCount = await loadPdfFile(
+          pdfFile,
+          mode === "upload" && isFirstFile ? "upload" : "add",
+          false
+        );
+        if (pageCount === null || disposed) return false;
+
+        loadedFiles.push({ file: pdfFile, pageCount });
       }
 
-      const isFirstFile = loadedFiles.length === 0;
-      setOperation(mode === "upload" && isFirstFile ? "uploading" : "adding");
-      setStatusMessage(`Loading ${pdfFile.name}…`);
-      const pageCount = await loadPdfFile(
-        pdfFile,
-        mode === "upload" && isFirstFile ? "upload" : "add",
-        false
-      );
-      if (pageCount === null || disposed) return false;
-
-      loadedFiles.push({ file: pdfFile, pageCount });
+      commitWorkspaceFiles(loadedFiles, replaceWorkspace);
+      committed = true;
+      setReadyStatus();
+      setStatusMessage(describeLoadedFiles(mode, pdfCount, imageCount));
+      return true;
+    } finally {
+      if (!committed) await releaseStagedFiles(loadedFiles, existingFiles);
     }
-
-    commitWorkspaceFiles(loadedFiles, replaceWorkspace);
-    setReadyStatus();
-    setStatusMessage(describeLoadedFiles(mode, pdfCount, imageCount));
-    return true;
   }
 
   function requestAddFiles(): void {

@@ -121,6 +121,18 @@ describe("PDFService", () => {
     expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(1);
   });
 
+  it("releases one cached document without resetting the session", async () => {
+    const service = new PDFService();
+    const file = new File(["plain"], "test.pdf", { type: "application/pdf" });
+
+    await Effect.runPromise(service.loadPDF(file));
+    await Effect.runPromise(service.releaseFile(file));
+    await Effect.runPromise(service.loadPDF(file));
+
+    expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(2);
+    expect(service.getPageCount()).toBe(5);
+  });
+
   it("deduplicates concurrent loads for the same file", async () => {
     const service = new PDFService();
     const file = new File(["plain"], "test.pdf", { type: "application/pdf" });

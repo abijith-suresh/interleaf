@@ -11,6 +11,7 @@ const pdfServiceMocks = vi.hoisted(() => ({
   getPageRotation: vi.fn(),
   getPageSize: vi.fn(),
   renderPage: vi.fn(),
+  releaseFile: vi.fn(),
   reset: vi.fn(),
 }));
 
@@ -41,6 +42,7 @@ vi.mock("@/services/pdf-service", () => ({
     getPageRotation = pdfServiceMocks.getPageRotation;
     getPageSize = pdfServiceMocks.getPageSize;
     renderPage = pdfServiceMocks.renderPage;
+    releaseFile = pdfServiceMocks.releaseFile;
     reset = pdfServiceMocks.reset;
   },
 }));
@@ -108,6 +110,7 @@ describe("Editor", () => {
     pdfServiceMocks.loadPDF.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.loadPDFWithPassword.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.renderPage.mockReturnValue(Effect.succeed(undefined));
+    pdfServiceMocks.releaseFile.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.reset.mockReturnValue(Effect.succeed(undefined));
     pdfOperationsMocks.buildPDF.mockReturnValue(
       Effect.succeed({
@@ -273,6 +276,13 @@ describe("Editor", () => {
 
     expect(await findByTestId("editor-toast")).toHaveTextContent("Failed to load broken.pdf");
     expect(queryByTestId("editor-page-grid")).not.toBeInTheDocument();
+    await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledTimes(2));
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "good.pdf" })
+    );
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "interleaf-images.pdf" })
+    );
   });
 
   it("loads multiple selected PDFs into the same workspace", async () => {
@@ -371,6 +381,10 @@ describe("Editor", () => {
 
     expect(await findByTestId("editor-toast")).toHaveTextContent("Failed to load broken-add.pdf");
     expect(await findAllByTestId("editor-page-tile")).toHaveLength(3);
+    await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledTimes(1));
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "good-add.pdf" })
+    );
   });
 
   it("keeps selection actions disabled until they have usable input", async () => {

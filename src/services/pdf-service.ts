@@ -156,6 +156,31 @@ export class PDFService {
     });
   }
 
+  releaseFile(file: File): Effect.Effect<void> {
+    return Effect.suspend(() => {
+      const record = this.documentCache.get(file);
+      const fibers = Array.from(this.loadEffects.get(file)?.values() ?? [])
+        .map((load) => load.fiber)
+        .filter((fiber): fiber is Fiber.Fiber<LoadedPDFRecord, PDFError> => fiber !== null);
+
+      if (this.activeFile === file) this.activeFile = null;
+      this.passwordRegistry.delete(file);
+      this.documentCache.delete(file);
+      this.loadEffects.delete(file);
+
+      return Effect.forEach(fibers, Fiber.interrupt, { discard: true }).pipe(
+        Effect.andThen(
+          record
+            ? Effect.tryPromise({
+                try: () => record.pdfjsDocument.cleanup(),
+                catch: () => undefined,
+              }).pipe(Effect.catch(() => Effect.void))
+            : Effect.void
+        )
+      );
+    });
+  }
+
   reset(): Effect.Effect<void> {
     return Effect.suspend(() => {
       const records = Array.from(this.documentCache.values());
@@ -171,19 +196,21 @@ export class PDFService {
       this.sessionVersion += 1;
 
       return Effect.forEach(fibers, Fiber.interrupt, { discard: true }).pipe(
-        Effect.andThen(
-          Effect.forEach(
-            records,
-            (record) =>
-              Effect.tryPromise({
-                try: () => record.pdfjsDocument.cleanup(),
-                catch: () => undefined,
-              }).pipe(Effect.catch(() => Effect.void)),
-            { discard: true }
-          )
-        )
+        Effect.andThen(this.cleanupRecords(records))
       );
     });
+  }
+
+  private cleanupRecords(records: readonly LoadedPDFRecord[]): Effect.Effect<void> {
+    return Effect.forEach(
+      records,
+      (record) =>
+        Effect.tryPromise({
+          try: () => record.pdfjsDocument.cleanup(),
+          catch: () => undefined,
+        }).pipe(Effect.catch(() => Effect.void)),
+      { discard: true }
+    );
   }
 
   private getOrLoadDocument(
