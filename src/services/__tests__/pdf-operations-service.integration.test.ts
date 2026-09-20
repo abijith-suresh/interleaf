@@ -9,6 +9,23 @@ async function loadPdf(data: Uint8Array): Promise<PDFDocument> {
   return PDFDocument.load(data);
 }
 
+function decodeBase64(value: string): Uint8Array {
+  return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+}
+
+function copyBytes(value: Uint8Array): Uint8Array<ArrayBuffer> {
+  const copy = new Uint8Array(new ArrayBuffer(value.byteLength));
+  copy.set(value);
+  return copy;
+}
+
+const ONE_PIXEL_PNG = decodeBase64(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+);
+const ONE_PIXEL_JPEG = decodeBase64(
+  "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/AX//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/AX//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAY/Aqf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/If/Z"
+);
+
 const runEffect = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect);
 
 describe("PDFOperationsService with real PDF documents", () => {
@@ -59,6 +76,29 @@ describe("PDFOperationsService with real PDF documents", () => {
       [120, 240],
       [600, 720],
       [360, 480],
+    ]);
+  });
+
+  it("creates image-sized pages from PNG and JPEG files", async () => {
+    const files = [
+      new File([copyBytes(ONE_PIXEL_PNG)], "first.png", { type: "image/png" }),
+      new File([copyBytes(ONE_PIXEL_JPEG)], "second.jpg", { type: "image/jpeg" }),
+    ];
+    const onProgress = vi.fn();
+
+    const result = await runEffect(
+      new PDFOperationsService(new PDFService()).imagesToPDF(files, { onProgress })
+    );
+    const output = await loadPdf(result.data);
+
+    expect(result.suggestedFileName).toBe("interleaf-images.pdf");
+    expect(output.getPages().map((page) => [page.getWidth(), page.getHeight()])).toEqual([
+      [595.28, 841.89],
+      [595.28, 841.89],
+    ]);
+    expect(onProgress.mock.calls).toEqual([
+      [{ completed: 1, total: 2 }],
+      [{ completed: 2, total: 2 }],
     ]);
   });
 

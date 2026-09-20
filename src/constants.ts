@@ -13,5 +13,8 @@ export const TOAST_DISMISS_TIMEOUT_MS = 3000;
 /** Default file name for the merged/reordered PDF output */
 export const OUTPUT_FILENAME = "interleaf-output.pdf";
 
+/** Default file name for PDFs created from image files */
+export const IMAGES_TO_PDF_FILENAME = "interleaf-images.pdf";
+
 /** Title shown in the password prompt modal for encrypted PDFs */
 export const PASSWORD_MODAL_TITLE = "Password required";

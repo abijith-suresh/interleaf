@@ -15,6 +15,7 @@ const pdfServiceMocks = vi.hoisted(() => ({
 
 const pdfOperationsMocks = vi.hoisted(() => ({
   buildPDF: vi.fn(),
+  imagesToPDF: vi.fn(),
   clearCache: vi.fn(),
 }));
 
@@ -44,6 +45,7 @@ vi.mock("@/services/pdf-service", () => ({
 vi.mock("@/services/pdf-operations-service", () => ({
   PDFOperationsService: class {
     buildPDF = pdfOperationsMocks.buildPDF;
+    imagesToPDF = pdfOperationsMocks.imagesToPDF;
     clearCache = pdfOperationsMocks.clearCache;
   },
 }));
@@ -63,12 +65,18 @@ vi.mock("@/utils/download", () => ({ downloadFile, downloadPDF }));
 import Editor from "../Editor";
 
 const makeFile = (name = "doc.pdf") => new File(["%PDF-1.4"], name, { type: "application/pdf" });
+const makeImageFile = (name = "image.png", type = "image/png") =>
+  new File(["image"], name, { type });
 
-function selectFile(testid: string, file: File) {
+function selectFiles(testid: string, files: File[]) {
   const input = document.querySelector<HTMLInputElement>(`[data-testid="${testid}"]`);
   if (!input) throw new Error(`missing input ${testid}`);
-  Object.defineProperty(input, "files", { value: [file] });
+  Object.defineProperty(input, "files", { value: files });
   fireEvent(input, new Event("change", { bubbles: true }));
+}
+
+function selectFile(testid: string, file: File) {
+  selectFiles(testid, [file]);
 }
 
 // Toasts accumulate until their 3s dismissal timer fires, so assert on the newest one.
@@ -104,6 +112,12 @@ describe("Editor", () => {
         suggestedFileName: "interleaf-output.pdf",
       })
     );
+    pdfOperationsMocks.imagesToPDF.mockReturnValue(
+      Effect.succeed({
+        data: new Uint8Array([8, 9]),
+        suggestedFileName: "interleaf-images.pdf",
+      })
+    );
     pdfOperationsMocks.clearCache.mockReturnValue(Effect.succeed(undefined));
     pdfCompressionMocks.compressPDF.mockReturnValue(
       Effect.succeed({
@@ -131,14 +145,15 @@ describe("Editor", () => {
     expect(container.querySelector(".editor-uploader-mark")).not.toBeInTheDocument();
   });
 
-  it("rejects non-PDF files with an error toast", async () => {
+  it("rejects unsupported files with an error toast", async () => {
     const { findByTestId, queryByTestId } = render(() => <Editor />);
 
     selectFile("editor-upload-input", new File(["text"], "notes.txt", { type: "text/plain" }));
 
     const toast = await findByTestId("editor-toast");
-    expect(toast).toHaveTextContent("Please upload a valid PDF file.");
+    expect(toast).toHaveTextContent("Choose PDF files or PNG/JPEG images at a time.");
     expect(pdfServiceMocks.loadPDF).not.toHaveBeenCalled();
+    expect(pdfOperationsMocks.imagesToPDF).not.toHaveBeenCalled();
     expect(queryByTestId("editor-page-grid")).not.toBeInTheDocument();
   });
 
@@ -150,6 +165,49 @@ describe("Editor", () => {
     await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
     const tiles = await findAllByTestId("editor-page-tile");
     expect(tiles).toHaveLength(3);
+  });
+
+  it("turns selected images into a PDF and opens it in the workspace", async () => {
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+    const images = [makeImageFile("one.png"), makeImageFile("two.jpg", "image/jpeg")];
+
+    selectFiles("editor-upload-input", images);
+
+    await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
+    expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalledWith(
+      images,
+      expect.objectContaining({ onProgress: expect.any(Function) })
+    );
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "interleaf-images.pdf", type: "application/pdf" })
+    );
+    expect(await findAllByTestId("editor-page-tile")).toHaveLength(3);
+    expect(getByTestId("editor-status-message")).toHaveTextContent("Created a PDF from 2 images.");
+  });
+
+  it("rejects mixed PDF and image selections with a clear next step", async () => {
+    const { findByTestId } = render(() => <Editor />);
+
+    selectFiles("editor-upload-input", [makeFile(), makeImageFile()]);
+
+    expect(await findByTestId("editor-toast")).toHaveTextContent(
+      "Choose PDF files or PNG/JPEG images at a time."
+    );
+    expect(pdfServiceMocks.loadPDF).not.toHaveBeenCalled();
+    expect(pdfOperationsMocks.imagesToPDF).not.toHaveBeenCalled();
+  });
+
+  it("loads multiple selected PDFs into the same workspace", async () => {
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+    const files = [makeFile("one.pdf"), makeFile("two.pdf")];
+
+    selectFiles("editor-upload-input", files);
+
+    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(6));
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledTimes(2);
+    expect(getByTestId("editor-status-message")).toHaveTextContent(
+      "Loaded 2 PDFs into the workspace."
+    );
   });
 
   it("opens the file drawer and selects pages from one source file", async () => {

@@ -16,6 +16,7 @@ import { QpdfProcessingError } from "../../services/qpdf-processing";
 import type { PageState } from "../../types/interfaces";
 import { PDFPasswordRequiredError, PDFProcessingError } from "../../types/interfaces";
 import { downloadFile, downloadPDF } from "../../utils/download";
+import { getSupportedFileKind } from "../../utils/file-types";
 import { promptForPassword } from "../../utils/password-prompt";
 import {
   showToast as dispatchToast,
@@ -77,7 +78,9 @@ export default function Editor() {
   const [dragOverTarget, setDragOverTarget] = createSignal<DragOverTarget | null>(null);
   const [filesOpen, setFilesOpen] = createSignal(false);
   const [operation, setOperation] = createSignal<EditorOperation>("idle");
-  const [statusMessage, setStatusMessage] = createSignal("Drop a PDF to begin");
+  const [statusMessage, setStatusMessage] = createSignal(
+    "PDF, PNG, and JPEG files stay on your device."
+  );
   const [toasts, setToasts] = createSignal<Toast[]>([]);
 
   const activePageCount = () => pages.filter((p) => !p.markedForDeletion).length;
@@ -139,7 +142,9 @@ export default function Editor() {
   function setReadyStatus() {
     if (disposed) return;
     setOperation("idle");
-    setStatusMessage(phase() === "edit" ? "Ready" : "Drop a PDF to begin");
+    setStatusMessage(
+      phase() === "edit" ? "Ready" : "PDF, PNG, and JPEG files stay on your device."
+    );
   }
 
   function dismissToast(id: number) {
@@ -241,7 +246,7 @@ export default function Editor() {
   }
 
   async function loadPdfFile(file: File, mode: "upload" | "add"): Promise<number | null> {
-    if (disposed || (file.type !== "application/pdf" && !/\.pdf$/i.test(file.name))) {
+    if (disposed || getSupportedFileKind(file) !== "pdf") {
       if (disposed) return null;
       dispatchToast("Please upload a valid PDF file.", "error");
       return null;
@@ -275,11 +280,11 @@ export default function Editor() {
     setStatusMessage(`${file.name} loaded with ${formatPageCount(pageCount)}.`);
   }
 
-  async function handleAddPdf(file: File): Promise<void> {
-    if (disposed || isBusy()) return;
+  async function handleAddPdf(file: File): Promise<boolean> {
+    if (disposed || isBusy()) return false;
 
     const pageCount = await loadPdfFile(file, "add");
-    if (pageCount === null) return;
+    if (pageCount === null) return false;
 
     setPages(
       produce((draftPages) => {
@@ -289,6 +294,7 @@ export default function Editor() {
 
     setReadyStatus();
     setStatusMessage(`Added ${formatPageCount(pageCount)} from ${file.name}.`);
+    return true;
   }
 
   function requestAddPdf(): void {
@@ -310,13 +316,85 @@ export default function Editor() {
     queueMicrotask(() => filesButton?.focus());
   }
 
-  async function handleInitialUpload(file: File): Promise<void> {
+  async function handleImagesToPdf(files: File[]): Promise<void> {
     if (disposed || isBusy()) return;
 
-    const pageCount = await loadPdfFile(file, "upload");
+    setOperation("building");
+    setStatusMessage(`Creating PDF from images… 0/${files.length}`);
+
+    try {
+      const result = await runPDF(
+        PDFProcessing.use((service) =>
+          service.imagesToPDF(files, {
+            onProgress: ({ completed, total }) => {
+              if (disposed) return;
+              setStatusMessage(`Creating PDF from images… ${completed}/${total}`);
+            },
+          })
+        )
+      );
+      if (disposed) return;
+
+      const generatedBytes = new Uint8Array(new ArrayBuffer(result.data.byteLength));
+      generatedBytes.set(result.data);
+      const generatedFile = new File([generatedBytes], result.suggestedFileName, {
+        type: "application/pdf",
+      });
+      const pageCount = await loadPdfFile(generatedFile, "upload");
+      if (pageCount === null || disposed) return;
+
+      handleFileLoaded(generatedFile, pageCount);
+      setStatusMessage(`Created a PDF from ${files.length} image${files.length === 1 ? "" : "s"}.`);
+    } catch (error) {
+      if (disposed) return;
+      const message =
+        error instanceof PDFProcessingError
+          ? error.message
+          : "Failed to create a PDF from the selected images.";
+      dispatchToast(message, "error");
+      setReadyStatus();
+      setStatusMessage("Image conversion failed. Try again.");
+    } finally {
+      if (!disposed) setOperation("idle");
+    }
+  }
+
+  async function handleInitialFiles(files: File[]): Promise<void> {
+    if (disposed || isBusy() || files.length === 0) return;
+
+    const pdfFiles = files.filter((file) => getSupportedFileKind(file) === "pdf");
+    const imageFiles = files.filter((file) => {
+      const kind = getSupportedFileKind(file);
+      return kind === "png" || kind === "jpeg";
+    });
+    const unsupportedFiles = files.filter((file) => getSupportedFileKind(file) === null);
+
+    if (unsupportedFiles.length > 0 || (pdfFiles.length > 0 && imageFiles.length > 0)) {
+      dispatchToast(
+        "Choose PDF files or PNG/JPEG images at a time. You can add other files after opening the workspace.",
+        "error"
+      );
+      return;
+    }
+
+    if (imageFiles.length > 0) {
+      await handleImagesToPdf(imageFiles);
+      return;
+    }
+
+    const [firstFile, ...additionalFiles] = pdfFiles;
+    const pageCount = await loadPdfFile(firstFile, "upload");
     if (pageCount === null) return;
 
-    handleFileLoaded(file, pageCount);
+    handleFileLoaded(firstFile, pageCount);
+    let loadedFileCount = 1;
+    for (const file of additionalFiles) {
+      if (await handleAddPdf(file)) loadedFileCount += 1;
+    }
+    if (loadedFileCount > 1) {
+      setReadyStatus();
+      setStatusMessage(`Loaded ${loadedFileCount} PDFs into the workspace.`);
+    }
   }
 
   // --- Selection ---
@@ -654,7 +732,7 @@ export default function Editor() {
             <EditorUploader
               busy={isBusy()}
               statusMessage={statusMessage()}
-              onFileSelected={handleInitialUpload}
+              onFilesSelected={handleInitialFiles}
             />
           }
         >

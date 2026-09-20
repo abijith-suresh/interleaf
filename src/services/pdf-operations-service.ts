@@ -1,6 +1,6 @@
 import { Deferred, Effect, Fiber } from "effect";
-import { degrees, PDFDocument } from "pdf-lib";
-import { OUTPUT_FILENAME } from "../constants";
+import { degrees, PageSizes, PDFDocument } from "pdf-lib";
+import { IMAGES_TO_PDF_FILENAME, OUTPUT_FILENAME } from "../constants";
 import type {
   PageState,
   PDFBuildProgress,
@@ -8,12 +8,17 @@ import type {
   PDFOperationResult,
 } from "../types/interfaces";
 import { PDFNoPagesError, PDFProcessingError } from "../types/interfaces";
+import { getSupportedFileKind } from "../utils/file-types";
 import type { PDFService } from "./pdf-service";
 
 const ENCRYPTED_PAGE_RENDER_SCALE = 2;
 
 export interface PDFBuildOptions {
   readonly selectedIndices?: readonly number[];
+  readonly onProgress?: (progress: PDFBuildProgress) => void;
+}
+
+export interface PDFImagesToPDFOptions {
   readonly onProgress?: (progress: PDFBuildProgress) => void;
 }
 
@@ -35,6 +40,69 @@ function processingError(operation: string, file: File, cause: unknown): PDFProc
     cause,
     message: errorMessage(cause, `PDF ${operation} failed.`),
   });
+}
+
+function isSupportedImageFile(file: File): boolean {
+  const kind = getSupportedFileKind(file);
+  return kind === "png" || kind === "jpeg";
+}
+
+type JPEGOrientation = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+
+function readJpegOrientation(data: ArrayBuffer): JPEGOrientation {
+  const view = new DataView(data);
+  if (view.byteLength < 4 || view.getUint16(0, false) !== 0xffd8) return 1;
+
+  let offset = 2;
+  while (offset + 4 <= view.byteLength) {
+    if (view.getUint8(offset) !== 0xff) return 1;
+
+    const marker = view.getUint8(offset + 1);
+    offset += 2;
+    if (marker === 0xda || marker === 0xd9) break;
+
+    const segmentLength = view.getUint16(offset, false);
+    if (segmentLength < 2 || offset + segmentLength > view.byteLength) return 1;
+
+    const segmentStart = offset + 2;
+    const segmentEnd = offset + segmentLength;
+    if (
+      marker === 0xe1 &&
+      segmentLength >= 16 &&
+      view.getUint8(segmentStart) === 0x45 &&
+      view.getUint8(segmentStart + 1) === 0x78 &&
+      view.getUint8(segmentStart + 2) === 0x69 &&
+      view.getUint8(segmentStart + 3) === 0x66 &&
+      view.getUint8(segmentStart + 4) === 0x00 &&
+      view.getUint8(segmentStart + 5) === 0x00
+    ) {
+      const tiffStart = segmentStart + 6;
+      if (tiffStart + 8 > segmentEnd) return 1;
+      const littleEndian = view.getUint16(tiffStart, false) === 0x4949;
+      const readUint16 = (position: number) => view.getUint16(position, littleEndian);
+      const readUint32 = (position: number) => view.getUint32(position, littleEndian);
+
+      if (readUint16(tiffStart + 2) !== 42) return 1;
+      const firstIfdOffset = readUint32(tiffStart + 4);
+      const firstIfd = tiffStart + firstIfdOffset;
+      if (firstIfd + 2 > segmentEnd) return 1;
+
+      const entryCount = readUint16(firstIfd);
+      for (let index = 0; index < entryCount; index += 1) {
+        const entry = firstIfd + 2 + index * 12;
+        if (entry + 12 > segmentEnd) return 1;
+        if (readUint16(entry) !== 0x0112) continue;
+        if (readUint16(entry + 2) !== 3 || readUint32(entry + 4) < 1) return 1;
+
+        const orientation = readUint16(entry + 8);
+        return orientation >= 1 && orientation <= 8 ? (orientation as JPEGOrientation) : 1;
+      }
+    }
+
+    offset += segmentLength;
+  }
+
+  return 1;
 }
 
 interface InFlightSourceDocument {
@@ -59,6 +127,156 @@ export class PDFOperationsService {
       this.cacheVersion += 1;
 
       return Effect.forEach(fibers, Fiber.interrupt, { discard: true });
+    });
+  }
+
+  imagesToPDF(
+    files: readonly File[],
+    options: PDFImagesToPDFOptions = {}
+  ): Effect.Effect<PDFOperationResult, PDFProcessingError> {
+    const firstFile = files[0];
+    if (files.length === 0) {
+      return Effect.fail(
+        new PDFProcessingError({
+          operation: "images-to-pdf",
+          cause: new Error("No images selected"),
+          message: "Choose at least one PNG or JPEG image.",
+        })
+      );
+    }
+
+    if (files.some((file) => !isSupportedImageFile(file))) {
+      return Effect.fail(
+        new PDFProcessingError({
+          operation: "images-to-pdf",
+          file: firstFile,
+          cause: new Error("Unsupported image type"),
+          message: "Only PNG and JPEG images can be converted to PDF.",
+        })
+      );
+    }
+
+    return Effect.gen({ self: this }, function* () {
+      const outputDoc = yield* Effect.tryPromise({
+        try: () => PDFDocument.create(),
+        catch: (cause) => processingError("create-image-pdf", firstFile, cause),
+      });
+
+      for (const [index, file] of files.entries()) {
+        const bytes = yield* Effect.tryPromise({
+          try: () => file.arrayBuffer(),
+          catch: (cause) => processingError("read-image", file, cause),
+        });
+        const image = yield* Effect.tryPromise({
+          try: () =>
+            getSupportedFileKind(file) === "png"
+              ? outputDoc.embedPng(bytes)
+              : outputDoc.embedJpg(bytes),
+          catch: (cause) => processingError("embed-image", file, cause),
+        });
+
+        yield* Effect.try({
+          try: () => {
+            const dimensions = image.scale(1);
+            const imageOrientation =
+              getSupportedFileKind(file) === "jpeg" ? readJpegOrientation(bytes) : 1;
+            const isQuarterTurn = imageOrientation >= 5;
+            const imageWidth = isQuarterTurn ? dimensions.height : dimensions.width;
+            const imageHeight = isQuarterTurn ? dimensions.width : dimensions.height;
+            const [a4Width, a4Height] = PageSizes.A4;
+            const pageWidth = imageWidth > imageHeight ? a4Height : a4Width;
+            const pageHeight = imageWidth > imageHeight ? a4Width : a4Height;
+            const scale = Math.min(pageWidth / imageWidth, pageHeight / imageHeight);
+            const drawWidth = dimensions.width * scale;
+            const drawHeight = dimensions.height * scale;
+            const x = (pageWidth - imageWidth * scale) / 2;
+            const y = (pageHeight - imageHeight * scale) / 2;
+            const page = outputDoc.addPage([pageWidth, pageHeight]);
+
+            switch (imageOrientation) {
+              case 2:
+                page.drawImage(image, {
+                  x: x + drawWidth,
+                  y,
+                  width: -drawWidth,
+                  height: drawHeight,
+                });
+                break;
+              case 3:
+                page.drawImage(image, {
+                  x: x + drawWidth,
+                  y: y + drawHeight,
+                  width: -drawWidth,
+                  height: -drawHeight,
+                });
+                break;
+              case 4:
+                page.drawImage(image, {
+                  x,
+                  y: y + drawHeight,
+                  width: drawWidth,
+                  height: -drawHeight,
+                });
+                break;
+              case 5:
+                page.drawImage(image, {
+                  x,
+                  y,
+                  width: drawWidth,
+                  height: -drawHeight,
+                  rotate: degrees(90),
+                });
+                break;
+              case 6:
+                page.drawImage(image, {
+                  x,
+                  y: y + drawWidth,
+                  width: drawWidth,
+                  height: drawHeight,
+                  rotate: degrees(-90),
+                });
+                break;
+              case 7:
+                page.drawImage(image, {
+                  x: x + drawHeight,
+                  y: y + drawWidth,
+                  width: -drawWidth,
+                  height: drawHeight,
+                  rotate: degrees(90),
+                });
+                break;
+              case 8:
+                page.drawImage(image, {
+                  x: x + drawHeight,
+                  y,
+                  width: drawWidth,
+                  height: drawHeight,
+                  rotate: degrees(90),
+                });
+                break;
+              default:
+                page.drawImage(image, {
+                  x,
+                  y,
+                  width: drawWidth,
+                  height: drawHeight,
+                });
+            }
+            options.onProgress?.({ completed: index + 1, total: files.length });
+          },
+          catch: (cause) => processingError("add-image-page", file, cause),
+        });
+      }
+
+      const data = yield* Effect.tryPromise({
+        try: () => outputDoc.save(),
+        catch: (cause) => processingError("save-image-pdf", firstFile, cause),
+      });
+
+      return {
+        data: new Uint8Array(data),
+        suggestedFileName: IMAGES_TO_PDF_FILENAME,
+      };
     });
   }
 
