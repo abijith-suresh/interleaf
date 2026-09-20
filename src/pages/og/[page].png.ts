@@ -11,7 +11,7 @@ const pages: Record<string, { title: string; description: string }> = {
   },
   app: {
     title: "Editor",
-    description: "Open a PDF or create one from PNG/JPEG images. No uploads required.",
+    description: "Open PDFs and PNG/JPEG images together. No uploads required.",
   },
   features: {
     title: "Features",

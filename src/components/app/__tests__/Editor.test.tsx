@@ -154,7 +154,7 @@ describe("Editor", () => {
     selectFile("editor-upload-input", new File(["text"], "notes.txt", { type: "text/plain" }));
 
     const toast = await findByTestId("editor-toast");
-    expect(toast).toHaveTextContent("Choose PDF files or PNG/JPEG images at a time.");
+    expect(toast).toHaveTextContent("Choose PDF, PNG, or JPEG files.");
     expect(pdfServiceMocks.loadPDF).not.toHaveBeenCalled();
     expect(pdfOperationsMocks.imagesToPDF).not.toHaveBeenCalled();
     expect(queryByTestId("editor-page-grid")).not.toBeInTheDocument();
@@ -207,16 +207,20 @@ describe("Editor", () => {
     expect(getByTestId("editor-status-message")).toHaveTextContent("Created a PDF from 2 images.");
   });
 
-  it("rejects mixed PDF and image selections with a clear next step", async () => {
-    const { findByTestId } = render(() => <Editor />);
+  it("loads mixed PDF and image selections in the chosen order", async () => {
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
 
     selectFiles("editor-upload-input", [makeFile(), makeImageFile()]);
 
-    expect(await findByTestId("editor-toast")).toHaveTextContent(
-      "Choose PDF files or PNG/JPEG images at a time."
+    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(6));
+    expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalledWith(
+      [expect.objectContaining({ name: "image.png" })],
+      expect.objectContaining({ onProgress: expect.any(Function) })
     );
-    expect(pdfServiceMocks.loadPDF).not.toHaveBeenCalled();
-    expect(pdfOperationsMocks.imagesToPDF).not.toHaveBeenCalled();
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledTimes(2);
+    expect(getByTestId("editor-status-message")).toHaveTextContent(
+      "Loaded 1 PDF and created a PDF from 1 image."
+    );
   });
 
   it("loads multiple selected PDFs into the same workspace", async () => {
@@ -266,6 +270,28 @@ describe("Editor", () => {
     expect(getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
     expect(getByTestId("editor-status-message")).toHaveTextContent(
       "Selected 3 pages from appendix.pdf."
+    );
+  });
+
+  it("adds mixed PDFs and images from the workspace", async () => {
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile("brief.pdf"));
+    await findAllByTestId("editor-page-tile");
+
+    selectFiles("editor-add-pdf-input", [
+      makeFile("appendix.pdf"),
+      makeImageFile("scan.jpg", "image/jpeg"),
+    ]);
+
+    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(9));
+    expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalledWith(
+      [expect.objectContaining({ name: "scan.jpg" })],
+      expect.objectContaining({ onProgress: expect.any(Function) })
+    );
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledTimes(3);
+    expect(getByTestId("editor-status-message")).toHaveTextContent(
+      "Added 1 PDF and created a PDF from 1 image."
     );
   });
 
