@@ -2,13 +2,26 @@ import type { PageState } from "../types/interfaces";
 
 export type DeletionAction = "mark" | "restore";
 
+let nextPageBatchId = 0;
+
+function createPageBatchId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  nextPageBatchId += 1;
+  return `batch-${nextPageBatchId}`;
+}
+
 export function createPageStates(
   file: File,
   pageCount: number,
   createdAt: number = Date.now()
 ): PageState[] {
+  const batchId = createPageBatchId();
+
   return Array.from({ length: pageCount }, (_, index) => ({
-    id: `${file.name}-${index + 1}-${createdAt}`,
+    id: `${file.name}-${index + 1}-${createdAt}-${batchId}`,
     sourceFile: file,
     sourcePageNumber: index + 1,
     rotation: 0,

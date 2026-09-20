@@ -1,6 +1,6 @@
 # Interleaf
 
-Interleaf is a fully client-side PDF editor for creating PDFs from PNG/JPEG images, merging, extracting, reordering, rotating, marking pages for deletion before export, exporting pages as images, unlocking PDFs, and losslessly compressing untouched PDFs.
+Interleaf is a fully client-side PDF editor for creating PDFs from PNG/JPEG images, merging, reviewing, extracting, reordering, rotating, marking pages for deletion before export, exporting pages as images, unlocking PDFs, and losslessly compressing untouched PDFs.
 
 No uploads. No accounts. No tracking.
 
@@ -17,6 +17,7 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Rotate individual pages or selections in 90-degree steps
 - Mark pages for deletion before export
 - Unlock password-protected PDFs with an in-browser prompt
+- Review pages one at a time with previous/next navigation and a compact filmstrip
 - Losslessly compress an untouched, single uploaded PDF
 - Export selected or active pages as PNG images in a ZIP archive
 - Render page thumbnails locally for inspection before export

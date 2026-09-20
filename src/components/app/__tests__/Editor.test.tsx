@@ -9,6 +9,7 @@ const pdfServiceMocks = vi.hoisted(() => ({
   getPageCount: vi.fn(),
   getPassword: vi.fn(),
   getPageRotation: vi.fn(),
+  getPageSize: vi.fn(),
   renderPage: vi.fn(),
   reset: vi.fn(),
 }));
@@ -38,6 +39,7 @@ vi.mock("@/services/pdf-service", () => ({
     getPageCount = pdfServiceMocks.getPageCount;
     getPassword = pdfServiceMocks.getPassword;
     getPageRotation = pdfServiceMocks.getPageRotation;
+    getPageSize = pdfServiceMocks.getPageSize;
     renderPage = pdfServiceMocks.renderPage;
     reset = pdfServiceMocks.reset;
   },
@@ -102,6 +104,7 @@ describe("Editor", () => {
     vi.clearAllMocks();
     pdfServiceMocks.getPageCount.mockReturnValue(3);
     pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(0));
+    pdfServiceMocks.getPageSize.mockReturnValue(Effect.succeed({ width: 100, height: 200 }));
     pdfServiceMocks.loadPDF.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.loadPDFWithPassword.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.renderPage.mockReturnValue(Effect.succeed(undefined));
@@ -165,6 +168,25 @@ describe("Editor", () => {
     await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
     const tiles = await findAllByTestId("editor-page-tile");
     expect(tiles).toHaveLength(3);
+  });
+
+  it("opens a multi-page review without requiring a single selected page", async () => {
+    const { getByTestId, findAllByTestId, queryByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile());
+    await findAllByTestId("editor-page-tile");
+
+    fireEvent.click(getByTestId("editor-review-button"));
+
+    await waitFor(() => expect(getByTestId("editor-page-viewer")).toBeInTheDocument());
+    expect(getByTestId("editor-page-viewer-previous")).toBeDisabled();
+    expect(getByTestId("editor-page-viewer-next")).toBeEnabled();
+
+    fireEvent.click(getByTestId("editor-page-viewer-next"));
+    await waitFor(() => expect(getByTestId("editor-viewer-title")).toHaveTextContent("Page 2"));
+
+    fireEvent.click(getByTestId("editor-page-viewer-close-button"));
+    await waitFor(() => expect(queryByTestId("editor-page-viewer")).not.toBeInTheDocument());
   });
 
   it("turns selected images into a PDF and opens it in the workspace", async () => {

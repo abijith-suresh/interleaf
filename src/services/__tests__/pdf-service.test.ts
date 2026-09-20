@@ -99,6 +99,18 @@ describe("PDFService", () => {
     expect(service.getPageCount()).toBe(2);
   });
 
+  it("returns page dimensions for the requested rotation", async () => {
+    const service = new PDFService();
+    const file = new File(["wide"], "wide.pdf", { type: "application/pdf" });
+
+    await Effect.runPromise(service.loadPDF(file));
+
+    await expect(Effect.runPromise(service.getPageSize(file, 1, 90))).resolves.toEqual({
+      width: 150,
+      height: 300,
+    });
+  });
+
   it("reuses a cached document when the same file is loaded again", async () => {
     const service = new PDFService();
     const file = new File(["plain"], "test.pdf", { type: "application/pdf" });

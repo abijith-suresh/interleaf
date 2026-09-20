@@ -102,6 +102,27 @@ export class PDFService {
     });
   }
 
+  getPageSize(
+    file: File,
+    pageNumber: number,
+    rotation = 0
+  ): Effect.Effect<{ readonly width: number; readonly height: number }, PDFError> {
+    return Effect.gen({ self: this }, function* () {
+      const record = yield* this.getOrLoadDocument(file);
+      const page = yield* Effect.tryPromise({
+        try: () => record.pdfjsDocument.getPage(pageNumber),
+        catch: (cause) => processingError("get-page-size", file, cause),
+      });
+      return yield* Effect.try({
+        try: () => {
+          const viewport = page.getViewport({ scale: 1, rotation });
+          return { width: viewport.width, height: viewport.height };
+        },
+        catch: (cause) => processingError("get-page-size", file, cause),
+      });
+    });
+  }
+
   renderPage(
     file: File,
     pageNumber: number,

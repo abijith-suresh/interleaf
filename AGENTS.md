@@ -23,6 +23,7 @@ The active product supports:
 - marking pages for deletion before export
 - unlocking password-protected PDFs with an in-browser prompt
 - locally rendered page thumbnails for inspection before export
+- reviewing pages one at a time with previous/next navigation and a compact filmstrip
 - losslessly compressing an untouched, single uploaded PDF in the browser
 - exporting selected or active PDF pages as PNG images in a local ZIP archive
 - creating a PDF from multiple PNG or JPEG images in the browser and opening it in the workspace

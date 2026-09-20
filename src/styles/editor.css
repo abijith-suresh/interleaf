@@ -638,6 +638,240 @@ body:has([data-page="editor"]) {
   padding: 1rem 1.25rem calc(1rem + env(safe-area-inset-bottom));
 }
 
+.editor-review-pane {
+  display: flex;
+  flex: 0 0 clamp(18rem, 30vw, 28rem);
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border-left: 1px solid var(--editor-line);
+  background: var(--editor-paper);
+  box-shadow: -0.75rem 0 2rem rgb(36 36 33 / 5%);
+}
+
+.editor-review-header {
+  display: flex;
+  min-height: 3.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem 0.5rem 1rem;
+  border-bottom: 1px solid var(--editor-line);
+}
+
+.editor-review-heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.editor-review-heading h2 {
+  margin: 0;
+  color: var(--editor-ink);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.editor-review-heading span,
+.editor-review-position {
+  color: var(--editor-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-review-close,
+.editor-review-nav {
+  display: inline-flex;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  border: 1px solid var(--editor-line);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--editor-body);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 500;
+  touch-action: manipulation;
+  transition:
+    background-color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    color 160ms var(--ease-out);
+}
+
+.editor-review-close:hover:not(:disabled),
+.editor-review-nav:hover:not(:disabled) {
+  border-color: var(--editor-line-strong);
+  background: var(--editor-hover);
+  color: var(--editor-ink);
+}
+
+.editor-review-close:disabled,
+.editor-review-nav:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.editor-review-pane .editor-review-close svg,
+.editor-review-pane .editor-review-nav svg,
+.editor-canvas-actions .editor-review-button svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.editor-review-body {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-areas: "filmstrip stage";
+  grid-template-columns: 4.75rem minmax(0, 1fr);
+}
+
+.editor-review-filmstrip {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.5rem;
+  grid-area: filmstrip;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.75rem;
+  border-right: 1px solid var(--editor-line);
+  background: var(--editor-page);
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.editor-review-filmstrip-spacer {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.editor-review-filmstrip-item {
+  display: grid;
+  flex: 0 0 auto;
+  width: 100%;
+  gap: 0.2rem;
+  padding: 0.25rem;
+  border: 1px solid var(--editor-line);
+  border-radius: 0.35rem;
+  background: var(--editor-paper);
+  color: var(--editor-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: center;
+  touch-action: manipulation;
+  transition:
+    background-color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    color 160ms var(--ease-out);
+}
+
+.editor-review-filmstrip-item:hover,
+.editor-review-filmstrip-item.is-active {
+  border-color: var(--editor-accent);
+  background: var(--editor-paper);
+  color: var(--editor-ink);
+}
+
+.editor-review-filmstrip-item.is-active {
+  box-shadow: 0 0 0 1px var(--editor-accent);
+}
+
+.editor-review-stage {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-area: stage;
+  place-items: center;
+  padding: clamp(0.75rem, 3vw, 2rem);
+  background: #e9e7e1;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.editor-review-canvas {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  background: #fffefa;
+  box-shadow: 0 0.5rem 1.5rem rgb(36 36 33 / 16%);
+}
+
+.editor-review-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 1rem;
+  background: rgb(233 231 225 / 86%);
+  color: var(--editor-body);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.editor-review-error {
+  color: var(--editor-danger-ink);
+}
+
+.editor-review-retry {
+  justify-self: center;
+  min-height: 2.75rem;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--editor-line-strong);
+  border-radius: 999px;
+  background: var(--editor-paper);
+  color: var(--editor-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+
+.editor-review-retry:hover {
+  border-color: var(--editor-ink);
+  background: var(--editor-hover);
+}
+
+.editor-review-controls {
+  display: flex;
+  min-height: 3.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--editor-line);
+  background: var(--editor-paper);
+}
+
+.editor-review-nav {
+  gap: 0.35rem;
+  padding: 0.4rem 0.6rem;
+}
+
 .editor-page-scroll {
   min-height: 0;
   flex: 1;
@@ -829,6 +1063,19 @@ body:has([data-page="editor"]) {
   border-color: var(--editor-line-strong);
 }
 
+.editor-review-pane .editor-review-filmstrip-item .canvas-container {
+  aspect-ratio: 3 / 4;
+  border: 0;
+  border-radius: 0.15rem;
+  pointer-events: none;
+}
+
+.editor-review-filmstrip-item .editor-page-canvas-error {
+  gap: 0;
+  padding: 0.15rem;
+  font-size: 0.5rem;
+}
+
 .canvas-stage {
   position: absolute;
   top: 50%;
@@ -953,6 +1200,13 @@ body:has([data-page="editor"]) {
 }
 
 .editor-canvas-actions {
+  gap: 0.4rem;
+}
+
+.editor-review-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 0.4rem;
 }
 
@@ -1299,6 +1553,7 @@ body:has([data-page="editor"]) {
   }
 
   .editor-add-pdf-label,
+  .editor-review-button-label,
   .editor-files-button-label {
     display: none;
   }
@@ -1306,6 +1561,58 @@ body:has([data-page="editor"]) {
   .editor-files-button {
     padding-right: 0.55rem;
     padding-left: 0.55rem;
+  }
+
+  .editor-review-pane {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    width: auto;
+    height: auto;
+    border-left: 0;
+    box-shadow: 0 0 2rem rgb(36 36 33 / 18%);
+  }
+
+  .editor-review-header {
+    min-height: calc(3.75rem + env(safe-area-inset-top));
+    padding-top: calc(0.5rem + env(safe-area-inset-top));
+    padding-right: calc(0.75rem + env(safe-area-inset-right));
+    padding-left: calc(0.75rem + env(safe-area-inset-left));
+  }
+
+  .editor-review-body {
+    grid-template-areas:
+      "stage"
+      "filmstrip";
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .editor-review-filmstrip {
+    display: flex;
+    min-height: 0;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.5rem calc(0.75rem + env(safe-area-inset-right))
+      calc(0.5rem + env(safe-area-inset-bottom)) calc(0.75rem + env(safe-area-inset-left));
+    border-top: 1px solid var(--editor-line);
+    border-right: 0;
+  }
+
+  .editor-review-filmstrip-item {
+    width: 3.5rem;
+  }
+
+  .editor-review-stage {
+    padding: 0.75rem calc(0.75rem + env(safe-area-inset-right)) 0.75rem
+      calc(0.75rem + env(safe-area-inset-left));
+  }
+
+  .editor-review-controls {
+    min-height: 3.75rem;
+    padding-right: calc(0.75rem + env(safe-area-inset-right));
+    padding-left: calc(0.75rem + env(safe-area-inset-left));
   }
 
   .editor-selection-bar {

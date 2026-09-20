@@ -33,6 +33,11 @@ export interface PDFProcessingShape {
     rotation?: number
   ) => Effect.Effect<void, PDFError>;
   readonly getPageRotation: (file: File, pageNumber: number) => Effect.Effect<number, PDFError>;
+  readonly getPageSize: (
+    file: File,
+    pageNumber: number,
+    rotation?: number
+  ) => Effect.Effect<{ readonly width: number; readonly height: number }, PDFError>;
   readonly buildPDF: (
     pages: readonly PageState[],
     options?: PDFBuildOptions
@@ -137,6 +142,8 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
           ) => pdfService.renderPage(file, pageNumber, canvas, scale, rotation),
           getPageRotation: (file: File, pageNumber: number) =>
             pdfService.getPageRotation(file, pageNumber),
+          getPageSize: (file: File, pageNumber: number, rotation?: number) =>
+            pdfService.getPageSize(file, pageNumber, rotation),
           buildPDF: (pages: readonly PageState[], options?: PDFBuildOptions) =>
             Effect.flatMap(getOperationsService, (service) => service.buildPDF(pages, options)),
           imagesToPDF: (files: readonly File[], options?: PDFImagesToPDFOptions) =>
