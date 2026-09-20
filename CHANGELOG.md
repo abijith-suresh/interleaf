@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.6](https://github.com/abijith-suresh/interleaf/compare/0.0.5...0.0.6) (2026-09-20)
+
+
+### Features
+
+* **editor:** compact bottom bar controls ([#243](https://github.com/abijith-suresh/interleaf/issues/243)) ([be61905](https://github.com/abijith-suresh/interleaf/commit/be61905afd3bb50376760f4fe5eb05b3f79f9255))
+* **pdf:** accept images in initial upload ([c2bf4c0](https://github.com/abijith-suresh/interleaf/commit/c2bf4c0a8b99cb0c2b68fef20260869823fb62c5))
+* **pdf:** export pages as PNG images ([#241](https://github.com/abijith-suresh/interleaf/issues/241)) ([e79f894](https://github.com/abijith-suresh/interleaf/commit/e79f894f7ced4ca3ba8cb49b8c796f16c33b265d))
+
+
+### Bug Fixes
+
+* **editor:** align desktop download controls ([#246](https://github.com/abijith-suresh/interleaf/issues/246)) ([6fe6d60](https://github.com/abijith-suresh/interleaf/commit/6fe6d6073465162ab9346e4309815b54cac0c062))
+
 ## [0.0.5](https://github.com/abijith-suresh/interleaf/compare/0.0.4...0.0.5) (2026-09-19)
 
 
