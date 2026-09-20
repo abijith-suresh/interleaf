@@ -1,7 +1,7 @@
 import { Effect, Fiber } from "effect";
 import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
-import { ROTATION_STEP } from "../../constants";
+import { IMAGES_TO_PDF_FILENAME, ROTATION_STEP } from "../../constants";
 import {
   areAllPagesSelected,
   createPageStates,
@@ -338,7 +338,10 @@ export default function Editor() {
     return groups;
   }
 
-  async function createPdfFromImages(files: File[]): Promise<File | null> {
+  async function createPdfFromImages(
+    files: File[],
+    outputFileName = IMAGES_TO_PDF_FILENAME
+  ): Promise<File | null> {
     try {
       const result = await runPDF(
         PDFProcessing.use((service) =>
@@ -354,7 +357,7 @@ export default function Editor() {
 
       const generatedBytes = new Uint8Array(new ArrayBuffer(result.data.byteLength));
       generatedBytes.set(result.data);
-      return new File([generatedBytes], result.suggestedFileName, {
+      return new File([generatedBytes], outputFileName || result.suggestedFileName, {
         type: "application/pdf",
       });
     } catch (error) {
@@ -403,6 +406,8 @@ export default function Editor() {
     const loadedFiles: LoadedWorkspaceFile[] = [];
     let pdfCount = 0;
     let imageCount = 0;
+    let imageGroupIndex = 0;
+    const imageGroupCount = groups.filter((group) => group.kind === "images").length;
 
     for (const group of groups) {
       if (disposed) return false;
@@ -410,9 +415,15 @@ export default function Editor() {
       let pdfFile: File;
       if (group.kind === "images") {
         imageCount += group.files.length;
+        imageGroupIndex += 1;
         setOperation("building");
         setStatusMessage(`Creating PDF from images… 0/${group.files.length}`);
-        const generatedFile = await createPdfFromImages(group.files);
+        const generatedFile = await createPdfFromImages(
+          group.files,
+          imageGroupCount > 1
+            ? `${IMAGES_TO_PDF_FILENAME.replace(/\.pdf$/i, "")}-${imageGroupIndex}.pdf`
+            : IMAGES_TO_PDF_FILENAME
+        );
         if (!generatedFile) {
           if (!disposed) setReadyStatus();
           return false;

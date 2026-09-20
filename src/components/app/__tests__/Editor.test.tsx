@@ -241,9 +241,14 @@ describe("Editor", () => {
     await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
     const fileItems = await findAllByTestId("editor-file-item");
     expect(fileItems.map((item) => item.textContent?.replace(/\s+/g, " ").trim())).toEqual([
-      expect.stringContaining("interleaf-images.pdf"),
+      expect.stringContaining("interleaf-images-1.pdf"),
       expect.stringContaining("middle.pdf"),
-      expect.stringContaining("interleaf-images.pdf"),
+      expect.stringContaining("interleaf-images-2.pdf"),
+    ]);
+    expect(pdfServiceMocks.loadPDF.mock.calls.map(([file]) => file.name)).toEqual([
+      "interleaf-images-1.pdf",
+      "middle.pdf",
+      "interleaf-images-2.pdf",
     ]);
   });
 
@@ -340,6 +345,32 @@ describe("Editor", () => {
     expect(getByTestId("editor-status-message")).toHaveTextContent(
       "Added 1 PDF and created a PDF from 1 image."
     );
+  });
+
+  it("does not partially add a batch when a later workspace file fails", async () => {
+    const failedFile = makeFile("broken-add.pdf");
+    pdfServiceMocks.loadPDF
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(
+        Effect.fail(
+          new PDFProcessingError({
+            operation: "load-pdf-js",
+            file: failedFile,
+            cause: new Error("Invalid PDF"),
+            message: "Invalid PDF",
+          })
+        )
+      );
+    const { findByTestId, findAllByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile("existing.pdf"));
+    await findAllByTestId("editor-page-tile");
+
+    selectFiles("editor-add-pdf-input", [makeFile("good-add.pdf"), failedFile]);
+
+    expect(await findByTestId("editor-toast")).toHaveTextContent("Failed to load broken-add.pdf");
+    expect(await findAllByTestId("editor-page-tile")).toHaveLength(3);
   });
 
   it("keeps selection actions disabled until they have usable input", async () => {
