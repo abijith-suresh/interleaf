@@ -217,6 +217,46 @@ describe("PDFService", () => {
     expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(2);
   });
 
+  it("awaits cleanup when a PDF load is invalidated after PDF.js resolves", async () => {
+    let resolveLoading!: (document: unknown) => void;
+    let resolveCleanup!: () => void;
+    const loadingPromise = new Promise((resolve) => {
+      resolveLoading = resolve;
+    });
+    const cleanupPromise = new Promise<void>((resolve) => {
+      resolveCleanup = resolve;
+    });
+    const cleanup = vi.fn(() => cleanupPromise);
+    const document = {
+      numPages: 5,
+      cleanup,
+    };
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: loadingPromise,
+      destroy: loadingTaskDestroyMock,
+    }));
+
+    const service = new PDFService();
+    const file = new File(["plain"], "stale-cleanup.pdf", { type: "application/pdf" });
+    const fileVersions = (service as unknown as { fileVersions: WeakMap<File, number> })
+      .fileVersions;
+    const fiber = Effect.runFork(service.loadPDF(file));
+    let loadSettled = false;
+    const loadPromise = Effect.runPromise(Fiber.join(fiber)).then(() => {
+      loadSettled = true;
+    });
+
+    await vi.waitFor(() => expect(pdfjsGetDocumentMock).toHaveBeenCalled());
+    fileVersions.set(file, 1);
+    resolveLoading(document);
+    await vi.waitFor(() => expect(cleanup).toHaveBeenCalledTimes(1));
+    expect(loadSettled).toBe(false);
+
+    resolveCleanup();
+    await loadPromise;
+    expect(loadSettled).toBe(true);
+  });
+
   it("finishes cached document cleanup if targeted release is interrupted", async () => {
     let resolveCleanup!: () => void;
     const cleanupPromise = new Promise<void>((resolve) => {
@@ -239,7 +279,12 @@ describe("PDFService", () => {
     const releaseFiber = Effect.runFork(service.releaseFile(file));
     await vi.waitFor(() => expect(cleanup).toHaveBeenCalledTimes(1));
 
-    const interruptedRelease = Effect.runPromise(Fiber.interrupt(releaseFiber));
+    let releaseSettled = false;
+    const interruptedRelease = Effect.runPromise(Fiber.interrupt(releaseFiber)).then(() => {
+      releaseSettled = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(releaseSettled).toBe(false);
     resolveCleanup();
     await interruptedRelease;
 

@@ -265,14 +265,15 @@ export class PDFService {
       const fileVersion = this.getFileVersion(file);
       const loadEffect = (loader ?? (() => this.loadDocumentWithStoredPassword(file)))().pipe(
         Effect.tap((record) =>
-          Effect.sync(() => {
+          Effect.suspend(() => {
             if (
               sessionVersion === this.sessionVersion &&
               fileVersion === this.getFileVersion(file)
             ) {
               this.documentCache.set(file, record);
+              return Effect.void;
             } else {
-              void record.pdfjsDocument.cleanup().catch(() => undefined);
+              return Effect.uninterruptible(this.cleanupRecords([record]));
             }
           })
         ),
