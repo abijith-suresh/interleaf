@@ -1,7 +1,7 @@
 import { fireEvent, render, waitFor } from "@solidjs/testing-library";
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PDFPasswordRequiredError } from "@/types/interfaces";
+import { PDFPasswordRequiredError, PDFProcessingError } from "@/types/interfaces";
 
 const pdfServiceMocks = vi.hoisted(() => ({
   loadPDF: vi.fn(),
@@ -11,6 +11,7 @@ const pdfServiceMocks = vi.hoisted(() => ({
   getPageRotation: vi.fn(),
   getPageSize: vi.fn(),
   renderPage: vi.fn(),
+  releaseFile: vi.fn(),
   reset: vi.fn(),
 }));
 
@@ -41,6 +42,7 @@ vi.mock("@/services/pdf-service", () => ({
     getPageRotation = pdfServiceMocks.getPageRotation;
     getPageSize = pdfServiceMocks.getPageSize;
     renderPage = pdfServiceMocks.renderPage;
+    releaseFile = pdfServiceMocks.releaseFile;
     reset = pdfServiceMocks.reset;
   },
 }));
@@ -108,6 +110,7 @@ describe("Editor", () => {
     pdfServiceMocks.loadPDF.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.loadPDFWithPassword.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.renderPage.mockReturnValue(Effect.succeed(undefined));
+    pdfServiceMocks.releaseFile.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.reset.mockReturnValue(Effect.succeed(undefined));
     pdfOperationsMocks.buildPDF.mockReturnValue(
       Effect.succeed({
@@ -154,7 +157,7 @@ describe("Editor", () => {
     selectFile("editor-upload-input", new File(["text"], "notes.txt", { type: "text/plain" }));
 
     const toast = await findByTestId("editor-toast");
-    expect(toast).toHaveTextContent("Choose PDF files or PNG/JPEG images at a time.");
+    expect(toast).toHaveTextContent("Choose PDF, PNG, or JPEG files.");
     expect(pdfServiceMocks.loadPDF).not.toHaveBeenCalled();
     expect(pdfOperationsMocks.imagesToPDF).not.toHaveBeenCalled();
     expect(queryByTestId("editor-page-grid")).not.toBeInTheDocument();
@@ -207,16 +210,97 @@ describe("Editor", () => {
     expect(getByTestId("editor-status-message")).toHaveTextContent("Created a PDF from 2 images.");
   });
 
-  it("rejects mixed PDF and image selections with a clear next step", async () => {
-    const { findByTestId } = render(() => <Editor />);
+  it("returns to the uploader after image conversion fails", async () => {
+    pdfOperationsMocks.imagesToPDF.mockReturnValueOnce(
+      Effect.fail(
+        new PDFProcessingError({
+          operation: "images-to-pdf",
+          cause: new Error("Unsupported image"),
+          message: "Unsupported image",
+        })
+      )
+    );
+    const { findByTestId, getByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeImageFile());
+
+    expect(await findByTestId("editor-toast")).toHaveTextContent("Unsupported image");
+    await waitFor(() => expect(getByTestId("editor-upload-input")).toBeEnabled());
+  });
+
+  it("loads mixed PDF and image selections in the chosen order", async () => {
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
 
     selectFiles("editor-upload-input", [makeFile(), makeImageFile()]);
 
-    expect(await findByTestId("editor-toast")).toHaveTextContent(
-      "Choose PDF files or PNG/JPEG images at a time."
+    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(6));
+    expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalledWith(
+      [expect.objectContaining({ name: "image.png" })],
+      expect.objectContaining({ onProgress: expect.any(Function) })
     );
-    expect(pdfServiceMocks.loadPDF).not.toHaveBeenCalled();
-    expect(pdfOperationsMocks.imagesToPDF).not.toHaveBeenCalled();
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledTimes(2);
+    expect(getByTestId("editor-status-message")).toHaveTextContent(
+      "Loaded 1 PDF and created a PDF from 1 image."
+    );
+  });
+
+  it("keeps interleaved image groups in the uploaded order", async () => {
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+    const files = [
+      makeImageFile("first.png"),
+      makeFile("middle.pdf"),
+      makeImageFile("last.jpg", "image/jpeg"),
+    ];
+
+    selectFiles("editor-upload-input", files);
+
+    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(9));
+    expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalledTimes(2);
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledTimes(3);
+
+    fireEvent.click(getByTestId("editor-files-button"));
+    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    const fileItems = await findAllByTestId("editor-file-item");
+    expect(fileItems.map((item) => item.textContent?.replace(/\s+/g, " ").trim())).toEqual([
+      expect.stringContaining("interleaf-images-1.pdf"),
+      expect.stringContaining("middle.pdf"),
+      expect.stringContaining("interleaf-images-2.pdf"),
+    ]);
+    expect(pdfServiceMocks.loadPDF.mock.calls.map(([file]) => file.name)).toEqual([
+      "interleaf-images-1.pdf",
+      "middle.pdf",
+      "interleaf-images-2.pdf",
+    ]);
+  });
+
+  it("does not partially commit a batch when a later file fails", async () => {
+    const failedFile = makeFile("broken.pdf");
+    pdfServiceMocks.loadPDF
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(
+        Effect.fail(
+          new PDFProcessingError({
+            operation: "load-pdf-js",
+            file: failedFile,
+            cause: new Error("Invalid PDF"),
+            message: "Invalid PDF",
+          })
+        )
+      );
+    const { findByTestId, queryByTestId } = render(() => <Editor />);
+
+    selectFiles("editor-upload-input", [makeFile("good.pdf"), makeImageFile(), failedFile]);
+
+    expect(await findByTestId("editor-toast")).toHaveTextContent("Failed to load broken.pdf");
+    expect(queryByTestId("editor-page-grid")).not.toBeInTheDocument();
+    await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledTimes(2));
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "good.pdf" })
+    );
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "interleaf-images.pdf" })
+    );
   });
 
   it("loads multiple selected PDFs into the same workspace", async () => {
@@ -267,6 +351,86 @@ describe("Editor", () => {
     expect(getByTestId("editor-status-message")).toHaveTextContent(
       "Selected 3 pages from appendix.pdf."
     );
+  });
+
+  it("adds mixed PDFs and images from the workspace", async () => {
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile("brief.pdf"));
+    await findAllByTestId("editor-page-tile");
+
+    selectFiles("editor-add-pdf-input", [
+      makeFile("appendix.pdf"),
+      makeImageFile("scan.jpg", "image/jpeg"),
+    ]);
+
+    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(9));
+    expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalledWith(
+      [expect.objectContaining({ name: "scan.jpg" })],
+      expect.objectContaining({ onProgress: expect.any(Function) })
+    );
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledTimes(3);
+    expect(getByTestId("editor-status-message")).toHaveTextContent(
+      "Added 1 PDF and created a PDF from 1 image."
+    );
+  });
+
+  it("does not partially add a batch when a later workspace file fails", async () => {
+    const failedFile = makeFile("broken-add.pdf");
+    pdfServiceMocks.loadPDF
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(
+        Effect.fail(
+          new PDFProcessingError({
+            operation: "load-pdf-js",
+            file: failedFile,
+            cause: new Error("Invalid PDF"),
+            message: "Invalid PDF",
+          })
+        )
+      );
+    const { findByTestId, findAllByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile("existing.pdf"));
+    await findAllByTestId("editor-page-tile");
+
+    selectFiles("editor-add-pdf-input", [makeFile("good-add.pdf"), failedFile]);
+
+    expect(await findByTestId("editor-toast")).toHaveTextContent("Failed to load broken-add.pdf");
+    expect(await findAllByTestId("editor-page-tile")).toHaveLength(3);
+    await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledTimes(1));
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "good-add.pdf" })
+    );
+  });
+
+  it("keeps a failed batch busy until staged resources are released", async () => {
+    const failedFile = makeFile("protected-add.pdf");
+    let resolveRelease!: () => void;
+    const releasePromise = new Promise<void>((resolve) => {
+      resolveRelease = resolve;
+    });
+    pdfServiceMocks.releaseFile.mockReturnValueOnce(Effect.promise(() => releasePromise));
+    pdfServiceMocks.loadPDF
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(Effect.fail(new PDFPasswordRequiredError(failedFile, "needs-password")));
+    promptForPassword.mockResolvedValue(null);
+
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile("existing.pdf"));
+    await findAllByTestId("editor-page-tile");
+
+    selectFiles("editor-add-pdf-input", [makeFile("good-add.pdf"), failedFile]);
+
+    await waitFor(() => expect(promptForPassword).toHaveBeenCalledWith("protected-add.pdf", false));
+    expect(getByTestId("editor-add-pdf-input")).toBeDisabled();
+
+    resolveRelease();
+    await waitFor(() => expect(getByTestId("editor-add-pdf-input")).toBeEnabled());
+    expect(await findAllByTestId("editor-page-tile")).toHaveLength(3);
   });
 
   it("keeps selection actions disabled until they have usable input", async () => {

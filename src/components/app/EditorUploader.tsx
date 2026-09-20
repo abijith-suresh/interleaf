@@ -72,7 +72,7 @@ export default function EditorUploader(props: Props) {
             </svg>
           </span>
           <span class="editor-dropzone-copy">
-            <strong>{props.busy ? "Preparing PDF…" : "Choose PDFs or PNG/JPEG images"}</strong>
+            <strong>{props.busy ? "Preparing PDF…" : "Choose PDFs and PNG/JPEG images"}</strong>
             <span>{props.busy ? props.statusMessage : "or drop them here"}</span>
           </span>
         </button>

@@ -1,7 +1,7 @@
 import { Effect, Fiber } from "effect";
 import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
-import { ROTATION_STEP } from "../../constants";
+import { IMAGES_TO_PDF_FILENAME, ROTATION_STEP } from "../../constants";
 import {
   areAllPagesSelected,
   createPageStates,
@@ -49,6 +49,16 @@ interface Toast {
   id: number;
   message: string;
   tone: ToastTone;
+}
+
+interface UploadGroup {
+  kind: "pdf" | "images";
+  files: File[];
+}
+
+interface LoadedWorkspaceFile {
+  file: File;
+  pageCount: number;
 }
 
 const deletionActionCopy: Record<DeletionAction, { label: string; ariaLabel: string }> = {
@@ -231,11 +241,15 @@ export default function Editor() {
     return `Failed to load ${file.name}.`;
   }
 
-  async function unlockPdf(file: File, isRetry: boolean): Promise<number | null> {
+  async function unlockPdf(
+    file: File,
+    isRetry: boolean,
+    manageOperation = true
+  ): Promise<number | null> {
     if (disposed) return null;
     const password = await promptForPassword(file.name, isRetry);
     if (disposed || password === null) {
-      setReadyStatus();
+      if (manageOperation) setReadyStatus();
       return null;
     }
 
@@ -248,23 +262,29 @@ export default function Editor() {
     } catch (err) {
       if (disposed) return null;
       if (err instanceof PDFPasswordRequiredError) {
-        return unlockPdf(file, true);
+        return unlockPdf(file, true, manageOperation);
       }
       dispatchToast(getLoadErrorMessage(file, err), "error");
-      setReadyStatus();
+      if (manageOperation) setReadyStatus();
       return null;
     }
   }
 
-  async function loadPdfFile(file: File, mode: "upload" | "add"): Promise<number | null> {
+  async function loadPdfFile(
+    file: File,
+    mode: "upload" | "add",
+    manageOperation = true
+  ): Promise<number | null> {
     if (disposed || getSupportedFileKind(file) !== "pdf") {
       if (disposed) return null;
       dispatchToast("Please upload a valid PDF file.", "error");
       return null;
     }
 
-    setOperation(mode === "upload" ? "uploading" : "adding");
-    setStatusMessage(mode === "upload" ? "Loading PDF…" : "Adding PDF…");
+    if (manageOperation) {
+      setOperation(mode === "upload" ? "uploading" : "adding");
+      setStatusMessage(mode === "upload" ? "Loading PDF…" : "Adding PDF…");
+    }
 
     try {
       await runPDF(PDFProcessing.use((service) => service.loadPDF(file)));
@@ -273,58 +293,205 @@ export default function Editor() {
     } catch (err) {
       if (disposed) return null;
       if (err instanceof PDFPasswordRequiredError) {
-        return unlockPdf(file, err.reason === "wrong-password");
+        return unlockPdf(file, err.reason === "wrong-password", manageOperation);
       }
       dispatchToast(getLoadErrorMessage(file, err), "error");
-      setReadyStatus();
+      if (manageOperation) setReadyStatus();
       return null;
     }
   }
 
   // --- File loading ---
 
-  function handleFileLoaded(file: File, pageCount: number): void {
-    const nextPages = createPageStates(file, pageCount);
-    setPages(nextPages);
-    setSelectedIndices(new Set<number>());
-    setActivePageId(nextPages[0]?.id ?? null);
-    setReviewOpen(false);
-    setPhase("edit");
-    setReadyStatus();
-    setStatusMessage(`${file.name} loaded with ${formatPageCount(pageCount)}.`);
-  }
+  function commitWorkspaceFiles(files: LoadedWorkspaceFile[], replace: boolean): void {
+    const nextPages = files.flatMap(({ file, pageCount }) => createPageStates(file, pageCount));
+    if (replace) {
+      setPages(nextPages);
+      setSelectedIndices(new Set<number>());
+      setActivePageId(nextPages[0]?.id ?? null);
+      setReviewOpen(false);
+      setPhase("edit");
+      return;
+    }
 
-  async function handleAddPdf(file: File): Promise<boolean> {
-    if (disposed || isBusy()) return false;
-
-    const pageCount = await loadPdfFile(file, "add");
-    if (pageCount === null) return false;
-
-    const addedPages = createPageStates(file, pageCount);
     setPages(
       produce((draftPages) => {
-        draftPages.push(...addedPages);
+        draftPages.push(...nextPages);
       })
     );
-    if (!activePageId()) setActivePageId(addedPages[0]?.id ?? null);
-
-    setReadyStatus();
-    setStatusMessage(`Added ${formatPageCount(pageCount)} from ${file.name}.`);
-    return true;
+    if (!activePageId()) setActivePageId(nextPages[0]?.id ?? null);
   }
 
-  function requestAddPdf(): void {
+  function getUploadGroups(files: File[]): UploadGroup[] {
+    const groups: UploadGroup[] = [];
+
+    for (const file of files) {
+      const kind = getSupportedFileKind(file);
+      const groupKind =
+        kind === "pdf" ? "pdf" : kind === "png" || kind === "jpeg" ? "images" : null;
+      if (!groupKind) continue;
+
+      const previousGroup = groups.at(-1);
+      if (previousGroup?.kind === "images" && groupKind === "images") {
+        previousGroup.files.push(file);
+      } else {
+        groups.push({ kind: groupKind, files: [file] });
+      }
+    }
+
+    return groups;
+  }
+
+  async function createPdfFromImages(
+    files: File[],
+    outputFileName = IMAGES_TO_PDF_FILENAME
+  ): Promise<File | null> {
+    try {
+      const result = await runPDF(
+        PDFProcessing.use((service) =>
+          service.imagesToPDF(files, {
+            onProgress: ({ completed, total }) => {
+              if (disposed) return;
+              setStatusMessage(`Creating PDF from images… ${completed}/${total}`);
+            },
+          })
+        )
+      );
+      if (disposed) return null;
+
+      const generatedBytes = new Uint8Array(new ArrayBuffer(result.data.byteLength));
+      generatedBytes.set(result.data);
+      return new File([generatedBytes], outputFileName || result.suggestedFileName, {
+        type: "application/pdf",
+      });
+    } catch (error) {
+      if (disposed) return null;
+      const message =
+        error instanceof PDFProcessingError
+          ? error.message
+          : "Failed to create a PDF from the selected images.";
+      dispatchToast(message, "error");
+      return null;
+    }
+  }
+
+  async function releaseStagedFiles(
+    loadedFiles: LoadedWorkspaceFile[],
+    existingFiles: Set<File>
+  ): Promise<void> {
+    if (disposed || loadedFiles.length === 0) return;
+
+    for (const { file } of loadedFiles) {
+      if (existingFiles.has(file)) continue;
+      try {
+        await runPDF(PDFProcessing.use((service) => service.releaseFile(file)));
+      } catch {
+        // Cleanup is best effort; the runtime also releases all remaining files
+        // when the editor is disposed.
+      }
+    }
+  }
+
+  function describeLoadedFiles(mode: "upload" | "add", pdfCount: number, imageCount: number) {
+    const pdfLabel = `${pdfCount} PDF${pdfCount === 1 ? "" : "s"}`;
+    const imageLabel = `${imageCount} image${imageCount === 1 ? "" : "s"}`;
+
+    if (mode === "upload") {
+      if (pdfCount === 0) return `Created a PDF from ${imageLabel}.`;
+      if (imageCount === 0) return `Loaded ${pdfLabel} into the workspace.`;
+      return `Loaded ${pdfLabel} and created a PDF from ${imageLabel}.`;
+    }
+
+    if (pdfCount === 0) return `Added a PDF from ${imageLabel}.`;
+    if (imageCount === 0) return `Added ${pdfLabel} to the workspace.`;
+    return `Added ${pdfLabel} and created a PDF from ${imageLabel}.`;
+  }
+
+  async function loadFilesIntoWorkspace(files: File[], mode: "upload" | "add"): Promise<boolean> {
+    if (disposed || files.length === 0) return false;
+
+    const unsupportedFiles = files.filter((file) => getSupportedFileKind(file) === null);
+    if (unsupportedFiles.length > 0) {
+      dispatchToast("Choose PDF, PNG, or JPEG files.", "error");
+      return false;
+    }
+
+    const groups = getUploadGroups(files);
+    if (groups.length === 0) return false;
+
+    setOperation(mode === "upload" ? "uploading" : "adding");
+    setStatusMessage(mode === "upload" ? "Loading files…" : "Adding files…");
+
+    const replaceWorkspace = mode === "upload";
+    const loadedFiles: LoadedWorkspaceFile[] = [];
+    const existingFiles = new Set(pages.map((page) => page.sourceFile));
+    let pdfCount = 0;
+    let imageCount = 0;
+    let imageGroupIndex = 0;
+    const imageGroupCount = groups.filter((group) => group.kind === "images").length;
+    let committed = false;
+
+    try {
+      for (const group of groups) {
+        if (disposed) return false;
+
+        let pdfFile: File;
+        if (group.kind === "images") {
+          imageCount += group.files.length;
+          imageGroupIndex += 1;
+          setOperation("building");
+          setStatusMessage(`Creating PDF from images… 0/${group.files.length}`);
+          const generatedFile = await createPdfFromImages(
+            group.files,
+            imageGroupCount > 1
+              ? `${IMAGES_TO_PDF_FILENAME.replace(/\.pdf$/i, "")}-${imageGroupIndex}.pdf`
+              : IMAGES_TO_PDF_FILENAME
+          );
+          if (!generatedFile) return false;
+          pdfFile = generatedFile;
+        } else {
+          pdfCount += group.files.length;
+          pdfFile = group.files[0];
+        }
+
+        const isFirstFile = loadedFiles.length === 0;
+        setOperation(mode === "upload" && isFirstFile ? "uploading" : "adding");
+        setStatusMessage(`Loading ${pdfFile.name}…`);
+        const pageCount = await loadPdfFile(
+          pdfFile,
+          mode === "upload" && isFirstFile ? "upload" : "add",
+          false
+        );
+        if (pageCount === null || disposed) return false;
+
+        loadedFiles.push({ file: pdfFile, pageCount });
+      }
+
+      commitWorkspaceFiles(loadedFiles, replaceWorkspace);
+      committed = true;
+      setReadyStatus();
+      setStatusMessage(describeLoadedFiles(mode, pdfCount, imageCount));
+      return true;
+    } finally {
+      if (!committed) {
+        await releaseStagedFiles(loadedFiles, existingFiles);
+        setReadyStatus();
+      }
+    }
+  }
+
+  function requestAddFiles(): void {
     if (isBusy()) return;
     setFilesOpen(false);
     addPdfInput.click();
   }
 
-  function handleAddPdfInput(event: Event): void {
+  function handleAddFilesInput(event: Event): void {
     const input = event.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
+    const files = Array.from(input.files ?? []);
     input.value = "";
-    if (!file) return;
-    void handleAddPdf(file);
+    if (files.length === 0) return;
+    void loadFilesIntoWorkspace(files, "add");
   }
 
   function closeFilesDialog(): void {
@@ -353,85 +520,9 @@ export default function Editor() {
     });
   }
 
-  async function handleImagesToPdf(files: File[]): Promise<void> {
-    if (disposed || isBusy()) return;
-
-    setOperation("building");
-    setStatusMessage(`Creating PDF from images… 0/${files.length}`);
-
-    try {
-      const result = await runPDF(
-        PDFProcessing.use((service) =>
-          service.imagesToPDF(files, {
-            onProgress: ({ completed, total }) => {
-              if (disposed) return;
-              setStatusMessage(`Creating PDF from images… ${completed}/${total}`);
-            },
-          })
-        )
-      );
-      if (disposed) return;
-
-      const generatedBytes = new Uint8Array(new ArrayBuffer(result.data.byteLength));
-      generatedBytes.set(result.data);
-      const generatedFile = new File([generatedBytes], result.suggestedFileName, {
-        type: "application/pdf",
-      });
-      const pageCount = await loadPdfFile(generatedFile, "upload");
-      if (pageCount === null || disposed) return;
-
-      handleFileLoaded(generatedFile, pageCount);
-      setStatusMessage(`Created a PDF from ${files.length} image${files.length === 1 ? "" : "s"}.`);
-    } catch (error) {
-      if (disposed) return;
-      const message =
-        error instanceof PDFProcessingError
-          ? error.message
-          : "Failed to create a PDF from the selected images.";
-      dispatchToast(message, "error");
-      setReadyStatus();
-      setStatusMessage("Image conversion failed. Try again.");
-    } finally {
-      if (!disposed) setOperation("idle");
-    }
-  }
-
   async function handleInitialFiles(files: File[]): Promise<void> {
     if (disposed || isBusy() || files.length === 0) return;
-
-    const pdfFiles = files.filter((file) => getSupportedFileKind(file) === "pdf");
-    const imageFiles = files.filter((file) => {
-      const kind = getSupportedFileKind(file);
-      return kind === "png" || kind === "jpeg";
-    });
-    const unsupportedFiles = files.filter((file) => getSupportedFileKind(file) === null);
-
-    if (unsupportedFiles.length > 0 || (pdfFiles.length > 0 && imageFiles.length > 0)) {
-      dispatchToast(
-        "Choose PDF files or PNG/JPEG images at a time. You can add other files after opening the workspace.",
-        "error"
-      );
-      return;
-    }
-
-    if (imageFiles.length > 0) {
-      await handleImagesToPdf(imageFiles);
-      return;
-    }
-
-    const [firstFile, ...additionalFiles] = pdfFiles;
-    const pageCount = await loadPdfFile(firstFile, "upload");
-    if (pageCount === null) return;
-
-    handleFileLoaded(firstFile, pageCount);
-    let loadedFileCount = 1;
-    for (const file of additionalFiles) {
-      if (await handleAddPdf(file)) loadedFileCount += 1;
-    }
-    if (loadedFileCount > 1) {
-      setReadyStatus();
-      setStatusMessage(`Loaded ${loadedFileCount} PDFs into the workspace.`);
-    }
+    await loadFilesIntoWorkspace(files, "upload");
   }
 
   // --- Selection ---
@@ -787,12 +878,13 @@ export default function Editor() {
                 ref={addPdfInput}
                 data-testid="editor-add-pdf-input"
                 type="file"
-                accept="application/pdf"
-                name="additional-pdf"
-                aria-label="Choose an additional PDF"
+                accept="application/pdf,image/png,image/jpeg,.pdf,.png,.jpg,.jpeg"
+                multiple
+                name="additional-files"
+                aria-label="Choose additional PDF or image files"
                 class="hidden"
                 disabled={isBusy()}
-                onChange={handleAddPdfInput}
+                onChange={handleAddFilesInput}
               />
               <div class="editor-canvas-header">
                 <h2 id="editor-pages-title">Pages</h2>
@@ -819,15 +911,15 @@ export default function Editor() {
                     <button
                       type="button"
                       data-testid="editor-add-pdf-button"
-                      aria-label="Add another PDF"
-                      onClick={requestAddPdf}
+                      aria-label="Add PDFs or images"
+                      onClick={requestAddFiles}
                       disabled={isBusy()}
                       class="editor-add-pdf"
                     >
                       <svg viewBox="0 0 20 20" aria-hidden="true">
                         <path d="M10 4v12M4 10h12" />
                       </svg>
-                      <span class="editor-add-pdf-label">Add PDF</span>
+                      <span class="editor-add-pdf-label">Add files</span>
                     </button>
                     <button
                       ref={filesButton}

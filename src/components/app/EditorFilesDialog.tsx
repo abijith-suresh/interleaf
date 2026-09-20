@@ -96,7 +96,7 @@ export default function EditorFilesDialog(props: Props) {
         </header>
 
         <div class="editor-files-dialog-body">
-          <ul class="editor-file-list" aria-label="PDF files">
+          <ul class="editor-file-list" aria-label="Workspace files">
             <For each={props.files}>
               {(workspaceFile) => {
                 return (

@@ -14,6 +14,7 @@ interface LoadedPDFRecord {
 interface InFlightLoad {
   readonly deferred: Deferred.Deferred<LoadedPDFRecord, PDFError>;
   fiber: Fiber.Fiber<LoadedPDFRecord, PDFError> | null;
+  released: boolean;
 }
 
 function errorMessage(cause: unknown, fallback: string): string {
@@ -45,38 +46,60 @@ export class PDFService {
   private passwordRegistry = new Map<File, string>();
   private documentCache = new Map<File, LoadedPDFRecord>();
   private loadEffects = new Map<File, Map<string, InFlightLoad>>();
+  private fileVersions = new WeakMap<File, number>();
   private sessionVersion = 0;
 
   loadPDF(file: File): Effect.Effect<void, PDFError> {
-    return this.getOrLoadDocument(file, () => this.loadDocument(file)).pipe(
-      Effect.tap(() =>
-        Effect.sync(() => {
-          this.activeFile = file;
-        })
-      ),
-      Effect.asVoid
-    );
+    return Effect.suspend(() => {
+      const sessionVersion = this.sessionVersion;
+      const fileVersion = this.getFileVersion(file);
+
+      return this.getOrLoadDocument(file, () => this.loadDocument(file)).pipe(
+        Effect.tap(() =>
+          Effect.sync(() => {
+            if (
+              sessionVersion === this.sessionVersion &&
+              fileVersion === this.getFileVersion(file)
+            ) {
+              this.activeFile = file;
+            }
+          })
+        ),
+        Effect.asVoid
+      );
+    });
   }
 
   loadPDFWithPassword(file: File, password: string): Effect.Effect<void, PDFError> {
-    const storedPassword = this.passwordRegistry.get(file);
-    if (storedPassword !== undefined && storedPassword !== password) {
-      return Effect.fail(new PDFPasswordRequiredError(file, "wrong-password"));
-    }
+    return Effect.suspend(() => {
+      const storedPassword = this.passwordRegistry.get(file);
+      if (storedPassword !== undefined && storedPassword !== password) {
+        return Effect.fail(new PDFPasswordRequiredError(file, "wrong-password"));
+      }
 
-    return this.getOrLoadDocument(
-      file,
-      () => this.loadDocument(file, password),
-      `password:${password}`
-    ).pipe(
-      Effect.tap(() =>
-        Effect.sync(() => {
-          this.passwordRegistry.set(file, password);
-          this.activeFile = file;
-        })
-      ),
-      Effect.asVoid
-    );
+      const sessionVersion = this.sessionVersion;
+      const fileVersion = this.getFileVersion(file);
+
+      return this.getOrLoadDocument(
+        file,
+        () => this.loadDocument(file, password),
+        `password:${password}`
+      ).pipe(
+        Effect.tap(() =>
+          Effect.sync(() => {
+            if (
+              sessionVersion !== this.sessionVersion ||
+              fileVersion !== this.getFileVersion(file)
+            ) {
+              return;
+            }
+            this.passwordRegistry.set(file, password);
+            this.activeFile = file;
+          })
+        ),
+        Effect.asVoid
+      );
+    });
   }
 
   getPageCount(): number {
@@ -156,6 +179,38 @@ export class PDFService {
     });
   }
 
+  releaseFile(file: File): Effect.Effect<void> {
+    return Effect.suspend(() => {
+      this.fileVersions.set(file, this.getFileVersion(file) + 1);
+      const record = this.documentCache.get(file);
+      const loads = Array.from(this.loadEffects.get(file)?.values() ?? []);
+      for (const load of loads) {
+        load.released = true;
+      }
+      const fibers = loads
+        .map((load) => load.fiber)
+        .filter((fiber): fiber is Fiber.Fiber<LoadedPDFRecord, PDFError> => fiber !== null);
+
+      if (this.activeFile === file) this.activeFile = null;
+      this.passwordRegistry.delete(file);
+      this.documentCache.delete(file);
+      this.loadEffects.delete(file);
+
+      return Effect.uninterruptible(
+        Effect.forEach(fibers, Fiber.interrupt, { discard: true }).pipe(
+          Effect.andThen(
+            record
+              ? Effect.tryPromise({
+                  try: () => record.pdfjsDocument.cleanup(),
+                  catch: () => undefined,
+                }).pipe(Effect.catch(() => Effect.void))
+              : Effect.void
+          )
+        )
+      );
+    });
+  }
+
   reset(): Effect.Effect<void> {
     return Effect.suspend(() => {
       const records = Array.from(this.documentCache.values());
@@ -171,19 +226,21 @@ export class PDFService {
       this.sessionVersion += 1;
 
       return Effect.forEach(fibers, Fiber.interrupt, { discard: true }).pipe(
-        Effect.andThen(
-          Effect.forEach(
-            records,
-            (record) =>
-              Effect.tryPromise({
-                try: () => record.pdfjsDocument.cleanup(),
-                catch: () => undefined,
-              }).pipe(Effect.catch(() => Effect.void)),
-            { discard: true }
-          )
-        )
+        Effect.andThen(this.cleanupRecords(records))
       );
     });
+  }
+
+  private cleanupRecords(records: readonly LoadedPDFRecord[]): Effect.Effect<void> {
+    return Effect.forEach(
+      records,
+      (record) =>
+        Effect.tryPromise({
+          try: () => record.pdfjsDocument.cleanup(),
+          catch: () => undefined,
+        }).pipe(Effect.catch(() => Effect.void)),
+      { discard: true }
+    );
   }
 
   private getOrLoadDocument(
@@ -199,19 +256,24 @@ export class PDFService {
       if (inFlight) return Deferred.await(inFlight.deferred);
 
       const deferred = Deferred.makeUnsafe<LoadedPDFRecord, PDFError>();
-      const load: InFlightLoad = { deferred, fiber: null };
+      const load: InFlightLoad = { deferred, fiber: null, released: false };
       const fileEffects = this.loadEffects.get(file) ?? new Map();
       fileEffects.set(key, load);
       this.loadEffects.set(file, fileEffects);
 
-      const version = this.sessionVersion;
+      const sessionVersion = this.sessionVersion;
+      const fileVersion = this.getFileVersion(file);
       const loadEffect = (loader ?? (() => this.loadDocumentWithStoredPassword(file)))().pipe(
         Effect.tap((record) =>
-          Effect.sync(() => {
-            if (version === this.sessionVersion) {
+          Effect.suspend(() => {
+            if (
+              sessionVersion === this.sessionVersion &&
+              fileVersion === this.getFileVersion(file)
+            ) {
               this.documentCache.set(file, record);
+              return Effect.void;
             } else {
-              void record.pdfjsDocument.cleanup().catch(() => undefined);
+              return Effect.uninterruptible(this.cleanupRecords([record]));
             }
           })
         ),
@@ -234,10 +296,18 @@ export class PDFService {
       // loader is detached from an individual thumbnail so one consumer being
       // interrupted cannot cancel a load still needed by another consumer.
       return Effect.gen({ self: this }, function* () {
-        load.fiber = yield* Effect.forkDetach(loadEffect);
+        const fiber = yield* Effect.forkDetach(loadEffect);
+        load.fiber = fiber;
+        if (load.released) {
+          yield* Fiber.interrupt(fiber);
+        }
         return yield* Deferred.await(load.deferred);
       });
     });
+  }
+
+  private getFileVersion(file: File): number {
+    return this.fileVersions.get(file) ?? 0;
   }
 
   private loadDocumentWithStoredPassword(file: File): Effect.Effect<LoadedPDFRecord, PDFError> {

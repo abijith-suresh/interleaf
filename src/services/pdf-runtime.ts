@@ -54,6 +54,7 @@ export interface PDFProcessingShape {
     file: File,
     options?: PDFCompressionOptions
   ) => Effect.Effect<PDFCompressionResult, PDFError | QpdfProcessingError | PDFCompressionError>;
+  readonly releaseFile: (file: File) => Effect.Effect<void>;
   readonly reset: Effect.Effect<void>;
   readonly clearCache: Effect.Effect<void>;
 }
@@ -154,6 +155,7 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
             ),
           compressPDF: (file: File, options?: PDFCompressionOptions) =>
             compressionService.compressPDF(file, pdfService.getPassword(file), options),
+          releaseFile: (file: File) => pdfService.releaseFile(file),
           reset: Effect.suspend(() => pdfService.reset()),
           clearCache: Effect.suspend(() => operationsService?.clearCache() ?? Effect.void),
           closeQpdf: qpdfProcessing.close,
