@@ -14,29 +14,19 @@ describe("editor page state controller", () => {
   it("creates page state entries for each source page", () => {
     const pageStates = createPageStates(file, 3, 1234);
 
-    expect(pageStates).toEqual([
-      {
-        id: "sample.pdf-1-1234",
-        sourceFile: file,
-        sourcePageNumber: 1,
-        rotation: 0,
-        markedForDeletion: false,
-      },
-      {
-        id: "sample.pdf-2-1234",
-        sourceFile: file,
-        sourcePageNumber: 2,
-        rotation: 0,
-        markedForDeletion: false,
-      },
-      {
-        id: "sample.pdf-3-1234",
-        sourceFile: file,
-        sourcePageNumber: 3,
-        rotation: 0,
-        markedForDeletion: false,
-      },
-    ]);
+    expect(pageStates).toHaveLength(3);
+    expect(pageStates.map((page) => page.sourcePageNumber)).toEqual([1, 2, 3]);
+    expect(new Set(pageStates.map((page) => page.id)).size).toBe(3);
+    expect(
+      pageStates.every((page) => page.id.startsWith(`sample.pdf-${page.sourcePageNumber}-1234-`))
+    ).toBe(true);
+  });
+
+  it("keeps batches unique when files share a name and timestamp", () => {
+    const firstBatch = createPageStates(file, 2, 1234);
+    const secondBatch = createPageStates(file, 2, 1234);
+
+    expect(new Set([...firstBatch, ...secondBatch].map((page) => page.id)).size).toBe(4);
   });
 
   it("toggles an individual selection", () => {

@@ -9,8 +9,9 @@ const PAGE_FRAME_RATIO = 3 / 4;
 interface Props {
   page: PageState;
   rotation: number;
-  scrollRoot: HTMLDivElement;
+  scrollRoot: HTMLElement;
   runtime: PDFRuntime;
+  showRetry?: boolean;
 }
 
 export default function EditorPageCanvas(props: Props) {
@@ -186,15 +187,17 @@ export default function EditorPageCanvas(props: Props) {
           aria-live="polite"
         >
           <span>Preview unavailable.</span>
-          <button
-            type="button"
-            data-testid="editor-page-canvas-retry"
-            class="editor-page-canvas-retry"
-            aria-label="Retry page preview"
-            onClick={retryRender}
-          >
-            Retry
-          </button>
+          {props.showRetry !== false && (
+            <button
+              type="button"
+              data-testid="editor-page-canvas-retry"
+              class="editor-page-canvas-retry"
+              aria-label="Retry page preview"
+              onClick={retryRender}
+            >
+              Retry
+            </button>
+          )}
         </span>
       )}
     </span>

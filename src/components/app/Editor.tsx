@@ -27,6 +27,7 @@ import {
 import type { EditorWorkspaceFile } from "./EditorFilesDialog";
 import EditorFilesDialog from "./EditorFilesDialog";
 import EditorPageGrid from "./EditorPageGrid";
+import EditorPageViewer from "./EditorPageViewer";
 import EditorSelectionBar from "./EditorSelectionBar";
 import EditorUploader from "./EditorUploader";
 
@@ -64,7 +65,9 @@ const deletionActionCopy: Record<DeletionAction, { label: string; ariaLabel: str
 export default function Editor() {
   const base = import.meta.env.BASE_URL;
   let addPdfInput!: HTMLInputElement;
+  let editorRoot!: HTMLDivElement;
   let filesButton!: HTMLButtonElement;
+  let reviewButton!: HTMLButtonElement;
   let nextToastId = 0;
   let activeOperationFiber: Fiber.Fiber<unknown, unknown> | null = null;
   const toastTimers = new Map<number, number>();
@@ -77,6 +80,8 @@ export default function Editor() {
   const [dragSourceIndex, setDragSourceIndex] = createSignal<number | null>(null);
   const [dragOverTarget, setDragOverTarget] = createSignal<DragOverTarget | null>(null);
   const [filesOpen, setFilesOpen] = createSignal(false);
+  const [reviewOpen, setReviewOpen] = createSignal(false);
+  const [activePageId, setActivePageId] = createSignal<string | null>(null);
   const [operation, setOperation] = createSignal<EditorOperation>("idle");
   const [statusMessage, setStatusMessage] = createSignal(
     "PDF, PNG, and JPEG files stay on your device."
@@ -87,6 +92,12 @@ export default function Editor() {
   const selectedActivePageCount = () =>
     Array.from(selectedIndices()).filter((index) => !pages[index]?.markedForDeletion).length;
   const isBusy = () => operation() !== "idle";
+  const reviewPageIds = createMemo(() => {
+    const selection = selectedIndices();
+    return pages
+      .filter((_, index) => selection.size === 0 || selection.has(index))
+      .map((page) => page.id);
+  });
   const allPagesSelected = () => areAllPagesSelected(pages.length, selectedIndices());
   const selectedDeletionAction = () => getDeletionAction(pages, selectedIndices());
   const deletionCopy = () => deletionActionCopy[selectedDeletionAction()];
@@ -273,8 +284,11 @@ export default function Editor() {
   // --- File loading ---
 
   function handleFileLoaded(file: File, pageCount: number): void {
-    setPages(createPageStates(file, pageCount));
+    const nextPages = createPageStates(file, pageCount);
+    setPages(nextPages);
     setSelectedIndices(new Set<number>());
+    setActivePageId(nextPages[0]?.id ?? null);
+    setReviewOpen(false);
     setPhase("edit");
     setReadyStatus();
     setStatusMessage(`${file.name} loaded with ${formatPageCount(pageCount)}.`);
@@ -286,11 +300,13 @@ export default function Editor() {
     const pageCount = await loadPdfFile(file, "add");
     if (pageCount === null) return false;
 
+    const addedPages = createPageStates(file, pageCount);
     setPages(
       produce((draftPages) => {
-        draftPages.push(...createPageStates(file, pageCount));
+        draftPages.push(...addedPages);
       })
     );
+    if (!activePageId()) setActivePageId(addedPages[0]?.id ?? null);
 
     setReadyStatus();
     setStatusMessage(`Added ${formatPageCount(pageCount)} from ${file.name}.`);
@@ -314,6 +330,27 @@ export default function Editor() {
   function closeFilesDialog(): void {
     setFilesOpen(false);
     queueMicrotask(() => filesButton?.focus());
+  }
+
+  function openPageReview(): void {
+    if (isBusy()) return;
+    const ids = reviewPageIds();
+    if (ids.length === 0) return;
+
+    const activeId = activePageId();
+    if (!activeId || !ids.includes(activeId)) setActivePageId(ids[0]);
+    setReviewOpen(true);
+  }
+
+  function closePageReview(): void {
+    setReviewOpen(false);
+    queueMicrotask(() => {
+      if (reviewButton && !reviewButton.disabled) {
+        reviewButton.focus();
+      } else {
+        editorRoot?.focus();
+      }
+    });
   }
 
   async function handleImagesToPdf(files: File[]): Promise<void> {
@@ -401,6 +438,9 @@ export default function Editor() {
 
   function handlePageClick(index: number): void {
     if (isBusy()) return;
+    const page = pages[index];
+    if (!page) return;
+    setActivePageId(page.id);
     const nextSelection = toggleSelection(selectedIndices(), index);
     setSelectedIndices(nextSelection);
     setStatusMessage(`${nextSelection.has(index) ? "Selected" : "Deselected"} page ${index + 1}.`);
@@ -422,6 +462,8 @@ export default function Editor() {
 
     if (nextSelection.size === 0) return;
     setSelectedIndices(nextSelection);
+    const firstSelectedIndex = nextSelection.values().next().value as number | undefined;
+    if (firstSelectedIndex !== undefined) setActivePageId(pages[firstSelectedIndex]?.id ?? null);
     closeFilesDialog();
     setStatusMessage(`Selected ${formatPageCount(nextSelection.size)} from ${file.name}.`);
   }
@@ -430,6 +472,7 @@ export default function Editor() {
     if (isBusy()) return;
     const nextSelection = toggleSelectAll(pages.length, selectedIndices());
     setSelectedIndices(nextSelection);
+    if (!activePageId()) setActivePageId(pages[0]?.id ?? null);
     setStatusMessage(
       nextSelection.size === pages.length ? "All pages selected." : "Selection cleared."
     );
@@ -702,10 +745,12 @@ export default function Editor() {
       </section>
 
       <div
+        ref={editorRoot}
         data-testid="editor-root"
         data-operation={operation()}
         data-phase={phase()}
         aria-busy={isBusy()}
+        tabIndex={-1}
         class="contents"
       >
         <header class="editor-header">
@@ -754,6 +799,23 @@ export default function Editor() {
                 <div class="editor-canvas-tools">
                   <span class="editor-canvas-count">{formatPageCount(pages.length)}</span>
                   <div class="editor-canvas-actions">
+                    <button
+                      ref={reviewButton}
+                      type="button"
+                      data-testid="editor-review-button"
+                      class="editor-toolbar-action editor-review-button"
+                      aria-label="Review pages"
+                      aria-controls="editor-page-review"
+                      aria-expanded={reviewOpen()}
+                      title="Review pages"
+                      onClick={openPageReview}
+                      disabled={isBusy()}
+                    >
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M4 7V4h3M13 4h3v3M16 13v3h-3M7 16H4v-3" />
+                      </svg>
+                      <span class="editor-review-button-label">Review</span>
+                    </button>
                     <button
                       type="button"
                       data-testid="editor-add-pdf-button"
@@ -841,6 +903,16 @@ export default function Editor() {
                 <span data-testid="editor-status-message">{statusMessage()}</span>
               </div>
             </section>
+            <Show when={reviewOpen()}>
+              <EditorPageViewer
+                pages={pages}
+                navigationPageIds={reviewPageIds()}
+                activePageId={activePageId()}
+                runtime={pdfRuntime}
+                onActivePageChange={(pageId) => setActivePageId(pageId)}
+                onClose={closePageReview}
+              />
+            </Show>
             <EditorFilesDialog
               open={filesOpen()}
               busy={isBusy()}
