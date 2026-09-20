@@ -56,6 +56,11 @@ interface UploadGroup {
   files: File[];
 }
 
+interface LoadedWorkspaceFile {
+  file: File;
+  pageCount: number;
+}
+
 const deletionActionCopy: Record<DeletionAction, { label: string; ariaLabel: string }> = {
   mark: {
     label: "Mark for deletion",
@@ -294,8 +299,8 @@ export default function Editor() {
 
   // --- File loading ---
 
-  function updateWorkspaceWithFile(file: File, pageCount: number, replace: boolean): void {
-    const nextPages = createPageStates(file, pageCount);
+  function commitWorkspaceFiles(files: LoadedWorkspaceFile[], replace: boolean): void {
+    const nextPages = files.flatMap(({ file, pageCount }) => createPageStates(file, pageCount));
     if (replace) {
       setPages(nextPages);
       setSelectedIndices(new Set<number>());
@@ -394,7 +399,8 @@ export default function Editor() {
     setOperation(mode === "upload" ? "uploading" : "adding");
     setStatusMessage(mode === "upload" ? "Loading files…" : "Adding files…");
 
-    let replaceWorkspace = mode === "upload";
+    const replaceWorkspace = mode === "upload";
+    const loadedFiles: LoadedWorkspaceFile[] = [];
     let pdfCount = 0;
     let imageCount = 0;
 
@@ -417,15 +423,20 @@ export default function Editor() {
         pdfFile = group.files[0];
       }
 
-      setOperation(replaceWorkspace ? "uploading" : "adding");
+      const isFirstFile = loadedFiles.length === 0;
+      setOperation(mode === "upload" && isFirstFile ? "uploading" : "adding");
       setStatusMessage(`Loading ${pdfFile.name}…`);
-      const pageCount = await loadPdfFile(pdfFile, replaceWorkspace ? "upload" : "add", false);
+      const pageCount = await loadPdfFile(
+        pdfFile,
+        mode === "upload" && isFirstFile ? "upload" : "add",
+        false
+      );
       if (pageCount === null || disposed) return false;
 
-      updateWorkspaceWithFile(pdfFile, pageCount, replaceWorkspace);
-      replaceWorkspace = false;
+      loadedFiles.push({ file: pdfFile, pageCount });
     }
 
+    commitWorkspaceFiles(loadedFiles, replaceWorkspace);
     setReadyStatus();
     setStatusMessage(describeLoadedFiles(mode, pdfCount, imageCount));
     return true;

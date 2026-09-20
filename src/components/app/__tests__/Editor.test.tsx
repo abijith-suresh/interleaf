@@ -1,7 +1,7 @@
 import { fireEvent, render, waitFor } from "@solidjs/testing-library";
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PDFPasswordRequiredError } from "@/types/interfaces";
+import { PDFPasswordRequiredError, PDFProcessingError } from "@/types/interfaces";
 
 const pdfServiceMocks = vi.hoisted(() => ({
   loadPDF: vi.fn(),
@@ -221,6 +221,53 @@ describe("Editor", () => {
     expect(getByTestId("editor-status-message")).toHaveTextContent(
       "Loaded 1 PDF and created a PDF from 1 image."
     );
+  });
+
+  it("keeps interleaved image groups in the uploaded order", async () => {
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+    const files = [
+      makeImageFile("first.png"),
+      makeFile("middle.pdf"),
+      makeImageFile("last.jpg", "image/jpeg"),
+    ];
+
+    selectFiles("editor-upload-input", files);
+
+    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(9));
+    expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalledTimes(2);
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledTimes(3);
+
+    fireEvent.click(getByTestId("editor-files-button"));
+    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    const fileItems = await findAllByTestId("editor-file-item");
+    expect(fileItems.map((item) => item.textContent?.replace(/\s+/g, " ").trim())).toEqual([
+      expect.stringContaining("interleaf-images.pdf"),
+      expect.stringContaining("middle.pdf"),
+      expect.stringContaining("interleaf-images.pdf"),
+    ]);
+  });
+
+  it("does not partially commit a batch when a later file fails", async () => {
+    const failedFile = makeFile("broken.pdf");
+    pdfServiceMocks.loadPDF
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(
+        Effect.fail(
+          new PDFProcessingError({
+            operation: "load-pdf-js",
+            file: failedFile,
+            cause: new Error("Invalid PDF"),
+            message: "Invalid PDF",
+          })
+        )
+      );
+    const { findByTestId, queryByTestId } = render(() => <Editor />);
+
+    selectFiles("editor-upload-input", [makeFile("good.pdf"), makeImageFile(), failedFile]);
+
+    expect(await findByTestId("editor-toast")).toHaveTextContent("Failed to load broken.pdf");
+    expect(queryByTestId("editor-page-grid")).not.toBeInTheDocument();
   });
 
   it("loads multiple selected PDFs into the same workspace", async () => {
