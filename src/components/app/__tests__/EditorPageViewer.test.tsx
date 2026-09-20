@@ -52,10 +52,10 @@ describe("EditorPageViewer", () => {
     pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(0));
     pdfServiceMocks.getPageSize.mockReturnValue(Effect.succeed({ width: 100, height: 200 }));
     pdfServiceMocks.renderPage.mockImplementation(
-      (_file: File, _pageNumber: number, canvas: HTMLCanvasElement) =>
+      (_file: File, _pageNumber: number, canvas: HTMLCanvasElement, scale = 1) =>
         Effect.sync(() => {
-          canvas.width = 100;
-          canvas.height = 200;
+          canvas.width = 100 * scale;
+          canvas.height = 200 * scale;
         })
     );
     pdfServiceMocks.reset.mockReturnValue(Effect.succeed(undefined));
@@ -188,6 +188,24 @@ describe("EditorPageViewer", () => {
     ) as HTMLCanvasElement;
     expect(canvas.style.width).toBe("150px");
     expect(canvas.style.height).toBe("300px");
+    expect(canvas.width).toBe(300);
+    expect(canvas.height).toBe(600);
+
+    pdfServiceMocks.renderPage.mockClear();
+    Object.defineProperty(window, "devicePixelRatio", {
+      configurable: true,
+      value: 1,
+    });
+    fireEvent(window, new Event("resize"));
+    await waitFor(() =>
+      expect(pdfServiceMocks.renderPage).toHaveBeenCalledWith(
+        expect.any(File),
+        1,
+        expect.any(HTMLCanvasElement),
+        1.5,
+        0
+      )
+    );
   });
 
   it("contains keyboard focus when it becomes a mobile review dialog", async () => {

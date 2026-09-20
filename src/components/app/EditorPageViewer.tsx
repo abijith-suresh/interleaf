@@ -327,6 +327,7 @@ export default function EditorPageViewer(props: Props) {
     handleMobileModeChange();
     if (mobileMediaQuery.matches) reviewBackground?.setAttribute("inert", "");
     mobileMediaQuery.addEventListener("change", handleMobileModeChange);
+    window.addEventListener("resize", requestRender);
     queueMicrotask(() => closeButton?.focus());
     requestRender();
 
@@ -345,6 +346,7 @@ export default function EditorPageViewer(props: Props) {
     if (mobileMediaQuery && updateMobileMode) {
       mobileMediaQuery.removeEventListener("change", updateMobileMode);
     }
+    window.removeEventListener("resize", requestRender);
     updateMobileMode = null;
     reviewBackground?.removeAttribute("inert");
     reviewBackground = null;
