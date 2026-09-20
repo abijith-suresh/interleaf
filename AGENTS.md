@@ -26,8 +26,8 @@ The active product supports:
 - reviewing pages one at a time with previous/next navigation and a compact filmstrip
 - losslessly compressing an untouched, single uploaded PDF in the browser
 - exporting selected or active PDF pages as PNG images in a local ZIP archive
-- opening PDFs and PNG or JPEG images together at initial upload, with images converted to PDF pages in the browser
-- adding PDFs and PNG or JPEG images to an existing workspace, with images converted to PDF pages in the browser
+- opening one or more PDFs and PNG or JPEG images together at initial upload, with images converted to PDF pages in the browser
+- adding one or more PDFs and PNG or JPEG images to an existing workspace, with images converted to PDF pages in the browser
 
 These are the only current public product promises.
 

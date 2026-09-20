@@ -14,6 +14,7 @@ interface LoadedPDFRecord {
 interface InFlightLoad {
   readonly deferred: Deferred.Deferred<LoadedPDFRecord, PDFError>;
   fiber: Fiber.Fiber<LoadedPDFRecord, PDFError> | null;
+  released: boolean;
 }
 
 function errorMessage(cause: unknown, fallback: string): string {
@@ -182,7 +183,11 @@ export class PDFService {
     return Effect.suspend(() => {
       this.fileVersions.set(file, this.getFileVersion(file) + 1);
       const record = this.documentCache.get(file);
-      const fibers = Array.from(this.loadEffects.get(file)?.values() ?? [])
+      const loads = Array.from(this.loadEffects.get(file)?.values() ?? []);
+      for (const load of loads) {
+        load.released = true;
+      }
+      const fibers = loads
         .map((load) => load.fiber)
         .filter((fiber): fiber is Fiber.Fiber<LoadedPDFRecord, PDFError> => fiber !== null);
 
@@ -191,14 +196,16 @@ export class PDFService {
       this.documentCache.delete(file);
       this.loadEffects.delete(file);
 
-      return Effect.forEach(fibers, Fiber.interrupt, { discard: true }).pipe(
-        Effect.andThen(
-          record
-            ? Effect.tryPromise({
-                try: () => record.pdfjsDocument.cleanup(),
-                catch: () => undefined,
-              }).pipe(Effect.catch(() => Effect.void))
-            : Effect.void
+      return Effect.uninterruptible(
+        Effect.forEach(fibers, Fiber.interrupt, { discard: true }).pipe(
+          Effect.andThen(
+            record
+              ? Effect.tryPromise({
+                  try: () => record.pdfjsDocument.cleanup(),
+                  catch: () => undefined,
+                }).pipe(Effect.catch(() => Effect.void))
+              : Effect.void
+          )
         )
       );
     });
@@ -249,7 +256,7 @@ export class PDFService {
       if (inFlight) return Deferred.await(inFlight.deferred);
 
       const deferred = Deferred.makeUnsafe<LoadedPDFRecord, PDFError>();
-      const load: InFlightLoad = { deferred, fiber: null };
+      const load: InFlightLoad = { deferred, fiber: null, released: false };
       const fileEffects = this.loadEffects.get(file) ?? new Map();
       fileEffects.set(key, load);
       this.loadEffects.set(file, fileEffects);
@@ -288,7 +295,11 @@ export class PDFService {
       // loader is detached from an individual thumbnail so one consumer being
       // interrupted cannot cancel a load still needed by another consumer.
       return Effect.gen({ self: this }, function* () {
-        load.fiber = yield* Effect.forkDetach(loadEffect);
+        const fiber = yield* Effect.forkDetach(loadEffect);
+        load.fiber = fiber;
+        if (load.released) {
+          yield* Fiber.interrupt(fiber);
+        }
         return yield* Deferred.await(load.deferred);
       });
     });

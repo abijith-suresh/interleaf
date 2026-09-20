@@ -217,6 +217,35 @@ describe("PDFService", () => {
     expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(2);
   });
 
+  it("finishes cached document cleanup if targeted release is interrupted", async () => {
+    let resolveCleanup!: () => void;
+    const cleanupPromise = new Promise<void>((resolve) => {
+      resolveCleanup = resolve;
+    });
+    const cleanup = vi.fn(() => cleanupPromise);
+    const document = {
+      numPages: 5,
+      cleanup,
+    };
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: Promise.resolve(document),
+      destroy: loadingTaskDestroyMock,
+    }));
+
+    const service = new PDFService();
+    const file = new File(["plain"], "cleanup-pending.pdf", { type: "application/pdf" });
+    await Effect.runPromise(service.loadPDF(file));
+
+    const releaseFiber = Effect.runFork(service.releaseFile(file));
+    await vi.waitFor(() => expect(cleanup).toHaveBeenCalledTimes(1));
+
+    const interruptedRelease = Effect.runPromise(Fiber.interrupt(releaseFiber));
+    resolveCleanup();
+    await interruptedRelease;
+
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
   it("interrupts an in-flight PDF.js load when the session resets", async () => {
     const loadingPromise = new Promise(() => undefined);
     pdfjsGetDocumentMock.mockImplementationOnce(() => ({
