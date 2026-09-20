@@ -2,6 +2,7 @@ import { Effect, Fiber } from "effect";
 import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { IMAGES_TO_PDF_FILENAME, ROTATION_STEP } from "../../constants";
+import { planUploadGroups } from "../../controllers/editor-import";
 import {
   areAllPagesSelected,
   createPageStates,
@@ -49,11 +50,6 @@ interface Toast {
   id: number;
   message: string;
   tone: ToastTone;
-}
-
-interface UploadGroup {
-  kind: "pdf" | "images";
-  files: File[];
 }
 
 interface LoadedWorkspaceFile {
@@ -322,26 +318,6 @@ export default function Editor() {
     if (!activePageId()) setActivePageId(nextPages[0]?.id ?? null);
   }
 
-  function getUploadGroups(files: File[]): UploadGroup[] {
-    const groups: UploadGroup[] = [];
-
-    for (const file of files) {
-      const kind = getSupportedFileKind(file);
-      const groupKind =
-        kind === "pdf" ? "pdf" : kind === "png" || kind === "jpeg" ? "images" : null;
-      if (!groupKind) continue;
-
-      const previousGroup = groups.at(-1);
-      if (previousGroup?.kind === "images" && groupKind === "images") {
-        previousGroup.files.push(file);
-      } else {
-        groups.push({ kind: groupKind, files: [file] });
-      }
-    }
-
-    return groups;
-  }
-
   async function createPdfFromImages(
     files: File[],
     outputFileName = IMAGES_TO_PDF_FILENAME
@@ -416,7 +392,7 @@ export default function Editor() {
       return false;
     }
 
-    const groups = getUploadGroups(files);
+    const groups = planUploadGroups(files);
     if (groups.length === 0) return false;
 
     setOperation(mode === "upload" ? "uploading" : "adding");
@@ -427,8 +403,6 @@ export default function Editor() {
     const existingFiles = new Set(pages.map((page) => page.sourceFile));
     let pdfCount = 0;
     let imageCount = 0;
-    let imageGroupIndex = 0;
-    const imageGroupCount = groups.filter((group) => group.kind === "images").length;
     let committed = false;
 
     try {
@@ -438,15 +412,9 @@ export default function Editor() {
         let pdfFile: File;
         if (group.kind === "images") {
           imageCount += group.files.length;
-          imageGroupIndex += 1;
           setOperation("building");
           setStatusMessage(`Creating PDF from images… 0/${group.files.length}`);
-          const generatedFile = await createPdfFromImages(
-            group.files,
-            imageGroupCount > 1
-              ? `${IMAGES_TO_PDF_FILENAME.replace(/\.pdf$/i, "")}-${imageGroupIndex}.pdf`
-              : IMAGES_TO_PDF_FILENAME
-          );
+          const generatedFile = await createPdfFromImages(group.files, group.outputFileName);
           if (!generatedFile) return false;
           pdfFile = generatedFile;
         } else {
