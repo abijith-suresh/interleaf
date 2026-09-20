@@ -65,6 +65,10 @@ describe("EditorPageViewer", () => {
 
   afterEach(async () => {
     await runtime.dispose();
+    Object.defineProperty(window, "devicePixelRatio", {
+      configurable: true,
+      value: 1,
+    });
     vi.restoreAllMocks();
   });
 
@@ -150,6 +154,40 @@ describe("EditorPageViewer", () => {
         90
       )
     );
+  });
+
+  it("uses a capped device-pixel ratio for a sharper viewer without enlarging the layout", async () => {
+    Object.defineProperty(window, "devicePixelRatio", {
+      configurable: true,
+      value: 2,
+    });
+    const pages = makePages();
+
+    const { getByTestId } = render(() => (
+      <EditorPageViewer
+        pages={pages}
+        navigationPageIds={pages.map((page) => page.id)}
+        activePageId="page-1"
+        runtime={runtime}
+        onActivePageChange={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+
+    await waitFor(() =>
+      expect(pdfServiceMocks.renderPage).toHaveBeenCalledWith(
+        expect.any(File),
+        1,
+        expect.any(HTMLCanvasElement),
+        3,
+        0
+      )
+    );
+    const canvas = getByTestId("editor-page-viewer").querySelector(
+      ".editor-review-canvas"
+    ) as HTMLCanvasElement;
+    expect(canvas.style.width).toBe("150px");
+    expect(canvas.style.height).toBe("300px");
   });
 
   it("contains keyboard focus when it becomes a mobile review dialog", async () => {

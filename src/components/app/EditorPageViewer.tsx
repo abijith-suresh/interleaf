@@ -6,6 +6,7 @@ import EditorPageCanvas from "./EditorPageCanvas";
 
 const VIEWER_MAX_PIXELS = 16_000_000;
 const VIEWER_MAX_SCALE = 1.5;
+const VIEWER_MAX_DEVICE_PIXEL_RATIO = 2;
 const VIEWER_GUTTER = 32;
 const FILMSTRIP_WINDOW_SIZE = 12;
 const FILMSTRIP_OVERSCAN = 3;
@@ -103,17 +104,31 @@ export default function EditorPageViewer(props: Props) {
     return !disposed && attempt === renderAttempt && canvas.isConnected;
   }
 
-  function getFitScale(pageWidth: number, pageHeight: number): number {
-    const pixelSafeScale = Math.sqrt(VIEWER_MAX_PIXELS / (pageWidth * pageHeight));
-    if (stage.clientWidth === 0 || stage.clientHeight === 0) {
-      return Math.min(VIEWER_MAX_SCALE, pixelSafeScale);
-    }
+  function getViewerScale(
+    pageWidth: number,
+    pageHeight: number
+  ): {
+    cssScale: number;
+    renderScale: number;
+  } {
+    const devicePixelRatio = Math.min(
+      Math.max(window.devicePixelRatio || 1, 1),
+      VIEWER_MAX_DEVICE_PIXEL_RATIO
+    );
+    const pixelSafeRenderScale = Math.sqrt(VIEWER_MAX_PIXELS / (pageWidth * pageHeight));
+    const fitScale =
+      stage.clientWidth === 0 || stage.clientHeight === 0
+        ? VIEWER_MAX_SCALE
+        : Math.min(
+            Math.max(stage.clientWidth - VIEWER_GUTTER * 2, 1) / pageWidth,
+            Math.max(stage.clientHeight - VIEWER_GUTTER * 2, 1) / pageHeight
+          );
+    const cssScale = Math.min(VIEWER_MAX_SCALE, fitScale, pixelSafeRenderScale / devicePixelRatio);
 
-    const availableWidth = Math.max(stage.clientWidth - VIEWER_GUTTER * 2, 1);
-    const availableHeight = Math.max(stage.clientHeight - VIEWER_GUTTER * 2, 1);
-    const fitScale = Math.min(availableWidth / pageWidth, availableHeight / pageHeight);
-
-    return Math.min(VIEWER_MAX_SCALE, fitScale, pixelSafeScale);
+    return {
+      cssScale,
+      renderScale: cssScale * devicePixelRatio,
+    };
   }
 
   async function renderLoop(): Promise<void> {
@@ -151,11 +166,14 @@ export default function EditorPageViewer(props: Props) {
                   page.sourcePageNumber,
                   rotation
                 );
+                const { cssScale, renderScale } = getViewerScale(pageSize.width, pageSize.height);
+                canvas.style.width = `${pageSize.width * cssScale}px`;
+                canvas.style.height = `${pageSize.height * cssScale}px`;
                 yield* service.renderPage(
                   page.sourceFile,
                   page.sourcePageNumber,
                   canvas,
-                  getFitScale(pageSize.width, pageSize.height),
+                  renderScale,
                   rotation
                 );
               })
