@@ -7,11 +7,11 @@ import satori from "satori";
 const pages: Record<string, { title: string; description: string }> = {
   index: {
     title: "Interleaf",
-    description: "Edit, merge, and export — all in your browser.",
+    description: "Create, edit, merge, and export — all in your browser.",
   },
   app: {
     title: "Editor",
-    description: "Open your PDF and start editing. No uploads required.",
+    description: "Open a PDF or create one from PNG/JPEG images. No uploads required.",
   },
   features: {
     title: "Features",

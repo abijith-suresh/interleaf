@@ -13,7 +13,11 @@ import {
   PDFCompressionService,
 } from "./pdf-compression-service";
 import type { PDFImageExportOptions } from "./pdf-image-export-service";
-import type { PDFBuildOptions, PDFOperationsService } from "./pdf-operations-service";
+import type {
+  PDFBuildOptions,
+  PDFImagesToPDFOptions,
+  PDFOperationsService,
+} from "./pdf-operations-service";
 import { PDFService } from "./pdf-service";
 import { makeQpdfProcessing, type QpdfProcessingError } from "./qpdf-processing";
 
@@ -33,6 +37,10 @@ export interface PDFProcessingShape {
     pages: readonly PageState[],
     options?: PDFBuildOptions
   ) => Effect.Effect<PDFOperationResult, PDFError>;
+  readonly imagesToPDF: (
+    files: readonly File[],
+    options?: PDFImagesToPDFOptions
+  ) => Effect.Effect<PDFOperationResult, PDFProcessingError>;
   readonly exportImages: (
     pages: readonly PageState[],
     options?: PDFImageExportOptions
@@ -131,6 +139,8 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
             pdfService.getPageRotation(file, pageNumber),
           buildPDF: (pages: readonly PageState[], options?: PDFBuildOptions) =>
             Effect.flatMap(getOperationsService, (service) => service.buildPDF(pages, options)),
+          imagesToPDF: (files: readonly File[], options?: PDFImagesToPDFOptions) =>
+            Effect.flatMap(getOperationsService, (service) => service.imagesToPDF(files, options)),
           exportImages: (pages: readonly PageState[], options?: PDFImageExportOptions) =>
             Effect.flatMap(getImageExportService, (service) =>
               service.exportImages(pages, options)

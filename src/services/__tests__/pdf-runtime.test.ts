@@ -14,6 +14,7 @@ const pdfServiceMock = vi.hoisted(() => ({
 
 const operationsServiceMock = vi.hoisted(() => ({
   buildPDF: vi.fn(),
+  imagesToPDF: vi.fn(),
   clearCache: vi.fn(),
   constructed: 0,
 }));
@@ -46,6 +47,7 @@ vi.mock("../pdf-operations-service", () => ({
     }
 
     buildPDF = operationsServiceMock.buildPDF;
+    imagesToPDF = operationsServiceMock.imagesToPDF;
     clearCache = operationsServiceMock.clearCache;
   },
 }));
@@ -75,6 +77,9 @@ beforeEach(() => {
   pdfServiceMock.reset.mockReturnValue(Effect.succeed(undefined));
   operationsServiceMock.buildPDF.mockReturnValue(
     Effect.succeed({ data: new Uint8Array(), suggestedFileName: "document.pdf" })
+  );
+  operationsServiceMock.imagesToPDF.mockReturnValue(
+    Effect.succeed({ data: new Uint8Array(), suggestedFileName: "interleaf-images.pdf" })
   );
   operationsServiceMock.clearCache.mockReturnValue(Effect.succeed(undefined));
   operationsServiceMock.constructed = 0;
@@ -137,6 +142,24 @@ it.effect("loads PDF editing support only when building a document", () => {
 
       await runtime.dispose();
       expect(operationsServiceMock.clearCache).toHaveBeenCalledTimes(1);
+    },
+    catch: (cause) => cause,
+  });
+});
+
+it.effect("reuses PDF editing support when creating a PDF from images", () => {
+  return Effect.tryPromise({
+    try: async () => {
+      const runtime = makePDFRuntime();
+      const files = [new File(["image"], "image.png", { type: "image/png" })];
+
+      expect(operationsServiceMock.constructed).toBe(0);
+      await runtime.runPromise(PDFProcessing.use((service) => service.imagesToPDF(files)));
+
+      expect(operationsServiceMock.constructed).toBe(1);
+      expect(operationsServiceMock.imagesToPDF).toHaveBeenCalledWith(files, undefined);
+
+      await runtime.dispose();
     },
     catch: (cause) => cause,
   });

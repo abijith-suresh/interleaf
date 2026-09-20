@@ -25,6 +25,7 @@ The active product supports:
 - locally rendered page thumbnails for inspection before export
 - losslessly compressing an untouched, single uploaded PDF in the browser
 - exporting selected or active PDF pages as PNG images in a local ZIP archive
+- creating a PDF from multiple PNG or JPEG images in the browser and opening it in the workspace
 
 These are the only current public product promises.
 

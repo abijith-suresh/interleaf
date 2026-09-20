@@ -31,7 +31,9 @@ const mockOutputPage = {
   setRotation: vi.fn(),
 };
 
-const mockEmbeddedImage = {};
+const mockEmbeddedImage = {
+  scale: vi.fn().mockReturnValue({ width: 612, height: 792 }),
+};
 
 const mockSourceDoc = {
   getPage: vi.fn().mockReturnValue(mockSourcePage),
@@ -42,8 +44,21 @@ const mockOutputDoc = {
   addPage: vi.fn().mockReturnValue(mockOutputPage),
   copyPages: vi.fn().mockResolvedValue([mockCopiedPage]),
   embedPng: vi.fn().mockResolvedValue(mockEmbeddedImage),
+  embedJpg: vi.fn().mockResolvedValue(mockEmbeddedImage),
   save: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])),
 };
+
+function copyBytes(value: Uint8Array): Uint8Array<ArrayBuffer> {
+  const copy = new Uint8Array(new ArrayBuffer(value.byteLength));
+  copy.set(value);
+  return copy;
+}
+
+const JPEG_WITH_ORIENTATION_6 = new Uint8Array([
+  0xff, 0xd8, 0xff, 0xe1, 0x00, 0x22, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00, 0x49, 0x49, 0x2a, 0x00,
+  0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x12, 0x01, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x06, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xd9,
+]);
 
 const mockPDFDocument = {
   load: vi.fn().mockResolvedValue(mockSourceDoc),
@@ -56,6 +71,9 @@ vi.mock("pdf-lib", () => ({
   PDFDocument: {
     load: mockPDFDocument.load,
     create: mockPDFDocument.create,
+  },
+  PageSizes: {
+    A4: [595.28, 841.89],
   },
   degrees: vi.fn((deg) => deg),
 }));
@@ -203,6 +221,82 @@ describe("PDFOperationsService", () => {
 
       expect(onProgress).toHaveBeenNthCalledWith(1, { completed: 1, total: 2 });
       expect(onProgress).toHaveBeenNthCalledWith(2, { completed: 2, total: 2 });
+    });
+  });
+
+  describe("imagesToPDF", () => {
+    it("fits one image per A4 page in selection order", async () => {
+      const service = new PDFOperationsService(pdfServiceMock);
+      const files = [
+        new File(["png"], "first.png", { type: "image/png" }),
+        new File(["jpeg"], "second.jpg", { type: "image/jpeg" }),
+      ];
+      const onProgress = vi.fn();
+
+      const result = await runEffect(service.imagesToPDF(files, { onProgress }));
+
+      expect(result.data).toBeInstanceOf(Uint8Array);
+      expect(result.suggestedFileName).toBe("interleaf-images.pdf");
+      expect(mockOutputDoc.embedPng).toHaveBeenCalledTimes(1);
+      expect(mockOutputDoc.embedJpg).toHaveBeenCalledTimes(1);
+      expect(mockOutputDoc.addPage).toHaveBeenNthCalledWith(1, [595.28, 841.89]);
+      expect(mockOutputDoc.addPage).toHaveBeenNthCalledWith(2, [595.28, 841.89]);
+      const drawHeight = (792 * 595.28) / 612;
+      expect(mockOutputPage.drawImage).toHaveBeenNthCalledWith(
+        1,
+        mockEmbeddedImage,
+        expect.objectContaining({
+          x: 0,
+          y: (841.89 - drawHeight) / 2,
+          width: 595.28,
+          height: drawHeight,
+        })
+      );
+      expect(onProgress).toHaveBeenNthCalledWith(1, { completed: 1, total: 2 });
+      expect(onProgress).toHaveBeenNthCalledWith(2, { completed: 2, total: 2 });
+    });
+
+    it("rejects an empty selection", async () => {
+      const service = new PDFOperationsService(pdfServiceMock);
+
+      await expect(runEffect(service.imagesToPDF([]))).rejects.toThrow(
+        "Choose at least one PNG or JPEG image."
+      );
+    });
+
+    it("rejects unsupported image types", async () => {
+      const service = new PDFOperationsService(pdfServiceMock);
+      const file = new File(["gif"], "image.gif", { type: "image/gif" });
+
+      await expect(runEffect(service.imagesToPDF([file]))).rejects.toThrow(
+        "Only PNG and JPEG images can be converted to PDF."
+      );
+      expect(mockPDFDocument.create).not.toHaveBeenCalled();
+    });
+
+    it("honors JPEG orientation metadata when placing a rotated image", async () => {
+      const service = new PDFOperationsService(pdfServiceMock);
+      const file = new File([copyBytes(JPEG_WITH_ORIENTATION_6)], "rotated.jpg", {
+        type: "image/jpeg",
+      });
+
+      await runEffect(service.imagesToPDF([file]));
+
+      expect(mockOutputDoc.addPage).toHaveBeenCalledWith([841.89, 595.28]);
+      expect(mockOutputPage.drawImage).toHaveBeenCalledWith(
+        mockEmbeddedImage,
+        expect.objectContaining({ rotate: -90 })
+      );
+    });
+
+    it("uses the MIME type when an image extension disagrees", async () => {
+      const service = new PDFOperationsService(pdfServiceMock);
+      const file = new File(["jpeg"], "image.png", { type: "image/jpeg" });
+
+      await runEffect(service.imagesToPDF([file]));
+
+      expect(mockOutputDoc.embedPng).not.toHaveBeenCalled();
+      expect(mockOutputDoc.embedJpg).toHaveBeenCalledWith(expect.any(ArrayBuffer));
     });
   });
 
