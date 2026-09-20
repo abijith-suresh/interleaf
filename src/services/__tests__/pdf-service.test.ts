@@ -191,6 +191,32 @@ describe("PDFService", () => {
     resolveLoading(undefined);
   });
 
+  it("does not cache a PDF load that finishes after a targeted release", async () => {
+    let resolveLoading!: (document: unknown) => void;
+    const loadingPromise = new Promise((resolve) => {
+      resolveLoading = resolve;
+    });
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: loadingPromise,
+      destroy: loadingTaskDestroyMock,
+    }));
+
+    const service = new PDFService();
+    const file = new File(["plain"], "released-pending.pdf", { type: "application/pdf" });
+    const fiber = Effect.runFork(service.loadPDF(file));
+
+    await vi.waitFor(() => expect(pdfjsGetDocumentMock).toHaveBeenCalled());
+    await Effect.runPromise(service.releaseFile(file));
+    resolveLoading({
+      numPages: 5,
+      cleanup: vi.fn().mockResolvedValue(undefined),
+    });
+    await Effect.runPromise(Fiber.await(fiber));
+
+    await Effect.runPromise(service.loadPDF(file));
+    expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(2);
+  });
+
   it("interrupts an in-flight PDF.js load when the session resets", async () => {
     const loadingPromise = new Promise(() => undefined);
     pdfjsGetDocumentMock.mockImplementationOnce(() => ({

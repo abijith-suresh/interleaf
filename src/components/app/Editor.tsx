@@ -241,11 +241,15 @@ export default function Editor() {
     return `Failed to load ${file.name}.`;
   }
 
-  async function unlockPdf(file: File, isRetry: boolean): Promise<number | null> {
+  async function unlockPdf(
+    file: File,
+    isRetry: boolean,
+    manageOperation = true
+  ): Promise<number | null> {
     if (disposed) return null;
     const password = await promptForPassword(file.name, isRetry);
     if (disposed || password === null) {
-      setReadyStatus();
+      if (manageOperation) setReadyStatus();
       return null;
     }
 
@@ -258,10 +262,10 @@ export default function Editor() {
     } catch (err) {
       if (disposed) return null;
       if (err instanceof PDFPasswordRequiredError) {
-        return unlockPdf(file, true);
+        return unlockPdf(file, true, manageOperation);
       }
       dispatchToast(getLoadErrorMessage(file, err), "error");
-      setReadyStatus();
+      if (manageOperation) setReadyStatus();
       return null;
     }
   }
@@ -289,10 +293,10 @@ export default function Editor() {
     } catch (err) {
       if (disposed) return null;
       if (err instanceof PDFPasswordRequiredError) {
-        return unlockPdf(file, err.reason === "wrong-password");
+        return unlockPdf(file, err.reason === "wrong-password", manageOperation);
       }
       dispatchToast(getLoadErrorMessage(file, err), "error");
-      setReadyStatus();
+      if (manageOperation) setReadyStatus();
       return null;
     }
   }
@@ -367,7 +371,6 @@ export default function Editor() {
           ? error.message
           : "Failed to create a PDF from the selected images.";
       dispatchToast(message, "error");
-      setStatusMessage("Image conversion failed. Try again.");
       return null;
     }
   }
@@ -380,9 +383,12 @@ export default function Editor() {
 
     for (const { file } of loadedFiles) {
       if (existingFiles.has(file)) continue;
-      await runPDF(PDFProcessing.use((service) => service.releaseFile(file))).catch(
-        () => undefined
-      );
+      try {
+        await runPDF(PDFProcessing.use((service) => service.releaseFile(file)));
+      } catch {
+        // Cleanup is best effort; the runtime also releases all remaining files
+        // when the editor is disposed.
+      }
     }
   }
 
@@ -467,7 +473,10 @@ export default function Editor() {
       setStatusMessage(describeLoadedFiles(mode, pdfCount, imageCount));
       return true;
     } finally {
-      if (!committed) await releaseStagedFiles(loadedFiles, existingFiles);
+      if (!committed) {
+        await releaseStagedFiles(loadedFiles, existingFiles);
+        setReadyStatus();
+      }
     }
   }
 

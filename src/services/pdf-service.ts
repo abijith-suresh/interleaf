@@ -45,38 +45,60 @@ export class PDFService {
   private passwordRegistry = new Map<File, string>();
   private documentCache = new Map<File, LoadedPDFRecord>();
   private loadEffects = new Map<File, Map<string, InFlightLoad>>();
+  private fileVersions = new WeakMap<File, number>();
   private sessionVersion = 0;
 
   loadPDF(file: File): Effect.Effect<void, PDFError> {
-    return this.getOrLoadDocument(file, () => this.loadDocument(file)).pipe(
-      Effect.tap(() =>
-        Effect.sync(() => {
-          this.activeFile = file;
-        })
-      ),
-      Effect.asVoid
-    );
+    return Effect.suspend(() => {
+      const sessionVersion = this.sessionVersion;
+      const fileVersion = this.getFileVersion(file);
+
+      return this.getOrLoadDocument(file, () => this.loadDocument(file)).pipe(
+        Effect.tap(() =>
+          Effect.sync(() => {
+            if (
+              sessionVersion === this.sessionVersion &&
+              fileVersion === this.getFileVersion(file)
+            ) {
+              this.activeFile = file;
+            }
+          })
+        ),
+        Effect.asVoid
+      );
+    });
   }
 
   loadPDFWithPassword(file: File, password: string): Effect.Effect<void, PDFError> {
-    const storedPassword = this.passwordRegistry.get(file);
-    if (storedPassword !== undefined && storedPassword !== password) {
-      return Effect.fail(new PDFPasswordRequiredError(file, "wrong-password"));
-    }
+    return Effect.suspend(() => {
+      const storedPassword = this.passwordRegistry.get(file);
+      if (storedPassword !== undefined && storedPassword !== password) {
+        return Effect.fail(new PDFPasswordRequiredError(file, "wrong-password"));
+      }
 
-    return this.getOrLoadDocument(
-      file,
-      () => this.loadDocument(file, password),
-      `password:${password}`
-    ).pipe(
-      Effect.tap(() =>
-        Effect.sync(() => {
-          this.passwordRegistry.set(file, password);
-          this.activeFile = file;
-        })
-      ),
-      Effect.asVoid
-    );
+      const sessionVersion = this.sessionVersion;
+      const fileVersion = this.getFileVersion(file);
+
+      return this.getOrLoadDocument(
+        file,
+        () => this.loadDocument(file, password),
+        `password:${password}`
+      ).pipe(
+        Effect.tap(() =>
+          Effect.sync(() => {
+            if (
+              sessionVersion !== this.sessionVersion ||
+              fileVersion !== this.getFileVersion(file)
+            ) {
+              return;
+            }
+            this.passwordRegistry.set(file, password);
+            this.activeFile = file;
+          })
+        ),
+        Effect.asVoid
+      );
+    });
   }
 
   getPageCount(): number {
@@ -158,6 +180,7 @@ export class PDFService {
 
   releaseFile(file: File): Effect.Effect<void> {
     return Effect.suspend(() => {
+      this.fileVersions.set(file, this.getFileVersion(file) + 1);
       const record = this.documentCache.get(file);
       const fibers = Array.from(this.loadEffects.get(file)?.values() ?? [])
         .map((load) => load.fiber)
@@ -231,11 +254,15 @@ export class PDFService {
       fileEffects.set(key, load);
       this.loadEffects.set(file, fileEffects);
 
-      const version = this.sessionVersion;
+      const sessionVersion = this.sessionVersion;
+      const fileVersion = this.getFileVersion(file);
       const loadEffect = (loader ?? (() => this.loadDocumentWithStoredPassword(file)))().pipe(
         Effect.tap((record) =>
           Effect.sync(() => {
-            if (version === this.sessionVersion) {
+            if (
+              sessionVersion === this.sessionVersion &&
+              fileVersion === this.getFileVersion(file)
+            ) {
               this.documentCache.set(file, record);
             } else {
               void record.pdfjsDocument.cleanup().catch(() => undefined);
@@ -265,6 +292,10 @@ export class PDFService {
         return yield* Deferred.await(load.deferred);
       });
     });
+  }
+
+  private getFileVersion(file: File): number {
+    return this.fileVersions.get(file) ?? 0;
   }
 
   private loadDocumentWithStoredPassword(file: File): Effect.Effect<LoadedPDFRecord, PDFError> {

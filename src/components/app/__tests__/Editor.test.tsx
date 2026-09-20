@@ -210,6 +210,24 @@ describe("Editor", () => {
     expect(getByTestId("editor-status-message")).toHaveTextContent("Created a PDF from 2 images.");
   });
 
+  it("returns to the uploader after image conversion fails", async () => {
+    pdfOperationsMocks.imagesToPDF.mockReturnValueOnce(
+      Effect.fail(
+        new PDFProcessingError({
+          operation: "images-to-pdf",
+          cause: new Error("Unsupported image"),
+          message: "Unsupported image",
+        })
+      )
+    );
+    const { findByTestId, getByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeImageFile());
+
+    expect(await findByTestId("editor-toast")).toHaveTextContent("Unsupported image");
+    await waitFor(() => expect(getByTestId("editor-upload-input")).toBeEnabled());
+  });
+
   it("loads mixed PDF and image selections in the chosen order", async () => {
     const { getByTestId, findAllByTestId } = render(() => <Editor />);
 
@@ -385,6 +403,34 @@ describe("Editor", () => {
     expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
       expect.objectContaining({ name: "good-add.pdf" })
     );
+  });
+
+  it("keeps a failed batch busy until staged resources are released", async () => {
+    const failedFile = makeFile("protected-add.pdf");
+    let resolveRelease!: () => void;
+    const releasePromise = new Promise<void>((resolve) => {
+      resolveRelease = resolve;
+    });
+    pdfServiceMocks.releaseFile.mockReturnValueOnce(Effect.promise(() => releasePromise));
+    pdfServiceMocks.loadPDF
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(Effect.fail(new PDFPasswordRequiredError(failedFile, "needs-password")));
+    promptForPassword.mockResolvedValue(null);
+
+    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile("existing.pdf"));
+    await findAllByTestId("editor-page-tile");
+
+    selectFiles("editor-add-pdf-input", [makeFile("good-add.pdf"), failedFile]);
+
+    await waitFor(() => expect(promptForPassword).toHaveBeenCalledWith("protected-add.pdf", false));
+    expect(getByTestId("editor-add-pdf-input")).toBeDisabled();
+
+    resolveRelease();
+    await waitFor(() => expect(getByTestId("editor-add-pdf-input")).toBeEnabled());
+    expect(await findAllByTestId("editor-page-tile")).toHaveLength(3);
   });
 
   it("keeps selection actions disabled until they have usable input", async () => {
