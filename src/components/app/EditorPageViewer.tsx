@@ -12,6 +12,7 @@ const FILMSTRIP_WINDOW_SIZE = 12;
 const FILMSTRIP_OVERSCAN = 3;
 const FILMSTRIP_DESKTOP_ITEM_EXTENT = 96;
 const FILMSTRIP_MOBILE_ITEM_EXTENT = 84;
+const VIEWER_RESIZE_DEBOUNCE_MS = 80;
 
 interface Props {
   pages: PageState[];
@@ -39,6 +40,7 @@ export default function EditorPageViewer(props: Props) {
   let renderLoopRunning = false;
   let renderFiber: Fiber.Fiber<unknown, unknown> | null = null;
   let resizeObserver: ResizeObserver | null = null;
+  let resizeTimer: number | null = null;
   let mobileMediaQuery: MediaQueryList | null = null;
   let updateMobileMode: (() => void) | null = null;
   let reviewBackground: HTMLElement | null = null;
@@ -209,6 +211,15 @@ export default function EditorPageViewer(props: Props) {
     if (!renderLoopRunning) void renderLoop();
   }
 
+  function requestResizeRender(): void {
+    if (disposed || !mounted) return;
+    if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(() => {
+      resizeTimer = null;
+      requestRender();
+    }, VIEWER_RESIZE_DEBOUNCE_MS);
+  }
+
   function selectPage(pageId: string): void {
     if (navigationPages().some((page) => page.id === pageId)) {
       props.onActivePageChange(pageId);
@@ -327,12 +338,12 @@ export default function EditorPageViewer(props: Props) {
     handleMobileModeChange();
     if (mobileMediaQuery.matches) reviewBackground?.setAttribute("inert", "");
     mobileMediaQuery.addEventListener("change", handleMobileModeChange);
-    window.addEventListener("resize", requestRender);
+    window.addEventListener("resize", requestResizeRender);
     queueMicrotask(() => closeButton?.focus());
     requestRender();
 
     if (typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(requestRender);
+      resizeObserver = new ResizeObserver(requestResizeRender);
       resizeObserver.observe(stage);
     }
   });
@@ -341,12 +352,16 @@ export default function EditorPageViewer(props: Props) {
     disposed = true;
     renderQueued = false;
     renderAttempt += 1;
+    if (resizeTimer !== null) {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = null;
+    }
     resizeObserver?.disconnect();
     resizeObserver = null;
     if (mobileMediaQuery && updateMobileMode) {
       mobileMediaQuery.removeEventListener("change", updateMobileMode);
     }
-    window.removeEventListener("resize", requestRender);
+    window.removeEventListener("resize", requestResizeRender);
     updateMobileMode = null;
     reviewBackground?.removeAttribute("inert");
     reviewBackground = null;

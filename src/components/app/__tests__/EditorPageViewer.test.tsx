@@ -208,6 +208,35 @@ describe("EditorPageViewer", () => {
     );
   });
 
+  it("debounces rerenders while the viewer is resizing", async () => {
+    const pages = makePages();
+    const { getByTestId } = render(() => (
+      <EditorPageViewer
+        pages={pages}
+        navigationPageIds={pages.map((page) => page.id)}
+        activePageId="page-1"
+        runtime={runtime}
+        onActivePageChange={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+
+    await waitFor(() => expect(getByTestId("editor-page-viewer")).toBeInTheDocument());
+    pdfServiceMocks.renderPage.mockClear();
+    vi.useFakeTimers();
+
+    try {
+      fireEvent(window, new Event("resize"));
+      fireEvent(window, new Event("resize"));
+      expect(pdfServiceMocks.renderPage).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(80);
+      await vi.waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("contains keyboard focus when it becomes a mobile review dialog", async () => {
     const mediaQuery = {
       matches: true,
