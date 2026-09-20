@@ -1008,6 +1008,11 @@ body:has([data-page="editor"]) {
   flex: 0 0 auto;
 }
 
+.editor-download-group {
+  display: inline-flex;
+  align-items: stretch;
+}
+
 .editor-menu-trigger {
   display: flex;
   min-width: 8.25rem;
