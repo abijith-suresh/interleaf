@@ -140,4 +140,19 @@ describe("EditorPageCanvas", () => {
     );
     expect(pdfServiceMocks.getPageRotation).toHaveBeenCalledTimes(2);
   });
+
+  it("shows a retry state when the runtime closes before a lazy render starts", async () => {
+    const scrollRoot = document.createElement("div");
+    const { getByTestId } = render(() => (
+      <EditorPageCanvas page={makePage()} rotation={90} scrollRoot={scrollRoot} runtime={runtime} />
+    ));
+
+    await runtime.dispose();
+    TestIntersectionObserver.instances[0].trigger();
+
+    const canvasFrame = getByTestId("editor-page-canvas");
+    await waitFor(() => expect(canvasFrame).toHaveAttribute("data-render-state", "error"));
+    expect(getByTestId("editor-page-canvas-error")).toHaveTextContent("Preview unavailable.");
+    expect(pdfServiceMocks.renderPage).not.toHaveBeenCalled();
+  });
 });

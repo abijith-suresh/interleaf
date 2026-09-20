@@ -63,23 +63,32 @@ export default function EditorPageCanvas(props: Props) {
     canvas.height = 0;
     setRenderState("loading");
 
-    const fiber = props.runtime.runFork(
-      PDFProcessing.use((service) =>
-        Effect.gen(function* () {
-          const sourceRotation = yield* service.getPageRotation(
-            props.page.sourceFile,
-            props.page.sourcePageNumber
-          );
-          yield* service.renderPage(
-            props.page.sourceFile,
-            props.page.sourcePageNumber,
-            canvas,
-            THUMBNAIL_SCALE,
-            sourceRotation
-          );
-        })
-      )
-    );
+    let fiber: Fiber.Fiber<unknown, unknown>;
+    try {
+      fiber = props.runtime.runFork(
+        PDFProcessing.use((service) =>
+          Effect.gen(function* () {
+            const sourceRotation = yield* service.getPageRotation(
+              props.page.sourceFile,
+              props.page.sourcePageNumber
+            );
+            yield* service.renderPage(
+              props.page.sourceFile,
+              props.page.sourcePageNumber,
+              canvas,
+              THUMBNAIL_SCALE,
+              sourceRotation
+            );
+          })
+        )
+      );
+    } catch {
+      renderInFlight = false;
+      if (canUpdateRenderState(attempt)) {
+        setRenderState("error");
+      }
+      return;
+    }
     renderFiber = fiber;
 
     void props.runtime
