@@ -586,13 +586,12 @@ describe("PDFService", () => {
   it("interrupts an active render before targeted document cleanup", async () => {
     const events: string[] = [];
     let renderStarted = false;
-    let rejectRender!: (cause?: unknown) => void;
-    const renderPromise = new Promise<void>((_, reject) => {
-      rejectRender = reject;
+    let resolveRender!: () => void;
+    const renderPromise = new Promise<void>((resolve) => {
+      resolveRender = resolve;
     });
     const renderCancel = vi.fn(() => {
       events.push("render-cancel");
-      rejectRender(new Error("render cancelled"));
     });
     const pageCleanup = vi.fn(() => {
       events.push("page-cleanup");
@@ -629,7 +628,11 @@ describe("PDFService", () => {
     );
     await vi.waitFor(() => expect(renderStarted).toBe(true));
 
-    await Effect.runPromise(service.releaseFile(file));
+    const releaseFiber = Effect.runFork(service.releaseFile(file));
+    await vi.waitFor(() => expect(renderCancel).toHaveBeenCalledTimes(1));
+    expect(documentCleanup).not.toHaveBeenCalled();
+    resolveRender();
+    await Effect.runPromise(Fiber.join(releaseFiber));
 
     expect(renderCancel).toHaveBeenCalledTimes(1);
     expect(events).toEqual(["render-start", "render-cancel", "page-cleanup", "document-cleanup"]);
@@ -637,12 +640,17 @@ describe("PDFService", () => {
   });
 
   it("interrupts an in-flight page metadata operation before targeted document cleanup", async () => {
+    const events: string[] = [];
     let resolvePage!: (page: unknown) => void;
     const pagePromise = new Promise((resolve) => {
       resolvePage = resolve;
     });
-    const pageCleanup = vi.fn();
-    const documentCleanup = vi.fn();
+    const pageCleanup = vi.fn(() => {
+      events.push("page-cleanup");
+    });
+    const documentCleanup = vi.fn(() => {
+      events.push("document-cleanup");
+    });
     const page = {
       rotate: 0,
       cleanup: pageCleanup,
@@ -665,12 +673,13 @@ describe("PDFService", () => {
     const metadataFiber = Effect.runFork(service.getPageRotation(file, 1));
     await vi.waitFor(() => expect(pdfDocument.getPage).toHaveBeenCalledTimes(1));
 
-    await Effect.runPromise(service.releaseFile(file));
+    const releaseFiber = Effect.runFork(service.releaseFile(file));
+    await new Promise((resolve) => setTimeout(resolve, 0));
     resolvePage(page);
+    await Effect.runPromise(Fiber.join(releaseFiber));
     await Effect.runPromise(Fiber.await(metadataFiber));
 
-    expect(pageCleanup).not.toHaveBeenCalled();
-    expect(documentCleanup).toHaveBeenCalledTimes(1);
+    expect(events).toEqual(["page-cleanup", "document-cleanup"]);
   });
 
   it("rejects a document operation created before release if it starts after release begins", async () => {
@@ -704,6 +713,75 @@ describe("PDFService", () => {
 
     await expect(Effect.runPromise(Fiber.join(renderFiber))).rejects.toMatchObject({
       operation: "render-page",
+      file,
+    });
+    expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("gates a new load behind targeted document cleanup", async () => {
+    let resolveCleanup!: () => void;
+    const cleanupPromise = new Promise<void>((resolve) => {
+      resolveCleanup = resolve;
+    });
+    const firstDocument = {
+      numPages: 5,
+      cleanup: vi.fn(() => cleanupPromise),
+    };
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: Promise.resolve(firstDocument),
+      destroy: loadingTaskDestroyMock,
+    }));
+
+    const service = new PDFService();
+    const file = new File(["plain"], "load-release-barrier.pdf", {
+      type: "application/pdf",
+    });
+    await Effect.runPromise(service.loadPDF(file));
+
+    const releaseFiber = Effect.runFork(service.releaseFile(file));
+    await vi.waitFor(() => expect(firstDocument.cleanup).toHaveBeenCalledTimes(1));
+
+    const loadFiber = Effect.runFork(service.loadPDF(file));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(1);
+
+    resolveCleanup();
+    await Effect.runPromise(Fiber.join(releaseFiber));
+    await Effect.runPromise(Fiber.join(loadFiber));
+
+    expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a load created before release if it starts after release begins", async () => {
+    let resolveCleanup!: () => void;
+    const cleanupPromise = new Promise<void>((resolve) => {
+      resolveCleanup = resolve;
+    });
+    const firstDocument = {
+      numPages: 5,
+      cleanup: vi.fn(() => cleanupPromise),
+    };
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: Promise.resolve(firstDocument),
+      destroy: loadingTaskDestroyMock,
+    }));
+
+    const service = new PDFService();
+    const file = new File(["plain"], "stale-load-release.pdf", {
+      type: "application/pdf",
+    });
+    await Effect.runPromise(service.loadPDF(file));
+
+    const loadEffect = service.loadPDF(file);
+    const releaseFiber = Effect.runFork(service.releaseFile(file));
+    await vi.waitFor(() => expect(firstDocument.cleanup).toHaveBeenCalledTimes(1));
+
+    const loadFiber = Effect.runFork(loadEffect);
+    resolveCleanup();
+    await Effect.runPromise(Fiber.join(releaseFiber));
+
+    await expect(Effect.runPromise(Fiber.join(loadFiber))).rejects.toMatchObject({
+      operation: "load-pdf",
       file,
     });
     expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(1);

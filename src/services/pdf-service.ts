@@ -18,6 +18,15 @@ interface InFlightLoad {
   released: boolean;
 }
 
+interface PendingPageRequest {
+  readonly completion: Deferred.Deferred<void>;
+  readonly file: File;
+  page: pdfjsLib.PDFPageProxy | undefined;
+  claimed: boolean;
+  interrupted: boolean;
+  cleaned: boolean;
+}
+
 type ForkDetached = <A, E>(effect: Effect.Effect<A, E>) => Effect.Effect<Fiber.Fiber<A, E>>;
 
 function errorMessage(cause: unknown, fallback: string): string {
@@ -61,6 +70,7 @@ export class PDFService {
   private passwordRegistry = new Map<File, string>();
   private documentCache = new Map<File, LoadedPDFRecord>();
   private loadEffects = new Map<File, Map<string, InFlightLoad>>();
+  private pendingPageRequests = new Map<File, Set<PendingPageRequest>>();
   private activeOperationFibers = new Map<File, Set<Fiber.Fiber<unknown, unknown>>>();
   private fileReleaseBarriers = new Map<File, Deferred.Deferred<void>>();
   private resetBarrier: Deferred.Deferred<void> | null = null;
@@ -71,56 +81,68 @@ export class PDFService {
   constructor(private readonly forkDetached: ForkDetached = Effect.forkDetach) {}
 
   loadPDF(file: File): Effect.Effect<void, PDFError> {
-    return Effect.suspend(() => {
-      const sessionVersion = this.sessionVersion;
-      const fileVersion = this.getFileVersion(file);
+    const sessionVersion = this.sessionVersion;
+    const fileVersion = this.getFileVersion(file);
 
-      return this.getOrLoadDocument(file, () => this.loadDocument(file)).pipe(
-        Effect.tap(() =>
-          Effect.sync(() => {
-            if (
-              sessionVersion === this.sessionVersion &&
-              fileVersion === this.getFileVersion(file)
-            ) {
-              this.activeFile = file;
-            }
-          })
-        ),
-        Effect.asVoid
-      );
-    });
+    return this.gateDocumentOperation(
+      file,
+      "load-pdf",
+      sessionVersion,
+      fileVersion,
+      Effect.suspend(() =>
+        this.getOrLoadDocument(file, () => this.loadDocument(file)).pipe(
+          Effect.tap(() =>
+            Effect.sync(() => {
+              if (
+                sessionVersion === this.sessionVersion &&
+                fileVersion === this.getFileVersion(file)
+              ) {
+                this.activeFile = file;
+              }
+            })
+          ),
+          Effect.asVoid
+        )
+      )
+    );
   }
 
   loadPDFWithPassword(file: File, password: string): Effect.Effect<void, PDFError> {
-    return Effect.suspend(() => {
-      const storedPassword = this.passwordRegistry.get(file);
-      if (storedPassword !== undefined && storedPassword !== password) {
-        return Effect.fail(new PDFPasswordRequiredError(file, "wrong-password"));
-      }
+    const sessionVersion = this.sessionVersion;
+    const fileVersion = this.getFileVersion(file);
 
-      const sessionVersion = this.sessionVersion;
-      const fileVersion = this.getFileVersion(file);
+    return this.gateDocumentOperation(
+      file,
+      "load-pdf-with-password",
+      sessionVersion,
+      fileVersion,
+      Effect.suspend(() => {
+        const storedPassword = this.passwordRegistry.get(file);
+        if (storedPassword !== undefined && storedPassword !== password) {
+          return Effect.fail(new PDFPasswordRequiredError(file, "wrong-password"));
+        }
 
-      return this.getOrLoadDocument(
-        file,
-        () => this.loadDocument(file, password),
-        `password:${password}`
-      ).pipe(
-        Effect.tap(() =>
-          Effect.sync(() => {
-            if (
-              sessionVersion !== this.sessionVersion ||
-              fileVersion !== this.getFileVersion(file)
-            ) {
-              return;
-            }
-            this.passwordRegistry.set(file, password);
-            this.activeFile = file;
-          })
-        ),
-        Effect.asVoid
-      );
-    });
+        return this.getOrLoadDocument(
+          file,
+          () => this.loadDocument(file, password),
+          `password:${password}`
+        ).pipe(
+          Effect.tap(() =>
+            Effect.sync(() => {
+              if (
+                sessionVersion !== this.sessionVersion ||
+                fileVersion !== this.getFileVersion(file)
+              ) {
+                return;
+              }
+              this.passwordRegistry.set(file, password);
+              this.activeFile = file;
+            })
+          ),
+          Effect.asVoid
+        );
+      })
+    );
   }
 
   getPageCount(): number {
@@ -143,10 +165,7 @@ export class PDFService {
       fileVersion,
       Effect.gen({ self: this }, function* () {
         const record = yield* this.getOrLoadDocument(file);
-        const page = yield* Effect.tryPromise({
-          try: () => record.pdfjsDocument.getPage(pageNumber),
-          catch: (cause) => processingError("get-page-rotation", file, cause),
-        });
+        const page = yield* this.getPage(file, record, pageNumber, "get-page-rotation");
         return yield* Effect.try({
           try: () => page.rotate,
           catch: (cause) => processingError("get-page-rotation", file, cause),
@@ -170,10 +189,7 @@ export class PDFService {
       fileVersion,
       Effect.gen({ self: this }, function* () {
         const record = yield* this.getOrLoadDocument(file);
-        const page = yield* Effect.tryPromise({
-          try: () => record.pdfjsDocument.getPage(pageNumber),
-          catch: (cause) => processingError("get-page-size", file, cause),
-        });
+        const page = yield* this.getPage(file, record, pageNumber, "get-page-size");
         return yield* Effect.try({
           try: () => {
             const viewport = page.getViewport({ scale: 1, rotation });
@@ -202,10 +218,7 @@ export class PDFService {
       fileVersion,
       Effect.gen({ self: this }, function* () {
         const record = yield* this.getOrLoadDocument(file);
-        const page = yield* Effect.tryPromise({
-          try: () => record.pdfjsDocument.getPage(pageNumber),
-          catch: (cause) => processingError("get-page", file, cause),
-        });
+        const page = yield* this.getPage(file, record, pageNumber, "render-page");
         yield* Effect.gen({ self: this }, function* () {
           const { context, viewport } = yield* Effect.try({
             try: () => {
@@ -248,6 +261,7 @@ export class PDFService {
         const record = this.documentCache.get(file);
         const loads = Array.from(this.loadEffects.get(file)?.values() ?? []);
         const operations = this.takeDocumentOperationFibers(file);
+        const pendingPageRequests = this.takePendingPageRequests(file);
         for (const load of loads) {
           load.released = true;
         }
@@ -260,6 +274,7 @@ export class PDFService {
         return Effect.forEach(loads, (load) => this.cancelLoad(load), { discard: true })
           .pipe(
             Effect.andThen(this.interruptOperationFibers(operations)),
+            Effect.andThen(this.awaitPendingPageRequests(pendingPageRequests)),
             Effect.andThen(
               record
                 ? Effect.tryPromise({
@@ -288,6 +303,7 @@ export class PDFService {
           Array.from(fileEffects.values())
         );
         const operations = this.takeAllDocumentOperationFibers();
+        const pendingPageRequests = this.takeAllPendingPageRequests();
         for (const load of loads) {
           load.released = true;
         }
@@ -303,6 +319,7 @@ export class PDFService {
               Effect.forEach(loads, (load) => this.cancelLoad(load), { discard: true })
             ),
             Effect.andThen(this.interruptOperationFibers(operations)),
+            Effect.andThen(this.awaitPendingPageRequests(pendingPageRequests)),
             Effect.andThen(this.cleanupRecords(records))
           )
           .pipe(Effect.ensuring(this.completeReset(resetBarrier)));
@@ -320,6 +337,108 @@ export class PDFService {
         }).pipe(Effect.catch(() => Effect.void)),
       { discard: true }
     );
+  }
+
+  private getPage(
+    file: File,
+    record: LoadedPDFRecord,
+    pageNumber: number,
+    operation: string
+  ): Effect.Effect<pdfjsLib.PDFPageProxy, PDFProcessingError> {
+    return Effect.callback<pdfjsLib.PDFPageProxy, PDFProcessingError>((resume) => {
+      let pagePromise: Promise<pdfjsLib.PDFPageProxy>;
+
+      try {
+        pagePromise = record.pdfjsDocument.getPage(pageNumber);
+      } catch (cause) {
+        resume(Effect.fail(processingError(operation, file, cause)));
+        return;
+      }
+
+      const request: PendingPageRequest = {
+        completion: Deferred.makeUnsafe<void>(),
+        file,
+        page: undefined,
+        claimed: false,
+        interrupted: false,
+        cleaned: false,
+      };
+      const requests = this.pendingPageRequests.get(file) ?? new Set();
+      requests.add(request);
+      this.pendingPageRequests.set(file, requests);
+
+      void pagePromise.then(
+        (page) => {
+          request.page = page;
+          if (request.interrupted) {
+            Effect.runFork(this.cleanupPendingPage(request));
+            return;
+          }
+
+          request.claimed = true;
+          this.removePendingPageRequest(request);
+          Deferred.doneUnsafe(request.completion, Effect.void);
+          resume(Effect.succeed(page));
+        },
+        (cause) => {
+          this.removePendingPageRequest(request);
+          Deferred.doneUnsafe(request.completion, Effect.void);
+          if (!request.interrupted) {
+            resume(Effect.fail(processingError(operation, file, cause)));
+          }
+        }
+      );
+
+      return Effect.sync(() => {
+        request.interrupted = true;
+      });
+    });
+  }
+
+  private cleanupPendingPage(request: PendingPageRequest): Effect.Effect<void> {
+    const page = request.page;
+    if (!page) {
+      this.removePendingPageRequest(request);
+      Deferred.doneUnsafe(request.completion, Effect.void);
+      return Effect.void;
+    }
+
+    return cleanupPage(page).pipe(
+      Effect.andThen(
+        Effect.sync(() => {
+          request.cleaned = true;
+          this.removePendingPageRequest(request);
+          Deferred.doneUnsafe(request.completion, Effect.void);
+        })
+      )
+    );
+  }
+
+  private removePendingPageRequest(request: PendingPageRequest): void {
+    const requests = this.pendingPageRequests.get(request.file);
+    if (!requests) return;
+    requests.delete(request);
+    if (requests.size === 0) this.pendingPageRequests.delete(request.file);
+  }
+
+  private takePendingPageRequests(file: File): readonly PendingPageRequest[] {
+    const requests = this.pendingPageRequests.get(file);
+    this.pendingPageRequests.delete(file);
+    return requests ? Array.from(requests) : [];
+  }
+
+  private takeAllPendingPageRequests(): readonly PendingPageRequest[] {
+    const requests = Array.from(this.pendingPageRequests.values()).flatMap((fileRequests) =>
+      Array.from(fileRequests)
+    );
+    this.pendingPageRequests.clear();
+    return requests;
+  }
+
+  private awaitPendingPageRequests(requests: readonly PendingPageRequest[]): Effect.Effect<void> {
+    return Effect.forEach(requests, (request) => Deferred.await(request.completion), {
+      discard: true,
+    });
   }
 
   private getOrLoadDocument(
@@ -445,6 +564,37 @@ export class PDFService {
         );
       })
     );
+  }
+
+  private gateDocumentOperation<A, E extends PDFError>(
+    file: File,
+    operation: string,
+    sessionVersion: number,
+    fileVersion: number,
+    effect: Effect.Effect<A, E>
+  ): Effect.Effect<A, E | PDFError> {
+    return Effect.suspend(() => {
+      if (!this.isCurrentDocumentVersion(file, sessionVersion, fileVersion)) {
+        return Effect.fail(
+          processingError(
+            operation,
+            file,
+            new Error("The PDF changed before the operation started.")
+          )
+        );
+      }
+
+      const barrier = this.resetBarrier ?? this.fileReleaseBarriers.get(file);
+      if (barrier) {
+        return Deferred.await(barrier).pipe(
+          Effect.andThen(
+            this.gateDocumentOperation(file, operation, sessionVersion, fileVersion, effect)
+          )
+        );
+      }
+
+      return effect;
+    });
   }
 
   private completeFileRelease(file: File, barrier: Deferred.Deferred<void>): Effect.Effect<void> {
