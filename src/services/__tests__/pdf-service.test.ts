@@ -133,6 +133,64 @@ describe("PDFService", () => {
     expect(service.getPageCount()).toBe(5);
   });
 
+  it("does not strand a PDF.js load if release wins before fiber assignment", async () => {
+    const file = new File(["plain"], "release-race.pdf", { type: "application/pdf" });
+    let cleanupCompleted = false;
+    let service!: InstanceType<typeof PDFService>;
+    service = new PDFService((effect) =>
+      Effect.flatMap(
+        Effect.forkDetach(
+          Effect.ensuring(
+            effect.pipe(Effect.andThen(Effect.never)),
+            Effect.sync(() => {
+              cleanupCompleted = true;
+            })
+          ),
+          { startImmediately: true }
+        ),
+        (fiber) => {
+          Effect.runSync(service.releaseFile(file));
+          return Effect.succeed(fiber);
+        }
+      )
+    );
+
+    await expect(Effect.runPromise(service.loadPDF(file))).rejects.toMatchObject({
+      operation: "release-file",
+      file,
+    });
+    expect(cleanupCompleted).toBe(true);
+  });
+
+  it("does not strand a PDF.js load if reset wins before fiber assignment", async () => {
+    const file = new File(["plain"], "reset-race.pdf", { type: "application/pdf" });
+    let cleanupCompleted = false;
+    let service!: InstanceType<typeof PDFService>;
+    service = new PDFService((effect) =>
+      Effect.flatMap(
+        Effect.forkDetach(
+          Effect.ensuring(
+            effect.pipe(Effect.andThen(Effect.never)),
+            Effect.sync(() => {
+              cleanupCompleted = true;
+            })
+          ),
+          { startImmediately: true }
+        ),
+        (fiber) => {
+          Effect.runSync(service.reset());
+          return Effect.succeed(fiber);
+        }
+      )
+    );
+
+    await expect(Effect.runPromise(service.loadPDF(file))).rejects.toMatchObject({
+      operation: "release-file",
+      file,
+    });
+    expect(cleanupCompleted).toBe(true);
+  });
+
   it("deduplicates concurrent loads for the same file", async () => {
     const service = new PDFService();
     const file = new File(["plain"], "test.pdf", { type: "application/pdf" });

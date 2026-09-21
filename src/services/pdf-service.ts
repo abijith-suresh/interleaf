@@ -13,9 +13,12 @@ interface LoadedPDFRecord {
 
 interface InFlightLoad {
   readonly deferred: Deferred.Deferred<LoadedPDFRecord, PDFError>;
+  readonly file: File;
   fiber: Fiber.Fiber<LoadedPDFRecord, PDFError> | null;
   released: boolean;
 }
+
+type ForkDetached = <A, E>(effect: Effect.Effect<A, E>) => Effect.Effect<Fiber.Fiber<A, E>>;
 
 function errorMessage(cause: unknown, fallback: string): string {
   if (cause instanceof Error && cause.message) return cause.message;
@@ -51,6 +54,8 @@ export class PDFService {
   private readonly renderSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_PAGE_RENDERS);
   private fileVersions = new WeakMap<File, number>();
   private sessionVersion = 0;
+
+  constructor(private readonly forkDetached: ForkDetached = Effect.forkDetach) {}
 
   loadPDF(file: File): Effect.Effect<void, PDFError> {
     return Effect.suspend(() => {
@@ -192,9 +197,6 @@ export class PDFService {
       for (const load of loads) {
         load.released = true;
       }
-      const fibers = loads
-        .map((load) => load.fiber)
-        .filter((fiber): fiber is Fiber.Fiber<LoadedPDFRecord, PDFError> => fiber !== null);
 
       if (this.activeFile === file) this.activeFile = null;
       this.passwordRegistry.delete(file);
@@ -202,7 +204,7 @@ export class PDFService {
       this.loadEffects.delete(file);
 
       return Effect.uninterruptible(
-        Effect.forEach(fibers, Fiber.interrupt, { discard: true }).pipe(
+        Effect.forEach(loads, (load) => this.cancelLoad(load), { discard: true }).pipe(
           Effect.andThen(
             record
               ? Effect.tryPromise({
@@ -219,19 +221,22 @@ export class PDFService {
   reset(): Effect.Effect<void> {
     return Effect.suspend(() => {
       const records = Array.from(this.documentCache.values());
-      const fibers = Array.from(this.loadEffects.values()).flatMap((fileEffects) =>
+      const loads = Array.from(this.loadEffects.values()).flatMap((fileEffects) =>
         Array.from(fileEffects.values())
-          .map((load) => load.fiber)
-          .filter((fiber): fiber is Fiber.Fiber<LoadedPDFRecord, PDFError> => fiber !== null)
       );
+      for (const load of loads) {
+        load.released = true;
+      }
       this.activeFile = null;
       this.passwordRegistry.clear();
       this.documentCache.clear();
       this.loadEffects.clear();
       this.sessionVersion += 1;
 
-      return Effect.forEach(fibers, Fiber.interrupt, { discard: true }).pipe(
-        Effect.andThen(this.cleanupRecords(records))
+      return Effect.uninterruptible(
+        Effect.forEach(loads, (load) => this.cancelLoad(load), { discard: true }).pipe(
+          Effect.andThen(this.cleanupRecords(records))
+        )
       );
     });
   }
@@ -261,7 +266,7 @@ export class PDFService {
       if (inFlight) return Deferred.await(inFlight.deferred);
 
       const deferred = Deferred.makeUnsafe<LoadedPDFRecord, PDFError>();
-      const load: InFlightLoad = { deferred, fiber: null, released: false };
+      const load: InFlightLoad = { deferred, file, fiber: null, released: false };
       const fileEffects = this.loadEffects.get(file) ?? new Map();
       fileEffects.set(key, load);
       this.loadEffects.set(file, fileEffects);
@@ -301,13 +306,30 @@ export class PDFService {
       // loader is detached from an individual thumbnail so one consumer being
       // interrupted cannot cancel a load still needed by another consumer.
       return Effect.gen({ self: this }, function* () {
-        const fiber = yield* Effect.forkDetach(loadEffect);
+        const fiber = yield* this.forkDetached(loadEffect);
         load.fiber = fiber;
         if (load.released) {
           yield* Fiber.interrupt(fiber);
         }
         return yield* Deferred.await(load.deferred);
       });
+    });
+  }
+
+  private cancelLoad(load: InFlightLoad): Effect.Effect<void> {
+    return Effect.gen(function* () {
+      yield* Deferred.fail(
+        load.deferred,
+        new PDFProcessingError({
+          operation: "release-file",
+          file: load.file,
+          cause: new Error("The PDF was released before loading completed."),
+          message: "The PDF was released before loading completed.",
+        })
+      );
+      if (load.fiber) {
+        yield* Fiber.interrupt(load.fiber);
+      }
     });
   }
 

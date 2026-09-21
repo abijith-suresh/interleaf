@@ -107,8 +107,12 @@ function readJpegOrientation(data: ArrayBuffer): JPEGOrientation {
 
 interface InFlightSourceDocument {
   readonly deferred: Deferred.Deferred<PDFDocument, PDFProcessingError>;
+  readonly file: File;
   fiber: Fiber.Fiber<PDFDocument, PDFProcessingError> | null;
+  released: boolean;
 }
+
+type ForkDetached = <A, E>(effect: Effect.Effect<A, E>) => Effect.Effect<Fiber.Fiber<A, E>>;
 
 export class PDFOperationsService {
   private sourceDocCache = new Map<File, PDFDocument>();
@@ -116,18 +120,24 @@ export class PDFOperationsService {
   private fileVersions = new WeakMap<File, number>();
   private cacheVersion = 0;
 
-  constructor(private readonly pdfService: Pick<PDFService, "renderPage">) {}
+  constructor(
+    private readonly pdfService: Pick<PDFService, "renderPage">,
+    private readonly forkDetached: ForkDetached = Effect.forkDetach
+  ) {}
 
   clearCache(): Effect.Effect<void> {
     return Effect.suspend(() => {
-      const fibers = Array.from(this.sourceDocEffects.values())
-        .map((load) => load.fiber)
-        .filter((fiber): fiber is Fiber.Fiber<PDFDocument, PDFProcessingError> => fiber !== null);
+      const loads = Array.from(this.sourceDocEffects.values());
+      for (const load of loads) {
+        load.released = true;
+      }
       this.sourceDocCache.clear();
       this.sourceDocEffects.clear();
       this.cacheVersion += 1;
 
-      return Effect.forEach(fibers, Fiber.interrupt, { discard: true });
+      return Effect.uninterruptible(
+        Effect.forEach(loads, (load) => this.cancelSourceLoad(load), { discard: true })
+      );
     });
   }
 
@@ -137,10 +147,13 @@ export class PDFOperationsService {
       this.sourceDocCache.delete(file);
 
       const load = this.sourceDocEffects.get(file);
+      if (load) {
+        load.released = true;
+      }
       this.sourceDocEffects.delete(file);
-      if (!load?.fiber) return Effect.void;
+      if (!load) return Effect.void;
 
-      return Effect.uninterruptible(Fiber.interrupt(load.fiber));
+      return Effect.uninterruptible(this.cancelSourceLoad(load));
     });
   }
 
@@ -393,7 +406,7 @@ export class PDFOperationsService {
       if (inFlight) return Deferred.await(inFlight.deferred);
 
       const deferred = Deferred.makeUnsafe<PDFDocument, PDFProcessingError>();
-      const load: InFlightSourceDocument = { deferred, fiber: null };
+      const load: InFlightSourceDocument = { deferred, file, fiber: null, released: false };
       this.sourceDocEffects.set(file, load);
       const cacheVersion = this.cacheVersion;
       const fileVersion = this.getFileVersion(file);
@@ -429,10 +442,30 @@ export class PDFOperationsService {
         )
       );
 
-      return Effect.gen(function* () {
-        load.fiber = yield* Effect.forkDetach(loadEffect);
+      return Effect.gen({ self: this }, function* () {
+        load.fiber = yield* this.forkDetached(loadEffect);
+        if (load.released) {
+          yield* Fiber.interrupt(load.fiber);
+        }
         return yield* Deferred.await(load.deferred);
       });
+    });
+  }
+
+  private cancelSourceLoad(load: InFlightSourceDocument): Effect.Effect<void> {
+    return Effect.gen(function* () {
+      yield* Deferred.fail(
+        load.deferred,
+        new PDFProcessingError({
+          operation: "release-source",
+          file: load.file,
+          cause: new Error("The source PDF was released before loading completed."),
+          message: "The source PDF was released before loading completed.",
+        })
+      );
+      if (load.fiber) {
+        yield* Fiber.interrupt(load.fiber);
+      }
     });
   }
 

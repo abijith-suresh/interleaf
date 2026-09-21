@@ -1,6 +1,6 @@
-import { Effect } from "effect";
+import { Deferred, Effect, Exit, Fiber } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PageState } from "../../types/interfaces";
+import type { PageState, PDFProcessingError } from "../../types/interfaces";
 
 const pdfServiceMock = vi.hoisted(() => ({
   renderPage: vi.fn(),
@@ -66,6 +66,18 @@ const mockPDFDocument = {
 };
 
 const runEffect = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect);
+
+type PendingSourceLoad = {
+  readonly deferred: Deferred.Deferred<unknown, PDFProcessingError>;
+  readonly file: File;
+  fiber: Fiber.Fiber<unknown, PDFProcessingError> | null;
+  released: boolean;
+};
+
+function sourceDocEffectsOf(service: object): Map<File, PendingSourceLoad> {
+  return (service as unknown as { sourceDocEffects: Map<File, PendingSourceLoad> })
+    .sourceDocEffects;
+}
 
 vi.mock("pdf-lib", () => ({
   PDFDocument: {
@@ -400,6 +412,121 @@ describe("PDFOperationsService", () => {
       await runEffect(service.buildPDF([page]));
 
       expect(mockPDFDocument.load).toHaveBeenCalledTimes(2);
+    });
+
+    it("interrupts a pending source load when the cache is cleared", async () => {
+      mockPDFDocument.load.mockImplementationOnce(() => new Promise(() => undefined));
+
+      const service = new PDFOperationsService(pdfServiceMock);
+      const file = createMockPage().sourceFile;
+      const page = createMockPage({ sourceFile: file });
+      const firstBuild = runEffect(service.buildPDF([page]));
+
+      await vi.waitFor(() => expect(mockPDFDocument.load).toHaveBeenCalledTimes(1));
+      const pendingLoad = sourceDocEffectsOf(service).get(file);
+      const pendingFiber = pendingLoad?.fiber;
+      expect(pendingLoad).toBeDefined();
+      expect(pendingFiber).not.toBeNull();
+      await runEffect(service.clearCache());
+      await expect(firstBuild).rejects.toMatchObject({
+        operation: "release-source",
+        file,
+      });
+      expect(pendingLoad && Deferred.isDoneUnsafe(pendingLoad.deferred)).toBe(true);
+      if (!pendingFiber) throw new Error("Expected a pending source-load fiber");
+      const exit = await runEffect(Fiber.await(pendingFiber));
+      expect(Exit.isFailure(exit)).toBe(true);
+
+      await runEffect(service.buildPDF([page]));
+
+      expect(mockPDFDocument.load).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not strand a source load if release wins before fiber assignment", async () => {
+      const file = createMockPage().sourceFile;
+      const page = createMockPage({ sourceFile: file });
+      let cleanupCompleted = false;
+      let service!: InstanceType<typeof PDFOperationsService>;
+      service = new PDFOperationsService(pdfServiceMock, (effect) =>
+        Effect.flatMap(
+          Effect.forkDetach(
+            Effect.ensuring(
+              effect.pipe(Effect.andThen(Effect.never)),
+              Effect.sync(() => {
+                cleanupCompleted = true;
+              })
+            ),
+            { startImmediately: true }
+          ),
+          (fiber) => {
+            Effect.runSync(service.releaseFile(file));
+            return Effect.succeed(fiber);
+          }
+        )
+      );
+
+      await expect(runEffect(service.buildPDF([page]))).rejects.toMatchObject({
+        operation: "release-source",
+        file,
+      });
+      expect(cleanupCompleted).toBe(true);
+    });
+
+    it("does not strand a source load if clearCache wins before fiber assignment", async () => {
+      const file = createMockPage().sourceFile;
+      const page = createMockPage({ sourceFile: file });
+      let cleanupCompleted = false;
+      let service!: InstanceType<typeof PDFOperationsService>;
+      service = new PDFOperationsService(pdfServiceMock, (effect) =>
+        Effect.flatMap(
+          Effect.forkDetach(
+            Effect.ensuring(
+              effect.pipe(Effect.andThen(Effect.never)),
+              Effect.sync(() => {
+                cleanupCompleted = true;
+              })
+            ),
+            { startImmediately: true }
+          ),
+          (fiber) => {
+            Effect.runSync(service.clearCache());
+            return Effect.succeed(fiber);
+          }
+        )
+      );
+
+      await expect(runEffect(service.buildPDF([page]))).rejects.toMatchObject({
+        operation: "release-source",
+        file,
+      });
+      expect(cleanupCompleted).toBe(true);
+    });
+
+    it("finishes source-load cleanup if release is interrupted", async () => {
+      const service = new PDFOperationsService(pdfServiceMock);
+      const file = createMockPage().sourceFile;
+      const deferred = Deferred.makeUnsafe<unknown, PDFProcessingError>();
+      const cleanupGate = Deferred.makeUnsafe<void>();
+      const loadFiber = Effect.runFork(Effect.ensuring(Effect.never, Deferred.await(cleanupGate)));
+      sourceDocEffectsOf(service).set(file, {
+        deferred,
+        file,
+        fiber: loadFiber as Fiber.Fiber<unknown, PDFProcessingError>,
+        released: false,
+      });
+
+      const releaseFiber = Effect.runFork(service.releaseFile(file));
+      await vi.waitFor(() => expect(Deferred.isDoneUnsafe(deferred)).toBe(true));
+
+      let releaseSettled = false;
+      const interruptedRelease = Effect.runPromise(Fiber.interrupt(releaseFiber)).then(() => {
+        releaseSettled = true;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(releaseSettled).toBe(false);
+
+      await runEffect(Deferred.succeed(cleanupGate, undefined));
+      await interruptedRelease;
     });
   });
 });
