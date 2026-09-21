@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.8](https://github.com/abijith-suresh/interleaf/compare/0.0.7...0.0.8) (2026-09-21)
+
+
+### Bug Fixes
+
+* **pdf:** release PDF.js page resources after use ([#257](https://github.com/abijith-suresh/interleaf/issues/257)) ([c4edba9](https://github.com/abijith-suresh/interleaf/commit/c4edba9fdd84bc7324823fa2fb83dc10ea77183c))
+* **pdf:** stop renders before document cleanup ([#264](https://github.com/abijith-suresh/interleaf/issues/264)) ([ac721af](https://github.com/abijith-suresh/interleaf/commit/ac721af36786add76fdc19123015abd40287c1ab))
+
 ## [0.0.7](https://github.com/abijith-suresh/interleaf/compare/0.0.6...0.0.7) (2026-09-21)
 
 
