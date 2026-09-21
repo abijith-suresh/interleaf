@@ -206,22 +206,22 @@ export class PDFService {
   }
 
   releaseFile(file: File): Effect.Effect<void> {
-    return Effect.suspend(() => {
-      this.fileVersions.set(file, this.getFileVersion(file) + 1);
-      const record = this.documentCache.get(file);
-      const loads = Array.from(this.loadEffects.get(file)?.values() ?? []);
-      const renders = this.takeRenderFibers(file);
-      for (const load of loads) {
-        load.released = true;
-      }
+    return Effect.uninterruptible(
+      Effect.suspend(() => {
+        this.fileVersions.set(file, this.getFileVersion(file) + 1);
+        const record = this.documentCache.get(file);
+        const loads = Array.from(this.loadEffects.get(file)?.values() ?? []);
+        const renders = this.takeRenderFibers(file);
+        for (const load of loads) {
+          load.released = true;
+        }
 
-      if (this.activeFile === file) this.activeFile = null;
-      this.passwordRegistry.delete(file);
-      this.documentCache.delete(file);
-      this.loadEffects.delete(file);
+        if (this.activeFile === file) this.activeFile = null;
+        this.passwordRegistry.delete(file);
+        this.documentCache.delete(file);
+        this.loadEffects.delete(file);
 
-      return Effect.uninterruptible(
-        Effect.forEach(loads, (load) => this.cancelLoad(load), { discard: true }).pipe(
+        return Effect.forEach(loads, (load) => this.cancelLoad(load), { discard: true }).pipe(
           Effect.andThen(this.interruptRenderFibers(renders)),
           Effect.andThen(
             record
@@ -231,34 +231,34 @@ export class PDFService {
                 }).pipe(Effect.catch(() => Effect.void))
               : Effect.void
           )
-        )
-      );
-    });
+        );
+      })
+    );
   }
 
   reset(): Effect.Effect<void> {
-    return Effect.suspend(() => {
-      const records = Array.from(this.documentCache.values());
-      const loads = Array.from(this.loadEffects.values()).flatMap((fileEffects) =>
-        Array.from(fileEffects.values())
-      );
-      const renders = this.takeAllRenderFibers();
-      for (const load of loads) {
-        load.released = true;
-      }
-      this.activeFile = null;
-      this.passwordRegistry.clear();
-      this.documentCache.clear();
-      this.loadEffects.clear();
-      this.sessionVersion += 1;
+    return Effect.uninterruptible(
+      Effect.suspend(() => {
+        const records = Array.from(this.documentCache.values());
+        const loads = Array.from(this.loadEffects.values()).flatMap((fileEffects) =>
+          Array.from(fileEffects.values())
+        );
+        const renders = this.takeAllRenderFibers();
+        for (const load of loads) {
+          load.released = true;
+        }
+        this.activeFile = null;
+        this.passwordRegistry.clear();
+        this.documentCache.clear();
+        this.loadEffects.clear();
+        this.sessionVersion += 1;
 
-      return Effect.uninterruptible(
-        Effect.forEach(loads, (load) => this.cancelLoad(load), { discard: true }).pipe(
+        return Effect.forEach(loads, (load) => this.cancelLoad(load), { discard: true }).pipe(
           Effect.andThen(this.interruptRenderFibers(renders)),
           Effect.andThen(this.cleanupRecords(records))
-        )
-      );
-    });
+        );
+      })
+    );
   }
 
   private cleanupRecords(records: readonly LoadedPDFRecord[]): Effect.Effect<void> {

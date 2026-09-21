@@ -632,6 +632,48 @@ describe("PDFService", () => {
     await Effect.runPromise(Fiber.await(renderFiber));
   });
 
+  it("interrupts renders waiting for a permit before targeted document cleanup", async () => {
+    const renderCancel = vi.fn();
+    const pageCleanup = vi.fn();
+    const documentCleanup = vi.fn();
+    let startedRenders = 0;
+    const renderPromise = new Promise<void>(() => undefined);
+    const pdfDocument = {
+      getPage: vi.fn().mockResolvedValue({
+        getViewport: vi.fn().mockReturnValue({ width: 100, height: 200 }),
+        cleanup: pageCleanup,
+        render: vi.fn().mockImplementation(() => {
+          startedRenders += 1;
+          return { promise: renderPromise, cancel: renderCancel };
+        }),
+      }),
+      cleanup: documentCleanup,
+    };
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: Promise.resolve(pdfDocument),
+      destroy: loadingTaskDestroyMock,
+    }));
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      {} as unknown as CanvasRenderingContext2D
+    );
+
+    const service = new PDFService();
+    const file = new File(["plain"], "queued-render-release.pdf", { type: "application/pdf" });
+    await Effect.runPromise(service.loadPDF(file));
+
+    const fibers = [1, 2, 3].map(() =>
+      Effect.runFork(service.renderPage(file, 1, globalThis.document.createElement("canvas")))
+    );
+    await vi.waitFor(() => expect(startedRenders).toBe(2));
+
+    await Effect.runPromise(service.releaseFile(file));
+
+    expect(renderCancel).toHaveBeenCalledTimes(2);
+    expect(pageCleanup).toHaveBeenCalledTimes(3);
+    expect(documentCleanup).toHaveBeenCalledTimes(1);
+    await Promise.all(fibers.map((fiber) => Effect.runPromise(Fiber.await(fiber))));
+  });
+
   it("interrupts active renders for every file before reset cleans documents", async () => {
     const renderCancel = vi.fn();
     const pageCleanup = vi.fn();
