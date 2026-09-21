@@ -1,6 +1,7 @@
 import { it } from "@effect/vitest";
 import { Effect, Exit, Fiber } from "effect";
 import { beforeEach, expect, vi } from "vitest";
+import { PDFProcessingError } from "../../types/interfaces";
 
 const pdfServiceMock = vi.hoisted(() => ({
   loadPDF: vi.fn(),
@@ -188,6 +189,35 @@ it.effect("releases a file from each initialized processing service", () => {
     catch: (cause) => cause,
   });
 });
+
+it.effect("releases the secondary cache when PDF.js cleanup fails", () =>
+  Effect.tryPromise({
+    try: async () => {
+      const runtime = makePDFRuntime();
+      const file = new File(["plain"], "document.pdf", { type: "application/pdf" });
+
+      await runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([])));
+      pdfServiceMock.releaseFile.mockReturnValueOnce(
+        Effect.fail(
+          new PDFProcessingError({
+            operation: "cleanup-pdf-js",
+            file,
+            cause: new Error("cleanup failed"),
+            message: "cleanup failed",
+          })
+        )
+      );
+
+      await expect(
+        runtime.runPromise(PDFProcessing.use((service) => service.releaseFile(file)))
+      ).rejects.toMatchObject({ operation: "cleanup-pdf-js", file });
+      expect(operationsServiceMock.releaseFile).toHaveBeenCalledWith(file);
+
+      await runtime.dispose();
+    },
+    catch: (cause) => cause,
+  })
+);
 
 it.effect("shares lazy PDF editing support across concurrent exports", () => {
   let activeBuilds = 0;

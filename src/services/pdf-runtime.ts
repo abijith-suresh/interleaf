@@ -155,13 +155,24 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
             ),
           compressPDF: (file: File, options?: PDFCompressionOptions) =>
             compressionService.compressPDF(file, pdfService.getPassword(file), options),
-          releaseFile: (file: File) =>
-            Effect.gen(function* () {
-              yield* pdfService.releaseFile(file);
-              if (operationsService) {
-                yield* operationsService.releaseFile(file);
-              }
-            }),
+          releaseFile: (file: File) => {
+            let firstError: PDFProcessingError | undefined;
+            const continueAfterError = (effect: Effect.Effect<void, PDFProcessingError>) =>
+              effect.pipe(
+                Effect.catch((error) =>
+                  Effect.sync(() => {
+                    firstError ??= error;
+                  })
+                )
+              );
+
+            return continueAfterError(pdfService.releaseFile(file)).pipe(
+              Effect.andThen(operationsService?.releaseFile(file) ?? Effect.void),
+              Effect.andThen(
+                Effect.suspend(() => (firstError ? Effect.fail(firstError) : Effect.void))
+              )
+            );
+          },
           reset: Effect.suspend(() => pdfService.reset()),
           clearCache: Effect.suspend(() => operationsService?.clearCache() ?? Effect.void),
           closeQpdf: qpdfProcessing.close,
@@ -171,9 +182,17 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
       }),
       (service) =>
         Effect.gen(function* () {
-          yield* service.reset.pipe(Effect.catch(() => Effect.void));
+          let firstError: PDFProcessingError | undefined;
+          yield* service.reset.pipe(
+            Effect.catch((error) =>
+              Effect.sync(() => {
+                firstError ??= error;
+              })
+            )
+          );
           yield* service.clearCache;
           service.closeQpdf();
+          if (firstError) yield* Effect.die(firstError);
         })
     )
   );
