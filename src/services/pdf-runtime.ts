@@ -54,8 +54,8 @@ export interface PDFProcessingShape {
     file: File,
     options?: PDFCompressionOptions
   ) => Effect.Effect<PDFCompressionResult, PDFError | QpdfProcessingError | PDFCompressionError>;
-  readonly releaseFile: (file: File) => Effect.Effect<void>;
-  readonly reset: Effect.Effect<void>;
+  readonly releaseFile: (file: File) => Effect.Effect<void, PDFProcessingError>;
+  readonly reset: Effect.Effect<void, PDFProcessingError>;
   readonly clearCache: Effect.Effect<void>;
 }
 
@@ -171,7 +171,7 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
       }),
       (service) =>
         Effect.gen(function* () {
-          yield* service.reset;
+          yield* service.reset.pipe(Effect.catch(() => Effect.void));
           yield* service.clearCache;
           service.closeQpdf();
         })

@@ -547,6 +547,45 @@ describe("PDFService", () => {
     expect(pageCleanupMock).toHaveBeenCalledTimes(1);
   });
 
+  it("surfaces a failed PDF.js page cleanup", async () => {
+    const pageCleanup = vi.fn().mockReturnValue(false);
+    const file = new File(["plain"], "failed-page-cleanup.pdf", { type: "application/pdf" });
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: Promise.resolve({
+        getPage: vi.fn().mockResolvedValue({ rotate: 0, cleanup: pageCleanup }),
+        cleanup: vi.fn().mockResolvedValue(undefined),
+      }),
+      destroy: loadingTaskDestroyMock,
+    }));
+
+    const service = new PDFService();
+    await Effect.runPromise(service.loadPDF(file));
+
+    await expect(Effect.runPromise(service.getPageRotation(file, 1))).rejects.toMatchObject({
+      operation: "get-page-rotation",
+      file,
+    });
+  });
+
+  it("surfaces a failed PDF.js document cleanup", async () => {
+    const documentCleanup = vi.fn().mockRejectedValue(new Error("document cleanup failed"));
+    const file = new File(["plain"], "failed-document-cleanup.pdf", { type: "application/pdf" });
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: Promise.resolve({
+        cleanup: documentCleanup,
+      }),
+      destroy: loadingTaskDestroyMock,
+    }));
+
+    const service = new PDFService();
+    await Effect.runPromise(service.loadPDF(file));
+
+    await expect(Effect.runPromise(service.releaseFile(file))).rejects.toMatchObject({
+      operation: "cleanup-pdf-js",
+      file,
+    });
+  });
+
   it("cancels an in-flight PDF.js render when the fiber is interrupted", async () => {
     let renderStarted = false;
     let resolveRender!: () => void;
