@@ -1,4 +1,4 @@
-import { Deferred, Effect, Fiber } from "effect";
+import { Deferred, Effect, Fiber, Semaphore } from "effect";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { type PDFError, PDFPasswordRequiredError, PDFProcessingError } from "../types/interfaces";
@@ -41,11 +41,14 @@ function isPasswordException(cause: unknown): boolean {
   );
 }
 
+const MAX_CONCURRENT_PAGE_RENDERS = 2;
+
 export class PDFService {
   private activeFile: File | null = null;
   private passwordRegistry = new Map<File, string>();
   private documentCache = new Map<File, LoadedPDFRecord>();
   private loadEffects = new Map<File, Map<string, InFlightLoad>>();
+  private readonly renderSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_PAGE_RENDERS);
   private fileVersions = new WeakMap<File, number>();
   private sessionVersion = 0;
 
@@ -175,7 +178,9 @@ export class PDFService {
         catch: (cause) => processingError("render-page", file, cause),
       });
 
-      yield* this.renderPDFPage(file, page, canvas, context, viewport);
+      yield* this.renderSemaphore.withPermit(
+        this.renderPDFPage(file, page, canvas, context, viewport)
+      );
     });
   }
 

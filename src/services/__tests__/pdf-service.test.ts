@@ -417,6 +417,63 @@ describe("PDFService", () => {
     expect(canvas.width).toBeGreaterThan(canvas.height);
   });
 
+  it("bounds concurrent PDF.js page renders", async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      {} as unknown as CanvasRenderingContext2D
+    );
+
+    let activeRenders = 0;
+    let maxActiveRenders = 0;
+    let startedRenders = 0;
+    const finishRenders: Array<() => void> = [];
+    const render = vi.fn(() => {
+      startedRenders += 1;
+      activeRenders += 1;
+      maxActiveRenders = Math.max(maxActiveRenders, activeRenders);
+
+      let resolveRender!: () => void;
+      const promise = new Promise<void>((resolve) => {
+        resolveRender = resolve;
+      });
+      finishRenders.push(() => {
+        activeRenders -= 1;
+        resolveRender();
+      });
+      return { promise, cancel: renderCancelMock };
+    });
+    const page = {
+      getViewport: vi.fn().mockReturnValue({ width: 100, height: 200 }),
+      render,
+    };
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: Promise.resolve({
+        getPage: vi.fn().mockResolvedValue(page),
+        cleanup: vi.fn().mockResolvedValue(undefined),
+      }),
+      destroy: loadingTaskDestroyMock,
+    }));
+
+    const service = new PDFService();
+    const file = new File(["plain"], "bounded-render.pdf", { type: "application/pdf" });
+    await Effect.runPromise(service.loadPDF(file));
+
+    const fibers = [1, 2, 3].map(() =>
+      Effect.runFork(service.renderPage(file, 1, document.createElement("canvas")))
+    );
+
+    await vi.waitFor(() => expect(startedRenders).toBe(2));
+    expect(maxActiveRenders).toBe(2);
+    expect(finishRenders).toHaveLength(2);
+
+    finishRenders.shift()?.();
+    await vi.waitFor(() => expect(startedRenders).toBe(3));
+    finishRenders.shift()?.();
+    finishRenders.shift()?.();
+
+    await Promise.all(fibers.map((fiber) => Effect.runPromise(Fiber.join(fiber))));
+    expect(maxActiveRenders).toBe(2);
+  });
+
   it("reads the source page rotation for composed exports", async () => {
     const service = new PDFService();
     const file = new File(["rotated"], "rotated.pdf", { type: "application/pdf" });
