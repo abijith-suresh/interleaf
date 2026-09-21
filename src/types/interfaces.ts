@@ -1,4 +1,4 @@
-import { Data } from "effect";
+import { Data, Hash } from "effect";
 
 export type EncryptionReason = "needs-password" | "wrong-password";
 
@@ -21,7 +21,11 @@ export class PDFProcessingError extends Data.TaggedError("PDFProcessingError")<{
   readonly file?: File;
   readonly cause: unknown;
   readonly message: string;
-}> {}
+}> {
+  [Hash.symbol](): number {
+    return Hash.string(`${this._tag}:${this.operation}:${this.file?.name ?? ""}:${this.message}`);
+  }
+}
 
 export class PDFNoPagesError extends Data.TaggedError("PDFNoPagesError")<{
   readonly message: string;
