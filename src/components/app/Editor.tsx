@@ -12,6 +12,7 @@ import {
   toggleSelectAll,
   toggleSelection,
 } from "../../controllers/editor-page-state";
+import { groupWorkspaceFiles, type WorkspaceFile } from "../../controllers/editor-workspace";
 import { makePDFRuntime, PDFProcessing } from "../../services/pdf-runtime";
 import { QpdfProcessingError } from "../../services/qpdf-processing";
 import type { PageState } from "../../types/interfaces";
@@ -25,7 +26,6 @@ import {
   TOAST_EVENT_NAME,
   type ToastDetail,
 } from "../../utils/toast";
-import type { EditorWorkspaceFile } from "./EditorFilesDialog";
 import EditorFilesDialog from "./EditorFilesDialog";
 import EditorPageGrid from "./EditorPageGrid";
 import EditorPageViewer from "./EditorPageViewer";
@@ -135,24 +135,7 @@ export default function Editor() {
     return "Compression is available before page edits";
   }
 
-  const workspaceFiles = createMemo<EditorWorkspaceFile[]>(() => {
-    const groups = new Map<File, EditorWorkspaceFile>();
-
-    pages.forEach((page) => {
-      let workspaceFile = groups.get(page.sourceFile);
-      if (!workspaceFile) {
-        workspaceFile = {
-          file: page.sourceFile,
-          pageCount: 0,
-        };
-        groups.set(page.sourceFile, workspaceFile);
-      }
-
-      workspaceFile.pageCount += 1;
-    });
-
-    return Array.from(groups.values());
-  });
+  const workspaceFiles = createMemo<WorkspaceFile[]>(() => groupWorkspaceFiles(pages));
   const filesButtonLabel = () =>
     `Open ${workspaceFiles().length} file${workspaceFiles().length === 1 ? "" : "s"}`;
 
@@ -514,10 +497,8 @@ export default function Editor() {
   function handleWorkspaceFileClick(file: File): void {
     if (isBusy()) return;
 
-    const nextSelection = new Set<number>();
-    pages.forEach((page, index) => {
-      if (page.sourceFile === file) nextSelection.add(index);
-    });
+    const workspaceFile = workspaceFiles().find((candidate) => candidate.file === file);
+    const nextSelection = new Set(workspaceFile?.pageIndices ?? []);
 
     if (nextSelection.size === 0) return;
     setSelectedIndices(nextSelection);
