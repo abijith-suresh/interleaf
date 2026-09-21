@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.0.7](https://github.com/abijith-suresh/interleaf/compare/0.0.6...0.0.7) (2026-09-21)
+
+
+### Features
+
+* **editor:** accept mixed PDF and image uploads ([#248](https://github.com/abijith-suresh/interleaf/issues/248)) ([a8126d3](https://github.com/abijith-suresh/interleaf/commit/a8126d382e5cf03a4d9778db26f076ac29e13cb5))
+* **editor:** rework page viewer into review workspace ([#245](https://github.com/abijith-suresh/interleaf/issues/245)) ([c258de3](https://github.com/abijith-suresh/interleaf/commit/c258de3d351f2c66c88f29ca900ad0fb51ef02c6))
+
+
+### Bug Fixes
+
+* **editor:** handle thumbnail render lifecycle failures ([#250](https://github.com/abijith-suresh/interleaf/issues/250)) ([46bdaab](https://github.com/abijith-suresh/interleaf/commit/46bdaab82e21efd2f7d0a0f772f6a66c39268746))
+* **editor:** render viewer at device pixel density ([#249](https://github.com/abijith-suresh/interleaf/issues/249)) ([aadb92c](https://github.com/abijith-suresh/interleaf/commit/aadb92c0cbe116006cdc3de52bd747baa6770671))
+* **pdf:** make source-load invalidation race-safe ([#255](https://github.com/abijith-suresh/interleaf/issues/255)) ([43d80e4](https://github.com/abijith-suresh/interleaf/commit/43d80e455f08db88e7e9943dd644958f49acd47d))
+* **pdf:** release source caches with files ([#254](https://github.com/abijith-suresh/interleaf/issues/254)) ([e2320cd](https://github.com/abijith-suresh/interleaf/commit/e2320cd63ef07402f5cc61d0035ee79a682fb8ab))
+
 ## [0.0.6](https://github.com/abijith-suresh/interleaf/compare/0.0.5...0.0.6) (2026-09-20)
 
 
