@@ -368,5 +368,38 @@ describe("PDFOperationsService", () => {
 
       expect(() => Effect.runSync(service.clearCache())).not.toThrow();
     });
+
+    it("releases a source document cache for one file", async () => {
+      const service = new PDFOperationsService(pdfServiceMock);
+      const file = createMockPage().sourceFile;
+      const page = createMockPage({ sourceFile: file });
+
+      await runEffect(service.buildPDF([page]));
+      await runEffect(service.releaseFile(file));
+      await runEffect(service.buildPDF([page]));
+
+      expect(mockPDFDocument.load).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not cache a source document that finishes after release", async () => {
+      let resolveLoad!: (sourceDoc: typeof mockSourceDoc) => void;
+      mockPDFDocument.load.mockImplementationOnce(
+        () => new Promise((resolve) => (resolveLoad = resolve))
+      );
+
+      const service = new PDFOperationsService(pdfServiceMock);
+      const file = createMockPage().sourceFile;
+      const page = createMockPage({ sourceFile: file });
+      const firstBuild = runEffect(service.buildPDF([page])).catch(() => undefined);
+
+      await vi.waitFor(() => expect(mockPDFDocument.load).toHaveBeenCalledTimes(1));
+      await runEffect(service.releaseFile(file));
+      resolveLoad(mockSourceDoc);
+      await firstBuild;
+
+      await runEffect(service.buildPDF([page]));
+
+      expect(mockPDFDocument.load).toHaveBeenCalledTimes(2);
+    });
   });
 });
