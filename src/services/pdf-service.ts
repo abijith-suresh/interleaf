@@ -62,6 +62,8 @@ export class PDFService {
   private documentCache = new Map<File, LoadedPDFRecord>();
   private loadEffects = new Map<File, Map<string, InFlightLoad>>();
   private activeRenderFibers = new Map<File, Set<Fiber.Fiber<unknown, unknown>>>();
+  private fileReleaseBarriers = new Map<File, Deferred.Deferred<void>>();
+  private resetBarrier: Deferred.Deferred<void> | null = null;
   private readonly renderSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_PAGE_RENDERS);
   private fileVersions = new WeakMap<File, number>();
   private sessionVersion = 0;
@@ -208,6 +210,16 @@ export class PDFService {
   releaseFile(file: File): Effect.Effect<void> {
     return Effect.uninterruptible(
       Effect.suspend(() => {
+        const resetBarrier = this.resetBarrier;
+        if (resetBarrier) {
+          return Deferred.await(resetBarrier).pipe(Effect.andThen(this.releaseFile(file)));
+        }
+
+        const existingBarrier = this.fileReleaseBarriers.get(file);
+        if (existingBarrier) return Deferred.await(existingBarrier);
+
+        const releaseBarrier = Deferred.makeUnsafe<void>();
+        this.fileReleaseBarriers.set(file, releaseBarrier);
         this.fileVersions.set(file, this.getFileVersion(file) + 1);
         const record = this.documentCache.get(file);
         const loads = Array.from(this.loadEffects.get(file)?.values() ?? []);
@@ -221,17 +233,19 @@ export class PDFService {
         this.documentCache.delete(file);
         this.loadEffects.delete(file);
 
-        return Effect.forEach(loads, (load) => this.cancelLoad(load), { discard: true }).pipe(
-          Effect.andThen(this.interruptRenderFibers(renders)),
-          Effect.andThen(
-            record
-              ? Effect.tryPromise({
-                  try: () => record.pdfjsDocument.cleanup(),
-                  catch: () => undefined,
-                }).pipe(Effect.catch(() => Effect.void))
-              : Effect.void
+        return Effect.forEach(loads, (load) => this.cancelLoad(load), { discard: true })
+          .pipe(
+            Effect.andThen(this.interruptRenderFibers(renders)),
+            Effect.andThen(
+              record
+                ? Effect.tryPromise({
+                    try: () => record.pdfjsDocument.cleanup(),
+                    catch: () => undefined,
+                  }).pipe(Effect.catch(() => Effect.void))
+                : Effect.void
+            )
           )
-        );
+          .pipe(Effect.ensuring(this.completeFileRelease(file, releaseBarrier)));
       })
     );
   }
@@ -239,6 +253,12 @@ export class PDFService {
   reset(): Effect.Effect<void> {
     return Effect.uninterruptible(
       Effect.suspend(() => {
+        const existingBarrier = this.resetBarrier;
+        if (existingBarrier) return Deferred.await(existingBarrier);
+
+        const resetBarrier = Deferred.makeUnsafe<void>();
+        this.resetBarrier = resetBarrier;
+        const fileReleaseBarriers = Array.from(this.fileReleaseBarriers.values());
         const records = Array.from(this.documentCache.values());
         const loads = Array.from(this.loadEffects.values()).flatMap((fileEffects) =>
           Array.from(fileEffects.values())
@@ -253,10 +273,15 @@ export class PDFService {
         this.loadEffects.clear();
         this.sessionVersion += 1;
 
-        return Effect.forEach(loads, (load) => this.cancelLoad(load), { discard: true }).pipe(
-          Effect.andThen(this.interruptRenderFibers(renders)),
-          Effect.andThen(this.cleanupRecords(records))
-        );
+        return Effect.forEach(fileReleaseBarriers, Deferred.await, { discard: true })
+          .pipe(
+            Effect.andThen(
+              Effect.forEach(loads, (load) => this.cancelLoad(load), { discard: true })
+            ),
+            Effect.andThen(this.interruptRenderFibers(renders)),
+            Effect.andThen(this.cleanupRecords(records))
+          )
+          .pipe(Effect.ensuring(this.completeReset(resetBarrier)));
       })
     );
   }
@@ -355,20 +380,41 @@ export class PDFService {
 
   private trackRender<A, E>(file: File, effect: Effect.Effect<A, E>): Effect.Effect<A, E> {
     return Effect.withFiber((fiber) =>
-      Effect.ensuring(
-        Effect.sync(() => {
-          const renders = this.activeRenderFibers.get(file) ?? new Set();
-          renders.add(fiber);
-          this.activeRenderFibers.set(file, renders);
-        }).pipe(Effect.andThen(effect)),
-        Effect.sync(() => {
-          const renders = this.activeRenderFibers.get(file);
-          if (!renders) return;
-          renders.delete(fiber);
-          if (renders.size === 0) this.activeRenderFibers.delete(file);
-        })
-      )
+      Effect.suspend(() => {
+        const barrier = this.resetBarrier ?? this.fileReleaseBarriers.get(file);
+        if (barrier) {
+          return Deferred.await(barrier).pipe(Effect.andThen(this.trackRender(file, effect)));
+        }
+
+        return Effect.ensuring(
+          Effect.sync(() => {
+            const renders = this.activeRenderFibers.get(file) ?? new Set();
+            renders.add(fiber);
+            this.activeRenderFibers.set(file, renders);
+          }).pipe(Effect.andThen(effect)),
+          Effect.sync(() => {
+            const renders = this.activeRenderFibers.get(file);
+            if (!renders) return;
+            renders.delete(fiber);
+            if (renders.size === 0) this.activeRenderFibers.delete(file);
+          })
+        );
+      })
     );
+  }
+
+  private completeFileRelease(file: File, barrier: Deferred.Deferred<void>): Effect.Effect<void> {
+    return Effect.sync(() => {
+      if (this.fileReleaseBarriers.get(file) === barrier) {
+        this.fileReleaseBarriers.delete(file);
+      }
+    }).pipe(Effect.andThen(Deferred.succeed(barrier, undefined)), Effect.asVoid);
+  }
+
+  private completeReset(barrier: Deferred.Deferred<void>): Effect.Effect<void> {
+    return Effect.sync(() => {
+      if (this.resetBarrier === barrier) this.resetBarrier = null;
+    }).pipe(Effect.andThen(Deferred.succeed(barrier, undefined)), Effect.asVoid);
   }
 
   private takeRenderFibers(file: File): readonly Fiber.Fiber<unknown, unknown>[] {
