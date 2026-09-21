@@ -583,6 +583,108 @@ describe("PDFService", () => {
     resolveRender();
   });
 
+  it("interrupts an active render before targeted document cleanup", async () => {
+    const events: string[] = [];
+    let renderStarted = false;
+    const renderPromise = new Promise<void>(() => undefined);
+    const renderCancel = vi.fn(() => {
+      events.push("render-cancel");
+    });
+    const pageCleanup = vi.fn(() => {
+      events.push("page-cleanup");
+    });
+    const documentCleanup = vi.fn(() => {
+      events.push("document-cleanup");
+    });
+
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: Promise.resolve({
+        getPage: vi.fn().mockResolvedValue({
+          getViewport: vi.fn().mockReturnValue({ width: 100, height: 200 }),
+          cleanup: pageCleanup,
+          render: vi.fn().mockImplementation(() => {
+            renderStarted = true;
+            events.push("render-start");
+            return { promise: renderPromise, cancel: renderCancel };
+          }),
+        }),
+        cleanup: documentCleanup,
+      }),
+      destroy: loadingTaskDestroyMock,
+    }));
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      {} as unknown as CanvasRenderingContext2D
+    );
+
+    const service = new PDFService();
+    const file = new File(["plain"], "active-render-release.pdf", { type: "application/pdf" });
+    await Effect.runPromise(service.loadPDF(file));
+
+    const renderFiber = Effect.runFork(
+      service.renderPage(file, 1, document.createElement("canvas"))
+    );
+    await vi.waitFor(() => expect(renderStarted).toBe(true));
+
+    await Effect.runPromise(service.releaseFile(file));
+
+    expect(renderCancel).toHaveBeenCalledTimes(1);
+    expect(events).toEqual(["render-start", "render-cancel", "page-cleanup", "document-cleanup"]);
+    await Effect.runPromise(Fiber.await(renderFiber));
+  });
+
+  it("interrupts active renders for every file before reset cleans documents", async () => {
+    const renderCancel = vi.fn();
+    const pageCleanup = vi.fn();
+    const documentCleanups = [vi.fn(), vi.fn()];
+    let startedRenders = 0;
+    const renderPromise = new Promise<void>(() => undefined);
+    const makeDocument = (cleanup: ReturnType<typeof vi.fn>) => ({
+      getPage: vi.fn().mockResolvedValue({
+        getViewport: vi.fn().mockReturnValue({ width: 100, height: 200 }),
+        cleanup: pageCleanup,
+        render: vi.fn().mockImplementation(() => {
+          startedRenders += 1;
+          return { promise: renderPromise, cancel: renderCancel };
+        }),
+      }),
+      cleanup,
+    });
+    pdfjsGetDocumentMock
+      .mockImplementationOnce(() => ({
+        promise: Promise.resolve(makeDocument(documentCleanups[0])),
+        destroy: loadingTaskDestroyMock,
+      }))
+      .mockImplementationOnce(() => ({
+        promise: Promise.resolve(makeDocument(documentCleanups[1])),
+        destroy: loadingTaskDestroyMock,
+      }));
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      {} as unknown as CanvasRenderingContext2D
+    );
+
+    const service = new PDFService();
+    const firstFile = new File(["first"], "first-active-render.pdf", {
+      type: "application/pdf",
+    });
+    const secondFile = new File(["second"], "second-active-render.pdf", {
+      type: "application/pdf",
+    });
+    await Effect.runPromise(service.loadPDF(firstFile));
+    await Effect.runPromise(service.loadPDF(secondFile));
+
+    const fibers = [firstFile, secondFile].map((file) =>
+      Effect.runFork(service.renderPage(file, 1, document.createElement("canvas")))
+    );
+    await vi.waitFor(() => expect(startedRenders).toBe(2));
+
+    await Effect.runPromise(service.reset());
+
+    expect(renderCancel).toHaveBeenCalledTimes(2);
+    expect(documentCleanups[0]).toHaveBeenCalledTimes(1);
+    expect(documentCleanups[1]).toHaveBeenCalledTimes(1);
+    await Promise.all(fibers.map((fiber) => Effect.runPromise(Fiber.await(fiber))));
+  });
+
   it("cleans up a page after PDF.js rendering fails", async () => {
     const renderError = new Error("render failed");
     pdfjsGetDocumentMock.mockImplementationOnce(() => ({
