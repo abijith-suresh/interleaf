@@ -1,14 +1,10 @@
 import { createEffect, For } from "solid-js";
-
-export interface EditorWorkspaceFile {
-  file: File;
-  pageCount: number;
-}
+import type { WorkspaceFile } from "../../controllers/editor-workspace";
 
 interface Props {
   open: boolean;
   busy: boolean;
-  files: EditorWorkspaceFile[];
+  files: WorkspaceFile[];
   onClose: () => void;
   onSelectFile: (file: File) => void;
 }
