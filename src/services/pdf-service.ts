@@ -35,6 +35,16 @@ function processingError(operation: string, file: File, cause: unknown): PDFProc
   });
 }
 
+function cleanupPage(page: pdfjsLib.PDFPageProxy): Effect.Effect<void> {
+  return Effect.try({
+    try: () => page.cleanup(),
+    catch: () => undefined,
+  }).pipe(
+    Effect.catch(() => Effect.void),
+    Effect.asVoid
+  );
+}
+
 function isPasswordException(cause: unknown): boolean {
   return (
     typeof cause === "object" &&
@@ -129,7 +139,7 @@ export class PDFService {
       return yield* Effect.try({
         try: () => page.rotate,
         catch: (cause) => processingError("get-page-rotation", file, cause),
-      });
+      }).pipe(Effect.ensuring(cleanupPage(page)));
     });
   }
 
@@ -150,7 +160,7 @@ export class PDFService {
           return { width: viewport.width, height: viewport.height };
         },
         catch: (cause) => processingError("get-page-size", file, cause),
-      });
+      }).pipe(Effect.ensuring(cleanupPage(page)));
     });
   }
 
@@ -167,25 +177,27 @@ export class PDFService {
         try: () => record.pdfjsDocument.getPage(pageNumber),
         catch: (cause) => processingError("get-page", file, cause),
       });
-      const { context, viewport } = yield* Effect.try({
-        try: () => {
-          const nextViewport = page.getViewport({ scale, rotation });
-          canvas.width = nextViewport.width;
-          canvas.height = nextViewport.height;
+      yield* Effect.gen({ self: this }, function* () {
+        const { context, viewport } = yield* Effect.try({
+          try: () => {
+            const nextViewport = page.getViewport({ scale, rotation });
+            canvas.width = nextViewport.width;
+            canvas.height = nextViewport.height;
 
-          const nextContext = canvas.getContext("2d");
-          if (!nextContext) {
-            throw new Error("Could not get canvas context");
-          }
+            const nextContext = canvas.getContext("2d");
+            if (!nextContext) {
+              throw new Error("Could not get canvas context");
+            }
 
-          return { context: nextContext, viewport: nextViewport };
-        },
-        catch: (cause) => processingError("render-page", file, cause),
-      });
+            return { context: nextContext, viewport: nextViewport };
+          },
+          catch: (cause) => processingError("render-page", file, cause),
+        });
 
-      yield* this.renderSemaphore.withPermit(
-        this.renderPDFPage(file, page, canvas, context, viewport)
-      );
+        yield* this.renderSemaphore.withPermit(
+          this.renderPDFPage(file, page, canvas, context, viewport)
+        );
+      }).pipe(Effect.ensuring(cleanupPage(page)));
     });
   }
 

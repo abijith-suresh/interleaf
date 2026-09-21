@@ -16,6 +16,7 @@ const decodeData = (value: ArrayBuffer | ArrayBufferView | undefined) => {
 
 const loadingTaskDestroyMock = vi.fn().mockResolvedValue(undefined);
 const renderCancelMock = vi.fn();
+const pageCleanupMock = vi.fn();
 
 const pdfjsGetDocumentMock = vi
   .fn()
@@ -52,6 +53,7 @@ const pdfjsGetDocumentMock = vi
 
             return { width, height };
           }),
+          cleanup: pageCleanupMock,
           render: vi.fn().mockReturnValue({
             promise: Promise.resolve(),
             cancel: renderCancelMock,
@@ -109,6 +111,7 @@ describe("PDFService", () => {
       width: 150,
       height: 300,
     });
+    expect(pageCleanupMock).toHaveBeenCalledTimes(1);
   });
 
   it("reuses a cached document when the same file is loaded again", async () => {
@@ -473,6 +476,7 @@ describe("PDFService", () => {
     await Effect.runPromise(service.renderPage(file, 1, canvas, 1, 90));
 
     expect(canvas.width).toBeGreaterThan(canvas.height);
+    expect(pageCleanupMock).toHaveBeenCalledTimes(1);
   });
 
   it("bounds concurrent PDF.js page renders", async () => {
@@ -501,6 +505,7 @@ describe("PDFService", () => {
     });
     const page = {
       getViewport: vi.fn().mockReturnValue({ width: 100, height: 200 }),
+      cleanup: pageCleanupMock,
       render,
     };
     pdfjsGetDocumentMock.mockImplementationOnce(() => ({
@@ -530,6 +535,7 @@ describe("PDFService", () => {
 
     await Promise.all(fibers.map((fiber) => Effect.runPromise(Fiber.join(fiber))));
     expect(maxActiveRenders).toBe(2);
+    expect(pageCleanupMock).toHaveBeenCalledTimes(3);
   });
 
   it("reads the source page rotation for composed exports", async () => {
@@ -538,6 +544,7 @@ describe("PDFService", () => {
     await Effect.runPromise(service.loadPDF(file));
 
     await expect(Effect.runPromise(service.getPageRotation(file, 1))).resolves.toBe(90);
+    expect(pageCleanupMock).toHaveBeenCalledTimes(1);
   });
 
   it("cancels an in-flight PDF.js render when the fiber is interrupted", async () => {
@@ -550,6 +557,7 @@ describe("PDFService", () => {
       promise: Promise.resolve({
         getPage: vi.fn().mockResolvedValue({
           getViewport: vi.fn().mockReturnValue({ width: 100, height: 200 }),
+          cleanup: pageCleanupMock,
           render: vi.fn().mockImplementation(() => {
             renderStarted = true;
             return { promise: renderPromise, cancel: renderCancelMock };
@@ -571,7 +579,37 @@ describe("PDFService", () => {
     await Effect.runPromise(Fiber.interrupt(fiber));
 
     expect(renderCancelMock).toHaveBeenCalledTimes(1);
+    expect(pageCleanupMock).toHaveBeenCalledTimes(1);
     resolveRender();
+  });
+
+  it("cleans up a page after PDF.js rendering fails", async () => {
+    const renderError = new Error("render failed");
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: Promise.resolve({
+        getPage: vi.fn().mockResolvedValue({
+          getViewport: vi.fn().mockReturnValue({ width: 100, height: 200 }),
+          cleanup: pageCleanupMock,
+          render: vi.fn().mockReturnValue({
+            promise: Promise.reject(renderError),
+            cancel: renderCancelMock,
+          }),
+        }),
+        cleanup: vi.fn().mockResolvedValue(undefined),
+      }),
+      destroy: loadingTaskDestroyMock,
+    }));
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      {} as unknown as CanvasRenderingContext2D
+    );
+
+    const service = new PDFService();
+    const file = new File(["plain"], "failed-render.pdf", { type: "application/pdf" });
+
+    await expect(
+      Effect.runPromise(service.renderPage(file, 1, document.createElement("canvas")))
+    ).rejects.toThrow("render failed");
+    expect(pageCleanupMock).toHaveBeenCalledTimes(1);
   });
 
   it("throws when the target canvas has no 2D context", async () => {
@@ -584,6 +622,7 @@ describe("PDFService", () => {
     await expect(
       Effect.runPromise(service.renderPage(file, 1, document.createElement("canvas")))
     ).rejects.toThrow("Could not get canvas context");
+    expect(pageCleanupMock).toHaveBeenCalledTimes(1);
   });
 
   it("resets cached documents and passwords for the session", async () => {
