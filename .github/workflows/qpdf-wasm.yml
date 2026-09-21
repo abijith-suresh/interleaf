@@ -72,7 +72,7 @@ jobs:
           ./tools/qpdf-wasm/check-app-assets.sh /tmp/interleaf-qpdf public/qpdf
 
       - name: Upload browser smoke assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qpdf-wasm-smoke-assets
           path: /tmp/interleaf-qpdf
