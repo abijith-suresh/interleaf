@@ -155,7 +155,13 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
             ),
           compressPDF: (file: File, options?: PDFCompressionOptions) =>
             compressionService.compressPDF(file, pdfService.getPassword(file), options),
-          releaseFile: (file: File) => pdfService.releaseFile(file),
+          releaseFile: (file: File) =>
+            Effect.gen(function* () {
+              yield* pdfService.releaseFile(file);
+              if (operationsService) {
+                yield* operationsService.releaseFile(file);
+              }
+            }),
           reset: Effect.suspend(() => pdfService.reset()),
           clearCache: Effect.suspend(() => operationsService?.clearCache() ?? Effect.void),
           closeQpdf: qpdfProcessing.close,

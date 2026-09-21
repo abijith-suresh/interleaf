@@ -9,12 +9,14 @@ const pdfServiceMock = vi.hoisted(() => ({
   getPassword: vi.fn(),
   getPageRotation: vi.fn(),
   renderPage: vi.fn(),
+  releaseFile: vi.fn(),
   reset: vi.fn(),
 }));
 
 const operationsServiceMock = vi.hoisted(() => ({
   buildPDF: vi.fn(),
   imagesToPDF: vi.fn(),
+  releaseFile: vi.fn(),
   clearCache: vi.fn(),
   constructed: 0,
 }));
@@ -37,6 +39,7 @@ vi.mock("../pdf-service", () => ({
     getPassword = pdfServiceMock.getPassword;
     getPageRotation = pdfServiceMock.getPageRotation;
     renderPage = pdfServiceMock.renderPage;
+    releaseFile = pdfServiceMock.releaseFile;
     reset = pdfServiceMock.reset;
   },
 }));
@@ -48,6 +51,7 @@ vi.mock("../pdf-operations-service", () => ({
 
     buildPDF = operationsServiceMock.buildPDF;
     imagesToPDF = operationsServiceMock.imagesToPDF;
+    releaseFile = operationsServiceMock.releaseFile;
     clearCache = operationsServiceMock.clearCache;
   },
 }));
@@ -74,6 +78,7 @@ beforeEach(() => {
   pdfServiceMock.getPassword.mockReturnValue(undefined);
   pdfServiceMock.getPageRotation.mockReturnValue(Effect.succeed(0));
   pdfServiceMock.renderPage.mockReturnValue(Effect.succeed(undefined));
+  pdfServiceMock.releaseFile.mockReturnValue(Effect.succeed(undefined));
   pdfServiceMock.reset.mockReturnValue(Effect.succeed(undefined));
   operationsServiceMock.buildPDF.mockReturnValue(
     Effect.succeed({ data: new Uint8Array(), suggestedFileName: "document.pdf" })
@@ -81,6 +86,7 @@ beforeEach(() => {
   operationsServiceMock.imagesToPDF.mockReturnValue(
     Effect.succeed({ data: new Uint8Array(), suggestedFileName: "interleaf-images.pdf" })
   );
+  operationsServiceMock.releaseFile.mockReturnValue(Effect.succeed(undefined));
   operationsServiceMock.clearCache.mockReturnValue(Effect.succeed(undefined));
   operationsServiceMock.constructed = 0;
   imageExportServiceMock.exportImages.mockReturnValue(
@@ -158,6 +164,24 @@ it.effect("reuses PDF editing support when creating a PDF from images", () => {
 
       expect(operationsServiceMock.constructed).toBe(1);
       expect(operationsServiceMock.imagesToPDF).toHaveBeenCalledWith(files, undefined);
+
+      await runtime.dispose();
+    },
+    catch: (cause) => cause,
+  });
+});
+
+it.effect("releases a file from each initialized processing service", () => {
+  return Effect.tryPromise({
+    try: async () => {
+      const runtime = makePDFRuntime();
+      const file = new File(["plain"], "document.pdf", { type: "application/pdf" });
+
+      await runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([])));
+      await runtime.runPromise(PDFProcessing.use((service) => service.releaseFile(file)));
+
+      expect(pdfServiceMock.releaseFile).toHaveBeenCalledWith(file);
+      expect(operationsServiceMock.releaseFile).toHaveBeenCalledWith(file);
 
       await runtime.dispose();
     },

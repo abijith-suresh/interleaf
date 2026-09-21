@@ -113,6 +113,7 @@ interface InFlightSourceDocument {
 export class PDFOperationsService {
   private sourceDocCache = new Map<File, PDFDocument>();
   private sourceDocEffects = new Map<File, InFlightSourceDocument>();
+  private fileVersions = new WeakMap<File, number>();
   private cacheVersion = 0;
 
   constructor(private readonly pdfService: Pick<PDFService, "renderPage">) {}
@@ -127,6 +128,19 @@ export class PDFOperationsService {
       this.cacheVersion += 1;
 
       return Effect.forEach(fibers, Fiber.interrupt, { discard: true });
+    });
+  }
+
+  releaseFile(file: File): Effect.Effect<void> {
+    return Effect.suspend(() => {
+      this.fileVersions.set(file, this.getFileVersion(file) + 1);
+      this.sourceDocCache.delete(file);
+
+      const load = this.sourceDocEffects.get(file);
+      this.sourceDocEffects.delete(file);
+      if (!load?.fiber) return Effect.void;
+
+      return Effect.uninterruptible(Fiber.interrupt(load.fiber));
     });
   }
 
@@ -381,7 +395,8 @@ export class PDFOperationsService {
       const deferred = Deferred.makeUnsafe<PDFDocument, PDFProcessingError>();
       const load: InFlightSourceDocument = { deferred, fiber: null };
       this.sourceDocEffects.set(file, load);
-      const version = this.cacheVersion;
+      const cacheVersion = this.cacheVersion;
+      const fileVersion = this.getFileVersion(file);
       const loadEffect = Effect.tryPromise({
         try: async () => {
           const buffer = await file.arrayBuffer();
@@ -393,7 +408,11 @@ export class PDFOperationsService {
       }).pipe(
         Effect.tap((sourceDoc) =>
           Effect.sync(() => {
-            if (version === this.cacheVersion) {
+            if (
+              cacheVersion === this.cacheVersion &&
+              fileVersion === this.getFileVersion(file) &&
+              this.sourceDocEffects.get(file) === load
+            ) {
               this.sourceDocCache.set(file, sourceDoc);
             }
           })
@@ -415,6 +434,10 @@ export class PDFOperationsService {
         return yield* Deferred.await(load.deferred);
       });
     });
+  }
+
+  private getFileVersion(file: File): number {
+    return this.fileVersions.get(file) ?? 0;
   }
 
   private addEncryptedPage(
