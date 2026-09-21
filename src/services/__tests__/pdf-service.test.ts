@@ -553,6 +553,7 @@ describe("PDFService", () => {
     const renderPromise = new Promise<void>((resolve) => {
       resolveRender = resolve;
     });
+    const renderCancel = vi.fn(() => resolveRender());
     pdfjsGetDocumentMock.mockImplementationOnce(() => ({
       promise: Promise.resolve({
         getPage: vi.fn().mockResolvedValue({
@@ -560,7 +561,7 @@ describe("PDFService", () => {
           cleanup: pageCleanupMock,
           render: vi.fn().mockImplementation(() => {
             renderStarted = true;
-            return { promise: renderPromise, cancel: renderCancelMock };
+            return { promise: renderPromise, cancel: renderCancel };
           }),
         }),
         cleanup: vi.fn().mockResolvedValue(undefined),
@@ -578,17 +579,20 @@ describe("PDFService", () => {
     await vi.waitFor(() => expect(renderStarted).toBe(true));
     await Effect.runPromise(Fiber.interrupt(fiber));
 
-    expect(renderCancelMock).toHaveBeenCalledTimes(1);
+    expect(renderCancel).toHaveBeenCalledTimes(1);
     expect(pageCleanupMock).toHaveBeenCalledTimes(1);
-    resolveRender();
   });
 
   it("interrupts an active render before targeted document cleanup", async () => {
     const events: string[] = [];
     let renderStarted = false;
-    const renderPromise = new Promise<void>(() => undefined);
+    let rejectRender!: (cause?: unknown) => void;
+    const renderPromise = new Promise<void>((_, reject) => {
+      rejectRender = reject;
+    });
     const renderCancel = vi.fn(() => {
       events.push("render-cancel");
+      rejectRender(new Error("render cancelled"));
     });
     const pageCleanup = vi.fn(() => {
       events.push("page-cleanup");
@@ -630,6 +634,79 @@ describe("PDFService", () => {
     expect(renderCancel).toHaveBeenCalledTimes(1);
     expect(events).toEqual(["render-start", "render-cancel", "page-cleanup", "document-cleanup"]);
     await Effect.runPromise(Fiber.await(renderFiber));
+  });
+
+  it("interrupts an in-flight page metadata operation before targeted document cleanup", async () => {
+    let resolvePage!: (page: unknown) => void;
+    const pagePromise = new Promise((resolve) => {
+      resolvePage = resolve;
+    });
+    const pageCleanup = vi.fn();
+    const documentCleanup = vi.fn();
+    const page = {
+      rotate: 0,
+      cleanup: pageCleanup,
+    };
+    const pdfDocument = {
+      getPage: vi.fn(() => pagePromise),
+      cleanup: documentCleanup,
+    };
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: Promise.resolve(pdfDocument),
+      destroy: loadingTaskDestroyMock,
+    }));
+
+    const service = new PDFService();
+    const file = new File(["plain"], "active-metadata-release.pdf", {
+      type: "application/pdf",
+    });
+    await Effect.runPromise(service.loadPDF(file));
+
+    const metadataFiber = Effect.runFork(service.getPageRotation(file, 1));
+    await vi.waitFor(() => expect(pdfDocument.getPage).toHaveBeenCalledTimes(1));
+
+    await Effect.runPromise(service.releaseFile(file));
+    resolvePage(page);
+    await Effect.runPromise(Fiber.await(metadataFiber));
+
+    expect(pageCleanup).not.toHaveBeenCalled();
+    expect(documentCleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a document operation created before release if it starts after release begins", async () => {
+    let resolveCleanup!: () => void;
+    const cleanupPromise = new Promise<void>((resolve) => {
+      resolveCleanup = resolve;
+    });
+    const documentCleanup = vi.fn(() => cleanupPromise);
+    const firstDocument = {
+      numPages: 5,
+      cleanup: documentCleanup,
+    };
+    pdfjsGetDocumentMock.mockImplementationOnce(() => ({
+      promise: Promise.resolve(firstDocument),
+      destroy: loadingTaskDestroyMock,
+    }));
+
+    const service = new PDFService();
+    const file = new File(["plain"], "stale-release-operation.pdf", {
+      type: "application/pdf",
+    });
+    await Effect.runPromise(service.loadPDF(file));
+
+    const renderEffect = service.renderPage(file, 1, document.createElement("canvas"));
+    const releaseFiber = Effect.runFork(service.releaseFile(file));
+    await vi.waitFor(() => expect(documentCleanup).toHaveBeenCalledTimes(1));
+
+    const renderFiber = Effect.runFork(renderEffect);
+    resolveCleanup();
+    await Effect.runPromise(Fiber.join(releaseFiber));
+
+    await expect(Effect.runPromise(Fiber.join(renderFiber))).rejects.toMatchObject({
+      operation: "render-page",
+      file,
+    });
+    expect(pdfjsGetDocumentMock).toHaveBeenCalledTimes(1);
   });
 
   it("waits for an in-flight release before starting a new render", async () => {
@@ -725,14 +802,23 @@ describe("PDFService", () => {
     const pageCleanup = vi.fn();
     const documentCleanup = vi.fn();
     let startedRenders = 0;
-    const renderPromise = new Promise<void>(() => undefined);
     const pdfDocument = {
       getPage: vi.fn().mockResolvedValue({
         getViewport: vi.fn().mockReturnValue({ width: 100, height: 200 }),
         cleanup: pageCleanup,
         render: vi.fn().mockImplementation(() => {
           startedRenders += 1;
-          return { promise: renderPromise, cancel: renderCancel };
+          let rejectRender!: (cause?: unknown) => void;
+          const renderPromise = new Promise<void>((_, reject) => {
+            rejectRender = reject;
+          });
+          return {
+            promise: renderPromise,
+            cancel: () => {
+              renderCancel();
+              rejectRender(new Error("render cancelled"));
+            },
+          };
         }),
       }),
       cleanup: documentCleanup,
@@ -767,14 +853,23 @@ describe("PDFService", () => {
     const pageCleanup = vi.fn();
     const documentCleanups = [vi.fn(), vi.fn()];
     let startedRenders = 0;
-    const renderPromise = new Promise<void>(() => undefined);
     const makeDocument = (cleanup: ReturnType<typeof vi.fn>) => ({
       getPage: vi.fn().mockResolvedValue({
         getViewport: vi.fn().mockReturnValue({ width: 100, height: 200 }),
         cleanup: pageCleanup,
         render: vi.fn().mockImplementation(() => {
           startedRenders += 1;
-          return { promise: renderPromise, cancel: renderCancel };
+          let rejectRender!: (cause?: unknown) => void;
+          const renderPromise = new Promise<void>((_, reject) => {
+            rejectRender = reject;
+          });
+          return {
+            promise: renderPromise,
+            cancel: () => {
+              renderCancel();
+              rejectRender(new Error("render cancelled"));
+            },
+          };
         }),
       }),
       cleanup,

@@ -61,7 +61,7 @@ export class PDFService {
   private passwordRegistry = new Map<File, string>();
   private documentCache = new Map<File, LoadedPDFRecord>();
   private loadEffects = new Map<File, Map<string, InFlightLoad>>();
-  private activeRenderFibers = new Map<File, Set<Fiber.Fiber<unknown, unknown>>>();
+  private activeOperationFibers = new Map<File, Set<Fiber.Fiber<unknown, unknown>>>();
   private fileReleaseBarriers = new Map<File, Deferred.Deferred<void>>();
   private resetBarrier: Deferred.Deferred<void> | null = null;
   private readonly renderSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_PAGE_RENDERS);
@@ -133,17 +133,26 @@ export class PDFService {
   }
 
   getPageRotation(file: File, pageNumber: number): Effect.Effect<number, PDFError> {
-    return Effect.gen({ self: this }, function* () {
-      const record = yield* this.getOrLoadDocument(file);
-      const page = yield* Effect.tryPromise({
-        try: () => record.pdfjsDocument.getPage(pageNumber),
-        catch: (cause) => processingError("get-page-rotation", file, cause),
-      });
-      return yield* Effect.try({
-        try: () => page.rotate,
-        catch: (cause) => processingError("get-page-rotation", file, cause),
-      }).pipe(Effect.ensuring(cleanupPage(page)));
-    });
+    const sessionVersion = this.sessionVersion;
+    const fileVersion = this.getFileVersion(file);
+
+    return this.trackDocumentOperation(
+      file,
+      "get-page-rotation",
+      sessionVersion,
+      fileVersion,
+      Effect.gen({ self: this }, function* () {
+        const record = yield* this.getOrLoadDocument(file);
+        const page = yield* Effect.tryPromise({
+          try: () => record.pdfjsDocument.getPage(pageNumber),
+          catch: (cause) => processingError("get-page-rotation", file, cause),
+        });
+        return yield* Effect.try({
+          try: () => page.rotate,
+          catch: (cause) => processingError("get-page-rotation", file, cause),
+        }).pipe(Effect.ensuring(cleanupPage(page)));
+      })
+    );
   }
 
   getPageSize(
@@ -151,20 +160,29 @@ export class PDFService {
     pageNumber: number,
     rotation = 0
   ): Effect.Effect<{ readonly width: number; readonly height: number }, PDFError> {
-    return Effect.gen({ self: this }, function* () {
-      const record = yield* this.getOrLoadDocument(file);
-      const page = yield* Effect.tryPromise({
-        try: () => record.pdfjsDocument.getPage(pageNumber),
-        catch: (cause) => processingError("get-page-size", file, cause),
-      });
-      return yield* Effect.try({
-        try: () => {
-          const viewport = page.getViewport({ scale: 1, rotation });
-          return { width: viewport.width, height: viewport.height };
-        },
-        catch: (cause) => processingError("get-page-size", file, cause),
-      }).pipe(Effect.ensuring(cleanupPage(page)));
-    });
+    const sessionVersion = this.sessionVersion;
+    const fileVersion = this.getFileVersion(file);
+
+    return this.trackDocumentOperation(
+      file,
+      "get-page-size",
+      sessionVersion,
+      fileVersion,
+      Effect.gen({ self: this }, function* () {
+        const record = yield* this.getOrLoadDocument(file);
+        const page = yield* Effect.tryPromise({
+          try: () => record.pdfjsDocument.getPage(pageNumber),
+          catch: (cause) => processingError("get-page-size", file, cause),
+        });
+        return yield* Effect.try({
+          try: () => {
+            const viewport = page.getViewport({ scale: 1, rotation });
+            return { width: viewport.width, height: viewport.height };
+          },
+          catch: (cause) => processingError("get-page-size", file, cause),
+        }).pipe(Effect.ensuring(cleanupPage(page)));
+      })
+    );
   }
 
   renderPage(
@@ -174,8 +192,14 @@ export class PDFService {
     scale = 1.5,
     rotation = 0
   ): Effect.Effect<void, PDFError> {
-    return this.trackRender(
+    const sessionVersion = this.sessionVersion;
+    const fileVersion = this.getFileVersion(file);
+
+    return this.trackDocumentOperation(
       file,
+      "render-page",
+      sessionVersion,
+      fileVersion,
       Effect.gen({ self: this }, function* () {
         const record = yield* this.getOrLoadDocument(file);
         const page = yield* Effect.tryPromise({
@@ -223,7 +247,7 @@ export class PDFService {
         this.fileVersions.set(file, this.getFileVersion(file) + 1);
         const record = this.documentCache.get(file);
         const loads = Array.from(this.loadEffects.get(file)?.values() ?? []);
-        const renders = this.takeRenderFibers(file);
+        const operations = this.takeDocumentOperationFibers(file);
         for (const load of loads) {
           load.released = true;
         }
@@ -235,7 +259,7 @@ export class PDFService {
 
         return Effect.forEach(loads, (load) => this.cancelLoad(load), { discard: true })
           .pipe(
-            Effect.andThen(this.interruptRenderFibers(renders)),
+            Effect.andThen(this.interruptOperationFibers(operations)),
             Effect.andThen(
               record
                 ? Effect.tryPromise({
@@ -263,7 +287,7 @@ export class PDFService {
         const loads = Array.from(this.loadEffects.values()).flatMap((fileEffects) =>
           Array.from(fileEffects.values())
         );
-        const renders = this.takeAllRenderFibers();
+        const operations = this.takeAllDocumentOperationFibers();
         for (const load of loads) {
           load.released = true;
         }
@@ -278,7 +302,7 @@ export class PDFService {
             Effect.andThen(
               Effect.forEach(loads, (load) => this.cancelLoad(load), { discard: true })
             ),
-            Effect.andThen(this.interruptRenderFibers(renders)),
+            Effect.andThen(this.interruptOperationFibers(operations)),
             Effect.andThen(this.cleanupRecords(records))
           )
           .pipe(Effect.ensuring(this.completeReset(resetBarrier)));
@@ -378,25 +402,45 @@ export class PDFService {
     });
   }
 
-  private trackRender<A, E>(file: File, effect: Effect.Effect<A, E>): Effect.Effect<A, E> {
+  private trackDocumentOperation<A, E extends PDFError>(
+    file: File,
+    operation: string,
+    sessionVersion: number,
+    fileVersion: number,
+    effect: Effect.Effect<A, E>
+  ): Effect.Effect<A, E | PDFError> {
     return Effect.withFiber((fiber) =>
       Effect.suspend(() => {
+        if (!this.isCurrentDocumentVersion(file, sessionVersion, fileVersion)) {
+          return Effect.fail(
+            processingError(
+              operation,
+              file,
+              new Error("The PDF changed before the operation started.")
+            )
+          );
+        }
+
         const barrier = this.resetBarrier ?? this.fileReleaseBarriers.get(file);
         if (barrier) {
-          return Deferred.await(barrier).pipe(Effect.andThen(this.trackRender(file, effect)));
+          return Deferred.await(barrier).pipe(
+            Effect.andThen(
+              this.trackDocumentOperation(file, operation, sessionVersion, fileVersion, effect)
+            )
+          );
         }
 
         return Effect.ensuring(
           Effect.sync(() => {
-            const renders = this.activeRenderFibers.get(file) ?? new Set();
-            renders.add(fiber);
-            this.activeRenderFibers.set(file, renders);
+            const operations = this.activeOperationFibers.get(file) ?? new Set();
+            operations.add(fiber);
+            this.activeOperationFibers.set(file, operations);
           }).pipe(Effect.andThen(effect)),
           Effect.sync(() => {
-            const renders = this.activeRenderFibers.get(file);
-            if (!renders) return;
-            renders.delete(fiber);
-            if (renders.size === 0) this.activeRenderFibers.delete(file);
+            const operations = this.activeOperationFibers.get(file);
+            if (!operations) return;
+            operations.delete(fiber);
+            if (operations.size === 0) this.activeOperationFibers.delete(file);
           })
         );
       })
@@ -417,24 +461,28 @@ export class PDFService {
     }).pipe(Effect.andThen(Deferred.succeed(barrier, undefined)), Effect.asVoid);
   }
 
-  private takeRenderFibers(file: File): readonly Fiber.Fiber<unknown, unknown>[] {
-    const renders = this.activeRenderFibers.get(file);
-    this.activeRenderFibers.delete(file);
-    return renders ? Array.from(renders) : [];
+  private isCurrentDocumentVersion(file: File, sessionVersion: number, fileVersion: number) {
+    return sessionVersion === this.sessionVersion && fileVersion === this.getFileVersion(file);
   }
 
-  private takeAllRenderFibers(): readonly Fiber.Fiber<unknown, unknown>[] {
-    const renders = Array.from(this.activeRenderFibers.values()).flatMap((fileRenders) =>
-      Array.from(fileRenders)
+  private takeDocumentOperationFibers(file: File): readonly Fiber.Fiber<unknown, unknown>[] {
+    const operations = this.activeOperationFibers.get(file);
+    this.activeOperationFibers.delete(file);
+    return operations ? Array.from(operations) : [];
+  }
+
+  private takeAllDocumentOperationFibers(): readonly Fiber.Fiber<unknown, unknown>[] {
+    const operations = Array.from(this.activeOperationFibers.values()).flatMap((fileOperations) =>
+      Array.from(fileOperations)
     );
-    this.activeRenderFibers.clear();
-    return renders;
+    this.activeOperationFibers.clear();
+    return operations;
   }
 
-  private interruptRenderFibers(
-    renders: readonly Fiber.Fiber<unknown, unknown>[]
+  private interruptOperationFibers(
+    operations: readonly Fiber.Fiber<unknown, unknown>[]
   ): Effect.Effect<void> {
-    return Effect.forEach(renders, (fiber) => Fiber.interrupt(fiber), { discard: true });
+    return Effect.forEach(operations, (fiber) => Fiber.interrupt(fiber), { discard: true });
   }
 
   private getFileVersion(file: File): number {
@@ -510,6 +558,7 @@ export class PDFService {
   ): Effect.Effect<void, PDFProcessingError> {
     return Effect.callback<void, PDFProcessingError>((resume) => {
       let renderTask: ReturnType<typeof page.render>;
+      let cancelled = false;
 
       try {
         renderTask = page.render({
@@ -523,17 +572,35 @@ export class PDFService {
       }
 
       void renderTask.promise.then(
-        () => resume(Effect.succeed(undefined)),
-        (cause) => resume(Effect.fail(processingError("render-page", file, cause)))
+        () => {
+          if (!cancelled) resume(Effect.succeed(undefined));
+        },
+        (cause) => {
+          if (!cancelled) resume(Effect.fail(processingError("render-page", file, cause)));
+        }
       );
 
-      return Effect.sync(() => {
-        try {
-          renderTask.cancel();
-        } catch {
-          // Render cancellation is best effort when PDF.js has already completed.
-        }
-      });
+      return Effect.uninterruptible(
+        Effect.sync(() => {
+          cancelled = true;
+          try {
+            renderTask.cancel();
+          } catch {
+            // Render cancellation is best effort when PDF.js has already completed.
+          }
+        }).pipe(
+          Effect.andThen(
+            Effect.tryPromise({
+              try: () =>
+                renderTask.promise.then(
+                  () => undefined,
+                  () => undefined
+                ),
+              catch: () => undefined,
+            }).pipe(Effect.catch(() => Effect.void))
+          )
+        )
+      );
     });
   }
 }
