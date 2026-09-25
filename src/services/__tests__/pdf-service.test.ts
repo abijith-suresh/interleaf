@@ -650,6 +650,8 @@ describe("PDFService", () => {
 
     let activeRenders = 0;
     let maxActiveRenders = 0;
+    let heldPages = 0;
+    let maxHeldPages = 0;
     let startedRenders = 0;
     const finishRenders: Array<() => void> = [];
     const render = vi.fn(() => {
@@ -667,14 +669,20 @@ describe("PDFService", () => {
       });
       return { promise, cancel: renderCancelMock };
     });
-    const page = {
-      getViewport: vi.fn().mockReturnValue({ width: 100, height: 200 }),
-      cleanup: pageCleanupMock,
-      render,
-    };
     pdfjsGetDocumentMock.mockImplementationOnce(() => ({
       promise: Promise.resolve({
-        getPage: vi.fn().mockResolvedValue(page),
+        getPage: vi.fn().mockImplementation(() => {
+          heldPages += 1;
+          maxHeldPages = Math.max(maxHeldPages, heldPages);
+          return Promise.resolve({
+            getViewport: vi.fn().mockReturnValue({ width: 100, height: 200 }),
+            cleanup: vi.fn(() => {
+              pageCleanupMock();
+              heldPages -= 1;
+            }),
+            render,
+          });
+        }),
         cleanup: vi.fn().mockResolvedValue(undefined),
       }),
       destroy: loadingTaskDestroyMock,
@@ -690,6 +698,8 @@ describe("PDFService", () => {
 
     await vi.waitFor(() => expect(startedRenders).toBe(2));
     expect(maxActiveRenders).toBe(2);
+    expect(maxHeldPages).toBe(2);
+    expect(heldPages).toBe(2);
     expect(finishRenders).toHaveLength(2);
 
     finishRenders.shift()?.();
@@ -699,6 +709,7 @@ describe("PDFService", () => {
 
     await Promise.all(fibers.map((fiber) => Effect.runPromise(Fiber.join(fiber))));
     expect(maxActiveRenders).toBe(2);
+    expect(heldPages).toBe(0);
     expect(pageCleanupMock).toHaveBeenCalledTimes(3);
   });
 
@@ -1264,7 +1275,7 @@ describe("PDFService", () => {
     await Effect.runPromise(service.releaseFile(file));
 
     expect(renderCancel).toHaveBeenCalledTimes(2);
-    expect(pageCleanup).toHaveBeenCalledTimes(3);
+    expect(pageCleanup).toHaveBeenCalledTimes(2);
     expect(documentCleanup).toHaveBeenCalledTimes(1);
     await Promise.all(fibers.map((fiber) => Effect.runPromise(Fiber.await(fiber))));
   });
