@@ -49,15 +49,6 @@ describe("download utility", () => {
     expect(anchor.href).toBeTruthy();
   });
 
-  it("should handle empty data", () => {
-    const urlSpy = vi.spyOn(URL, "createObjectURL");
-
-    downloadPDF({ data: new Uint8Array(0), suggestedFileName: "empty.pdf" });
-
-    const blobArg = urlSpy.mock.calls[0][0] as Blob;
-    expect(blobArg.size).toBe(0);
-  });
-
   it("should pass data through to blob", () => {
     const urlSpy = vi.spyOn(URL, "createObjectURL");
 

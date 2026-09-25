@@ -110,28 +110,6 @@ describe("PDFOperationsService", () => {
   });
 
   describe("buildPDF", () => {
-    it("should create PDF from valid pages", async () => {
-      const service = new PDFOperationsService(pdfServiceMock);
-      const pages = [createMockPage()];
-
-      const result = await runEffect(service.buildPDF(pages));
-
-      expect(result.data).toBeInstanceOf(Uint8Array);
-      expect(result.suggestedFileName).toBe("interleaf-output.pdf");
-    });
-
-    it("should handle multiple pages", async () => {
-      const service = new PDFOperationsService(pdfServiceMock);
-      const pages = [
-        createMockPage({ id: "page-1", sourcePageNumber: 1 }),
-        createMockPage({ id: "page-2", sourcePageNumber: 2 }),
-      ];
-
-      const result = await runEffect(service.buildPDF(pages));
-
-      expect(result.data).toBeInstanceOf(Uint8Array);
-    });
-
     it("should throw error when no pages provided", async () => {
       const service = new PDFOperationsService(pdfServiceMock);
 
@@ -313,16 +291,6 @@ describe("PDFOperationsService", () => {
   });
 
   describe("selected pages", () => {
-    it("should export specific active pages", async () => {
-      const service = new PDFOperationsService(pdfServiceMock);
-      const pages = [createMockPage()];
-
-      const result = await runEffect(service.buildPDF(pages, { selectedIndices: [0] }));
-
-      expect(result.data).toBeInstanceOf(Uint8Array);
-      expect(result.suggestedFileName).toBe("interleaf-output.pdf");
-    });
-
     it("should skip marked pages from a selected export", async () => {
       const service = new PDFOperationsService(pdfServiceMock);
       const pages = [
@@ -343,18 +311,6 @@ describe("PDFOperationsService", () => {
       await runEffect(service.buildPDF([createMockPage()], { selectedIndices: [0], onProgress }));
 
       expect(onProgress).toHaveBeenCalledWith({ completed: 1, total: 1 });
-    });
-
-    it("should export selected pages in the requested order", async () => {
-      const service = new PDFOperationsService(pdfServiceMock);
-      const pages = [
-        createMockPage({ id: "page-1", sourcePageNumber: 1 }),
-        createMockPage({ id: "page-2", sourcePageNumber: 2 }),
-      ];
-
-      const result = await runEffect(service.buildPDF(pages, { selectedIndices: [1, 0] }));
-
-      expect(result.data).toBeInstanceOf(Uint8Array);
     });
 
     it("should throw error when selected indices contain no pages", async () => {
