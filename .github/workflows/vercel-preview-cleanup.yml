@@ -1,0 +1,96 @@
+name: Clean up Vercel preview deployments
+
+on:
+  pull_request_target:
+    types:
+      - closed
+
+permissions:
+  pull-requests: read
+
+concurrency:
+  group: vercel-preview-cleanup-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      GITHUB_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || '' }}
+      VERCEL_PROJECT: interleaf-app
+      VERCEL_SCOPE: abijiths-projects-1
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Install Vercel CLI
+        run: npm install --global vercel@59.23.2
+
+      - name: Remove previews for this closed pull request
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${VERCEL_TOKEN:-}" ]]; then
+            echo "::error::Add a project-scoped VERCEL_TOKEN Actions secret to this repository."
+            exit 1
+          fi
+
+          repository_owner="${GITHUB_REPOSITORY%%/*}"
+          repository_name="${GITHUB_REPOSITORY##*/}"
+          open_pulls="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100")"
+          shared_head="false"
+          if jq -e --arg head "$PR_HEAD_REF" --arg head_repository "$PR_HEAD_REPOSITORY" \
+            'any(.[]; .head.ref == $head and .head.repo.full_name == $head_repository)' \
+            <<< "$open_pulls" >/dev/null; then
+            shared_head="true"
+            echo "An open pull request shares this head branch; active aliases will be protected."
+          fi
+
+          deployment_list="$(vercel ls "$VERCEL_PROJECT" --scope "$VERCEL_SCOPE" \
+            --token "$VERCEL_TOKEN" --json --limit 100 \
+            --meta "githubPrId=$PR_NUMBER" --no-color)"
+          mapfile -t deployment_urls < <(jq -r \
+            --arg owner "$repository_owner" \
+            --arg repo "$repository_name" \
+            --arg pr "$PR_NUMBER" \
+            '.deployments[]? | select(.meta.githubOrg == $owner and .meta.githubRepo == $repo and (.meta.githubPrId | tostring) == $pr and .target != "production") | .url' \
+            <<< "$deployment_list")
+
+          if (( ${#deployment_urls[@]} == 0 )); then
+            echo "No Vercel deployments matched pull request #${PR_NUMBER}."
+            exit 0
+          fi
+
+          for deployment_url in "${deployment_urls[@]}"; do
+            inspect_output="$(vercel inspect "$deployment_url" --scope "$VERCEL_SCOPE" \
+              --token "$VERCEL_TOKEN" --format json --no-color 2>&1)" || {
+              echo "::warning::Could not inspect $deployment_url; skipping it."
+              continue
+            }
+            deployment_details="$(sed -n '/^{/,$p' <<< "$inspect_output")"
+            deployment_id="$(jq -r '.id // .uid // empty' <<< "$deployment_details")"
+            deployment_target="$(jq -r '.target // empty' <<< "$deployment_details")"
+
+            if [[ -z "$deployment_id" ]]; then
+              echo "::error::Could not resolve the deployment ID for $deployment_url."
+              exit 1
+            fi
+            if [[ "$deployment_target" != "preview" ]]; then
+              echo "Skipping $deployment_url because its target is ${deployment_target:-unknown}."
+              continue
+            fi
+
+            remove_args=(rm "$deployment_id" --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN" --yes --no-color)
+            if [[ "$shared_head" == "true" ]]; then
+              remove_args+=(--safe)
+            fi
+            vercel "${remove_args[@]}"
+          done
