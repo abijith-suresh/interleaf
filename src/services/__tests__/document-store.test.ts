@@ -1,5 +1,5 @@
 import { it } from "@effect/vitest";
-import { Deferred, Effect, Exit, Fiber, Option } from "effect";
+import { Deferred, Effect, Exit, Fiber, Option, Scheduler } from "effect";
 import { describe, expect } from "vitest";
 import { PDFProcessingError } from "../../types/interfaces";
 import { type DocumentKey, makeDocumentStore } from "../document-store";
@@ -14,6 +14,17 @@ const makeFile = (name: string): File => new File([name], name, { type: "applica
 const makeKey = (file: File, variant = "auto"): DocumentKey => ({ file, variant });
 
 const makeRecord = (id: string): TestRecord => ({ id });
+
+const schedulerYieldingOnceAt = (budget: number): Scheduler.MixedScheduler => {
+  const scheduler = new Scheduler.MixedScheduler("async");
+  const yielded = new WeakSet<object>();
+  scheduler.shouldYield = (fiber) => {
+    if (yielded.has(fiber) || fiber.currentOpCount < budget) return false;
+    yielded.add(fiber);
+    return true;
+  };
+  return scheduler;
+};
 
 const expectResident = (option: Option.Option<TestRecord>): TestRecord => {
   const record = Option.getOrUndefined(option);
@@ -81,6 +92,29 @@ describe("makeDocumentStore", () => {
       expect(loadCount).toBe(1);
       expect(cleanupCount).toBe(0);
     });
+  });
+
+  it("releases a load when its first acquire is interrupted during registration", async () => {
+    const file = makeFile("interrupted-registration.pdf");
+    const store = makeDocumentStore<TestRecord>({
+      load: () => Effect.never,
+      cleanup: () => Effect.void,
+    });
+    const scheduler = schedulerYieldingOnceAt(4);
+    const acquire = Effect.provideService(
+      store.acquire(makeKey(file)),
+      Scheduler.Scheduler,
+      scheduler
+    );
+    const fiber = Effect.runFork(acquire);
+
+    await Effect.runPromise(Fiber.interrupt(fiber));
+
+    const result = await Promise.race([
+      Effect.runPromise(store.releaseFile(file)).then(() => "released"),
+      new Promise<string>((resolve) => setTimeout(() => resolve("timed out"), 250)),
+    ]);
+    expect(result).toBe("released");
   });
 
   it.effect("retains a resident record across sequential acquires", () => {
@@ -392,7 +426,7 @@ describe("makeDocumentStore", () => {
     });
   });
 
-  it.effect("cleans a duplicate successful load exactly once", () => {
+  it.effect("returns the resident record after cleaning a duplicate load", () => {
     const firstGate = Deferred.makeUnsafe<TestRecord>();
     const secondGate = Deferred.makeUnsafe<TestRecord>();
     const cleanups: TestRecord[] = [];
@@ -411,15 +445,57 @@ describe("makeDocumentStore", () => {
       const second = yield* Effect.forkChild(store.acquire(makeKey(file, "second")));
       yield* Effect.yieldNow;
 
-      yield* Deferred.succeed(firstGate, makeRecord("winner"));
-      expect((yield* Fiber.join(first)).id).toBe("winner");
+      const winner = makeRecord("winner");
+      yield* Deferred.succeed(firstGate, winner);
+      expect(yield* Fiber.join(first)).toBe(winner);
 
       yield* Deferred.succeed(secondGate, makeRecord("loser"));
-      expect((yield* Fiber.join(second)).id).toBe("loser");
+      expect(yield* Fiber.join(second)).toBe(winner);
 
       expect(cleanups.map((record) => record.id)).toEqual(["loser"]);
-      expect(expectResident(store.peek(file)).id).toBe("winner");
+      expect(expectResident(store.peek(file))).toBe(winner);
     });
+  });
+
+  it.effect("does not retain a file after its tracked operation completes", () => {
+    const drained: File[] = [];
+    const store = makeDocumentStore<TestRecord>({
+      load: () => Effect.succeed(makeRecord("resident")),
+      cleanup: () => Effect.void,
+      drain: (file) =>
+        Effect.sync(() => {
+          drained.push(file);
+        }),
+    });
+    const file = makeFile("finished-operation.pdf");
+
+    return Effect.gen(function* () {
+      yield* store.track(file, "inspect")(Effect.void);
+      yield* store.reset;
+
+      expect(drained).toEqual([]);
+    });
+  });
+
+  it("removes a tracked operation interrupted before its body starts", async () => {
+    const drained: File[] = [];
+    const store = makeDocumentStore<TestRecord>({
+      load: () => Effect.never,
+      cleanup: () => Effect.void,
+      drain: (file) =>
+        Effect.sync(() => {
+          drained.push(file);
+        }),
+    });
+    const file = makeFile("interrupted-operation.pdf");
+    const tracked = store.track(file, "inspect")(Effect.void);
+    const scheduler = schedulerYieldingOnceAt(5);
+    const fiber = Effect.runFork(Effect.provideService(tracked, Scheduler.Scheduler, scheduler));
+
+    await Effect.runPromise(Fiber.interrupt(fiber));
+    await Effect.runPromise(store.reset);
+
+    expect(drained).toEqual([]);
   });
 
   it.effect("dispose clears resident records and closes the store scope", () => {
@@ -438,6 +514,28 @@ describe("makeDocumentStore", () => {
 
       expect(Option.isNone(store.peek(file))).toBe(true);
     });
+  });
+
+  it("finishes disposing when interrupted after marking the store disposed", async () => {
+    const file = makeFile("interrupted-dispose.pdf");
+    let cleaned = false;
+    const store = makeDocumentStore<TestRecord>({
+      load: () => Effect.succeed(makeRecord("resident")),
+      cleanup: () =>
+        Effect.sync(() => {
+          cleaned = true;
+        }),
+    });
+    await Effect.runPromise(store.acquire(makeKey(file)));
+
+    const scheduler = schedulerYieldingOnceAt(4);
+    const fiber = Effect.runFork(
+      Effect.provideService(store.dispose(), Scheduler.Scheduler, scheduler)
+    );
+    await Effect.runPromise(Fiber.interrupt(fiber));
+
+    expect(cleaned).toBe(true);
+    expect(Option.isNone(store.peek(file))).toBe(true);
   });
 
   it.effect("fails fast when acquiring after dispose", () => {

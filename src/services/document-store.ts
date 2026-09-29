@@ -50,14 +50,12 @@ interface InFlightLoad<A> {
   readonly fileVersion: number;
   readonly deferred: Deferred.Deferred<A, PDFError>;
   readonly fiberReady: Deferred.Deferred<Fiber.Fiber<A, PDFError>>;
-  readonly scope: Scope.Closeable;
   readonly cleanupError: Ref.Ref<PDFProcessingError | undefined>;
   fiber: Fiber.Fiber<A, PDFError> | null;
 }
 
 interface DocumentStoreState<A> {
   readonly sessionVersion: number;
-  readonly fileVersions: ReadonlyArray<FileEntry<number>>;
   readonly resident: ReadonlyArray<FileEntry<A>>;
   readonly loads: ReadonlyArray<InFlightLoad<A>>;
   readonly releaseBarriers: ReadonlyArray<FileEntry<Deferred.Deferred<void, PDFProcessingError>>>;
@@ -70,6 +68,11 @@ type AcquireDecision<A> =
   | { readonly _tag: "resident"; readonly record: A }
   | { readonly _tag: "inflight"; readonly load: InFlightLoad<A> }
   | { readonly _tag: "start"; readonly load: InFlightLoad<A> };
+
+type LoadPlacement<A> =
+  | { readonly _tag: "resident" }
+  | { readonly _tag: "duplicate"; readonly record: A }
+  | { readonly _tag: "stale" };
 
 type ReleaseDecision<A> =
   | { readonly _tag: "awaitReset"; readonly barrier: Deferred.Deferred<void, PDFProcessingError> }
@@ -148,10 +151,10 @@ const processingErrorFromExit = (
 
 export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStore<A> {
   const scope = Scope.makeUnsafe();
+  const fileVersions = new WeakMap<File, number>();
   let disposed = false;
   const stateRef = Ref.makeUnsafe<DocumentStoreState<A>>({
     sessionVersion: 0,
-    fileVersions: [],
     resident: [],
     loads: [],
     releaseBarriers: [],
@@ -202,7 +205,6 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
   const cancelLoad = (load: InFlightLoad<A>): Effect.Effect<void, PDFProcessingError> =>
     Effect.gen(function* () {
       yield* Deferred.fail(load.deferred, releaseErrorFor(load.key.file));
-      yield* Scope.close(load.scope, Exit.void);
       const fiber = load.fiber ?? (yield* Deferred.await(load.fiberReady));
       yield* interruptLoadFiber(load, fiber);
     });
@@ -214,24 +216,27 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
 
   const finishLoad = (load: InFlightLoad<A>, exit: Exit.Exit<A, PDFError>): Effect.Effect<void> =>
     Effect.suspend(() => {
-      const transferred = Exit.isSuccess(exit)
-        ? mutate((state) => {
+      const placement: LoadPlacement<A> = Exit.isSuccess(exit)
+        ? mutate<LoadPlacement<A>>((state) => {
             if (
               state.sessionVersion === load.sessionVersion &&
-              (lookupEntry(state.fileVersions, load.key.file) ?? 0) === load.fileVersion &&
-              lookupEntry(state.resident, load.key.file) === undefined
+              (fileVersions.get(load.key.file) ?? 0) === load.fileVersion
             ) {
+              const resident = lookupEntry(state.resident, load.key.file);
+              if (resident !== undefined) {
+                return [{ _tag: "duplicate", record: resident }, state];
+              }
               return [
-                true,
+                { _tag: "resident" },
                 { ...state, resident: upsertEntry(state.resident, load.key.file, exit.value) },
               ];
             }
-            return [false, state];
+            return [{ _tag: "stale" }, state];
           })
-        : false;
+        : { _tag: "stale" };
 
       const cleanup =
-        Exit.isSuccess(exit) && !transferred
+        Exit.isSuccess(exit) && placement._tag !== "resident"
           ? hooks.cleanup(exit.value).pipe(
               Effect.catch((error) =>
                 Effect.sync(() => {
@@ -254,22 +259,29 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
         Effect.andThen(
           Effect.suspend(() => {
             const cleanupError = load.cleanupError.ref.current;
-            return Deferred.done(load.deferred, cleanupError ? Exit.fail(cleanupError) : exit);
+            if (cleanupError) return Deferred.fail(load.deferred, cleanupError);
+            if (placement._tag === "duplicate") {
+              return Deferred.succeed(load.deferred, placement.record);
+            }
+            if (Exit.isSuccess(exit) && placement._tag === "stale") {
+              return Deferred.fail(load.deferred, releaseErrorFor(load.key.file));
+            }
+            return Deferred.done(load.deferred, exit);
           })
         )
       );
     });
 
-  const startLoad = (load: InFlightLoad<A>): Effect.Effect<A, PDFError> =>
-    Effect.uninterruptible(
-      Effect.gen(function* () {
-        const fiber = yield* Effect.forkDetach(
-          hooks.load(load.key).pipe(Effect.onExit((exit) => finishLoad(load, exit)))
-        );
-        load.fiber = Fiber.runIn(load.scope)(fiber);
-        yield* Deferred.succeed(load.fiberReady, fiber);
-      })
-    ).pipe(Effect.andThen(Deferred.await(load.deferred)));
+  const startLoad = (load: InFlightLoad<A>): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      const fiber = yield* Effect.forkDetach(
+        Effect.suspend(() => hooks.load(load.key)).pipe(
+          Effect.onExit((exit) => finishLoad(load, exit))
+        )
+      );
+      load.fiber = Fiber.runIn(scope)(fiber);
+      yield* Deferred.succeed(load.fiberReady, fiber);
+    });
 
   const completeRelease = (
     file: File,
@@ -313,16 +325,12 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
           const loads = state.loads.filter((load) => load.key.file === file);
           const operations = lookupEntry(state.operationFibers, file) ?? [];
           const record = lookupEntry(state.resident, file);
+          fileVersions.set(file, (fileVersions.get(file) ?? 0) + 1);
 
           return [
             { _tag: "start", barrier, loads, operations, record },
             {
               ...state,
-              fileVersions: upsertEntry(
-                state.fileVersions,
-                file,
-                (lookupEntry(state.fileVersions, file) ?? 0) + 1
-              ),
               releaseBarriers: upsertEntry(state.releaseBarriers, file, barrier),
               resident: removeEntry(state.resident, file),
               loads: state.loads.filter((load) => load.key.file !== file),
@@ -432,70 +440,73 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
   );
 
   const acquire = (key: DocumentKey): Effect.Effect<A, PDFError> =>
-    Effect.suspend(() => {
-      if (disposed) {
-        return Effect.fail(
-          processingError(
-            "document-store",
-            key.file,
-            new Error("The document store has been disposed.")
-          )
-        );
-      }
-
-      const decision = mutate<AcquireDecision<A>>((state) => {
-        const resetBarrier = state.resetBarrier;
-        if (resetBarrier) return [{ _tag: "barrier", barrier: resetBarrier }, state];
-
-        const releaseBarrier = lookupEntry(state.releaseBarriers, key.file);
-        if (releaseBarrier) return [{ _tag: "barrier", barrier: releaseBarrier }, state];
-
-        const record = lookupEntry(state.resident, key.file);
-        if (record !== undefined) return [{ _tag: "resident", record }, state];
-
-        const existing = state.loads.find(
-          (load) => load.key.file === key.file && load.key.variant === key.variant
-        );
-        if (existing) return [{ _tag: "inflight", load: existing }, state];
-
-        const load: InFlightLoad<A> = {
-          key,
-          sessionVersion: state.sessionVersion,
-          fileVersion: lookupEntry(state.fileVersions, key.file) ?? 0,
-          deferred: Deferred.makeUnsafe<A, PDFError>(),
-          fiberReady: Deferred.makeUnsafe<Fiber.Fiber<A, PDFError>>(),
-          scope: Scope.forkUnsafe(scope),
-          cleanupError: Ref.makeUnsafe<PDFProcessingError | undefined>(undefined),
-          fiber: null,
-        };
-
-        return [
-          { _tag: "start", load },
-          { ...state, loads: [...state.loads, load] },
-        ];
-      });
-
-      switch (decision._tag) {
-        case "barrier":
-          return Deferred.await(decision.barrier).pipe(
-            Effect.andThen(
-              Effect.fail(
-                processingError(
-                  "document-operation",
-                  key.file,
-                  new Error("The PDF changed before the document operation could start.")
-                )
-              )
+    Effect.uninterruptibleMask((restore) =>
+      Effect.suspend(() => {
+        if (disposed) {
+          return Effect.fail(
+            processingError(
+              "document-store",
+              key.file,
+              new Error("The document store has been disposed.")
             )
           );
-        case "resident":
-          return Effect.succeed(decision.record);
-        case "inflight":
-          return Deferred.await(decision.load.deferred);
-        case "start":
-          return startLoad(decision.load);
-      }
-    });
+        }
+
+        const decision = mutate<AcquireDecision<A>>((state) => {
+          const resetBarrier = state.resetBarrier;
+          if (resetBarrier) return [{ _tag: "barrier", barrier: resetBarrier }, state];
+
+          const releaseBarrier = lookupEntry(state.releaseBarriers, key.file);
+          if (releaseBarrier) return [{ _tag: "barrier", barrier: releaseBarrier }, state];
+
+          const record = lookupEntry(state.resident, key.file);
+          if (record !== undefined) return [{ _tag: "resident", record }, state];
+
+          const existing = state.loads.find(
+            (load) => load.key.file === key.file && load.key.variant === key.variant
+          );
+          if (existing) return [{ _tag: "inflight", load: existing }, state];
+
+          const load: InFlightLoad<A> = {
+            key,
+            sessionVersion: state.sessionVersion,
+            fileVersion: fileVersions.get(key.file) ?? 0,
+            deferred: Deferred.makeUnsafe<A, PDFError>(),
+            fiberReady: Deferred.makeUnsafe<Fiber.Fiber<A, PDFError>>(),
+            cleanupError: Ref.makeUnsafe<PDFProcessingError | undefined>(undefined),
+            fiber: null,
+          };
+
+          return [
+            { _tag: "start", load },
+            { ...state, loads: [...state.loads, load] },
+          ];
+        });
+
+        switch (decision._tag) {
+          case "barrier":
+            return restore(Deferred.await(decision.barrier)).pipe(
+              Effect.andThen(
+                Effect.fail(
+                  processingError(
+                    "document-operation",
+                    key.file,
+                    new Error("The PDF changed before the document operation could start.")
+                  )
+                )
+              )
+            );
+          case "resident":
+            return Effect.succeed(decision.record);
+          case "inflight":
+            return restore(Deferred.await(decision.load.deferred));
+          case "start":
+            return startLoad(decision.load).pipe(
+              Effect.andThen(restore(Deferred.await(decision.load.deferred)))
+            );
+        }
+      })
+    );
 
   const peek = (file: File): Option.Option<A> =>
     Option.fromUndefinedOr(lookupEntry(Ref.getUnsafe(stateRef).resident, file));
@@ -504,7 +515,7 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
     const state = Ref.getUnsafe(stateRef);
     return {
       session: state.sessionVersion,
-      file: lookupEntry(state.fileVersions, file) ?? 0,
+      file: fileVersions.get(file) ?? 0,
     };
   };
 
@@ -512,16 +523,13 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
     const state = Ref.getUnsafe(stateRef);
     return (
       state.sessionVersion === documentVersion.session &&
-      (lookupEntry(state.fileVersions, file) ?? 0) === documentVersion.file
+      (fileVersions.get(file) ?? 0) === documentVersion.file
     );
   };
 
   const isCurrent = (file: File, sessionVersion: number, fileVersion: number): boolean => {
     const state = Ref.getUnsafe(stateRef);
-    return (
-      state.sessionVersion === sessionVersion &&
-      (lookupEntry(state.fileVersions, file) ?? 0) === fileVersion
-    );
+    return state.sessionVersion === sessionVersion && (fileVersions.get(file) ?? 0) === fileVersion;
   };
 
   const barrierFor = (file: File): Deferred.Deferred<void, PDFProcessingError> | undefined => {
@@ -537,54 +545,60 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
     effect: Effect.Effect<R, E>
   ): Effect.Effect<R, E | PDFProcessingError> =>
     Effect.withFiber((fiber) =>
-      Effect.suspend(() => {
-        if (!isCurrent(file, sessionVersion, fileVersion)) {
-          return Effect.fail(
-            processingError(
-              operation,
-              file,
-              new Error("The PDF changed before the operation started.")
-            )
+      Effect.uninterruptibleMask((restore) =>
+        Effect.suspend(() => {
+          if (!isCurrent(file, sessionVersion, fileVersion)) {
+            return Effect.fail(
+              processingError(
+                operation,
+                file,
+                new Error("The PDF changed before the operation started.")
+              )
+            );
+          }
+
+          const barrier = barrierFor(file);
+          if (barrier) {
+            return restore(
+              Deferred.await(barrier).pipe(
+                Effect.andThen(trackWith(file, operation, sessionVersion, fileVersion, effect))
+              )
+            );
+          }
+
+          mutate((state) => [
+            undefined,
+            {
+              ...state,
+              operationFibers: upsertEntry(state.operationFibers, file, [
+                ...(lookupEntry(state.operationFibers, file) ?? []),
+                fiber,
+              ]),
+            },
+          ]);
+
+          return Effect.ensuring(
+            restore(effect),
+            Effect.sync(() => {
+              mutate((state) => {
+                const remaining = (lookupEntry(state.operationFibers, file) ?? []).filter(
+                  (entry) => entry !== fiber
+                );
+                return [
+                  undefined,
+                  {
+                    ...state,
+                    operationFibers:
+                      remaining.length === 0
+                        ? removeEntry(state.operationFibers, file)
+                        : upsertEntry(state.operationFibers, file, remaining),
+                  },
+                ];
+              });
+            })
           );
-        }
-
-        const barrier = barrierFor(file);
-        if (barrier) {
-          return Deferred.await(barrier).pipe(
-            Effect.andThen(trackWith(file, operation, sessionVersion, fileVersion, effect))
-          );
-        }
-
-        mutate((state) => [
-          undefined,
-          {
-            ...state,
-            operationFibers: upsertEntry(state.operationFibers, file, [
-              ...(lookupEntry(state.operationFibers, file) ?? []),
-              fiber,
-            ]),
-          },
-        ]);
-
-        return Effect.ensuring(
-          effect,
-          Effect.sync(() => {
-            mutate((state) => [
-              undefined,
-              {
-                ...state,
-                operationFibers: upsertEntry(
-                  state.operationFibers,
-                  file,
-                  (lookupEntry(state.operationFibers, file) ?? []).filter(
-                    (entry) => entry !== fiber
-                  )
-                ),
-              },
-            ]);
-          })
-        );
-      })
+        })
+      )
     );
 
   const gateWith = <R, E extends PDFError>(
@@ -621,13 +635,7 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
       effect: Effect.Effect<R, E>
     ): Effect.Effect<R, E | PDFProcessingError> => {
       const state = Ref.getUnsafe(stateRef);
-      return trackWith(
-        file,
-        operation,
-        state.sessionVersion,
-        lookupEntry(state.fileVersions, file) ?? 0,
-        effect
-      );
+      return trackWith(file, operation, state.sessionVersion, fileVersions.get(file) ?? 0, effect);
     };
 
   const gate =
@@ -636,23 +644,19 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
       effect: Effect.Effect<R, E>
     ): Effect.Effect<R, E | PDFProcessingError> => {
       const state = Ref.getUnsafe(stateRef);
-      return gateWith(
-        file,
-        operation,
-        state.sessionVersion,
-        lookupEntry(state.fileVersions, file) ?? 0,
-        effect
-      );
+      return gateWith(file, operation, state.sessionVersion, fileVersions.get(file) ?? 0, effect);
     };
 
   const dispose = (): Effect.Effect<void> =>
-    Effect.suspend(() => {
-      disposed = true;
-      return reset.pipe(
-        Effect.catch(() => Effect.void),
-        Effect.andThen(Scope.close(scope, Exit.void))
-      );
-    });
+    Effect.uninterruptible(
+      Effect.suspend(() => {
+        disposed = true;
+        return reset.pipe(
+          Effect.catch(() => Effect.void),
+          Effect.andThen(Scope.close(scope, Exit.void))
+        );
+      })
+    );
 
   return {
     acquire,
