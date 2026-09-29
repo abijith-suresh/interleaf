@@ -57,6 +57,8 @@ jobs:
       - name: Build pinned qpdf module
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: "1"
+          EMCC_DEBUG: "1"
+          EMCC_TEMP_DIR: /tmp/interleaf-qpdf/debug-temps
         run: ./tools/qpdf-wasm/build-qpdf-wasm.sh /tmp/interleaf-qpdf
 
       - name: Build diagnostics
@@ -79,8 +81,14 @@ jobs:
                     /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libc.a \
                     /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libc++abi.a \
                     /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libcompiler_rt.a
+          echo "--- tool versions ---"
+          /emsdk/upstream/bin/wasm-opt --version
+          /emsdk/upstream/bin/wasm-ld --version | head -1
+          /emsdk/upstream/bin/clang-20 --version | head -1
           echo "--- tool binaries ---"
           sha256sum /emsdk/upstream/bin/clang /emsdk/upstream/bin/wasm-ld /emsdk/upstream/bin/wasm-opt
+          echo "--- pipeline intermediates ---"
+          sha256sum /tmp/interleaf-qpdf/debug-temps/emscripten_temp/*.wasm 2>/dev/null || true
           uname -a
           echo "--- port lib timestamps ---"
           stat -c '%y %s %n' /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libz.a \
