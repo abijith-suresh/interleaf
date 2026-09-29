@@ -1,9 +1,11 @@
-import { Cause, Deferred, Effect, Exit, Option, Semaphore } from "effect";
+import { Cause, Deferred, Effect, Exit, Option } from "effect";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { type PDFError, PDFPasswordRequiredError, PDFProcessingError } from "../types/interfaces";
 import { type DocumentKey, makeDocumentStore } from "./document-store";
-import { collectFirstError, continueAfterError, processingError } from "./pdf-errors";
+import { PageRenderer } from "./page-renderer";
+import { PageResources } from "./page-resources";
+import { collectFirstError, processingError } from "./pdf-errors";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
@@ -15,38 +17,6 @@ interface LoadedPDFRecord {
   readonly loadingTask: ReturnType<typeof pdfjsLib.getDocument>;
 }
 
-interface PendingPageRequest {
-  readonly completion: Deferred.Deferred<void>;
-  readonly file: File;
-  readonly operation: string;
-  readonly pagePromise: Promise<pdfjsLib.PDFPageProxy>;
-  page: pdfjsLib.PDFPageProxy | undefined;
-  cleanupError: PDFProcessingError | undefined;
-  pageSettled: boolean;
-  cleanupStarted: boolean;
-  cleaned: boolean;
-}
-
-interface PageResource {
-  readonly page: pdfjsLib.PDFPageProxy;
-  readonly request: PendingPageRequest;
-}
-
-function cleanupPage(
-  page: pdfjsLib.PDFPageProxy,
-  file: File,
-  operation: string
-): Effect.Effect<void, PDFProcessingError> {
-  return Effect.try({
-    try: () => {
-      if (page.cleanup() === false) {
-        throw new Error("PDF.js did not finish cleaning up the page.");
-      }
-    },
-    catch: (cause) => processingError(operation, file, cause),
-  });
-}
-
 function isPasswordException(cause: unknown): boolean {
   return (
     typeof cause === "object" &&
@@ -56,19 +26,16 @@ function isPasswordException(cause: unknown): boolean {
   );
 }
 
-const MAX_CONCURRENT_PAGE_RENDERS = 2;
 const AUTO_VARIANT = "auto";
 const PASSWORD_VARIANT_PREFIX = "password:";
 
 export class PDFService {
   private activeFile: File | null = null;
   private passwordRegistry = new Map<File, string>();
-  private pendingPageRequests = new Map<File, Set<PendingPageRequest>>();
-  private readonly renderSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_PAGE_RENDERS);
   private readonly documents = makeDocumentStore<LoadedPDFRecord>({
     load: (key) => this.loadDocumentRecord(key),
     cleanup: (record) => this.cleanupRecord(record),
-    drain: (file) => this.drainPendingPageRequests(file),
+    drain: (file) => this.pageResources.drain(file),
     releaseError: (file) =>
       new PDFProcessingError({
         operation: "release-file",
@@ -77,6 +44,8 @@ export class PDFService {
         message: "The PDF was released before loading completed.",
       }),
   });
+  private readonly pageResources = new PageResources();
+  private readonly pageRenderer = new PageRenderer();
 
   loadPDF(file: File): Effect.Effect<void, PDFError> {
     const version = this.documents.version(file);
@@ -146,8 +115,8 @@ export class PDFService {
     )(
       Effect.gen({ self: this }, function* () {
         const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
-        return yield* this.withPageCleanup(
-          this.getPage(file, record, pageNumber, "get-page-rotation"),
+        return yield* this.pageResources.withPageCleanup(
+          this.pageResources.getPage(record.pdfjsDocument, file, pageNumber, "get-page-rotation"),
           (page) =>
             Effect.try({
               try: () => page.rotate,
@@ -169,8 +138,8 @@ export class PDFService {
     )(
       Effect.gen({ self: this }, function* () {
         const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
-        return yield* this.withPageCleanup(
-          this.getPage(file, record, pageNumber, "get-page-size"),
+        return yield* this.pageResources.withPageCleanup(
+          this.pageResources.getPage(record.pdfjsDocument, file, pageNumber, "get-page-size"),
           (page) =>
             Effect.try({
               try: () => {
@@ -197,27 +166,29 @@ export class PDFService {
     )(
       Effect.gen({ self: this }, function* () {
         const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
-        yield* this.renderSemaphore.withPermit(
-          this.withPageCleanup(this.getPage(file, record, pageNumber, "render-page"), (page) =>
-            Effect.gen({ self: this }, function* () {
-              const { context, viewport } = yield* Effect.try({
-                try: () => {
-                  const nextViewport = page.getViewport({ scale, rotation });
-                  canvas.width = nextViewport.width;
-                  canvas.height = nextViewport.height;
+        yield* this.pageRenderer.withPermit(
+          this.pageResources.withPageCleanup(
+            this.pageResources.getPage(record.pdfjsDocument, file, pageNumber, "render-page"),
+            (page) =>
+              Effect.gen({ self: this }, function* () {
+                const { context, viewport } = yield* Effect.try({
+                  try: () => {
+                    const nextViewport = page.getViewport({ scale, rotation });
+                    canvas.width = nextViewport.width;
+                    canvas.height = nextViewport.height;
 
-                  const nextContext = canvas.getContext("2d");
-                  if (!nextContext) {
-                    throw new Error("Could not get canvas context");
-                  }
+                    const nextContext = canvas.getContext("2d");
+                    if (!nextContext) {
+                      throw new Error("Could not get canvas context");
+                    }
 
-                  return { context: nextContext, viewport: nextViewport };
-                },
-                catch: (cause) => processingError("render-page", file, cause),
-              });
+                    return { context: nextContext, viewport: nextViewport };
+                  },
+                  catch: (cause) => processingError("render-page", file, cause),
+                });
 
-              yield* this.renderPDFPage(file, page, canvas, context, viewport);
-            })
+                yield* this.pageRenderer.render(file, page, canvas, context, viewport);
+              })
           )
         );
       })
@@ -412,232 +383,6 @@ export class PDFService {
         }),
         Effect.catch((error) =>
           Effect.suspend(() => (cleanupError ? Effect.fail(cleanupError) : Effect.fail(error)))
-        )
-      );
-    });
-  }
-
-  private getPage(
-    file: File,
-    record: LoadedPDFRecord,
-    pageNumber: number,
-    operation: string
-  ): Effect.Effect<PageResource, PDFProcessingError> {
-    return Effect.suspend(() => {
-      let pagePromise: Promise<pdfjsLib.PDFPageProxy>;
-
-      try {
-        pagePromise = record.pdfjsDocument.getPage(pageNumber);
-      } catch (cause) {
-        return Effect.fail(processingError(operation, file, cause));
-      }
-
-      const request: PendingPageRequest = {
-        completion: Deferred.makeUnsafe<void>(),
-        file,
-        operation,
-        pagePromise,
-        page: undefined,
-        cleanupError: undefined,
-        pageSettled: false,
-        cleanupStarted: false,
-        cleaned: false,
-      };
-      const requests = this.pendingPageRequests.get(file) ?? new Set();
-      requests.add(request);
-      this.pendingPageRequests.set(file, requests);
-
-      return Effect.tryPromise({
-        try: () => pagePromise,
-        catch: (cause) => processingError(operation, file, cause),
-      }).pipe(
-        Effect.tap((page) =>
-          Effect.sync(() => {
-            request.pageSettled = true;
-            request.page = page;
-          })
-        ),
-        Effect.map((page) => ({ page, request })),
-        Effect.onExit((exit) => {
-          if (Exit.isSuccess(exit)) return Effect.void;
-          return this.cleanupPendingPage(request);
-        })
-      );
-    });
-  }
-
-  private withPageCleanup<A, E>(
-    acquire: Effect.Effect<PageResource, PDFProcessingError>,
-    use: (page: pdfjsLib.PDFPageProxy) => Effect.Effect<A, E>
-  ): Effect.Effect<A, E | PDFProcessingError> {
-    return Effect.acquireUseRelease(
-      acquire,
-      ({ page }) => use(page),
-      ({ request }) => this.cleanupPendingPage(request)
-    );
-  }
-
-  private cleanupPendingPage(request: PendingPageRequest): Effect.Effect<void, PDFProcessingError> {
-    return Effect.suspend(() => {
-      if (request.cleaned || request.cleanupStarted) {
-        return Deferred.await(request.completion).pipe(
-          Effect.andThen(
-            Effect.suspend(() =>
-              request.cleanupError ? Effect.fail(request.cleanupError) : Effect.void
-            )
-          )
-        );
-      }
-
-      request.cleanupStarted = true;
-      const waitForPage =
-        request.page || request.pageSettled
-          ? Effect.void
-          : Effect.tryPromise({
-              try: () => request.pagePromise,
-              catch: () => undefined,
-            }).pipe(
-              Effect.tap((page) =>
-                Effect.sync(() => {
-                  request.pageSettled = true;
-                  request.page = page;
-                })
-              ),
-              Effect.catch(() =>
-                Effect.sync(() => {
-                  request.pageSettled = true;
-                })
-              )
-            );
-
-      return Effect.uninterruptible(
-        waitForPage.pipe(
-          Effect.andThen(
-            request.page ? cleanupPage(request.page, request.file, request.operation) : Effect.void
-          ),
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              request.cleanupError = error;
-            })
-          ),
-          Effect.andThen(
-            Effect.sync(() => {
-              request.cleaned = true;
-              this.removePendingPageRequest(request);
-              Deferred.doneUnsafe(request.completion, Effect.void);
-            })
-          ),
-          Effect.andThen(
-            Effect.suspend(() =>
-              request.cleanupError ? Effect.fail(request.cleanupError) : Effect.void
-            )
-          )
-        )
-      );
-    });
-  }
-
-  private removePendingPageRequest(request: PendingPageRequest): void {
-    const requests = this.pendingPageRequests.get(request.file);
-    if (!requests) return;
-    requests.delete(request);
-    if (requests.size === 0) this.pendingPageRequests.delete(request.file);
-  }
-
-  private takePendingPageRequests(file: File): readonly PendingPageRequest[] {
-    const requests = this.pendingPageRequests.get(file);
-    this.pendingPageRequests.delete(file);
-    return requests ? Array.from(requests) : [];
-  }
-
-  private awaitPendingPageRequests(
-    requests: readonly PendingPageRequest[]
-  ): Effect.Effect<void, PDFProcessingError> {
-    return collectFirstError(
-      requests.map((request) =>
-        Deferred.await(request.completion).pipe(
-          Effect.andThen(
-            Effect.suspend(() =>
-              request.cleanupError ? Effect.fail(request.cleanupError) : Effect.void
-            )
-          )
-        )
-      )
-    );
-  }
-
-  private drainPendingPageRequests(file?: File): Effect.Effect<void, PDFProcessingError> {
-    return Effect.suspend(() => {
-      const requests = file
-        ? this.takePendingPageRequests(file)
-        : Array.from(this.pendingPageRequests.values()).flatMap((fileRequests) =>
-            Array.from(fileRequests)
-          );
-      if (!file) this.pendingPageRequests.clear();
-      if (requests.length === 0) return Effect.void;
-
-      const accumulator: { current?: PDFProcessingError } = {};
-      return continueAfterError(accumulator, this.awaitPendingPageRequests(requests)).pipe(
-        Effect.andThen(this.drainPendingPageRequests(file)),
-        Effect.andThen(
-          Effect.suspend(() =>
-            accumulator.current ? Effect.fail(accumulator.current) : Effect.void
-          )
-        )
-      );
-    });
-  }
-
-  private renderPDFPage(
-    file: File,
-    page: pdfjsLib.PDFPageProxy,
-    canvas: HTMLCanvasElement,
-    context: CanvasRenderingContext2D,
-    viewport: pdfjsLib.PageViewport
-  ): Effect.Effect<void, PDFProcessingError> {
-    return Effect.callback<void, PDFProcessingError>((resume) => {
-      let renderTask: ReturnType<typeof page.render>;
-      let cancelled = false;
-
-      try {
-        renderTask = page.render({
-          canvasContext: context,
-          viewport,
-          canvas,
-        });
-      } catch (cause) {
-        resume(Effect.fail(processingError("render-page", file, cause)));
-        return;
-      }
-
-      void renderTask.promise.then(
-        () => {
-          if (!cancelled) resume(Effect.succeed(undefined));
-        },
-        (cause) => {
-          if (!cancelled) resume(Effect.fail(processingError("render-page", file, cause)));
-        }
-      );
-
-      return Effect.uninterruptible(
-        Effect.sync(() => {
-          cancelled = true;
-          try {
-            renderTask.cancel();
-          } catch {
-            // Render cancellation is best effort when PDF.js has already completed.
-          }
-        }).pipe(
-          Effect.andThen(
-            Effect.tryPromise({
-              try: () =>
-                renderTask.promise.then(
-                  () => undefined,
-                  () => undefined
-                ),
-              catch: () => undefined,
-            }).pipe(Effect.catch(() => Effect.void))
-          )
         )
       );
     });
