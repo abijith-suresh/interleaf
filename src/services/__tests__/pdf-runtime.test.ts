@@ -12,6 +12,7 @@ const pdfServiceMock = vi.hoisted(() => ({
   renderPage: vi.fn(),
   releaseFile: vi.fn(),
   reset: vi.fn(),
+  dispose: vi.fn(),
 }));
 
 const operationsServiceMock = vi.hoisted(() => ({
@@ -19,6 +20,7 @@ const operationsServiceMock = vi.hoisted(() => ({
   imagesToPDF: vi.fn(),
   releaseFile: vi.fn(),
   clearCache: vi.fn(),
+  dispose: vi.fn(),
   constructed: 0,
 }));
 
@@ -42,6 +44,7 @@ vi.mock("../pdf-service", () => ({
     renderPage = pdfServiceMock.renderPage;
     releaseFile = pdfServiceMock.releaseFile;
     reset = pdfServiceMock.reset;
+    dispose = pdfServiceMock.dispose;
   },
 }));
 vi.mock("../pdf-operations-service", () => ({
@@ -54,6 +57,7 @@ vi.mock("../pdf-operations-service", () => ({
     imagesToPDF = operationsServiceMock.imagesToPDF;
     releaseFile = operationsServiceMock.releaseFile;
     clearCache = operationsServiceMock.clearCache;
+    dispose = operationsServiceMock.dispose;
   },
 }));
 vi.mock("../pdf-image-export-service", () => ({
@@ -92,6 +96,7 @@ beforeEach(() => {
   pdfServiceMock.renderPage.mockReturnValue(Effect.succeed(undefined));
   pdfServiceMock.releaseFile.mockReturnValue(Effect.succeed(undefined));
   pdfServiceMock.reset.mockReturnValue(Effect.succeed(undefined));
+  pdfServiceMock.dispose.mockReturnValue(Effect.void);
   operationsServiceMock.buildPDF.mockReturnValue(
     Effect.succeed({ data: new Uint8Array(), suggestedFileName: "document.pdf" })
   );
@@ -100,6 +105,7 @@ beforeEach(() => {
   );
   operationsServiceMock.releaseFile.mockReturnValue(Effect.succeed(undefined));
   operationsServiceMock.clearCache.mockReturnValue(Effect.succeed(undefined));
+  operationsServiceMock.dispose.mockReturnValue(Effect.void);
   operationsServiceMock.constructed = 0;
   imageExportServiceMock.exportImages.mockReturnValue(
     Effect.succeed({ data: new Blob(), suggestedFileName: "document-images.zip" })

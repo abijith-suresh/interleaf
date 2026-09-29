@@ -20,6 +20,7 @@ vi.mock("@/services/pdf-service", () => ({
     getPageRotation = pdfServiceMocks.getPageRotation;
     renderPage = pdfServiceMocks.renderPage;
     reset = pdfServiceMocks.reset;
+    dispose = () => Effect.void;
   },
 }));
 vi.mock("@/services/pdf-operations-service", () => ({
