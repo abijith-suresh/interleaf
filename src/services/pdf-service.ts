@@ -247,28 +247,28 @@ export class PDFService {
       fileVersion,
       Effect.gen({ self: this }, function* () {
         const record = yield* this.getOrLoadDocument(file);
-        yield* this.withPageCleanup(this.getPage(file, record, pageNumber, "render-page"), (page) =>
-          Effect.gen({ self: this }, function* () {
-            const { context, viewport } = yield* Effect.try({
-              try: () => {
-                const nextViewport = page.getViewport({ scale, rotation });
-                canvas.width = nextViewport.width;
-                canvas.height = nextViewport.height;
+        yield* this.renderSemaphore.withPermit(
+          this.withPageCleanup(this.getPage(file, record, pageNumber, "render-page"), (page) =>
+            Effect.gen({ self: this }, function* () {
+              const { context, viewport } = yield* Effect.try({
+                try: () => {
+                  const nextViewport = page.getViewport({ scale, rotation });
+                  canvas.width = nextViewport.width;
+                  canvas.height = nextViewport.height;
 
-                const nextContext = canvas.getContext("2d");
-                if (!nextContext) {
-                  throw new Error("Could not get canvas context");
-                }
+                  const nextContext = canvas.getContext("2d");
+                  if (!nextContext) {
+                    throw new Error("Could not get canvas context");
+                  }
 
-                return { context: nextContext, viewport: nextViewport };
-              },
-              catch: (cause) => processingError("render-page", file, cause),
-            });
+                  return { context: nextContext, viewport: nextViewport };
+                },
+                catch: (cause) => processingError("render-page", file, cause),
+              });
 
-            yield* this.renderSemaphore.withPermit(
-              this.renderPDFPage(file, page, canvas, context, viewport)
-            );
-          })
+              yield* this.renderPDFPage(file, page, canvas, context, viewport);
+            })
+          )
         );
       })
     );
