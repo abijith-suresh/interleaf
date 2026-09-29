@@ -1,4 +1,4 @@
-import { Deferred, Effect, Fiber } from "effect";
+import { Effect } from "effect";
 import { degrees, PageSizes, PDFDocument } from "pdf-lib";
 import { IMAGES_TO_PDF_FILENAME, OUTPUT_FILENAME } from "../constants";
 import type {
@@ -9,6 +9,7 @@ import type {
 } from "../types/interfaces";
 import { PDFNoPagesError, PDFProcessingError } from "../types/interfaces";
 import { getSupportedFileKind } from "../utils/file-types";
+import { type DocumentKey, type DocumentStore, makeDocumentStore } from "./document-store";
 import { processingError } from "./pdf-errors";
 import type { PDFService } from "./pdf-service";
 
@@ -91,56 +92,51 @@ function readJpegOrientation(data: ArrayBuffer): JPEGOrientation {
   return 1;
 }
 
-interface InFlightSourceDocument {
-  readonly deferred: Deferred.Deferred<PDFDocument, PDFProcessingError>;
-  readonly file: File;
-  fiber: Fiber.Fiber<PDFDocument, PDFProcessingError> | null;
-  released: boolean;
-}
+const SOURCE_DOCUMENT_VARIANT = "source";
 
-type ForkDetached = <A, E>(effect: Effect.Effect<A, E>) => Effect.Effect<Fiber.Fiber<A, E>>;
+const sourceDocumentKey = (file: File): DocumentKey => ({
+  file,
+  variant: SOURCE_DOCUMENT_VARIANT,
+});
 
 export class PDFOperationsService {
-  private sourceDocCache = new Map<File, PDFDocument>();
-  private sourceDocEffects = new Map<File, InFlightSourceDocument>();
-  private fileVersions = new WeakMap<File, number>();
-  private cacheVersion = 0;
+  private readonly store: DocumentStore<PDFDocument>;
 
-  constructor(
-    private readonly pdfService: Pick<PDFService, "renderPage">,
-    private readonly forkDetached: ForkDetached = Effect.forkDetach
-  ) {}
-
-  clearCache(): Effect.Effect<void> {
-    return Effect.suspend(() => {
-      const loads = Array.from(this.sourceDocEffects.values());
-      for (const load of loads) {
-        load.released = true;
-      }
-      this.sourceDocCache.clear();
-      this.sourceDocEffects.clear();
-      this.cacheVersion += 1;
-
-      return Effect.uninterruptible(
-        Effect.forEach(loads, (load) => this.cancelSourceLoad(load), { discard: true })
-      );
+  constructor(private readonly pdfService: Pick<PDFService, "renderPage">) {
+    this.store = makeDocumentStore<PDFDocument>({
+      load: (key) => {
+        const file = key.file;
+        return Effect.tryPromise({
+          try: async () => {
+            const buffer = await file.arrayBuffer();
+            // ignoreEncryption allows pdf-lib to read the page tree. Encrypted page
+            // content is rasterized through the already-unlocked PDF.js document.
+            return PDFDocument.load(buffer, { ignoreEncryption: true });
+          },
+          catch: (cause) => processingError("load-source", file, cause),
+        });
+      },
+      cleanup: () => Effect.void,
+      releaseError: (file) =>
+        new PDFProcessingError({
+          operation: "release-source",
+          file,
+          cause: new Error("The source PDF was released before loading completed."),
+          message: "The source PDF was released before loading completed.",
+        }),
     });
   }
 
+  clearCache(): Effect.Effect<void> {
+    return this.store.clear.pipe(Effect.ignore);
+  }
+
   releaseFile(file: File): Effect.Effect<void> {
-    return Effect.suspend(() => {
-      this.fileVersions.set(file, this.getFileVersion(file) + 1);
-      this.sourceDocCache.delete(file);
+    return this.store.releaseFile(file).pipe(Effect.ignore);
+  }
 
-      const load = this.sourceDocEffects.get(file);
-      if (load) {
-        load.released = true;
-      }
-      this.sourceDocEffects.delete(file);
-      if (!load) return Effect.void;
-
-      return Effect.uninterruptible(this.cancelSourceLoad(load));
-    });
+  dispose(): Effect.Effect<void> {
+    return this.store.dispose();
   }
 
   imagesToPDF(
@@ -328,7 +324,7 @@ export class PDFOperationsService {
       });
 
       for (const [index, page] of pagesToBuild.entries()) {
-        const sourceDoc = yield* this.getOrLoadSourceDoc(page.sourceFile);
+        const sourceDoc = yield* this.store.acquire(sourceDocumentKey(page.sourceFile));
         const isEncrypted = yield* Effect.try({
           try: () => sourceDoc.isEncrypted,
           catch: (cause) => processingError("inspect-source", page.sourceFile, cause),
@@ -381,82 +377,6 @@ export class PDFOperationsService {
         catch: (cause) => processingError("serialize-output", pagesToBuild[0].sourceFile, cause),
       });
     });
-  }
-
-  private getOrLoadSourceDoc(file: File): Effect.Effect<PDFDocument, PDFProcessingError> {
-    return Effect.suspend(() => {
-      const cachedDocument = this.sourceDocCache.get(file);
-      if (cachedDocument) return Effect.succeed(cachedDocument);
-
-      const inFlight = this.sourceDocEffects.get(file);
-      if (inFlight) return Deferred.await(inFlight.deferred);
-
-      const deferred = Deferred.makeUnsafe<PDFDocument, PDFProcessingError>();
-      const load: InFlightSourceDocument = { deferred, file, fiber: null, released: false };
-      this.sourceDocEffects.set(file, load);
-      const cacheVersion = this.cacheVersion;
-      const fileVersion = this.getFileVersion(file);
-      const loadEffect = Effect.tryPromise({
-        try: async () => {
-          const buffer = await file.arrayBuffer();
-          // ignoreEncryption allows pdf-lib to read the page tree. Encrypted page
-          // content is rasterized through the already-unlocked PDF.js document.
-          return PDFDocument.load(buffer, { ignoreEncryption: true });
-        },
-        catch: (cause) => processingError("load-source", file, cause),
-      }).pipe(
-        Effect.tap((sourceDoc) =>
-          Effect.sync(() => {
-            if (
-              cacheVersion === this.cacheVersion &&
-              fileVersion === this.getFileVersion(file) &&
-              this.sourceDocEffects.get(file) === load
-            ) {
-              this.sourceDocCache.set(file, sourceDoc);
-            }
-          })
-        ),
-        Effect.onExit((exit) =>
-          Deferred.done(load.deferred, exit).pipe(
-            Effect.andThen(
-              Effect.sync(() => {
-                if (this.sourceDocEffects.get(file) !== load) return;
-                this.sourceDocEffects.delete(file);
-              })
-            )
-          )
-        )
-      );
-
-      return Effect.gen({ self: this }, function* () {
-        load.fiber = yield* this.forkDetached(loadEffect);
-        if (load.released) {
-          yield* Fiber.interrupt(load.fiber);
-        }
-        return yield* Deferred.await(load.deferred);
-      });
-    });
-  }
-
-  private cancelSourceLoad(load: InFlightSourceDocument): Effect.Effect<void> {
-    return Effect.gen(function* () {
-      yield* Deferred.fail(
-        load.deferred,
-        new PDFProcessingError({
-          operation: "release-source",
-          file: load.file,
-          cause: new Error("The source PDF was released before loading completed."),
-          message: "The source PDF was released before loading completed.",
-        })
-      );
-      if (load.fiber) {
-        yield* Fiber.interrupt(load.fiber);
-      }
-    });
-  }
-
-  private getFileVersion(file: File): number {
-    return this.fileVersions.get(file) ?? 0;
   }
 
   private addEncryptedPage(

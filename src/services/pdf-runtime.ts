@@ -136,7 +136,9 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
         const qpdfProcessing = yield* QpdfProcessing;
         const compressionService = new PDFCompressionService(qpdfProcessing);
 
-        const service: PDFProcessingShape = {
+        const service: PDFProcessingShape & {
+          readonly dispose: () => Effect.Effect<void, PDFProcessingError>;
+        } = {
           loadPDF: (file: File) => pdfService.loadPDF(file),
           loadPDFWithPassword: (file: File, password: string) =>
             pdfService.loadPDFWithPassword(file, password),
@@ -169,12 +171,14 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
             ]),
           reset: Effect.suspend(() => pdfService.reset()),
           clearCache: Effect.suspend(() => operationsService?.clearCache() ?? Effect.void),
+          dispose: () =>
+            collectFirstError([pdfService.dispose(), operationsService?.dispose() ?? Effect.void]),
         };
 
         return service;
       }),
       (service) =>
-        collectFirstError([service.reset, service.clearCache]).pipe(
+        collectFirstError([service.reset, service.clearCache, service.dispose()]).pipe(
           Effect.catch((error) => Effect.logError(error))
         )
     )

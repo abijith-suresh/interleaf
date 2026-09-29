@@ -1,7 +1,8 @@
-import { Cause, Deferred, Effect, Exit, Fiber, Semaphore } from "effect";
+import { Cause, Deferred, Effect, Exit, Option, Semaphore } from "effect";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { type PDFError, PDFPasswordRequiredError, PDFProcessingError } from "../types/interfaces";
+import { type DocumentKey, makeDocumentStore } from "./document-store";
 import { collectFirstError, continueAfterError, processingError } from "./pdf-errors";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
@@ -12,20 +13,6 @@ interface LoadedPDFRecord {
   readonly file: File;
   readonly pdfjsDocument: pdfjsLib.PDFDocumentProxy;
   readonly loadingTask: ReturnType<typeof pdfjsLib.getDocument>;
-}
-
-interface InFlightLoad {
-  readonly deferred: Deferred.Deferred<LoadedPDFRecord, PDFError>;
-  readonly file: File;
-  readonly fiberReady: Deferred.Deferred<Fiber.Fiber<LoadedPDFRecord, PDFError>>;
-  fiber: Fiber.Fiber<LoadedPDFRecord, PDFError> | null;
-  documentResolution: Deferred.Deferred<void> | undefined;
-  loadingTask: ReturnType<typeof pdfjsLib.getDocument> | undefined;
-  record: LoadedPDFRecord | undefined;
-  cleanupError: PDFProcessingError | undefined;
-  loadingTaskCleanupStarted: boolean;
-  loadingTaskCleanupFailed: boolean;
-  released: boolean;
 }
 
 interface PendingPageRequest {
@@ -44,8 +31,6 @@ interface PageResource {
   readonly page: pdfjsLib.PDFPageProxy;
   readonly request: PendingPageRequest;
 }
-
-type ForkDetached = <A, E>(effect: Effect.Effect<A, E>) => Effect.Effect<Fiber.Fiber<A, E>>;
 
 function cleanupPage(
   page: pdfjsLib.PDFPageProxy,
@@ -72,90 +57,82 @@ function isPasswordException(cause: unknown): boolean {
 }
 
 const MAX_CONCURRENT_PAGE_RENDERS = 2;
+const AUTO_VARIANT = "auto";
+const PASSWORD_VARIANT_PREFIX = "password:";
 
 export class PDFService {
   private activeFile: File | null = null;
   private passwordRegistry = new Map<File, string>();
-  private documentCache = new Map<File, LoadedPDFRecord>();
-  private loadEffects = new Map<File, Map<string, InFlightLoad>>();
   private pendingPageRequests = new Map<File, Set<PendingPageRequest>>();
-  private activeOperationFibers = new Map<File, Set<Fiber.Fiber<unknown, unknown>>>();
-  private fileReleaseBarriers = new Map<File, Deferred.Deferred<void, PDFProcessingError>>();
-  private resetBarrier: Deferred.Deferred<void, PDFProcessingError> | null = null;
   private readonly renderSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_PAGE_RENDERS);
-  private fileVersions = new WeakMap<File, number>();
-  private sessionVersion = 0;
-
-  constructor(private readonly forkDetached: ForkDetached = Effect.forkDetach) {}
+  private readonly documents = makeDocumentStore<LoadedPDFRecord>({
+    load: (key) => this.loadDocumentRecord(key),
+    cleanup: (record) => this.cleanupRecord(record),
+    drain: (file) => this.drainPendingPageRequests(file),
+    releaseError: (file) =>
+      new PDFProcessingError({
+        operation: "release-file",
+        file,
+        cause: new Error("The PDF was released before loading completed."),
+        message: "The PDF was released before loading completed.",
+      }),
+  });
 
   loadPDF(file: File): Effect.Effect<void, PDFError> {
-    const sessionVersion = this.sessionVersion;
-    const fileVersion = this.getFileVersion(file);
+    const version = this.documents.version(file);
 
-    return this.gateDocumentOperation(
+    return this.documents.gate(
       file,
-      "load-pdf",
-      sessionVersion,
-      fileVersion,
-      Effect.suspend(() =>
-        this.getOrLoadDocument(file, (load) => this.loadDocument(file, undefined, load)).pipe(
-          Effect.tap(() =>
-            Effect.sync(() => {
-              if (
-                sessionVersion === this.sessionVersion &&
-                fileVersion === this.getFileVersion(file)
-              ) {
-                this.activeFile = file;
-              }
-            })
-          ),
-          Effect.asVoid
-        )
+      "load-pdf"
+    )(
+      this.documents.acquire({ file, variant: AUTO_VARIANT }).pipe(
+        Effect.tap(() =>
+          Effect.sync(() => {
+            if (this.documents.isCurrent(file, version)) {
+              this.activeFile = file;
+            }
+          })
+        ),
+        Effect.asVoid
       )
     );
   }
 
   loadPDFWithPassword(file: File, password: string): Effect.Effect<void, PDFError> {
-    const sessionVersion = this.sessionVersion;
-    const fileVersion = this.getFileVersion(file);
+    const version = this.documents.version(file);
 
-    return this.gateDocumentOperation(
+    return this.documents.gate(
       file,
-      "load-pdf-with-password",
-      sessionVersion,
-      fileVersion,
+      "load-pdf-with-password"
+    )(
       Effect.suspend(() => {
         const storedPassword = this.passwordRegistry.get(file);
         if (storedPassword !== undefined && storedPassword !== password) {
           return Effect.fail(new PDFPasswordRequiredError(file, "wrong-password"));
         }
 
-        return this.getOrLoadDocument(
-          file,
-          (load) => this.loadDocument(file, password, load),
-          `password:${password}`
-        ).pipe(
-          Effect.tap(() =>
-            Effect.sync(() => {
-              if (
-                sessionVersion !== this.sessionVersion ||
-                fileVersion !== this.getFileVersion(file)
-              ) {
-                return;
-              }
-              this.passwordRegistry.set(file, password);
-              this.activeFile = file;
-            })
-          ),
-          Effect.asVoid
-        );
+        return this.documents
+          .acquire({ file, variant: `${PASSWORD_VARIANT_PREFIX}${password}` })
+          .pipe(
+            Effect.tap(() =>
+              Effect.sync(() => {
+                if (!this.documents.isCurrent(file, version)) return;
+                this.passwordRegistry.set(file, password);
+                this.activeFile = file;
+              })
+            ),
+            Effect.asVoid
+          );
       })
     );
   }
 
   getPageCount(): number {
     if (!this.activeFile) return 0;
-    return this.documentCache.get(this.activeFile)?.pdfjsDocument.numPages ?? 0;
+    return Option.match(this.documents.peek(this.activeFile), {
+      onNone: () => 0,
+      onSome: (record) => record.pdfjsDocument.numPages,
+    });
   }
 
   getPassword(file: File): string | undefined {
@@ -163,16 +140,12 @@ export class PDFService {
   }
 
   getPageRotation(file: File, pageNumber: number): Effect.Effect<number, PDFError> {
-    const sessionVersion = this.sessionVersion;
-    const fileVersion = this.getFileVersion(file);
-
-    return this.trackDocumentOperation(
+    return this.documents.track(
       file,
-      "get-page-rotation",
-      sessionVersion,
-      fileVersion,
+      "get-page-rotation"
+    )(
       Effect.gen({ self: this }, function* () {
-        const record = yield* this.getOrLoadDocument(file);
+        const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
         return yield* this.withPageCleanup(
           this.getPage(file, record, pageNumber, "get-page-rotation"),
           (page) =>
@@ -190,16 +163,12 @@ export class PDFService {
     pageNumber: number,
     rotation = 0
   ): Effect.Effect<{ readonly width: number; readonly height: number }, PDFError> {
-    const sessionVersion = this.sessionVersion;
-    const fileVersion = this.getFileVersion(file);
-
-    return this.trackDocumentOperation(
+    return this.documents.track(
       file,
-      "get-page-size",
-      sessionVersion,
-      fileVersion,
+      "get-page-size"
+    )(
       Effect.gen({ self: this }, function* () {
-        const record = yield* this.getOrLoadDocument(file);
+        const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
         return yield* this.withPageCleanup(
           this.getPage(file, record, pageNumber, "get-page-size"),
           (page) =>
@@ -222,16 +191,12 @@ export class PDFService {
     scale = 1.5,
     rotation = 0
   ): Effect.Effect<void, PDFError> {
-    const sessionVersion = this.sessionVersion;
-    const fileVersion = this.getFileVersion(file);
-
-    return this.trackDocumentOperation(
+    return this.documents.track(
       file,
-      "render-page",
-      sessionVersion,
-      fileVersion,
+      "render-page"
+    )(
       Effect.gen({ self: this }, function* () {
-        const record = yield* this.getOrLoadDocument(file);
+        const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
         yield* this.renderSemaphore.withPermit(
           this.withPageCleanup(this.getPage(file, record, pageNumber, "render-page"), (page) =>
             Effect.gen({ self: this }, function* () {
@@ -262,35 +227,9 @@ export class PDFService {
   releaseFile(file: File): Effect.Effect<void, PDFProcessingError> {
     return Effect.uninterruptible(
       Effect.suspend(() => {
-        const resetBarrier = this.resetBarrier;
-        if (resetBarrier) {
-          return Deferred.await(resetBarrier).pipe(Effect.andThen(this.releaseFile(file)));
-        }
-
-        const existingBarrier = this.fileReleaseBarriers.get(file);
-        if (existingBarrier) return Deferred.await(existingBarrier);
-
-        const releaseBarrier = Deferred.makeUnsafe<void, PDFProcessingError>();
-        this.fileReleaseBarriers.set(file, releaseBarrier);
-        this.fileVersions.set(file, this.getFileVersion(file) + 1);
-        const record = this.documentCache.get(file);
-        const loads = this.takeDocumentLoads(file);
-        const operations = this.takeDocumentOperationFibers(file);
-        for (const load of loads) {
-          load.released = true;
-        }
-
         if (this.activeFile === file) this.activeFile = null;
         this.passwordRegistry.delete(file);
-        this.documentCache.delete(file);
-
-        return collectFirstError([
-          this.cancelLoads(loads),
-          this.interruptOperationFibers(operations),
-          this.cancelLateLoads(file, loads),
-          this.drainPendingPageRequests(file),
-          record ? this.cleanupRecord(record) : Effect.void,
-        ]).pipe(Effect.onExit((exit) => this.completeFileRelease(file, releaseBarrier, exit)));
+        return this.documents.releaseFile(file);
       })
     );
   }
@@ -298,39 +237,15 @@ export class PDFService {
   reset(): Effect.Effect<void, PDFProcessingError> {
     return Effect.uninterruptible(
       Effect.suspend(() => {
-        const existingBarrier = this.resetBarrier;
-        if (existingBarrier) return Deferred.await(existingBarrier);
-
-        const resetBarrier = Deferred.makeUnsafe<void, PDFProcessingError>();
-        this.resetBarrier = resetBarrier;
-        const fileReleaseBarriers = Array.from(this.fileReleaseBarriers.values());
-        const records = Array.from(this.documentCache.values());
-        const loads = this.takeAllDocumentLoads();
-        const operations = this.takeAllDocumentOperationFibers();
-        for (const load of loads) {
-          load.released = true;
-        }
         this.activeFile = null;
         this.passwordRegistry.clear();
-        this.documentCache.clear();
-        this.sessionVersion += 1;
-
-        return collectFirstError([
-          ...fileReleaseBarriers.map((barrier) => Deferred.await(barrier)),
-          this.cancelLoads(loads),
-          this.interruptOperationFibers(operations),
-          this.cancelLateLoads(undefined, loads),
-          this.drainPendingPageRequests(),
-          this.cleanupRecords(records),
-        ]).pipe(Effect.onExit((exit) => this.completeReset(resetBarrier, exit)));
+        return this.documents.reset;
       })
     );
   }
 
-  private cleanupRecords(
-    records: readonly LoadedPDFRecord[]
-  ): Effect.Effect<void, PDFProcessingError> {
-    return collectFirstError(records.map((record) => this.cleanupRecord(record)));
+  dispose(): Effect.Effect<void> {
+    return this.documents.dispose();
   }
 
   private cleanupRecord(record: LoadedPDFRecord): Effect.Effect<void, PDFProcessingError> {
@@ -341,45 +256,6 @@ export class PDFService {
       }),
       this.destroyLoadingTask(record),
     ]);
-  }
-
-  private cleanupInFlightRecord(
-    load: InFlightLoad,
-    record: LoadedPDFRecord
-  ): Effect.Effect<void, PDFProcessingError> {
-    return collectFirstError([
-      Effect.tryPromise({
-        try: () => Promise.resolve(record.pdfjsDocument.cleanup()),
-        catch: (cause) => processingError("cleanup-pdf-js", record.file, cause),
-      }),
-      this.destroyLoadingTaskForLoad(load),
-    ]);
-  }
-
-  private cleanupPartialLoad(load: InFlightLoad): Effect.Effect<void, PDFProcessingError> {
-    const accumulator: { current?: PDFProcessingError } = {};
-
-    return continueAfterError(accumulator, this.destroyLoadingTaskForLoad(load))
-      .pipe(
-        Effect.andThen(
-          Effect.suspend(() =>
-            !load.loadingTaskCleanupFailed
-              ? continueAfterError(accumulator, this.awaitDocumentResolution(load))
-              : Effect.void
-          )
-        )
-      )
-      .pipe(
-        Effect.andThen(
-          Effect.suspend(() =>
-            accumulator.current ? Effect.fail(accumulator.current) : Effect.void
-          )
-        )
-      );
-  }
-
-  private awaitDocumentResolution(load: InFlightLoad): Effect.Effect<void> {
-    return load.documentResolution ? Deferred.await(load.documentResolution) : Effect.void;
   }
 
   private destroyLoadingTask(record: LoadedPDFRecord): Effect.Effect<void, PDFProcessingError> {
@@ -399,22 +275,146 @@ export class PDFService {
     });
   }
 
-  private destroyLoadingTaskForLoad(load: InFlightLoad): Effect.Effect<void, PDFProcessingError> {
-    if (!load.loadingTask || load.loadingTaskCleanupStarted) return Effect.void;
+  private loadDocumentRecord(key: DocumentKey): Effect.Effect<LoadedPDFRecord, PDFError> {
+    const file = key.file;
+    const explicitPassword = key.variant.startsWith(PASSWORD_VARIANT_PREFIX)
+      ? key.variant.slice(PASSWORD_VARIANT_PREFIX.length)
+      : undefined;
 
-    const loadingTask = load.loadingTask;
-    load.loadingTaskCleanupStarted = true;
-    return this.destroyLoadingTaskForFile(load.file, loadingTask).pipe(
-      Effect.onExit((exit) =>
-        Effect.sync(() => {
-          if (Exit.isSuccess(exit)) {
-            load.loadingTask = undefined;
-          } else {
-            load.loadingTaskCleanupFailed = true;
+    return Effect.suspend(() => {
+      let loadingTask: ReturnType<typeof pdfjsLib.getDocument> | undefined;
+      let documentResolution: Deferred.Deferred<void> | undefined;
+      let resolvedRecord: LoadedPDFRecord | undefined;
+      let cleanupError: PDFProcessingError | undefined;
+      let cleanupStarted = false;
+      let cleanupFailed = false;
+      let cancelled = false;
+
+      const destroyLoadingTask = (): Effect.Effect<void, PDFProcessingError> => {
+        const task = loadingTask;
+        if (!task || cleanupStarted) return Effect.void;
+        cleanupStarted = true;
+
+        return this.destroyLoadingTaskForFile(file, task).pipe(
+          Effect.onExit((exit) =>
+            Effect.sync(() => {
+              if (Exit.isSuccess(exit)) {
+                loadingTask = undefined;
+              } else {
+                cleanupFailed = true;
+              }
+            })
+          )
+        );
+      };
+
+      const cleanupPartial = (): Effect.Effect<void, PDFProcessingError> =>
+        Effect.suspend(() => {
+          cancelled = true;
+          const resolution = documentResolution;
+          const record = resolvedRecord;
+          const cleanupResolvedDocument = record
+            ? Effect.tryPromise({
+                try: () => Promise.resolve(record.pdfjsDocument.cleanup()),
+                catch: (cause) => processingError("cleanup-pdf-js", file, cause),
+              })
+            : Effect.void;
+
+          return collectFirstError([cleanupResolvedDocument, destroyLoadingTask()]).pipe(
+            Effect.andThen(
+              Effect.suspend(() => {
+                if (cleanupFailed || !resolution) return Effect.void;
+                return Deferred.await(resolution);
+              })
+            )
+          );
+        });
+
+      const load = Effect.gen({ self: this }, function* () {
+        const buffer = yield* Effect.tryPromise({
+          try: () => file.arrayBuffer(),
+          catch: (cause) => processingError("read-file", file, cause),
+        });
+        const data = new Uint8Array(buffer);
+        const password = explicitPassword ?? this.passwordRegistry.get(file);
+        const task = yield* Effect.try({
+          try: () =>
+            password === undefined
+              ? pdfjsLib.getDocument({ data })
+              : pdfjsLib.getDocument({ data, password }),
+          catch: (cause) => processingError("load-pdf-js", file, cause),
+        });
+        loadingTask = task;
+        const resolution = Deferred.makeUnsafe<void>();
+        documentResolution = resolution;
+
+        return yield* Effect.tryPromise({
+          try: () =>
+            task.promise.then(
+              async (pdfjsDocument) => {
+                try {
+                  if (cancelled || cleanupStarted) {
+                    try {
+                      await Promise.resolve(pdfjsDocument.cleanup());
+                    } catch (cause) {
+                      cleanupError ??= processingError("cleanup-pdf-js", file, cause);
+                      throw cleanupError;
+                    }
+                    throw new Error("The PDF.js document resolved after its load was released.");
+                  }
+
+                  const loadedRecord = {
+                    file,
+                    pdfjsDocument,
+                    loadingTask: task,
+                  } satisfies LoadedPDFRecord;
+                  resolvedRecord = loadedRecord;
+                  return loadedRecord;
+                } finally {
+                  Deferred.doneUnsafe(resolution, Effect.void);
+                }
+              },
+              (cause) => {
+                Deferred.doneUnsafe(resolution, Effect.void);
+                return Promise.reject(cause);
+              }
+            ),
+          catch: (cause) => {
+            if (isPasswordException(cause)) {
+              return new PDFPasswordRequiredError(
+                file,
+                password === undefined || password === "" ? "needs-password" : "wrong-password"
+              );
+            }
+            return cleanupError ?? processingError("load-pdf-js", file, cause);
+          },
+        });
+      });
+
+      return load.pipe(
+        Effect.onExit((exit) => {
+          if (Exit.isSuccess(exit)) return Effect.void;
+          const cleanup = cleanupPartial();
+          if (exit.cause.reasons.some(Cause.isInterruptReason)) {
+            // Interrupted loads finish their partial cleanup in the fiber exit so
+            // release/reset can report a failed loading-task destruction.
+            return Effect.uninterruptible(cleanup);
           }
-        })
-      )
-    );
+          return Effect.uninterruptible(
+            cleanup.pipe(
+              Effect.catch((error) =>
+                Effect.sync(() => {
+                  cleanupError = error;
+                })
+              )
+            )
+          );
+        }),
+        Effect.catch((error) =>
+          Effect.suspend(() => (cleanupError ? Effect.fail(cleanupError) : Effect.fail(error)))
+        )
+      );
+    });
   }
 
   private getPage(
@@ -585,448 +585,6 @@ export class PDFService {
           )
         )
       );
-    });
-  }
-
-  private getOrLoadDocument(
-    file: File,
-    loader?: (load: InFlightLoad) => Effect.Effect<LoadedPDFRecord, PDFError>,
-    key = "auto"
-  ): Effect.Effect<LoadedPDFRecord, PDFError> {
-    return Effect.suspend(() => {
-      const barrier = this.resetBarrier ?? this.fileReleaseBarriers.get(file);
-      if (barrier) {
-        return Deferred.await(barrier).pipe(
-          Effect.andThen(
-            Effect.fail(
-              processingError(
-                "document-operation",
-                file,
-                new Error("The PDF changed before the document operation could start.")
-              )
-            )
-          )
-        );
-      }
-
-      const cachedRecord = this.documentCache.get(file);
-      if (cachedRecord) return Effect.succeed(cachedRecord);
-
-      const inFlight = this.loadEffects.get(file)?.get(key);
-      if (inFlight) return Deferred.await(inFlight.deferred);
-
-      const deferred = Deferred.makeUnsafe<LoadedPDFRecord, PDFError>();
-      const load: InFlightLoad = {
-        deferred,
-        file,
-        fiberReady: Deferred.makeUnsafe<Fiber.Fiber<LoadedPDFRecord, PDFError>>(),
-        fiber: null,
-        documentResolution: undefined,
-        loadingTask: undefined,
-        record: undefined,
-        cleanupError: undefined,
-        loadingTaskCleanupStarted: false,
-        loadingTaskCleanupFailed: false,
-        released: false,
-      };
-      const fileEffects = this.loadEffects.get(file) ?? new Map();
-      fileEffects.set(key, load);
-      this.loadEffects.set(file, fileEffects);
-
-      const sessionVersion = this.sessionVersion;
-      const fileVersion = this.getFileVersion(file);
-      let recordTransferred = false;
-      let recordCleaned = false;
-      const cleanupOwnedRecord = () => {
-        if (!load.record || recordTransferred || recordCleaned) return Effect.void;
-        recordCleaned = true;
-        return Effect.uninterruptible(this.cleanupInFlightRecord(load, load.record));
-      };
-      const cleanupUnownedResources = () => {
-        if (recordTransferred || recordCleaned) return Effect.void;
-        recordCleaned = true;
-        return Effect.uninterruptible(this.cleanupPartialLoad(load));
-      };
-      const loadEffect = (
-        loader ?? ((currentLoad) => this.loadDocumentWithStoredPassword(file, currentLoad))
-      )(load).pipe(
-        Effect.tap((record) =>
-          Effect.suspend(() => {
-            load.record ??= record;
-
-            if (
-              sessionVersion === this.sessionVersion &&
-              fileVersion === this.getFileVersion(file)
-            ) {
-              const cachedRecord = this.documentCache.get(file);
-              if (!cachedRecord) {
-                this.documentCache.set(file, record);
-                recordTransferred = true;
-                return Effect.void;
-              }
-
-              if (cachedRecord === record) {
-                recordTransferred = true;
-                return Effect.void;
-              }
-            }
-
-            return cleanupOwnedRecord();
-          })
-        ),
-        Effect.onExit((exit) =>
-          (load.record ? cleanupOwnedRecord() : cleanupUnownedResources()).pipe(
-            Effect.catch((error) =>
-              Effect.sync(() => {
-                load.cleanupError = error;
-              })
-            ),
-            Effect.andThen(
-              Effect.suspend(() =>
-                Deferred.done(
-                  load.deferred,
-                  load.cleanupError ? Exit.fail(load.cleanupError) : exit
-                )
-              )
-            ),
-            Effect.andThen(
-              Effect.sync(() => {
-                const currentFileEffects = this.loadEffects.get(file);
-                if (currentFileEffects?.get(key) !== load) return;
-                currentFileEffects.delete(key);
-                if (currentFileEffects.size === 0) this.loadEffects.delete(file);
-              })
-            )
-          )
-        )
-      );
-
-      // Deferred is the v4 coordination primitive for sharing one in-flight
-      // Effect between fibers without storing a Promise in the service. The
-      // loader is detached from an individual thumbnail so one consumer being
-      // interrupted cannot cancel a load still needed by another consumer.
-      return Effect.gen({ self: this }, function* () {
-        const fiber = yield* this.forkDetached(loadEffect);
-        load.fiber = fiber;
-        yield* Deferred.succeed(load.fiberReady, fiber);
-        if (load.released) {
-          yield* this.interruptLoadFiber(load, fiber);
-        }
-        return yield* Deferred.await(load.deferred);
-      });
-    });
-  }
-
-  private cancelLoad(load: InFlightLoad): Effect.Effect<void, PDFProcessingError> {
-    return Effect.gen({ self: this }, function* () {
-      yield* Deferred.fail(
-        load.deferred,
-        new PDFProcessingError({
-          operation: "release-file",
-          file: load.file,
-          cause: new Error("The PDF was released before loading completed."),
-          message: "The PDF was released before loading completed.",
-        })
-      );
-      const fiber = load.fiber ?? (yield* Deferred.await(load.fiberReady));
-      yield* this.interruptLoadFiber(load, fiber);
-    });
-  }
-
-  private interruptLoadFiber(
-    load: InFlightLoad,
-    fiber: Fiber.Fiber<LoadedPDFRecord, PDFError>
-  ): Effect.Effect<void, PDFProcessingError> {
-    return Fiber.interrupt(fiber).pipe(
-      Effect.andThen(Fiber.await(fiber)),
-      Effect.andThen((exit) => {
-        if (load.cleanupError) {
-          return Effect.fail(load.cleanupError);
-        }
-        const error = this.getProcessingError(exit);
-        return error ? Effect.fail(error) : Effect.void;
-      })
-    );
-  }
-
-  private trackDocumentOperation<A, E extends PDFError>(
-    file: File,
-    operation: string,
-    sessionVersion: number,
-    fileVersion: number,
-    effect: Effect.Effect<A, E>
-  ): Effect.Effect<A, E | PDFError> {
-    return Effect.withFiber((fiber) =>
-      Effect.suspend(() => {
-        if (!this.isCurrentDocumentVersion(file, sessionVersion, fileVersion)) {
-          return Effect.fail(
-            processingError(
-              operation,
-              file,
-              new Error("The PDF changed before the operation started.")
-            )
-          );
-        }
-
-        const barrier = this.resetBarrier ?? this.fileReleaseBarriers.get(file);
-        if (barrier) {
-          return Deferred.await(barrier).pipe(
-            Effect.andThen(
-              this.trackDocumentOperation(file, operation, sessionVersion, fileVersion, effect)
-            )
-          );
-        }
-
-        const operations = this.activeOperationFibers.get(file) ?? new Set();
-        operations.add(fiber);
-        this.activeOperationFibers.set(file, operations);
-
-        return Effect.ensuring(
-          effect,
-          Effect.sync(() => {
-            const operations = this.activeOperationFibers.get(file);
-            if (!operations) return;
-            operations.delete(fiber);
-            if (operations.size === 0) this.activeOperationFibers.delete(file);
-          })
-        );
-      })
-    );
-  }
-
-  private gateDocumentOperation<A, E extends PDFError>(
-    file: File,
-    operation: string,
-    sessionVersion: number,
-    fileVersion: number,
-    effect: Effect.Effect<A, E>
-  ): Effect.Effect<A, E | PDFError> {
-    return Effect.suspend(() => {
-      if (!this.isCurrentDocumentVersion(file, sessionVersion, fileVersion)) {
-        return Effect.fail(
-          processingError(
-            operation,
-            file,
-            new Error("The PDF changed before the operation started.")
-          )
-        );
-      }
-
-      const barrier = this.resetBarrier ?? this.fileReleaseBarriers.get(file);
-      if (barrier) {
-        return Deferred.await(barrier).pipe(
-          Effect.andThen(
-            this.gateDocumentOperation(file, operation, sessionVersion, fileVersion, effect)
-          )
-        );
-      }
-
-      return effect;
-    });
-  }
-
-  private completeFileRelease(
-    file: File,
-    barrier: Deferred.Deferred<void, PDFProcessingError>,
-    exit: Exit.Exit<void, PDFProcessingError>
-  ): Effect.Effect<void> {
-    return Effect.sync(() => {
-      if (this.fileReleaseBarriers.get(file) === barrier) {
-        this.fileReleaseBarriers.delete(file);
-      }
-    }).pipe(Effect.andThen(Deferred.done(barrier, exit)), Effect.asVoid);
-  }
-
-  private completeReset(
-    barrier: Deferred.Deferred<void, PDFProcessingError>,
-    exit: Exit.Exit<void, PDFProcessingError>
-  ): Effect.Effect<void> {
-    return Effect.sync(() => {
-      if (this.resetBarrier === barrier) this.resetBarrier = null;
-    }).pipe(Effect.andThen(Deferred.done(barrier, exit)), Effect.asVoid);
-  }
-
-  private isCurrentDocumentVersion(file: File, sessionVersion: number, fileVersion: number) {
-    return sessionVersion === this.sessionVersion && fileVersion === this.getFileVersion(file);
-  }
-
-  private takeDocumentLoads(file: File): readonly InFlightLoad[] {
-    const loads = Array.from(this.loadEffects.get(file)?.values() ?? []);
-    this.loadEffects.delete(file);
-    for (const load of loads) {
-      load.released = true;
-    }
-    return loads;
-  }
-
-  private takeAllDocumentLoads(): readonly InFlightLoad[] {
-    const loads = Array.from(this.loadEffects.values()).flatMap((fileEffects) =>
-      Array.from(fileEffects.values())
-    );
-    this.loadEffects.clear();
-    for (const load of loads) {
-      load.released = true;
-    }
-    return loads;
-  }
-
-  private cancelLateLoads(
-    file: File | undefined,
-    knownLoads: readonly InFlightLoad[]
-  ): Effect.Effect<void, PDFProcessingError> {
-    const lateLoads = file
-      ? this.takeDocumentLoads(file).filter((load) => !knownLoads.includes(load))
-      : this.takeAllDocumentLoads().filter((load) => !knownLoads.includes(load));
-
-    return this.cancelLoads(lateLoads);
-  }
-
-  private cancelLoads(loads: readonly InFlightLoad[]): Effect.Effect<void, PDFProcessingError> {
-    return collectFirstError(loads.map((load) => this.cancelLoad(load)));
-  }
-
-  private takeDocumentOperationFibers(file: File): readonly Fiber.Fiber<unknown, unknown>[] {
-    const operations = this.activeOperationFibers.get(file);
-    this.activeOperationFibers.delete(file);
-    return operations ? Array.from(operations) : [];
-  }
-
-  private takeAllDocumentOperationFibers(): readonly Fiber.Fiber<unknown, unknown>[] {
-    const operations = Array.from(this.activeOperationFibers.values()).flatMap((fileOperations) =>
-      Array.from(fileOperations)
-    );
-    this.activeOperationFibers.clear();
-    return operations;
-  }
-
-  private interruptOperationFibers(
-    operations: readonly Fiber.Fiber<unknown, unknown>[]
-  ): Effect.Effect<void, PDFProcessingError> {
-    return collectFirstError(
-      operations.map((fiber) =>
-        Fiber.interrupt(fiber).pipe(
-          Effect.andThen(Fiber.await(fiber)),
-          Effect.andThen((exit) => {
-            const error = this.getProcessingError(exit);
-            return error ? Effect.fail(error) : Effect.void;
-          })
-        )
-      )
-    );
-  }
-
-  private getProcessingError(exit: Exit.Exit<unknown, unknown>): PDFProcessingError | undefined {
-    if (Exit.isSuccess(exit)) return undefined;
-
-    for (const reason of exit.cause.reasons) {
-      if (Cause.isFailReason(reason) && reason.error instanceof PDFProcessingError) {
-        return reason.error;
-      }
-    }
-
-    return undefined;
-  }
-
-  private getFileVersion(file: File): number {
-    return this.fileVersions.get(file) ?? 0;
-  }
-
-  private loadDocumentWithStoredPassword(
-    file: File,
-    load: InFlightLoad
-  ): Effect.Effect<LoadedPDFRecord, PDFError> {
-    const storedPassword = this.passwordRegistry.get(file);
-    return this.loadDocument(file, storedPassword, load);
-  }
-
-  private loadDocument(
-    file: File,
-    password: string | undefined,
-    load: InFlightLoad
-  ): Effect.Effect<LoadedPDFRecord, PDFError> {
-    return Effect.gen({ self: this }, function* () {
-      const buffer = yield* Effect.tryPromise({
-        try: () => file.arrayBuffer(),
-        catch: (cause) => processingError("read-file", file, cause),
-      });
-      const loaded = yield* this.loadPdfJsDocument(file, new Uint8Array(buffer), password, load);
-      return loaded;
-    });
-  }
-
-  private loadPdfJsDocument(
-    file: File,
-    data: Uint8Array,
-    password: string | undefined,
-    load: InFlightLoad
-  ): Effect.Effect<LoadedPDFRecord, PDFError> {
-    return Effect.gen({ self: this }, function* () {
-      const loadingTask = yield* Effect.try({
-        try: () =>
-          password === undefined
-            ? pdfjsLib.getDocument({ data })
-            : pdfjsLib.getDocument({ data, password }),
-        catch: (cause) => processingError("load-pdf-js", file, cause),
-      });
-      load.loadingTask = loadingTask;
-      const documentResolution = Deferred.makeUnsafe<void>();
-      load.documentResolution = documentResolution;
-
-      const record = yield* Effect.tryPromise({
-        try: () =>
-          loadingTask.promise.then(
-            async (pdfjsDocument) => {
-              try {
-                if (load.released || load.loadingTaskCleanupStarted) {
-                  try {
-                    await Promise.resolve(pdfjsDocument.cleanup());
-                  } catch (cause) {
-                    load.cleanupError ??= processingError("cleanup-pdf-js", file, cause);
-                    throw load.cleanupError;
-                  }
-                  throw new Error("The PDF.js document resolved after its load was released.");
-                }
-
-                const loadedRecord: LoadedPDFRecord = { file, pdfjsDocument, loadingTask };
-                load.record = loadedRecord;
-                return loadedRecord;
-              } finally {
-                Deferred.doneUnsafe(documentResolution, Effect.void);
-              }
-            },
-            (cause) => {
-              Deferred.doneUnsafe(documentResolution, Effect.void);
-              return Promise.reject(cause);
-            }
-          ),
-        catch: (cause) => {
-          if (isPasswordException(cause)) {
-            return new PDFPasswordRequiredError(
-              file,
-              password === undefined || password === "" ? "needs-password" : "wrong-password"
-            );
-          }
-          return processingError("load-pdf-js", file, cause);
-        },
-      }).pipe(
-        Effect.onExit((exit) => {
-          if (Exit.isSuccess(exit)) return Effect.void;
-          return this.destroyLoadingTaskForLoad(load).pipe(
-            Effect.catch((error) =>
-              Effect.sync(() => {
-                load.cleanupError = error;
-              })
-            )
-          );
-        }),
-        Effect.catch((error) =>
-          Effect.suspend(() =>
-            load.cleanupError ? Effect.fail(load.cleanupError) : Effect.fail(error)
-          )
-        )
-      );
-
-      return record;
     });
   }
 

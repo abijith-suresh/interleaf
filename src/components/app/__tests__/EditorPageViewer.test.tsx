@@ -23,6 +23,7 @@ vi.mock("@/services/pdf-service", () => ({
     getPageSize = pdfServiceMocks.getPageSize;
     renderPage = pdfServiceMocks.renderPage;
     reset = pdfServiceMocks.reset;
+    dispose = () => Effect.void;
   },
 }));
 vi.mock("@/services/pdf-operations-service", () => ({
