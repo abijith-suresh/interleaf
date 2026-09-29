@@ -1,4 +1,5 @@
 import { Context, Data, Effect, Layer } from "effect";
+import { messageFromCause } from "./pdf-errors";
 
 export interface QpdfWorkerOptimizeRequest {
   readonly type: "optimize";
@@ -71,14 +72,6 @@ export class QpdfProcessing extends Context.Service<QpdfProcessing, QpdfProcessi
 export interface QpdfProcessingOptions {
   readonly workerUrl: string | URL;
   readonly workerFactory?: QpdfWorkerFactory;
-}
-
-function messageFromCause(cause: unknown, fallback: string): string {
-  return cause instanceof Error && cause.message
-    ? cause.message
-    : typeof cause === "string" && cause.length > 0
-      ? cause
-      : fallback;
 }
 
 function defaultWorkerFactory(workerUrl: string | URL): QpdfWorkerPort {

@@ -9,6 +9,7 @@ import type {
 } from "../types/interfaces";
 import { PDFNoPagesError, PDFProcessingError } from "../types/interfaces";
 import { getSupportedFileKind } from "../utils/file-types";
+import { processingError } from "./pdf-errors";
 import type { PDFService } from "./pdf-service";
 
 const ENCRYPTED_PAGE_RENDER_SCALE = 2;
@@ -25,21 +26,6 @@ export interface PDFImagesToPDFOptions {
 function normalizeRotation(rotation: number): number {
   const normalized = rotation % 360;
   return normalized < 0 ? normalized + 360 : normalized;
-}
-
-function errorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message) return cause.message;
-  if (typeof cause === "string" && cause.length > 0) return cause;
-  return fallback;
-}
-
-function processingError(operation: string, file: File, cause: unknown): PDFProcessingError {
-  return new PDFProcessingError({
-    operation,
-    file,
-    cause,
-    message: errorMessage(cause, `PDF ${operation} failed.`),
-  });
 }
 
 function isSupportedImageFile(file: File): boolean {

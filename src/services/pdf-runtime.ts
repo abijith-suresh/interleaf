@@ -1,4 +1,4 @@
-import { Context, Effect, Exit, Fiber, Layer, ManagedRuntime } from "effect";
+import { Context, Effect, Exit, type Fiber, Layer, ManagedRuntime } from "effect";
 import type {
   PageState,
   PDFCompressionResult,
@@ -12,6 +12,7 @@ import {
   type PDFCompressionOptions,
   PDFCompressionService,
 } from "./pdf-compression-service";
+import { collectFirstError } from "./pdf-errors";
 import type { PDFImageExportOptions } from "./pdf-image-export-service";
 import type {
   PDFBuildOptions,
@@ -19,7 +20,11 @@ import type {
   PDFOperationsService,
 } from "./pdf-operations-service";
 import { PDFService } from "./pdf-service";
-import { makeQpdfProcessing, type QpdfProcessingError } from "./qpdf-processing";
+import {
+  makeQpdfProcessingLayer,
+  QpdfProcessing,
+  type QpdfProcessingError,
+} from "./qpdf-processing";
 
 export interface PDFProcessingShape {
   readonly loadPDF: (file: File) => Effect.Effect<void, PDFError>;
@@ -80,6 +85,10 @@ export interface PDFRuntimeOptions {
 }
 
 export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
+  const qpdfLayer = makeQpdfProcessingLayer({
+    workerUrl: options.qpdfWorkerUrl ?? `${import.meta.env.BASE_URL}qpdf/qpdf-worker.js`,
+  });
+
   const live = Layer.effect(
     PDFProcessing,
     Effect.acquireRelease(
@@ -124,12 +133,10 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
           }),
           (exit) => (Exit.isSuccess(exit) ? "1 hour" : 0)
         );
-        const qpdfProcessing = makeQpdfProcessing({
-          workerUrl: options.qpdfWorkerUrl ?? `${import.meta.env.BASE_URL}qpdf/qpdf-worker.js`,
-        });
+        const qpdfProcessing = yield* QpdfProcessing;
         const compressionService = new PDFCompressionService(qpdfProcessing);
 
-        const service: PDFProcessingShape & { readonly closeQpdf: () => void } = {
+        const service: PDFProcessingShape = {
           loadPDF: (file: File) => pdfService.loadPDF(file),
           loadPDFWithPassword: (file: File, password: string) =>
             pdfService.loadPDFWithPassword(file, password),
@@ -155,50 +162,25 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
             ),
           compressPDF: (file: File, options?: PDFCompressionOptions) =>
             compressionService.compressPDF(file, pdfService.getPassword(file), options),
-          releaseFile: (file: File) => {
-            let firstError: PDFProcessingError | undefined;
-            const continueAfterError = (effect: Effect.Effect<void, PDFProcessingError>) =>
-              effect.pipe(
-                Effect.catch((error) =>
-                  Effect.sync(() => {
-                    firstError ??= error;
-                  })
-                )
-              );
-
-            return continueAfterError(pdfService.releaseFile(file)).pipe(
-              Effect.andThen(operationsService?.releaseFile(file) ?? Effect.void),
-              Effect.andThen(
-                Effect.suspend(() => (firstError ? Effect.fail(firstError) : Effect.void))
-              )
-            );
-          },
+          releaseFile: (file: File) =>
+            collectFirstError([
+              pdfService.releaseFile(file),
+              operationsService?.releaseFile(file) ?? Effect.void,
+            ]),
           reset: Effect.suspend(() => pdfService.reset()),
           clearCache: Effect.suspend(() => operationsService?.clearCache() ?? Effect.void),
-          closeQpdf: qpdfProcessing.close,
         };
 
         return service;
       }),
       (service) =>
-        Effect.gen(function* () {
-          let firstError: PDFProcessingError | undefined;
-          yield* service.reset.pipe(
-            Effect.catch((error) =>
-              Effect.sync(() => {
-                firstError ??= error;
-              })
-            )
-          );
-          yield* service.clearCache;
-          service.closeQpdf();
-          if (firstError) yield* Effect.die(firstError);
-        })
+        collectFirstError([service.reset, service.clearCache]).pipe(
+          Effect.catch((error) => Effect.logError(error))
+        )
     )
-  );
+  ).pipe(Layer.provide(qpdfLayer));
 
   const managedRuntime = ManagedRuntime.make(live);
-  const fibers = new Set<Fiber.Fiber<unknown, unknown>>();
   let disposed = false;
   let disposePromise: Promise<void> | undefined;
 
@@ -208,31 +190,20 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
         throw new Error("PDF runtime has been disposed");
       }
 
-      const fiber = managedRuntime.runFork(effect, options);
-      const trackedFiber = fiber as Fiber.Fiber<unknown, unknown>;
-      fibers.add(trackedFiber);
-      fiber.addObserver(() => {
-        fibers.delete(trackedFiber);
-      });
-      return fiber;
+      return managedRuntime.runFork(effect, options);
     },
     runPromise<A, E>(effect: Effect.Effect<A, E, PDFProcessing>, options?: Effect.RunOptions) {
+      if (disposed) {
+        return Promise.reject(new Error("PDF runtime has been disposed"));
+      }
+
       return managedRuntime.runPromise(effect, options);
     },
     dispose() {
       if (disposePromise) return disposePromise;
 
       disposed = true;
-      disposePromise = (async () => {
-        const activeFibers = Array.from(fibers);
-        if (activeFibers.length > 0) {
-          await managedRuntime.runPromise(
-            Effect.forEach(activeFibers, Fiber.interrupt, { discard: true })
-          );
-        }
-        await managedRuntime.dispose();
-      })();
-
+      disposePromise = managedRuntime.dispose();
       return disposePromise;
     },
   };
