@@ -128,11 +128,11 @@ export class PDFOperationsService {
   }
 
   clearCache(): Effect.Effect<void> {
-    return this.store.clear.pipe(Effect.ignore);
+    return this.store.clear.pipe(Effect.catch((error) => Effect.logWarning(error)));
   }
 
   releaseFile(file: File): Effect.Effect<void> {
-    return this.store.releaseFile(file).pipe(Effect.ignore);
+    return this.store.releaseFile(file).pipe(Effect.catch((error) => Effect.logWarning(error)));
   }
 
   dispose(): Effect.Effect<void> {

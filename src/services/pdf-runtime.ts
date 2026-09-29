@@ -95,7 +95,7 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
       Effect.gen(function* () {
         const pdfService = new PDFService();
         let operationsService: PDFOperationsService | undefined;
-        const getOperationsService = yield* Effect.cached(
+        const getOperationsService = yield* Effect.cachedWithTTL(
           Effect.tryPromise({
             try: async () => {
               const { PDFOperationsService } = await import("./pdf-operations-service");
@@ -112,7 +112,8 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
                     ? cause.message
                     : "Could not load PDF editing support.",
               }),
-          })
+          }),
+          (exit) => (Exit.isSuccess(exit) ? "1 hour" : 0)
         );
         const getImageExportService = yield* Effect.cachedWithTTL(
           Effect.tryPromise({
