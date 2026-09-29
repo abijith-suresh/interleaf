@@ -55,7 +55,22 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Build pinned qpdf module
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: "1"
         run: ./tools/qpdf-wasm/build-qpdf-wasm.sh /tmp/interleaf-qpdf
+
+      - name: Build diagnostics
+        if: always()
+        run: |
+          cmake --version | head -1
+          emcc --version | head -1
+          echo "nproc: $(nproc)"
+          python3 --version
+          sha256sum .qpdf-wasm-build/qpdf-build/libqpdf/libqpdf.a
+          ar t .qpdf-wasm-build/qpdf-build/libqpdf/libqpdf.a > /tmp/ar-members.txt
+          echo "ar member count: $(wc -l < /tmp/ar-members.txt)"
+          sha256sum /tmp/ar-members.txt
+          sha256sum /tmp/interleaf-qpdf/qpdf.wasm /tmp/interleaf-qpdf/qpdf.mjs
 
       - name: Check generated assets
         run: |
