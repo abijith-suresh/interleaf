@@ -65,9 +65,20 @@ vi.mock("../pdf-image-export-service", () => ({
     exportImages = imageExportServiceMock.exportImages;
   },
 }));
-vi.mock("../qpdf-processing", () => ({
-  makeQpdfProcessing: () => qpdfProcessingMock,
-}));
+vi.mock("../qpdf-processing", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../qpdf-processing")>();
+  const { Effect, Layer } = await import("effect");
+  return {
+    ...actual,
+    makeQpdfProcessingLayer: () =>
+      Layer.effect(
+        actual.QpdfProcessing,
+        Effect.acquireRelease(Effect.succeed(qpdfProcessingMock), () =>
+          Effect.sync(() => qpdfProcessingMock.close())
+        )
+      ),
+  };
+});
 
 import { makePDFRuntime, PDFProcessing } from "../pdf-runtime";
 

@@ -2,6 +2,7 @@ import { Cause, Deferred, Effect, Exit, Fiber, Semaphore } from "effect";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { type PDFError, PDFPasswordRequiredError, PDFProcessingError } from "../types/interfaces";
+import { collectFirstError, continueAfterError, processingError } from "./pdf-errors";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
@@ -34,7 +35,6 @@ interface PendingPageRequest {
   readonly pagePromise: Promise<pdfjsLib.PDFPageProxy>;
   page: pdfjsLib.PDFPageProxy | undefined;
   cleanupError: PDFProcessingError | undefined;
-  interrupted: boolean;
   pageSettled: boolean;
   cleanupStarted: boolean;
   cleaned: boolean;
@@ -46,21 +46,6 @@ interface PageResource {
 }
 
 type ForkDetached = <A, E>(effect: Effect.Effect<A, E>) => Effect.Effect<Fiber.Fiber<A, E>>;
-
-function errorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message) return cause.message;
-  if (typeof cause === "string" && cause.length > 0) return cause;
-  return fallback;
-}
-
-function processingError(operation: string, file: File, cause: unknown): PDFProcessingError {
-  return new PDFProcessingError({
-    operation,
-    file,
-    cause,
-    message: errorMessage(cause, `PDF ${operation} failed.`),
-  });
-}
 
 function cleanupPage(
   page: pdfjsLib.PDFPageProxy,
@@ -299,27 +284,13 @@ export class PDFService {
         this.passwordRegistry.delete(file);
         this.documentCache.delete(file);
 
-        let firstError: PDFProcessingError | undefined;
-        const continueAfterError = (effect: Effect.Effect<void, PDFProcessingError>) =>
-          effect.pipe(
-            Effect.catch((error) =>
-              Effect.sync(() => {
-                firstError ??= error;
-              })
-            )
-          );
-
-        return continueAfterError(this.cancelLoads(loads))
-          .pipe(
-            Effect.andThen(continueAfterError(this.interruptOperationFibers(operations))),
-            Effect.andThen(continueAfterError(this.cancelLateLoads(file, loads))),
-            Effect.andThen(continueAfterError(this.drainPendingPageRequests(file))),
-            Effect.andThen(continueAfterError(record ? this.cleanupRecord(record) : Effect.void)),
-            Effect.andThen(
-              Effect.suspend(() => (firstError ? Effect.fail(firstError) : Effect.void))
-            )
-          )
-          .pipe(Effect.onExit((exit) => this.completeFileRelease(file, releaseBarrier, exit)));
+        return collectFirstError([
+          this.cancelLoads(loads),
+          this.interruptOperationFibers(operations),
+          this.cancelLateLoads(file, loads),
+          this.drainPendingPageRequests(file),
+          record ? this.cleanupRecord(record) : Effect.void,
+        ]).pipe(Effect.onExit((exit) => this.completeFileRelease(file, releaseBarrier, exit)));
       })
     );
   }
@@ -344,39 +315,14 @@ export class PDFService {
         this.documentCache.clear();
         this.sessionVersion += 1;
 
-        let firstError: PDFProcessingError | undefined;
-        const continueAfterError = (effect: Effect.Effect<void, PDFProcessingError>) =>
-          effect.pipe(
-            Effect.catch((error) =>
-              Effect.sync(() => {
-                firstError ??= error;
-              })
-            )
-          );
-
-        return Effect.forEach(
-          fileReleaseBarriers,
-          (barrier) =>
-            Deferred.await(barrier).pipe(
-              Effect.catch((error) =>
-                Effect.sync(() => {
-                  firstError ??= error;
-                })
-              )
-            ),
-          { discard: true }
-        )
-          .pipe(
-            Effect.andThen(continueAfterError(this.cancelLoads(loads))),
-            Effect.andThen(continueAfterError(this.interruptOperationFibers(operations))),
-            Effect.andThen(continueAfterError(this.cancelLateLoads(undefined, loads))),
-            Effect.andThen(continueAfterError(this.drainPendingPageRequests())),
-            Effect.andThen(continueAfterError(this.cleanupRecords(records))),
-            Effect.andThen(
-              Effect.suspend(() => (firstError ? Effect.fail(firstError) : Effect.void))
-            )
-          )
-          .pipe(Effect.onExit((exit) => this.completeReset(resetBarrier, exit)));
+        return collectFirstError([
+          ...fileReleaseBarriers.map((barrier) => Deferred.await(barrier)),
+          this.cancelLoads(loads),
+          this.interruptOperationFibers(operations),
+          this.cancelLateLoads(undefined, loads),
+          this.drainPendingPageRequests(),
+          this.cleanupRecords(records),
+        ]).pipe(Effect.onExit((exit) => this.completeReset(resetBarrier, exit)));
       })
     );
   }
@@ -384,96 +330,51 @@ export class PDFService {
   private cleanupRecords(
     records: readonly LoadedPDFRecord[]
   ): Effect.Effect<void, PDFProcessingError> {
-    return Effect.suspend(() => {
-      let firstError: PDFProcessingError | undefined;
-
-      return Effect.forEach(
-        records,
-        (record) =>
-          this.cleanupRecord(record).pipe(
-            Effect.catch((error) =>
-              Effect.sync(() => {
-                firstError ??= error;
-              })
-            )
-          ),
-        { discard: true }
-      ).pipe(
-        Effect.andThen(Effect.suspend(() => (firstError ? Effect.fail(firstError) : Effect.void)))
-      );
-    });
+    return collectFirstError(records.map((record) => this.cleanupRecord(record)));
   }
 
   private cleanupRecord(record: LoadedPDFRecord): Effect.Effect<void, PDFProcessingError> {
-    let firstError: PDFProcessingError | undefined;
-    const continueAfterError = (effect: Effect.Effect<void, PDFProcessingError>) =>
-      effect.pipe(
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            firstError ??= error;
-          })
-        )
-      );
-
-    return continueAfterError(
+    return collectFirstError([
       Effect.tryPromise({
         try: () => Promise.resolve(record.pdfjsDocument.cleanup()),
         catch: (cause) => processingError("cleanup-pdf-js", record.file, cause),
-      })
-    ).pipe(
-      Effect.andThen(continueAfterError(this.destroyLoadingTask(record))),
-      Effect.andThen(Effect.suspend(() => (firstError ? Effect.fail(firstError) : Effect.void)))
-    );
+      }),
+      this.destroyLoadingTask(record),
+    ]);
   }
 
   private cleanupInFlightRecord(
     load: InFlightLoad,
     record: LoadedPDFRecord
   ): Effect.Effect<void, PDFProcessingError> {
-    let firstError: PDFProcessingError | undefined;
-    const continueAfterError = (effect: Effect.Effect<void, PDFProcessingError>) =>
-      effect.pipe(
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            firstError ??= error;
-          })
-        )
-      );
-
-    return continueAfterError(
+    return collectFirstError([
       Effect.tryPromise({
         try: () => Promise.resolve(record.pdfjsDocument.cleanup()),
         catch: (cause) => processingError("cleanup-pdf-js", record.file, cause),
-      })
-    ).pipe(
-      Effect.andThen(continueAfterError(this.destroyLoadingTaskForLoad(load))),
-      Effect.andThen(Effect.suspend(() => (firstError ? Effect.fail(firstError) : Effect.void)))
-    );
+      }),
+      this.destroyLoadingTaskForLoad(load),
+    ]);
   }
 
   private cleanupPartialLoad(load: InFlightLoad): Effect.Effect<void, PDFProcessingError> {
-    let firstError: PDFProcessingError | undefined;
-    const continueAfterError = (effect: Effect.Effect<void, PDFProcessingError>) =>
-      effect.pipe(
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            firstError ??= error;
-          })
-        )
-      );
+    const accumulator: { current?: PDFProcessingError } = {};
 
-    return continueAfterError(this.destroyLoadingTaskForLoad(load))
+    return continueAfterError(accumulator, this.destroyLoadingTaskForLoad(load))
       .pipe(
         Effect.andThen(
           Effect.suspend(() =>
             !load.loadingTaskCleanupFailed
-              ? continueAfterError(this.awaitDocumentResolution(load))
+              ? continueAfterError(accumulator, this.awaitDocumentResolution(load))
               : Effect.void
           )
         )
       )
       .pipe(
-        Effect.andThen(Effect.suspend(() => (firstError ? Effect.fail(firstError) : Effect.void)))
+        Effect.andThen(
+          Effect.suspend(() =>
+            accumulator.current ? Effect.fail(accumulator.current) : Effect.void
+          )
+        )
       );
   }
 
@@ -538,7 +439,6 @@ export class PDFService {
         pagePromise,
         page: undefined,
         cleanupError: undefined,
-        interrupted: false,
         pageSettled: false,
         cleanupStarted: false,
         cleaned: false,
@@ -579,7 +479,6 @@ export class PDFService {
 
   private cleanupPendingPage(request: PendingPageRequest): Effect.Effect<void, PDFProcessingError> {
     return Effect.suspend(() => {
-      request.interrupted = true;
       if (request.cleaned || request.cleanupStarted) {
         return Deferred.await(request.completion).pipe(
           Effect.andThen(
@@ -654,29 +553,17 @@ export class PDFService {
   private awaitPendingPageRequests(
     requests: readonly PendingPageRequest[]
   ): Effect.Effect<void, PDFProcessingError> {
-    return Effect.suspend(() => {
-      let firstError: PDFProcessingError | undefined;
-
-      return Effect.forEach(
-        requests,
-        (request) =>
-          Deferred.await(request.completion).pipe(
-            Effect.andThen(
-              Effect.suspend(() =>
-                request.cleanupError ? Effect.fail(request.cleanupError) : Effect.void
-              )
-            ),
-            Effect.catch((error) =>
-              Effect.sync(() => {
-                firstError ??= error;
-              })
+    return collectFirstError(
+      requests.map((request) =>
+        Deferred.await(request.completion).pipe(
+          Effect.andThen(
+            Effect.suspend(() =>
+              request.cleanupError ? Effect.fail(request.cleanupError) : Effect.void
             )
-          ),
-        { discard: true }
-      ).pipe(
-        Effect.andThen(Effect.suspend(() => (firstError ? Effect.fail(firstError) : Effect.void)))
-      );
-    });
+          )
+        )
+      )
+    );
   }
 
   private drainPendingPageRequests(file?: File): Effect.Effect<void, PDFProcessingError> {
@@ -689,15 +576,14 @@ export class PDFService {
       if (!file) this.pendingPageRequests.clear();
       if (requests.length === 0) return Effect.void;
 
-      let firstError: PDFProcessingError | undefined;
-      return this.awaitPendingPageRequests(requests).pipe(
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            firstError = error;
-          })
-        ),
+      const accumulator: { current?: PDFProcessingError } = {};
+      return continueAfterError(accumulator, this.awaitPendingPageRequests(requests)).pipe(
         Effect.andThen(this.drainPendingPageRequests(file)),
-        Effect.andThen(Effect.suspend(() => (firstError ? Effect.fail(firstError) : Effect.void)))
+        Effect.andThen(
+          Effect.suspend(() =>
+            accumulator.current ? Effect.fail(accumulator.current) : Effect.void
+          )
+        )
       );
     });
   }
@@ -996,22 +882,7 @@ export class PDFService {
   }
 
   private cancelLoads(loads: readonly InFlightLoad[]): Effect.Effect<void, PDFProcessingError> {
-    let firstError: PDFProcessingError | undefined;
-
-    return Effect.forEach(
-      loads,
-      (load) =>
-        this.cancelLoad(load).pipe(
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              firstError ??= error;
-            })
-          )
-        ),
-      { discard: true }
-    ).pipe(
-      Effect.andThen(Effect.suspend(() => (firstError ? Effect.fail(firstError) : Effect.void)))
-    );
+    return collectFirstError(loads.map((load) => this.cancelLoad(load)));
   }
 
   private takeDocumentOperationFibers(file: File): readonly Fiber.Fiber<unknown, unknown>[] {
@@ -1031,29 +902,17 @@ export class PDFService {
   private interruptOperationFibers(
     operations: readonly Fiber.Fiber<unknown, unknown>[]
   ): Effect.Effect<void, PDFProcessingError> {
-    return Effect.suspend(() => {
-      let firstError: PDFProcessingError | undefined;
-
-      return Effect.forEach(
-        operations,
-        (fiber) =>
-          Fiber.interrupt(fiber).pipe(
-            Effect.andThen(Fiber.await(fiber)),
-            Effect.andThen((exit) => {
-              const error = this.getProcessingError(exit);
-              return error ? Effect.fail(error) : Effect.void;
-            }),
-            Effect.catch((error) =>
-              Effect.sync(() => {
-                firstError ??= error;
-              })
-            )
-          ),
-        { discard: true }
-      ).pipe(
-        Effect.andThen(Effect.suspend(() => (firstError ? Effect.fail(firstError) : Effect.void)))
-      );
-    });
+    return collectFirstError(
+      operations.map((fiber) =>
+        Fiber.interrupt(fiber).pipe(
+          Effect.andThen(Fiber.await(fiber)),
+          Effect.andThen((exit) => {
+            const error = this.getProcessingError(exit);
+            return error ? Effect.fail(error) : Effect.void;
+          })
+        )
+      )
+    );
   }
 
   private getProcessingError(exit: Exit.Exit<unknown, unknown>): PDFProcessingError | undefined {

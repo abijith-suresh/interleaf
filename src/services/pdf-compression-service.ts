@@ -1,6 +1,7 @@
 import { Data, Effect } from "effect";
 import type { PDFCompressionResult, PDFError } from "../types/interfaces";
 import { PDFProcessingError } from "../types/interfaces";
+import { errorMessage, messageFromCause } from "./pdf-errors";
 import type { QpdfProcessingError, QpdfProcessingShape } from "./qpdf-processing";
 
 export type PDFCompressionStage = "compressing";
@@ -14,12 +15,6 @@ export class PDFCompressionError extends Data.TaggedError("PDFCompressionError")
   readonly cause: unknown;
   readonly message: string;
 }> {}
-
-function messageFromCause(cause: unknown): string {
-  if (cause instanceof Error && cause.message) return cause.message;
-  if (typeof cause === "string" && cause.length > 0) return cause;
-  return "Could not report PDF compression progress.";
-}
 
 export class PDFCompressionService {
   constructor(private readonly qpdfProcessing: Pick<QpdfProcessingShape, "optimizeLosslessly">) {}
@@ -47,7 +42,7 @@ export class PDFCompressionService {
           new PDFCompressionError({
             operation: "report-stage",
             cause,
-            message: messageFromCause(cause),
+            message: messageFromCause(cause, "Could not report PDF compression progress."),
           }),
       });
 
@@ -68,10 +63,4 @@ export class PDFCompressionService {
 function compressedFileName(fileName: string): string {
   const baseName = fileName.replace(/\.pdf$/i, "");
   return `${baseName || "interleaf"}-compressed.pdf`;
-}
-
-function errorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message) return cause.message;
-  if (typeof cause === "string" && cause.length > 0) return cause;
-  return fallback;
 }

@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { Zip, ZipPassThrough } from "fflate";
 import type { PageState, PDFError, PDFImageExportResult } from "../types/interfaces";
 import { PDFNoPagesError, PDFProcessingError } from "../types/interfaces";
+import { processingError } from "./pdf-errors";
 import type { PDFService } from "./pdf-service";
 
 const IMAGE_EXPORT_SCALE = 2;
@@ -11,21 +12,6 @@ const IMAGE_EXPORT_LIMIT_MESSAGE = "Image export is too large. Export fewer page
 export interface PDFImageExportOptions {
   readonly selectedIndices?: readonly number[];
   readonly onProgress?: (progress: { completed: number; total: number }) => void;
-}
-
-function errorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message) return cause.message;
-  if (typeof cause === "string" && cause.length > 0) return cause;
-  return fallback;
-}
-
-function processingError(operation: string, file: File, cause: unknown): PDFProcessingError {
-  return new PDFProcessingError({
-    operation,
-    file,
-    cause,
-    message: errorMessage(cause, `PDF ${operation} failed.`),
-  });
 }
 
 function fileStem(fileName: string): string {
