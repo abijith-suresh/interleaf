@@ -54,6 +54,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Prepare temp dir
+        run: mkdir -p /tmp/interleaf-qpdf/debug-temps
+
       - name: Build pinned qpdf module
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: "1"
