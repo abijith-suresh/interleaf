@@ -82,6 +82,11 @@ jobs:
           echo "--- tool binaries ---"
           sha256sum /emsdk/upstream/bin/clang /emsdk/upstream/bin/wasm-ld /emsdk/upstream/bin/wasm-opt
           uname -a
+          echo "--- port lib timestamps ---"
+          stat -c '%y %s %n' /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libz.a \
+                            /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libjpeg.a
+          cp /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libz.a /tmp/interleaf-qpdf/ci-libz.a
+          cp /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libjpeg.a /tmp/interleaf-qpdf/ci-libjpeg.a
           sha256sum /tmp/interleaf-qpdf/qpdf.wasm /tmp/interleaf-qpdf/qpdf.mjs
 
       - name: Check generated assets
