@@ -83,6 +83,15 @@ emcmake cmake \
 
 cmake --build "$QPDF_BUILD_DIR" --target libqpdf --parallel
 
+readonly ZLIB_LIB="${EMSCRIPTEN_SYSROOT}/lib/wasm32-emscripten/libz.a"
+readonly LIBJPEG_LIB="${EMSCRIPTEN_SYSROOT}/lib/wasm32-emscripten/libjpeg.a"
+[[ -s "$ZLIB_LIB" && -s "$LIBJPEG_LIB" ]] ||
+  die "port libraries were not built by the compiler step"
+
+# Link the port libraries explicitly in a fixed order. Emscripten discovers
+# ports through an unsorted directory listing, so using -sUSE_ZLIB and
+# -sUSE_LIBJPEG made the link order machine-dependent and the wasm output
+# non-reproducible.
 em++ \
   -std=c++20 \
   -fexceptions \
@@ -91,8 +100,8 @@ em++ \
   -I"${QPDF_BUILD_DIR}/libqpdf" \
   "${SCRIPT_DIR}/qpdf-bridge.cc" \
   "${QPDF_BUILD_DIR}/libqpdf/libqpdf.a" \
-  -sUSE_ZLIB=1 \
-  -sUSE_LIBJPEG=1 \
+  "$LIBJPEG_LIB" \
+  "$ZLIB_LIB" \
   -sMODULARIZE=1 \
   -sEXPORT_ES6=1 \
   -sEXPORT_NAME=createQpdfModule \
