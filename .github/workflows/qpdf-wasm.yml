@@ -63,13 +63,25 @@ jobs:
         if: always()
         run: |
           cmake --version | head -1
-          emcc --version | head -1
+          emcc --version | head -2
+          clang --version | head -2
           echo "nproc: $(nproc)"
+          python3 -c 'import os; print("cpu_count", os.cpu_count()); print("affinity", len(os.sched_getaffinity(0)))'
           python3 --version
           sha256sum .qpdf-wasm-build/qpdf-build/libqpdf/libqpdf.a
           ar t .qpdf-wasm-build/qpdf-build/libqpdf/libqpdf.a > /tmp/ar-members.txt
           echo "ar member count: $(wc -l < /tmp/ar-members.txt)"
           sha256sum /tmp/ar-members.txt
+          echo "--- sysroot libs ---"
+          sha256sum /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libz.a \
+                    /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libjpeg.a \
+                    /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libc++.a \
+                    /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libc.a \
+                    /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libc++abi.a \
+                    /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libcompiler_rt.a
+          echo "--- tool binaries ---"
+          sha256sum /emsdk/upstream/bin/clang /emsdk/upstream/bin/wasm-ld /emsdk/upstream/bin/wasm-opt
+          uname -a
           sha256sum /tmp/interleaf-qpdf/qpdf.wasm /tmp/interleaf-qpdf/qpdf.mjs
 
       - name: Check generated assets
