@@ -238,13 +238,7 @@ describe("EditorPageViewer", () => {
     }
   });
 
-  it("contains keyboard focus when it becomes a mobile review dialog", async () => {
-    const mediaQuery = {
-      matches: true,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    } as unknown as MediaQueryList;
-    vi.spyOn(window, "matchMedia").mockReturnValue(mediaQuery);
+  it("contains keyboard focus while the review dialog is open", async () => {
     const pages = makePages();
 
     const { getByTestId } = render(() => (
@@ -264,7 +258,8 @@ describe("EditorPageViewer", () => {
     ));
 
     const viewer = getByTestId("editor-page-viewer");
-    await waitFor(() => expect(viewer).toHaveAttribute("role", "dialog"));
+    await waitFor(() => expect(viewer).toBeInTheDocument());
+    expect(viewer).toHaveAttribute("role", "dialog");
     expect(viewer).toHaveAttribute("aria-modal", "true");
     expect(document.querySelector(".editor-workspace-main")).toHaveAttribute("inert");
 

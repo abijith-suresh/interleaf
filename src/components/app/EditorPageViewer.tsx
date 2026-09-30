@@ -10,8 +10,7 @@ const VIEWER_MAX_DEVICE_PIXEL_RATIO = 2;
 const VIEWER_GUTTER = 32;
 const FILMSTRIP_WINDOW_SIZE = 12;
 const FILMSTRIP_OVERSCAN = 3;
-const FILMSTRIP_DESKTOP_ITEM_EXTENT = 96;
-const FILMSTRIP_MOBILE_ITEM_EXTENT = 84;
+const FILMSTRIP_ITEM_EXTENT = 64;
 const VIEWER_RESIZE_DEBOUNCE_MS = 80;
 
 interface Props {
@@ -25,7 +24,6 @@ interface Props {
 
 export default function EditorPageViewer(props: Props) {
   const [renderState, setRenderState] = createSignal<"loading" | "ready" | "error">("loading");
-  const [isMobile, setIsMobile] = createSignal(false);
   const [filmstripWindowStart, setFilmstripWindowStart] = createSignal(0);
 
   let pane!: HTMLElement;
@@ -41,9 +39,7 @@ export default function EditorPageViewer(props: Props) {
   let renderFiber: Fiber.Fiber<unknown, unknown> | null = null;
   let resizeObserver: ResizeObserver | null = null;
   let resizeTimer: number | null = null;
-  let mobileMediaQuery: MediaQueryList | null = null;
-  let updateMobileMode: (() => void) | null = null;
-  let reviewBackground: HTMLElement | null = null;
+  let reviewBackgrounds: HTMLElement[] = [];
 
   const navigationPages = createMemo(() =>
     props.navigationPageIds
@@ -69,31 +65,26 @@ export default function EditorPageViewer(props: Props) {
       Math.max(0, pages.length - FILMSTRIP_WINDOW_SIZE)
     );
     const end = Math.min(start + FILMSTRIP_WINDOW_SIZE, pages.length);
-    const extent = isMobile() ? FILMSTRIP_MOBILE_ITEM_EXTENT : FILMSTRIP_DESKTOP_ITEM_EXTENT;
 
     return {
       pages: pages.slice(start, end),
-      before: start * extent,
-      after: (pages.length - end) * extent,
+      before: start * FILMSTRIP_ITEM_EXTENT,
+      after: (pages.length - end) * FILMSTRIP_ITEM_EXTENT,
     };
   });
-
-  function getFilmstripItemExtent(): number {
-    return isMobile() ? FILMSTRIP_MOBILE_ITEM_EXTENT : FILMSTRIP_DESKTOP_ITEM_EXTENT;
-  }
 
   function updateFilmstripWindow(): void {
     if (!filmstrip) return;
 
-    const offset = isMobile() ? filmstrip.scrollLeft : filmstrip.scrollTop;
-    const requestedStart = Math.floor(offset / getFilmstripItemExtent()) - FILMSTRIP_OVERSCAN;
+    const requestedStart =
+      Math.floor(filmstrip.scrollLeft / FILMSTRIP_ITEM_EXTENT) - FILMSTRIP_OVERSCAN;
     const maxStart = Math.max(0, navigationPages().length - FILMSTRIP_WINDOW_SIZE);
     setFilmstripWindowStart(Math.min(Math.max(0, requestedStart), maxStart));
   }
 
   function filmstripSpacerStyle(size: number): string {
     if (size === 0) return "display: none";
-    return isMobile() ? `width: ${size}px; height: 1px` : `height: ${size}px; width: 1px`;
+    return `width: ${size}px; height: 1px`;
   }
 
   function interruptRender(): void {
@@ -244,7 +235,7 @@ export default function EditorPageViewer(props: Props) {
       return;
     }
 
-    if (event.key === "Tab" && isMobile()) {
+    if (event.key === "Tab") {
       const focusable = Array.from(
         pane.querySelectorAll<HTMLElement>(
           "button:not(:disabled), [href], [tabindex]:not([tabindex='-1'])"
@@ -309,35 +300,18 @@ export default function EditorPageViewer(props: Props) {
     setFilmstripWindowStart(nextStart);
     queueMicrotask(() => {
       if (disposed) return;
-      const offset = nextStart * getFilmstripItemExtent();
-      if (isMobile()) {
-        filmstrip.scrollLeft = offset;
-      } else {
-        filmstrip.scrollTop = offset;
-      }
+      filmstrip.scrollLeft = nextStart * FILMSTRIP_ITEM_EXTENT;
     });
-  });
-
-  createEffect(() => {
-    if (!mounted || !reviewBackground) return;
-    if (isMobile()) {
-      reviewBackground.setAttribute("inert", "");
-    } else {
-      reviewBackground.removeAttribute("inert");
-    }
   });
 
   onMount(() => {
     mounted = true;
-    reviewBackground =
-      pane.closest(".editor-workspace")?.querySelector<HTMLElement>(".editor-workspace-main") ??
-      null;
-    mobileMediaQuery = window.matchMedia("(max-width: 767px)");
-    const handleMobileModeChange = () => setIsMobile(mobileMediaQuery?.matches ?? false);
-    updateMobileMode = handleMobileModeChange;
-    handleMobileModeChange();
-    if (mobileMediaQuery.matches) reviewBackground?.setAttribute("inert", "");
-    mobileMediaQuery.addEventListener("change", handleMobileModeChange);
+    reviewBackgrounds = Array.from(
+      (pane.closest(".editor-app") ?? pane.parentElement)?.querySelectorAll<HTMLElement>(
+        ".editor-header, .editor-workspace-main"
+      ) ?? []
+    );
+    for (const background of reviewBackgrounds) background.setAttribute("inert", "");
     window.addEventListener("resize", requestResizeRender);
     queueMicrotask(() => closeButton?.focus());
     requestRender();
@@ -358,13 +332,9 @@ export default function EditorPageViewer(props: Props) {
     }
     resizeObserver?.disconnect();
     resizeObserver = null;
-    if (mobileMediaQuery && updateMobileMode) {
-      mobileMediaQuery.removeEventListener("change", updateMobileMode);
-    }
     window.removeEventListener("resize", requestResizeRender);
-    updateMobileMode = null;
-    reviewBackground?.removeAttribute("inert");
-    reviewBackground = null;
+    for (const background of reviewBackgrounds) background.removeAttribute("inert");
+    reviewBackgrounds = [];
     const fiber = renderFiber;
     renderFiber = null;
     if (fiber) {
@@ -381,7 +351,7 @@ export default function EditorPageViewer(props: Props) {
       data-testid="editor-page-viewer"
       class="editor-review-pane"
       role="dialog"
-      aria-modal={isMobile() ? "true" : "false"}
+      aria-modal="true"
       aria-labelledby="editor-review-title"
       onKeyDown={handleKeyDown}
     >
@@ -390,7 +360,7 @@ export default function EditorPageViewer(props: Props) {
           <h2 id="editor-review-title" data-testid="editor-viewer-title">
             Page {currentWorkspaceIndex() + 1}
           </h2>
-          <span>
+          <span class="editor-review-position" aria-live="polite">
             {currentNavigationIndex() + 1} of {navigationPages().length}
           </span>
         </div>
@@ -408,7 +378,53 @@ export default function EditorPageViewer(props: Props) {
         </button>
       </header>
 
-      <div class="editor-review-body">
+      <div
+        ref={stage}
+        class="editor-review-stage"
+        data-render-state={renderState()}
+        aria-busy={renderState() === "loading"}
+      >
+        <canvas
+          ref={canvas}
+          class="editor-review-canvas"
+          role="img"
+          aria-label={`Preview of page ${currentWorkspaceIndex() + 1}`}
+        >
+          Page preview.
+        </canvas>
+        <Show when={renderState() === "loading"}>
+          <p class="editor-review-state" role="status" aria-live="polite">
+            Loading page…
+          </p>
+        </Show>
+        <Show when={renderState() === "error"}>
+          <div class="editor-review-state editor-review-error" role="alert">
+            <span>Preview unavailable.</span>
+            <button
+              type="button"
+              data-testid="editor-page-viewer-retry"
+              class="editor-review-retry"
+              onClick={retryRender}
+            >
+              Try again
+            </button>
+          </div>
+        </Show>
+      </div>
+
+      <footer class="editor-review-bottom">
+        <button
+          type="button"
+          data-testid="editor-page-viewer-previous"
+          class="editor-review-nav"
+          aria-label="Previous page"
+          disabled={currentNavigationIndex() <= 0}
+          onClick={() => moveBy(-1)}
+        >
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m12.5 4-6 6 6 6" />
+          </svg>
+        </button>
         <nav
           ref={filmstrip}
           class="editor-review-filmstrip"
@@ -456,59 +472,6 @@ export default function EditorPageViewer(props: Props) {
             aria-hidden="true"
           />
         </nav>
-
-        <div
-          ref={stage}
-          class="editor-review-stage"
-          data-render-state={renderState()}
-          aria-busy={renderState() === "loading"}
-        >
-          <canvas
-            ref={canvas}
-            class="editor-review-canvas"
-            role="img"
-            aria-label={`Preview of page ${currentWorkspaceIndex() + 1}`}
-          >
-            Page preview.
-          </canvas>
-          <Show when={renderState() === "loading"}>
-            <p class="editor-review-state" role="status" aria-live="polite">
-              Loading page…
-            </p>
-          </Show>
-          <Show when={renderState() === "error"}>
-            <div class="editor-review-state editor-review-error" role="alert">
-              <span>Preview unavailable.</span>
-              <button
-                type="button"
-                data-testid="editor-page-viewer-retry"
-                class="editor-review-retry"
-                onClick={retryRender}
-              >
-                Try again
-              </button>
-            </div>
-          </Show>
-        </div>
-      </div>
-
-      <footer class="editor-review-controls">
-        <button
-          type="button"
-          data-testid="editor-page-viewer-previous"
-          class="editor-review-nav"
-          aria-label="Previous page"
-          disabled={currentNavigationIndex() <= 0}
-          onClick={() => moveBy(-1)}
-        >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m12.5 4-6 6 6 6" />
-          </svg>
-          <span>Previous</span>
-        </button>
-        <span class="editor-review-position" aria-live="polite">
-          Page {currentWorkspaceIndex() + 1}
-        </span>
         <button
           type="button"
           data-testid="editor-page-viewer-next"
@@ -517,7 +480,6 @@ export default function EditorPageViewer(props: Props) {
           disabled={currentNavigationIndex() >= navigationPages().length - 1}
           onClick={() => moveBy(1)}
         >
-          <span>Next</span>
           <svg viewBox="0 0 20 20" aria-hidden="true">
             <path d="m7.5 4 6 6-6 6" />
           </svg>

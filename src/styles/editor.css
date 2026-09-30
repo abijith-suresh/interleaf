@@ -639,25 +639,28 @@ body:has([data-page="editor"]) {
 }
 
 .editor-review-pane {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
   display: flex;
-  flex: 0 0 clamp(18rem, 30vw, 28rem);
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  border-left: 1px solid var(--editor-line);
-  background: var(--editor-paper);
-  box-shadow: -0.75rem 0 2rem rgb(36 36 33 / 5%);
+  background: var(--editor-page);
+  box-shadow: 0 0 2rem rgb(36 36 33 / 18%);
 }
 
 .editor-review-header {
   display: flex;
-  min-height: 3.75rem;
+  min-height: calc(3.75rem + env(safe-area-inset-top));
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.5rem 0.75rem 0.5rem 1rem;
+  padding: calc(0.5rem + env(safe-area-inset-top)) calc(0.75rem + env(safe-area-inset-right)) 0.5rem
+    calc(0.75rem + env(safe-area-inset-left));
   border-bottom: 1px solid var(--editor-line);
+  background: var(--editor-paper);
 }
 
 .editor-review-heading {
@@ -731,25 +734,29 @@ body:has([data-page="editor"]) {
   stroke-width: 1.5;
 }
 
-.editor-review-body {
+.editor-review-stage {
+  position: relative;
   display: grid;
+  min-width: 0;
   min-height: 0;
   flex: 1;
-  grid-template-areas: "filmstrip stage";
-  grid-template-columns: 4.75rem minmax(0, 1fr);
+  place-items: center;
+  padding: clamp(0.75rem, 3vw, 2rem);
+  background: #e9e7e1;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .editor-review-filmstrip {
   display: flex;
   min-width: 0;
-  flex-direction: column;
+  flex: 1;
+  flex-direction: row;
   gap: 0.5rem;
-  grid-area: filmstrip;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 0.75rem;
-  border-right: 1px solid var(--editor-line);
-  background: var(--editor-page);
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem;
+  background: transparent;
   overscroll-behavior: contain;
   scrollbar-width: thin;
 }
@@ -762,7 +769,7 @@ body:has([data-page="editor"]) {
 .editor-review-filmstrip-item {
   display: grid;
   flex: 0 0 auto;
-  width: 100%;
+  width: 3.5rem;
   gap: 0.2rem;
   padding: 0.25rem;
   border: 1px solid var(--editor-line);
@@ -791,19 +798,6 @@ body:has([data-page="editor"]) {
 
 .editor-review-filmstrip-item.is-active {
   box-shadow: 0 0 0 1px var(--editor-accent);
-}
-
-.editor-review-stage {
-  position: relative;
-  display: grid;
-  min-width: 0;
-  min-height: 0;
-  grid-area: stage;
-  place-items: center;
-  padding: clamp(0.75rem, 3vw, 2rem);
-  background: #e9e7e1;
-  overflow: auto;
-  overscroll-behavior: contain;
 }
 
 .editor-review-canvas {
@@ -855,19 +849,20 @@ body:has([data-page="editor"]) {
   background: var(--editor-hover);
 }
 
-.editor-review-controls {
+.editor-review-bottom {
   display: flex;
-  min-height: 3.75rem;
+  min-height: calc(3.75rem + env(safe-area-inset-bottom));
   flex-shrink: 0;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom));
+  gap: 0.5rem;
+  padding: 0.5rem calc(0.75rem + env(safe-area-inset-right))
+    calc(0.5rem + env(safe-area-inset-bottom)) calc(0.75rem + env(safe-area-inset-left));
   border-top: 1px solid var(--editor-line);
   background: var(--editor-paper);
 }
 
 .editor-review-nav {
+  flex: 0 0 auto;
   gap: 0.35rem;
   padding: 0.4rem 0.6rem;
 }
@@ -1567,58 +1562,6 @@ body:has([data-page="editor"]) {
   .editor-files-button {
     padding-right: 0.55rem;
     padding-left: 0.55rem;
-  }
-
-  .editor-review-pane {
-    position: fixed;
-    inset: 0;
-    z-index: 45;
-    width: auto;
-    height: auto;
-    border-left: 0;
-    box-shadow: 0 0 2rem rgb(36 36 33 / 18%);
-  }
-
-  .editor-review-header {
-    min-height: calc(3.75rem + env(safe-area-inset-top));
-    padding-top: calc(0.5rem + env(safe-area-inset-top));
-    padding-right: calc(0.75rem + env(safe-area-inset-right));
-    padding-left: calc(0.75rem + env(safe-area-inset-left));
-  }
-
-  .editor-review-body {
-    grid-template-areas:
-      "stage"
-      "filmstrip";
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
-  }
-
-  .editor-review-filmstrip {
-    display: flex;
-    min-height: 0;
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 0.5rem calc(0.75rem + env(safe-area-inset-right))
-      calc(0.5rem + env(safe-area-inset-bottom)) calc(0.75rem + env(safe-area-inset-left));
-    border-top: 1px solid var(--editor-line);
-    border-right: 0;
-  }
-
-  .editor-review-filmstrip-item {
-    width: 3.5rem;
-  }
-
-  .editor-review-stage {
-    padding: 0.75rem calc(0.75rem + env(safe-area-inset-right)) 0.75rem
-      calc(0.75rem + env(safe-area-inset-left));
-  }
-
-  .editor-review-controls {
-    min-height: 3.75rem;
-    padding-right: calc(0.75rem + env(safe-area-inset-right));
-    padding-left: calc(0.75rem + env(safe-area-inset-left));
   }
 
   .editor-selection-bar {
