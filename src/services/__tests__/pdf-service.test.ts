@@ -695,8 +695,8 @@ describe("PDFService", () => {
     const file = new File(["plain"], "bounded-render.pdf", { type: "application/pdf" });
     await Effect.runPromise(service.loadPDF(file));
 
-    const fibers = [1, 2, 3].map(() =>
-      Effect.runFork(service.renderPage(file, 1, document.createElement("canvas")))
+    const fibers = [1, 2, 3].map((pageNumber) =>
+      Effect.runFork(service.renderPage(file, pageNumber, document.createElement("canvas")))
     );
 
     await vi.waitFor(() => expect(startedRenders).toBe(2));
@@ -1270,8 +1270,10 @@ describe("PDFService", () => {
     const file = new File(["plain"], "queued-render-release.pdf", { type: "application/pdf" });
     await Effect.runPromise(service.loadPDF(file));
 
-    const fibers = [1, 2, 3].map(() =>
-      Effect.runFork(service.renderPage(file, 1, globalThis.document.createElement("canvas")))
+    const fibers = [1, 2, 3].map((pageNumber) =>
+      Effect.runFork(
+        service.renderPage(file, pageNumber, globalThis.document.createElement("canvas"))
+      )
     );
     await vi.waitFor(() => expect(startedRenders).toBe(2));
 
