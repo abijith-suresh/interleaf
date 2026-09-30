@@ -1,6 +1,10 @@
+import { onCleanup, onMount } from "solid-js";
 import type { PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
 import EditorPageCanvas from "./EditorPageCanvas";
+
+const TOUCH_DRAG_DELAY_MS = 220;
+const TOUCH_DRAG_SLOP_PX = 8;
 
 interface Props {
   page: PageState;
@@ -21,9 +25,87 @@ interface Props {
   onDragLeave: () => void;
   onDrop: (e: DragEvent) => void;
   onDragEnd: () => void;
+  onTouchDragStart: () => void;
+  onTouchDragMove: (x: number, y: number) => void;
+  onTouchDragEnd: () => void;
+  onTouchDragCancel: () => void;
 }
 
 export default function EditorPageTile(props: Props) {
+  let hitarea: HTMLButtonElement | undefined;
+  let touchDragTimer: number | null = null;
+  let touchDragging = false;
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  const clearTouchDragTimer = () => {
+    if (touchDragTimer !== null) {
+      window.clearTimeout(touchDragTimer);
+      touchDragTimer = null;
+    }
+  };
+
+  const handleTouchStart = (event: TouchEvent) => {
+    if (props.busy || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    touchDragging = false;
+    clearTouchDragTimer();
+    touchDragTimer = window.setTimeout(() => {
+      touchDragTimer = null;
+      touchDragging = true;
+      props.onTouchDragStart();
+    }, TOUCH_DRAG_DELAY_MS);
+  };
+
+  const handleTouchMove = (event: TouchEvent) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    if (touchDragging) {
+      event.preventDefault();
+      props.onTouchDragMove(touch.clientX, touch.clientY);
+      return;
+    }
+    if (touchDragTimer !== null) {
+      const moved = Math.hypot(touch.clientX - touchStartX, touch.clientY - touchStartY);
+      if (moved > TOUCH_DRAG_SLOP_PX) clearTouchDragTimer();
+    }
+  };
+
+  const endTouchDrag = (event: TouchEvent) => {
+    const wasDragging = touchDragging;
+    clearTouchDragTimer();
+    touchDragging = false;
+    if (wasDragging) {
+      event.preventDefault();
+      props.onTouchDragEnd();
+    }
+  };
+
+  const cancelTouchDrag = () => {
+    const wasDragging = touchDragging;
+    clearTouchDragTimer();
+    touchDragging = false;
+    if (wasDragging) props.onTouchDragCancel();
+  };
+
+  onMount(() => {
+    const element = hitarea;
+    if (!element) return;
+    element.addEventListener("touchstart", handleTouchStart, { passive: true });
+    element.addEventListener("touchmove", handleTouchMove, { passive: false });
+    element.addEventListener("touchend", endTouchDrag, { passive: false });
+    element.addEventListener("touchcancel", cancelTouchDrag, { passive: true });
+    onCleanup(() => {
+      clearTouchDragTimer();
+      element.removeEventListener("touchstart", handleTouchStart);
+      element.removeEventListener("touchmove", handleTouchMove);
+      element.removeEventListener("touchend", endTouchDrag);
+      element.removeEventListener("touchcancel", cancelTouchDrag);
+    });
+  });
+
   const tileClass = () => {
     const classes = ["editor-page"];
     if (props.selected) classes.push("selected");
@@ -57,6 +139,7 @@ export default function EditorPageTile(props: Props) {
           scrollRoot={props.scrollRoot}
         />
         <button
+          ref={hitarea}
           type="button"
           data-testid="editor-page-tile"
           data-page-index={props.index}

@@ -935,6 +935,12 @@ body:has([data-page="editor"]) {
   cursor: not-allowed;
 }
 
+.editor-page-hitarea {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .editor-page.selected {
   border-color: var(--editor-accent);
   box-shadow:
@@ -944,12 +950,13 @@ body:has([data-page="editor"]) {
 
 .editor-page.selected::before {
   position: absolute;
-  top: 0.15rem;
-  left: 0.15rem;
-  width: 0.5rem;
-  height: 0.5rem;
+  top: 0.3rem;
+  left: 0.3rem;
+  width: 0.625rem;
+  height: 0.625rem;
   border-radius: 999px;
   background: var(--editor-accent);
+  box-shadow: 0 0 0 2px var(--editor-paper);
   content: "";
   z-index: 2;
 }
@@ -960,19 +967,19 @@ body:has([data-page="editor"]) {
 
 .editor-page.marked-deleted::after {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  padding: 0.25rem 0.45rem;
+  top: 0.3rem;
+  right: 0.3rem;
+  padding: 0.2rem 0.4rem;
   border-radius: 0.25rem;
-  background: rgb(252 251 248 / 88%);
-  color: var(--editor-danger-ink);
-  content: "MARKED";
+  background: var(--editor-danger-ink);
+  color: var(--editor-paper);
+  content: "Marked";
   font-size: 0.5625rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
+  line-height: 1;
   pointer-events: none;
-  transform: translate(-50%, -50%);
-  white-space: nowrap;
+  text-transform: uppercase;
   z-index: 2;
 }
 
@@ -1147,7 +1154,7 @@ body:has([data-page="editor"]) {
 }
 
 .btn-page-delete {
-  color: var(--editor-danger-ink);
+  color: var(--editor-body);
 }
 
 .btn-page-delete:hover:not(:disabled),
@@ -1275,9 +1282,11 @@ body:has([data-page="editor"]) {
   gap: 0.5rem;
 }
 
+.editor-menu-trigger-icon,
 .editor-menu-trigger-chevron {
   width: 1rem;
   height: 1rem;
+  flex-shrink: 0;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
@@ -1618,45 +1627,47 @@ body:has([data-page="editor"]) {
   .editor-selection-bar {
     display: flex;
     min-height: 0;
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
     gap: 0.5rem;
     padding: 0.5rem calc(0.75rem + env(safe-area-inset-right))
       calc(0.5rem + env(safe-area-inset-bottom)) calc(0.75rem + env(safe-area-inset-left));
   }
 
   .editor-selection-summary {
+    flex: 1 1 auto;
     min-width: 0;
-    align-content: center;
   }
 
-  .editor-menu-group,
-  .editor-download-group {
-    width: 100%;
+  .editor-menu-group {
+    flex: 0 0 auto;
   }
 
   .editor-menu-trigger {
-    width: 100%;
+    min-width: 2.75rem;
+  }
+
+  .editor-menu-trigger-label {
+    display: none;
   }
 
   .editor-download-group {
-    display: flex;
+    flex: 0 0 auto;
+    display: inline-flex;
   }
 
   .editor-download-action {
-    flex: 1 1 auto;
     width: auto;
-    min-width: 0;
-  }
-
-  .editor-download-options-trigger {
-    flex: 0 0 2.75rem;
+    min-width: 8.5rem;
+    flex: 0 0 auto;
   }
 
   .editor-menu-panel {
-    right: 0;
-    left: 0;
-    width: 100%;
+    position: fixed;
+    right: 0.5rem;
+    bottom: calc(4.25rem + env(safe-area-inset-bottom));
+    left: 0.5rem;
+    width: auto;
     max-height: min(24rem, calc(100dvh - 9rem));
   }
 

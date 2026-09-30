@@ -390,9 +390,6 @@ export default function EditorPageViewer(props: Props) {
           <h2 id="editor-review-title" data-testid="editor-viewer-title">
             Page {currentWorkspaceIndex() + 1}
           </h2>
-          <span>
-            {currentNavigationIndex() + 1} of {navigationPages().length}
-          </span>
         </div>
         <button
           ref={closeButton}
@@ -507,7 +504,7 @@ export default function EditorPageViewer(props: Props) {
           <span>Previous</span>
         </button>
         <span class="editor-review-position" aria-live="polite">
-          Page {currentWorkspaceIndex() + 1}
+          {currentNavigationIndex() + 1} of {navigationPages().length}
         </span>
         <button
           type="button"

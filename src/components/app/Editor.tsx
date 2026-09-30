@@ -68,6 +68,10 @@ const deletionActionCopy: Record<DeletionAction, { label: string; ariaLabel: str
   },
 };
 
+const TOUCH_AUTO_SCROLL_INTERVAL_MS = 16;
+const TOUCH_AUTO_SCROLL_SPEED_PX = 9;
+const TOUCH_AUTO_SCROLL_EDGE_PX = 56;
+
 export default function Editor() {
   const base = import.meta.env.BASE_URL;
   let addPdfInput!: HTMLInputElement;
@@ -182,6 +186,7 @@ export default function Editor() {
       window.clearTimeout(timer);
     }
     toastTimers.clear();
+    stopTouchAutoScroll();
     const fiber = activeOperationFiber;
     activeOperationFiber = null;
     const interrupt = fiber
@@ -766,6 +771,78 @@ export default function Editor() {
     setDragOverTarget(null);
   }
 
+  // --- Touch reordering ---
+
+  let touchAutoScrollTimer: number | null = null;
+  let touchPointer = { x: 0, y: 0 };
+
+  function gridScrollElement(): HTMLDivElement | null {
+    return editorRoot?.querySelector<HTMLDivElement>(".editor-page-scroll") ?? null;
+  }
+
+  function touchTileIndexAt(x: number, y: number): number | null {
+    const tile = document.elementFromPoint(x, y)?.closest<HTMLElement>("li[data-page-index]");
+    if (!tile) return null;
+    const index = Number(tile.dataset.pageIndex);
+    return Number.isInteger(index) && index >= 0 ? index : null;
+  }
+
+  function stopTouchAutoScroll(): void {
+    if (touchAutoScrollTimer !== null) {
+      window.clearInterval(touchAutoScrollTimer);
+      touchAutoScrollTimer = null;
+    }
+  }
+
+  function handleTouchDragStart(index: number): void {
+    if (isBusy()) return;
+    touchPointer = { x: 0, y: 0 };
+    setDragSourceIndex(index);
+    setDragOverTarget({ index, direction: "after" });
+    stopTouchAutoScroll();
+    touchAutoScrollTimer = window.setInterval(() => {
+      const scrollElement = gridScrollElement();
+      if (!scrollElement) return;
+      const bounds = scrollElement.getBoundingClientRect();
+      if (touchPointer.y < bounds.top + TOUCH_AUTO_SCROLL_EDGE_PX) {
+        scrollElement.scrollTop -= TOUCH_AUTO_SCROLL_SPEED_PX;
+      } else if (touchPointer.y > bounds.bottom - TOUCH_AUTO_SCROLL_EDGE_PX) {
+        scrollElement.scrollTop += TOUCH_AUTO_SCROLL_SPEED_PX;
+      }
+    }, TOUCH_AUTO_SCROLL_INTERVAL_MS);
+  }
+
+  function handleTouchDragMove(x: number, y: number): void {
+    touchPointer = { x, y };
+    const from = dragSourceIndex();
+    if (from === null || isBusy()) return;
+    const target = touchTileIndexAt(x, y);
+    if (target === null || target === from) return;
+    setDragOverTarget({ index: target, direction: from < target ? "after" : "before" });
+  }
+
+  function settleTouchDrag(): { from: number | null; target: DragOverTarget | null } {
+    stopTouchAutoScroll();
+    const from = dragSourceIndex();
+    const target = dragOverTarget();
+    setDragSourceIndex(null);
+    setDragOverTarget(null);
+    return { from, target };
+  }
+
+  function handleTouchDragEnd(): void {
+    const { from, target } = settleTouchDrag();
+    if (from === null || isBusy()) return;
+    if (!target || target.index === from) return;
+    movePage(from, target.index);
+  }
+
+  function handleTouchDragCancel(): void {
+    stopTouchAutoScroll();
+    setDragSourceIndex(null);
+    setDragOverTarget(null);
+  }
+
   return (
     <div class="editor-app">
       <section
@@ -910,6 +987,10 @@ export default function Editor() {
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onDragEnd={handleDragEnd}
+                onTouchDragStart={handleTouchDragStart}
+                onTouchDragMove={handleTouchDragMove}
+                onTouchDragEnd={handleTouchDragEnd}
+                onTouchDragCancel={handleTouchDragCancel}
               />
 
               <EditorSelectionBar

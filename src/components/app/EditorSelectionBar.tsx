@@ -210,6 +210,7 @@ export default function EditorSelectionBar(props: Props) {
           data-testid="editor-edit-menu-button"
           class="editor-toolbar-action editor-menu-trigger"
           aria-haspopup="menu"
+          aria-label="Edit pages"
           aria-controls="editor-edit-menu"
           aria-expanded={openMenu() === "edit"}
           aria-disabled={props.busy}
@@ -217,7 +218,10 @@ export default function EditorSelectionBar(props: Props) {
           onClick={() => toggleMenu("edit")}
           onKeyDown={(event) => handleTriggerKeyDown("edit", event)}
         >
-          Edit pages
+          <svg class="editor-menu-trigger-icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M12.9 4.1a1.55 1.55 0 0 1 3 3L7 16H4v-3zM11.5 5.5l3 3" />
+          </svg>
+          <span class="editor-menu-trigger-label">Edit pages</span>
           <svg class="editor-menu-trigger-chevron" viewBox="0 0 20 20" aria-hidden="true">
             <path d="m5 7 5 5 5-5" />
           </svg>

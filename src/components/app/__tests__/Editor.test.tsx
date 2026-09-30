@@ -637,6 +637,64 @@ describe("Editor", () => {
     expect(getByTestId("editor-status-message")).toHaveTextContent("Moved page 3 to position 2.");
   });
 
+  it("reorders a page with a long-press touch drag and skips the tap selection", async () => {
+    const { findAllByTestId, getByTestId, queryByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile());
+    await findAllByTestId("editor-page-tile");
+
+    const hitareas = document.querySelectorAll<HTMLButtonElement>(
+      '[data-testid="editor-page-tile"]'
+    );
+    const dropTile = document.querySelectorAll("li[data-page-index]")[2];
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => dropTile,
+    });
+
+    const start = { touches: [{ clientX: 10, clientY: 10 }] };
+    const move = { touches: [{ clientX: 220, clientY: 220 }] };
+
+    fireEvent.touchStart(hitareas[0], start);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(hitareas[0].closest("li")).toHaveClass("dragging");
+
+    fireEvent.touchMove(hitareas[0], move);
+    await waitFor(() => expect(dropTile).toHaveClass("drag-insert-after"));
+
+    fireEvent.touchEnd(hitareas[0], { touches: [] });
+
+    await waitFor(() => {
+      const reorderedTiles = document.querySelectorAll('[data-testid="editor-page-tile"]');
+      expect(reorderedTiles[2]).toHaveAttribute("data-source-page", "1");
+    });
+    expect(getByTestId("editor-status-message")).toHaveTextContent("Moved page 1 to position 3.");
+    expect(queryByTestId("editor-edit-menu")).not.toBeInTheDocument();
+    expect(hitareas[0].closest("li")).not.toHaveClass("dragging");
+    expect(dropTile).not.toHaveClass("drag-insert-after");
+    expect(getByTestId("editor-selection-title")).toHaveTextContent("No pages selected");
+
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  it("treats a quick touch tap on a page as selection, not a drag", async () => {
+    const { findAllByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile());
+    const tiles = await findAllByTestId("editor-page-tile");
+
+    const hitarea = tiles[0];
+    fireEvent.touchStart(hitarea, { touches: [{ clientX: 10, clientY: 10 }] });
+    fireEvent.touchEnd(hitarea, { touches: [] });
+    expect(hitarea.closest("li")).not.toHaveClass("dragging");
+
+    fireEvent.click(hitarea);
+    await waitFor(() => expect(tiles[0]).toHaveAttribute("data-selected", "true"));
+  });
+
   it("rotates and marks a page from its direct controls", async () => {
     const { getByTestId, findAllByTestId } = render(() => <Editor />);
 

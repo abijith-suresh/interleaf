@@ -1,4 +1,5 @@
-import { Deferred, Effect, Exit } from "effect";
+import { Deferred, Effect, Exit, Semaphore } from "effect";
+import type { Semaphore as SemaphoreShape } from "effect/Semaphore";
 import type * as pdfjsLib from "pdfjs-dist";
 import type { PDFProcessingError } from "../types/interfaces";
 import { collectFirstError, continueAfterError, processingError } from "./pdf-errors";
@@ -37,6 +38,23 @@ function cleanupPage(
 
 export class PageResources {
   private pendingPageRequests = new Map<File, Set<PendingPageRequest>>();
+  private readonly pageLocks = new WeakMap<File, Map<number, SemaphoreShape>>();
+
+  private lockFor(file: File, pageNumber: number): SemaphoreShape {
+    let byPage = this.pageLocks.get(file);
+    if (!byPage) {
+      byPage = new Map();
+      this.pageLocks.set(file, byPage);
+    }
+
+    let lock = byPage.get(pageNumber);
+    if (!lock) {
+      lock = Semaphore.makeUnsafe(1);
+      byPage.set(pageNumber, lock);
+    }
+
+    return lock;
+  }
 
   getPage(
     pdfjsDocument: pdfjsLib.PDFDocumentProxy,
@@ -88,13 +106,17 @@ export class PageResources {
   }
 
   withPageCleanup<A, E>(
+    file: File,
+    pageNumber: number,
     acquire: Effect.Effect<PageResource, PDFProcessingError>,
     use: (page: pdfjsLib.PDFPageProxy) => Effect.Effect<A, E>
   ): Effect.Effect<A, E | PDFProcessingError> {
-    return Effect.acquireUseRelease(
-      acquire,
-      ({ page }) => use(page),
-      ({ request }) => this.cleanupPendingPage(request)
+    return this.lockFor(file, pageNumber).withPermit(
+      Effect.acquireUseRelease(
+        acquire,
+        ({ page }) => use(page),
+        ({ request }) => this.cleanupPendingPage(request)
+      )
     );
   }
 
