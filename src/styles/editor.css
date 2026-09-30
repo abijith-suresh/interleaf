@@ -473,6 +473,13 @@ body:has([data-page="editor"]) {
   list-style: none;
 }
 
+.editor-file-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.15rem;
+}
+
 .editor-file-item {
   display: grid;
   width: 100%;
@@ -498,6 +505,46 @@ body:has([data-page="editor"]) {
   border-color: var(--editor-line);
   background: var(--editor-hover);
   color: var(--editor-ink);
+}
+
+.editor-file-remove {
+  display: inline-flex;
+  width: 2.75rem;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--editor-muted);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background-color 160ms var(--ease-out),
+    color 160ms var(--ease-out),
+    opacity 160ms var(--ease-out);
+}
+
+.editor-file-remove svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.editor-file-remove:hover:not(:disabled) {
+  background: var(--editor-danger-bg);
+  color: var(--editor-danger-ink);
+}
+
+.editor-file-remove:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .editor-file-icon {

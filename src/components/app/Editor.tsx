@@ -513,6 +513,57 @@ export default function Editor() {
     setStatusMessage(`Selected ${formatPageCount(nextSelection.size)} from ${file.name}.`);
   }
 
+  async function handleRemoveWorkspaceFile(file: File): Promise<void> {
+    if (isBusy()) return;
+
+    const workspaceFile = workspaceFiles().find((candidate) => candidate.file === file);
+    if (!workspaceFile) return;
+    const removedPageCount = workspaceFile.pageCount;
+    const removedFileName = file.name;
+
+    const indexRemap = new Map<number, number | null>();
+    let nextIndex = 0;
+    pages.forEach((page, oldIndex) => {
+      if (page.sourceFile === file) {
+        indexRemap.set(oldIndex, null);
+        return;
+      }
+      indexRemap.set(oldIndex, nextIndex);
+      nextIndex += 1;
+    });
+
+    const nextSelection = new Set<number>();
+    for (const oldIndex of selectedIndices()) {
+      const mapped = indexRemap.get(oldIndex);
+      if (mapped !== null && mapped !== undefined) nextSelection.add(mapped);
+    }
+
+    const remainingPages = pages.filter((page) => page.sourceFile !== file);
+    setPages(remainingPages);
+    setSelectedIndices(nextSelection);
+    setDragSourceIndex(null);
+    setDragOverTarget(null);
+    if (!remainingPages.some((page) => page.id === activePageId())) {
+      setActivePageId(remainingPages[0]?.id ?? null);
+    }
+
+    if (remainingPages.length === 0) {
+      setPhase("upload");
+      setReviewOpen(false);
+      setFilesOpen(false);
+      setStatusMessage(`Removed ${removedFileName}. The workspace is empty.`);
+    } else {
+      setStatusMessage(`Removed ${removedFileName} and ${formatPageCount(removedPageCount)}.`);
+    }
+
+    try {
+      await runPDF(PDFProcessing.use((service) => service.releaseFile(file)));
+    } catch {
+      // Cleanup is best effort; the runtime also releases all remaining files
+      // when the editor is disposed.
+    }
+  }
+
   function handleSelectAll(): void {
     if (isBusy()) return;
     const nextSelection = toggleSelectAll(pages.length, selectedIndices());
@@ -1044,6 +1095,7 @@ export default function Editor() {
               files={workspaceFiles()}
               onClose={closeFilesDialog}
               onSelectFile={handleWorkspaceFileClick}
+              onRemoveFile={handleRemoveWorkspaceFile}
             />
           </div>
         </Show>
