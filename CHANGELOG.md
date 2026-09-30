@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.0.9](https://github.com/abijith-suresh/interleaf/compare/0.0.8...0.0.9) (2026-09-29)
+
+
+### Bug Fixes
+
+* **ci:** pin qpdf port library link order ([#269](https://github.com/abijith-suresh/interleaf/issues/269)) ([3f6f3bc](https://github.com/abijith-suresh/interleaf/commit/3f6f3bc78477296aa2c4c29cd85c8e7c8dd225c1))
+* **pdf:** bound page acquisition with render permits ([#265](https://github.com/abijith-suresh/interleaf/issues/265)) ([6a998f8](https://github.com/abijith-suresh/interleaf/commit/6a998f828dfcee4007e6381a029500aaada444d3))
+* **pdf:** retry failed support imports and surface cache cleanup errors ([#275](https://github.com/abijith-suresh/interleaf/issues/275)) ([bd90148](https://github.com/abijith-suresh/interleaf/commit/bd9014819c6df526dd6b9cf65b66339cc9a7fbb6))
+
 ## [0.0.8](https://github.com/abijith-suresh/interleaf/compare/0.0.7...0.0.8) (2026-09-21)
 
 
