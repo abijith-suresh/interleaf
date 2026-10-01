@@ -929,6 +929,9 @@ body:has([data-page="editor"]) {
   color: inherit;
   cursor: pointer;
   touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .editor-page-hitarea:disabled {

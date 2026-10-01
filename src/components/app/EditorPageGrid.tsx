@@ -26,6 +26,10 @@ interface Props {
   onDragLeave: () => void;
   onDrop: (index: number, e: DragEvent) => void;
   onDragEnd: () => void;
+  onTouchDragStart: (index: number, x: number, y: number) => void;
+  onTouchDragMove: (x: number, y: number) => void;
+  onTouchDragEnd: () => void;
+  onTouchDragCancel: () => void;
 }
 
 export default function EditorPageGrid(props: Props) {
@@ -75,6 +79,10 @@ export default function EditorPageGrid(props: Props) {
               onDragLeave={props.onDragLeave}
               onDrop={(e) => props.onDrop(index(), e)}
               onDragEnd={props.onDragEnd}
+              onTouchDragStart={(x, y) => props.onTouchDragStart(index(), x, y)}
+              onTouchDragMove={props.onTouchDragMove}
+              onTouchDragEnd={props.onTouchDragEnd}
+              onTouchDragCancel={props.onTouchDragCancel}
             />
           )}
         </For>
