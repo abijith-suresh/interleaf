@@ -7,6 +7,7 @@ interface Props {
   files: WorkspaceFile[];
   onClose: () => void;
   onSelectFile: (file: File) => void;
+  onRemoveFile: (file: File) => void;
 }
 
 function formatPageCount(pageCount: number) {
@@ -16,6 +17,15 @@ function formatPageCount(pageCount: number) {
 export default function EditorFilesDialog(props: Props) {
   let dialog!: HTMLDialogElement;
   let closeButton!: HTMLButtonElement;
+  let list!: HTMLUListElement;
+
+  function focusAfterRemoval(removedIndex: number): void {
+    requestAnimationFrame(() => {
+      const items = list?.querySelectorAll<HTMLButtonElement>('[data-testid="editor-file-item"]');
+      const target = items?.[Math.min(removedIndex, (items.length ?? 1) - 1)];
+      (target ?? closeButton)?.focus();
+    });
+  }
 
   function isOpen(): boolean {
     return dialog.open || dialog.hasAttribute("open");
@@ -92,11 +102,11 @@ export default function EditorFilesDialog(props: Props) {
         </header>
 
         <div class="editor-files-dialog-body">
-          <ul class="editor-file-list" aria-label="Workspace files">
+          <ul ref={list} class="editor-file-list" aria-label="Workspace files">
             <For each={props.files}>
-              {(workspaceFile) => {
+              {(workspaceFile, index) => {
                 return (
-                  <li>
+                  <li class="editor-file-row">
                     <button
                       type="button"
                       data-testid="editor-file-item"
@@ -115,6 +125,22 @@ export default function EditorFilesDialog(props: Props) {
                         <span>{formatPageCount(workspaceFile.pageCount)}</span>
                       </span>
                     </button>
+                    <button
+                      type="button"
+                      data-testid="editor-file-remove"
+                      class="editor-file-remove"
+                      aria-label={`Remove ${workspaceFile.file.name} and its ${formatPageCount(workspaceFile.pageCount)} from the workspace`}
+                      title={`Remove ${workspaceFile.file.name}`}
+                      disabled={props.busy}
+                      onClick={() => {
+                        focusAfterRemoval(index());
+                        props.onRemoveFile(workspaceFile.file);
+                      }}
+                    >
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M4.5 6.5h11M8 6.5V4h4v2.5M6.5 8.5v6m3.5-6v6m3.5-6v6M5.5 6.5l.5 10h8l.5-10" />
+                      </svg>
+                    </button>{" "}
                   </li>
                 );
               }}

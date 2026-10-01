@@ -28,6 +28,7 @@ The active product supports:
 - exporting selected or active PDF pages as PNG images in a local ZIP archive
 - opening one or more PDFs and PNG or JPEG images together at initial upload, with images converted to PDF pages in the browser
 - adding one or more PDFs and PNG or JPEG images to an existing workspace, with images converted to PDF pages in the browser
+- removing a source file and its pages from the workspace
 
 These are the only current public product promises.
 

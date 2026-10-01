@@ -12,6 +12,7 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 
 - Open one or more PDFs and PNG/JPEG images together, converting images into PDF pages
 - Add more PDFs or PNG/JPEG images to an existing working set
+- Remove a source file and its pages from the working set
 - Extract selected pages into a new PDF
 - Reorder pages with drag and drop
 - Rotate individual pages or selections in 90-degree steps

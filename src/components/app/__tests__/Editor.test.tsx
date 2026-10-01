@@ -353,6 +353,102 @@ describe("Editor", () => {
     );
   });
 
+  it("removes a source file and its pages from the workspace", async () => {
+    const { findAllByTestId, getByTestId } = render(() => <Editor />);
+
+    selectFiles("editor-upload-input", [makeFile("brief.pdf"), makeFile("appendix.pdf")]);
+    const tiles = await findAllByTestId("editor-page-tile");
+    expect(tiles).toHaveLength(6);
+
+    fireEvent.click(tiles[1]);
+    await waitFor(() => expect(tiles[1].dataset.selected).toBe("true"));
+
+    fireEvent.click(getByTestId("editor-files-button"));
+    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    const removeButtons = await findAllByTestId("editor-file-remove");
+    expect(removeButtons).toHaveLength(2);
+    expect(removeButtons[0]).toHaveAccessibleName(
+      "Remove brief.pdf and its 3 pages from the workspace"
+    );
+
+    fireEvent.click(removeButtons[0]);
+
+    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(3));
+    expect(getByTestId("editor-status-message")).toHaveTextContent(
+      "Removed brief.pdf and 3 pages."
+    );
+    expect(getByTestId("editor-selection-title")).toHaveTextContent("No pages selected");
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "brief.pdf" })
+    );
+
+    const remainingTiles = await findAllByTestId("editor-page-tile");
+    expect(remainingTiles.map((tile) => tile.dataset.sourcePage)).toEqual(["1", "2", "3"]);
+    fireEvent.click(getByTestId("editor-files-button"));
+    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    expect(await findAllByTestId("editor-file-item")).toHaveLength(1);
+    expect(getByTestId("editor-files-button")).toHaveAttribute("aria-label", "Open 1 file");
+  });
+
+  it("remaps a surviving selection when another file is removed", async () => {
+    const { findAllByTestId, getByTestId } = render(() => <Editor />);
+
+    selectFiles("editor-upload-input", [makeFile("brief.pdf"), makeFile("appendix.pdf")]);
+    const tiles = await findAllByTestId("editor-page-tile");
+    expect(tiles).toHaveLength(6);
+
+    fireEvent.click(tiles[4]);
+    await waitFor(() => expect(tiles[4].dataset.selected).toBe("true"));
+
+    fireEvent.click(getByTestId("editor-files-button"));
+    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    const removeButtons = await findAllByTestId("editor-file-remove");
+    fireEvent.click(removeButtons[0]);
+
+    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(3));
+    expect(getByTestId("editor-selection-title")).toHaveTextContent("1 selected");
+    const remainingTiles = await findAllByTestId("editor-page-tile");
+    expect(remainingTiles[1]).toHaveAttribute("data-selected", "true");
+    expect(remainingTiles[1]).toHaveAttribute("data-source-page", "2");
+  });
+
+  it("returns to the uploader when the last file is removed", async () => {
+    const { findAllByTestId, getByTestId, queryByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile("only.pdf"));
+    await findAllByTestId("editor-page-tile");
+
+    fireEvent.click(getByTestId("editor-files-button"));
+    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    fireEvent.click(getByTestId("editor-file-remove"));
+
+    await waitFor(() => expect(queryByTestId("editor-page-grid")).not.toBeInTheDocument());
+    expect(getByTestId("editor-upload-dropzone")).toBeInTheDocument();
+    expect(getByTestId("editor-upload-status")).toHaveTextContent(
+      "Removed only.pdf. The workspace is empty."
+    );
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "only.pdf" })
+    );
+  });
+
+  it("does not reopen the files dialog after the workspace is emptied and refilled", async () => {
+    const { findAllByTestId, getByTestId, queryByTestId } = render(() => <Editor />);
+
+    selectFile("editor-upload-input", makeFile("only.pdf"));
+    await findAllByTestId("editor-page-tile");
+
+    fireEvent.click(getByTestId("editor-files-button"));
+    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    fireEvent.click(getByTestId("editor-file-remove"));
+    await waitFor(() => expect(queryByTestId("editor-page-grid")).not.toBeInTheDocument());
+
+    selectFile("editor-upload-input", makeFile("fresh.pdf"));
+    await findAllByTestId("editor-page-tile");
+
+    await waitFor(() => expect(getByTestId("editor-files-dialog")).not.toHaveAttribute("open"));
+  });
+
   it("adds mixed PDFs and images from the workspace", async () => {
     const { getByTestId, findAllByTestId } = render(() => <Editor />);
 
