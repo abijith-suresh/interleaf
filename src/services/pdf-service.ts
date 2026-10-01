@@ -116,6 +116,8 @@ export class PDFService {
       Effect.gen({ self: this }, function* () {
         const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
         return yield* this.pageResources.withPageCleanup(
+          file,
+          pageNumber,
           this.pageResources.getPage(record.pdfjsDocument, file, pageNumber, "get-page-rotation"),
           (page) =>
             Effect.try({
@@ -139,6 +141,8 @@ export class PDFService {
       Effect.gen({ self: this }, function* () {
         const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
         return yield* this.pageResources.withPageCleanup(
+          file,
+          pageNumber,
           this.pageResources.getPage(record.pdfjsDocument, file, pageNumber, "get-page-size"),
           (page) =>
             Effect.try({
@@ -168,6 +172,8 @@ export class PDFService {
         const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
         yield* this.pageRenderer.withPermit(
           this.pageResources.withPageCleanup(
+            file,
+            pageNumber,
             this.pageResources.getPage(record.pdfjsDocument, file, pageNumber, "render-page"),
             (page) =>
               Effect.gen({ self: this }, function* () {
