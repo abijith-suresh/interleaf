@@ -1,5 +1,5 @@
 import { Cause, Deferred, Effect, Exit, Option } from "effect";
-import * as pdfjsLib from "pdfjs-dist";
+import type * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { type PDFError, PDFPasswordRequiredError, PDFProcessingError } from "../types/interfaces";
 import { type DocumentKey, makeDocumentStore } from "./document-store";
@@ -7,7 +7,15 @@ import { PageRenderer } from "./page-renderer";
 import { PageResources } from "./page-resources";
 import { collectFirstError, processingError } from "./pdf-errors";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+let pdfjsModule: Promise<typeof pdfjsLib> | null = null;
+
+function loadPdfjs(): Promise<typeof pdfjsLib> {
+  pdfjsModule ??= import("pdfjs-dist").then((module) => {
+    module.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+    return module;
+  });
+  return pdfjsModule;
+}
 
 interface LoadedPDFRecord {
   // PDF.js is enough for page counts, password handling, and thumbnails. The
@@ -308,6 +316,10 @@ export class PDFService {
         });
 
       const load = Effect.gen({ self: this }, function* () {
+        const pdfjs = yield* Effect.tryPromise({
+          try: () => loadPdfjs(),
+          catch: (cause) => processingError("load-pdf-js", file, cause),
+        });
         const buffer = yield* Effect.tryPromise({
           try: () => file.arrayBuffer(),
           catch: (cause) => processingError("read-file", file, cause),
@@ -317,8 +329,8 @@ export class PDFService {
         const task = yield* Effect.try({
           try: () =>
             password === undefined
-              ? pdfjsLib.getDocument({ data })
-              : pdfjsLib.getDocument({ data, password }),
+              ? pdfjs.getDocument({ data })
+              : pdfjs.getDocument({ data, password }),
           catch: (cause) => processingError("load-pdf-js", file, cause),
         });
         loadingTask = task;
