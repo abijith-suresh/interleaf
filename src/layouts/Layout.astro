@@ -6,6 +6,11 @@ import "@fontsource/work-sans/400.css";
 import "@fontsource/work-sans/500.css";
 import "@fontsource/work-sans/600.css";
 import "../styles/global.css";
+import bebasNeue400Url from "@fontsource/bebas-neue/files/bebas-neue-latin-400-normal.woff2?url";
+import workSans300Url from "@fontsource/work-sans/files/work-sans-latin-300-normal.woff2?url";
+import workSans400Url from "@fontsource/work-sans/files/work-sans-latin-400-normal.woff2?url";
+import workSans500Url from "@fontsource/work-sans/files/work-sans-latin-500-normal.woff2?url";
+import workSans600Url from "@fontsource/work-sans/files/work-sans-latin-600-normal.woff2?url";
 
 interface Props {
   title: string;
@@ -19,6 +24,13 @@ const siteOrigin = Astro.site?.toString().replace(/\/$/, "") ?? "";
 const canonicalURL = new URL(Astro.url.pathname, Astro.site).toString();
 const slug = Astro.url.pathname.replace(base, "").replace(/\/$/, "") || "index";
 const resolvedOgImage = ogImage ?? `${siteOrigin}${base}og/${slug}.png`;
+const preloadedFonts = [
+  workSans300Url,
+  workSans400Url,
+  workSans500Url,
+  workSans600Url,
+  bebasNeue400Url,
+];
 ---
 
 <html lang="en">
@@ -28,6 +40,7 @@ const resolvedOgImage = ogImage ?? `${siteOrigin}${base}og/${slug}.png`;
     <link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48 96x96" href={`${base}favicon.ico`} />
     <link rel="apple-touch-icon" sizes="180x180" href={`${base}apple-touch-icon.png`} />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    {preloadedFonts.map((fontUrl) => <link rel="preload" href={fontUrl} as="font" type="font/woff2" crossorigin />)}
     <meta name="theme-color" content="#ffffff" />
     <meta name="generator" content={Astro.generator} />
     <link rel="canonical" href={canonicalURL} />
