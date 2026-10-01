@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.0.10](https://github.com/abijith-suresh/interleaf/compare/0.0.9...0.0.10) (2026-10-01)
+
+
+### Features
+
+* **editor:** compact the workspace action bar and page tiles ([#280](https://github.com/abijith-suresh/interleaf/issues/280)) ([8073646](https://github.com/abijith-suresh/interleaf/commit/8073646f67509c6b4fa0192c968c3a93021c7421))
+* **editor:** manage workspace files with per-file removal ([#282](https://github.com/abijith-suresh/interleaf/issues/282)) ([826a88e](https://github.com/abijith-suresh/interleaf/commit/826a88e8043bef3b269e4926e695c925846d1152))
+* **editor:** open page review as a focused lightbox ([#281](https://github.com/abijith-suresh/interleaf/issues/281)) ([656768b](https://github.com/abijith-suresh/interleaf/commit/656768bf2882c88cedd56349a015b9e08076d2d8))
+* **editor:** reorder pages with long-press touch drag ([#279](https://github.com/abijith-suresh/interleaf/issues/279)) ([69555c2](https://github.com/abijith-suresh/interleaf/commit/69555c2aedba7886ddfcf4d7b62e9fdb498fea3d))
+
+
+### Bug Fixes
+
+* **pdf:** serialize page access per page to stop cleanup races ([#278](https://github.com/abijith-suresh/interleaf/issues/278)) ([85f12af](https://github.com/abijith-suresh/interleaf/commit/85f12af9453d7cd04ba6079fe5d6784d020b34b2))
+
 ## [0.0.9](https://github.com/abijith-suresh/interleaf/compare/0.0.8...0.0.9) (2026-09-29)
 
 
