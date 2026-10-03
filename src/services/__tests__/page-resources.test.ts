@@ -72,14 +72,20 @@ describe("PageResources", () => {
     const page = { cleanup: () => true };
     const document = makeDocument(page);
 
+    const firstStarted = Deferred.makeUnsafe<void>();
     const holdFirst = Deferred.makeUnsafe<void>();
-    let secondRan = false;
+    let firstFinished = false;
 
     const first = resources.withPageCleanup(
       file,
       1,
       resources.getPage(document, file, 1, "use"),
-      () => Deferred.await(holdFirst)
+      () =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(firstStarted, undefined);
+          yield* Deferred.await(holdFirst);
+          firstFinished = true;
+        })
     );
     const second = resources.withPageCleanup(
       file,
@@ -87,19 +93,19 @@ describe("PageResources", () => {
       resources.getPage(document, file, 2, "use"),
       () =>
         Effect.sync(() => {
-          secondRan = true;
+          expect(firstFinished).toBe(false);
         })
     );
 
     return Effect.gen(function* () {
-      const fiber = yield* Effect.forkChild(
-        Effect.all([first, second], { concurrency: 2, discard: true })
-      );
+      const firstFiber = yield* Effect.forkChild(first);
+      yield* Deferred.await(firstStarted);
+      yield* second;
 
       yield* Deferred.succeed(holdFirst, undefined);
-      yield* Fiber.join(fiber);
+      yield* Fiber.join(firstFiber);
 
-      expect(secondRan).toBe(true);
+      expect(firstFinished).toBe(true);
     });
   });
 });

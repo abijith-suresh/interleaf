@@ -754,9 +754,13 @@ describe("Editor", () => {
       const start = { touches: [{ identifier: 1, clientX: 10, clientY: 10 }] };
       const move = { touches: [{ identifier: 1, clientX: 220, clientY: 220 }] };
 
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       fireEvent.touchStart(hitareas[0], start);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      vi.advanceTimersByTime(200);
+      expect(hitareas[0].closest("li")).not.toHaveClass("dragging");
+      vi.advanceTimersByTime(100);
       expect(hitareas[0].closest("li")).toHaveClass("dragging");
+      vi.useRealTimers();
 
       fireEvent.touchMove(hitareas[0], move);
       await waitFor(() => expect(dropTile).toHaveClass("drag-insert-after"));
@@ -773,6 +777,7 @@ describe("Editor", () => {
       expect(dropTile).not.toHaveClass("drag-insert-after");
       expect(getByTestId("editor-selection-title")).toHaveTextContent("No pages selected");
     } finally {
+      vi.useRealTimers();
       if (hadElementFromPoint) {
         Object.defineProperty(document, "elementFromPoint", hadElementFromPoint);
       } else {
