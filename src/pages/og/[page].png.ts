@@ -3,15 +3,16 @@ import { join } from "node:path";
 import { Resvg } from "@resvg/resvg-js";
 import type { APIRoute } from "astro";
 import satori from "satori";
+import { socialPreviewFilename, socialPreviewSize } from "../../utils/social-preview";
 
 const pages: Record<string, { title: string; description: string }> = {
   index: {
-    title: "Interleaf",
-    description: "Merge, arrange, and export PDFs in your browser.",
+    title: "Make the\ndocument ready.",
+    description: "PDFs and images. All on your device.",
   },
   app: {
-    title: "Editor",
-    description: "Open PDFs and PNG/JPEG images together. No uploads required.",
+    title: "Your PDF\nworkspace.",
+    description: "Open, arrange, and export in your browser.",
   },
   features: {
     title: "Features",
@@ -19,154 +20,140 @@ const pages: Record<string, { title: string; description: string }> = {
   },
   about: {
     title: "About",
-    description: "Client-side PDF tools. No servers. No data collection.",
+    description: "Work with PDFs. Keep the file with you.",
   },
   privacy: {
     title: "Privacy",
-    description: "Your files never leave your browser. Zero data collection.",
+    description: "Your files stay with you. Nothing is uploaded.",
   },
   terms: {
-    title: "Terms",
-    description: "Simple, honest terms for a tool you can trust.",
+    title: "Terms of service",
+    description: "The terms for using Interleaf.",
   },
   faq: {
-    title: "FAQ",
-    description: "Everything you need to know about Interleaf.",
+    title: "Questions,\nanswered.",
+    description: "Short answers about using Interleaf.",
   },
 };
 
 const fontData = readFileSync(join(process.cwd(), "src/fonts/WorkSans-SemiBold.ttf"));
+const bodyFontData = readFileSync(
+  join(process.cwd(), "node_modules/@fontsource/work-sans/files/work-sans-latin-400-normal.woff")
+);
+const titleFontData = readFileSync(
+  join(process.cwd(), "node_modules/@fontsource/work-sans/files/work-sans-latin-500-normal.woff")
+);
 
 export function getStaticPaths() {
-  return Object.keys(pages).map((page) => ({ params: { page } }));
+  return Object.keys(pages).flatMap((page) => [
+    {
+      params: { page: socialPreviewFilename(page).replace(/\.png$/, "") },
+      props: { page },
+    },
+    // Cached page metadata may still reference the original image URL.
+    { params: { page }, props: { page } },
+  ]);
 }
 
-export const GET: APIRoute = async ({ params }) => {
-  const slug = params.page as string;
-  const { title, description } = pages[slug];
+export const GET: APIRoute = async ({ props }) => {
+  const { title, description } = pages[props.page];
 
   const element = {
     type: "div",
     props: {
       style: {
         display: "flex",
-        flexDirection: "column",
-        width: "1200px",
-        height: "630px",
-        backgroundColor: "#ffffff",
-        padding: "60px",
+        width: socialPreviewSize.width,
+        height: socialPreviewSize.height,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#f7f5f0",
+        color: "#242421",
         fontFamily: "WorkSans",
+        fontWeight: 400,
       },
-      children: [
-        // Top row: brand + subtitle
-        {
-          type: "div",
-          props: {
-            style: {
-              display: "flex",
-              flexDirection: "row",
-              alignItems: "center",
-              gap: "16px",
-              marginBottom: "60px",
-            },
-            children: [
-              {
-                type: "span",
-                props: {
-                  style: {
-                    fontSize: "28px",
-                    fontWeight: 600,
-                    color: "#111",
-                    letterSpacing: "0.15em",
-                    textTransform: "uppercase",
-                  },
-                  children: "INTERLEAF",
-                },
-              },
-              {
-                type: "div",
-                props: {
-                  style: {
-                    width: "4px",
-                    height: "28px",
-                    backgroundColor: "#ff0000",
-                  },
-                  children: "",
-                },
-              },
-              {
-                type: "span",
-                props: {
-                  style: {
-                    fontSize: "18px",
-                    color: "#888",
-                    letterSpacing: "0.05em",
-                  },
-                  children: "Client-side PDF Editor",
-                },
-              },
-            ],
+      children: {
+        type: "div",
+        props: {
+          // Keep every element inside the centered square used by compact cards.
+          style: {
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            width: 510,
+            textAlign: "center",
           },
-        },
-        // Main area: page title
-        {
-          type: "div",
-          props: {
-            style: {
-              display: "flex",
-              flex: 1,
-              flexDirection: "column",
-              justifyContent: "center",
-              gap: "24px",
+          children: [
+            {
+              type: "div",
+              props: {
+                style: {
+                  fontSize: 108,
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  letterSpacing: "-0.055em",
+                },
+                children: "interleaf",
+              },
             },
-            children: [
-              {
-                type: "span",
-                props: {
-                  style: {
-                    fontSize: "104px",
-                    fontWeight: 600,
-                    color: "#111",
-                    lineHeight: 1,
-                    letterSpacing: "-0.02em",
-                  },
-                  children: title,
+            {
+              type: "div",
+              props: {
+                style: {
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  marginTop: 32,
+                  color: "#ff2a1f",
+                  fontSize: 56,
+                  fontWeight: 500,
+                  lineHeight: 1.05,
+                  letterSpacing: "-0.065em",
                 },
-              },
-              {
-                type: "div",
-                props: {
-                  style: {
-                    width: "80px",
-                    height: "4px",
-                    backgroundColor: "#ff0000",
+                children: title.split("\n").map((line, index, lines) => ({
+                  type: "span",
+                  props: {
+                    style: { color: lines.length > 1 && index === 0 ? "#242421" : "#ff2a1f" },
+                    children: line,
                   },
-                  children: "",
-                },
+                })),
               },
-              {
-                type: "span",
-                props: {
-                  style: {
-                    fontSize: "28px",
-                    color: "#888",
-                    lineHeight: 1.5,
-                    maxWidth: "800px",
-                  },
-                  children: description,
+            },
+            {
+              type: "div",
+              props: {
+                style: {
+                  marginTop: 28,
+                  maxWidth: 480,
+                  color: "#77756e",
+                  fontSize: 25,
+                  lineHeight: 1.45,
+                  letterSpacing: "-0.02em",
                 },
+                children: description,
               },
-            ],
-          },
+            },
+          ],
         },
-      ],
+      },
     },
   };
 
   const svg = await satori(element, {
-    width: 1200,
-    height: 630,
+    ...socialPreviewSize,
     fonts: [
+      {
+        name: "WorkSans",
+        data: bodyFontData,
+        weight: 400,
+        style: "normal",
+      },
+      {
+        name: "WorkSans",
+        data: titleFontData,
+        weight: 500,
+        style: "normal",
+      },
       {
         name: "WorkSans",
         data: fontData,
