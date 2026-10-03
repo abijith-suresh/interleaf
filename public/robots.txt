@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://interleaf-snowy.vercel.app/sitemap-index.xml

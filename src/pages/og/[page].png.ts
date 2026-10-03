@@ -7,7 +7,7 @@ import satori from "satori";
 const pages: Record<string, { title: string; description: string }> = {
   index: {
     title: "Interleaf",
-    description: "Create, edit, merge, and export — all in your browser.",
+    description: "Merge, arrange, and export PDFs in your browser.",
   },
   app: {
     title: "Editor",
@@ -154,29 +154,6 @@ export const GET: APIRoute = async ({ params }) => {
                     maxWidth: "800px",
                   },
                   children: description,
-                },
-              },
-            ],
-          },
-        },
-        // Bottom: URL
-        {
-          type: "div",
-          props: {
-            style: {
-              display: "flex",
-              marginTop: "40px",
-            },
-            children: [
-              {
-                type: "span",
-                props: {
-                  style: {
-                    fontSize: "18px",
-                    color: "#555",
-                    letterSpacing: "0.05em",
-                  },
-                  children: "interleaf-snowy.vercel.app",
                 },
               },
             ],
