@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.11](https://github.com/abijith-suresh/interleaf/compare/0.0.10...0.0.11) (2026-10-03)
+
+
+### Bug Fixes
+
+* align social previews with current branding ([#291](https://github.com/abijith-suresh/interleaf/issues/291)) ([ba3ffc8](https://github.com/abijith-suresh/interleaf/commit/ba3ffc8512c23598d04513a4d67ba975285fffb4))
+* update production domain and restore social previews ([#289](https://github.com/abijith-suresh/interleaf/issues/289)) ([8576c68](https://github.com/abijith-suresh/interleaf/commit/8576c68464539d4b049532bc90ef04c6e9556a79))
+
 ## [0.0.10](https://github.com/abijith-suresh/interleaf/compare/0.0.9...0.0.10) (2026-10-01)
 
 
