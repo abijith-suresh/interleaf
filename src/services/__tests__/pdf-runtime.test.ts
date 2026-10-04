@@ -1,6 +1,5 @@
-import { it } from "@effect/vitest";
 import { Effect, Exit, Fiber } from "effect";
-import { beforeEach, expect, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { PDFProcessingError } from "../../types/interfaces";
 
 const pdfServiceMock = vi.hoisted(() => ({
@@ -84,10 +83,12 @@ vi.mock("../qpdf-processing", async (importOriginal) => {
   };
 });
 
-import { makePDFRuntime, PDFProcessing } from "../pdf-runtime";
+import { makePDFRuntime, PDFProcessing, type PDFRuntime } from "../pdf-runtime";
+
+let runtime: PDFRuntime;
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   pdfServiceMock.loadPDF.mockReturnValue(Effect.succeed(undefined));
   pdfServiceMock.loadPDFWithPassword.mockReturnValue(Effect.succeed(undefined));
   pdfServiceMock.getPageCount.mockReturnValue(0);
@@ -111,206 +112,133 @@ beforeEach(() => {
     Effect.succeed({ data: new Blob(), suggestedFileName: "document-images.zip" })
   );
   imageExportServiceMock.constructed = 0;
+  runtime = makePDFRuntime({ qpdfWorkerUrl: "/qpdf/qpdf-worker.js" });
 });
 
-it.effect("runs PDF processing through a scoped Effect v4 runtime", () => {
-  pdfServiceMock.loadPDF.mockReturnValue(Effect.succeed(undefined));
+afterEach(async () => {
+  await runtime.dispose();
+});
+
+it("returns the active page count after loading a PDF", async () => {
   pdfServiceMock.getPageCount.mockReturnValue(7);
-  pdfServiceMock.reset.mockReturnValue(Effect.succeed(undefined));
-  operationsServiceMock.clearCache.mockReturnValue(Effect.succeed(undefined));
+  const file = new File(["plain"], "document.pdf", { type: "application/pdf" });
 
-  return Effect.scoped(
-    Effect.gen(function* () {
-      const runtime = yield* Effect.acquireRelease(Effect.sync(makePDFRuntime), (managedRuntime) =>
-        Effect.promise(() => managedRuntime.dispose())
-      );
-      const file = new File(["plain"], "document.pdf", { type: "application/pdf" });
+  await runtime.runPromise(PDFProcessing.use((service) => service.loadPDF(file)));
+  const count = await runtime.runPromise(PDFProcessing.use((service) => service.getPageCount));
 
-      yield* Effect.tryPromise({
-        try: () => runtime.runPromise(PDFProcessing.use((service) => service.loadPDF(file))),
-        catch: (cause) => cause,
-      });
-      const pageCount = yield* Effect.tryPromise({
-        try: () => runtime.runPromise(PDFProcessing.use((service) => service.getPageCount)),
-        catch: (cause) => cause,
-      });
-
-      expect(pageCount).toBe(7);
-      expect(pdfServiceMock.loadPDF).toHaveBeenCalledWith(file);
-      expect(pdfServiceMock.reset).not.toHaveBeenCalled();
-    })
-  );
+  expect(count).toBe(7);
+  expect(pdfServiceMock.loadPDF).toHaveBeenCalledExactlyOnceWith(file);
+  expect(pdfServiceMock.reset).not.toHaveBeenCalled();
 });
 
-it.effect("interrupts all runtime-owned fibers before disposing services", () =>
-  Effect.gen(function* () {
-    const runtime = makePDFRuntime();
-    const fiber = runtime.runFork(PDFProcessing.use(() => Effect.never));
-
-    yield* Effect.promise(() => runtime.dispose());
-
-    const exit = yield* Fiber.await(fiber);
-    expect(Exit.isFailure(exit)).toBe(true);
-  })
-);
-
-it.effect("loads PDF editing support only when building a document", () => {
-  return Effect.tryPromise({
-    try: async () => {
-      const runtime = makePDFRuntime();
-
-      expect(operationsServiceMock.constructed).toBe(0);
-      await runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([])));
-      expect(operationsServiceMock.constructed).toBe(1);
-      expect(operationsServiceMock.buildPDF).toHaveBeenCalledWith([], undefined);
-
-      await runtime.dispose();
-      expect(operationsServiceMock.clearCache).toHaveBeenCalledTimes(1);
-    },
-    catch: (cause) => cause,
-  });
-});
-
-it.effect("reuses PDF editing support when creating a PDF from images", () => {
-  return Effect.tryPromise({
-    try: async () => {
-      const runtime = makePDFRuntime();
-      const files = [new File(["image"], "image.png", { type: "image/png" })];
-
-      expect(operationsServiceMock.constructed).toBe(0);
-      await runtime.runPromise(PDFProcessing.use((service) => service.imagesToPDF(files)));
-
-      expect(operationsServiceMock.constructed).toBe(1);
-      expect(operationsServiceMock.imagesToPDF).toHaveBeenCalledWith(files, undefined);
-
-      await runtime.dispose();
-    },
-    catch: (cause) => cause,
-  });
-});
-
-it.effect("releases a file from each initialized processing service", () => {
-  return Effect.tryPromise({
-    try: async () => {
-      const runtime = makePDFRuntime();
-      const file = new File(["plain"], "document.pdf", { type: "application/pdf" });
-
-      await runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([])));
-      await runtime.runPromise(PDFProcessing.use((service) => service.releaseFile(file)));
-
-      expect(pdfServiceMock.releaseFile).toHaveBeenCalledWith(file);
-      expect(operationsServiceMock.releaseFile).toHaveBeenCalledWith(file);
-
-      await runtime.dispose();
-    },
-    catch: (cause) => cause,
-  });
-});
-
-it.effect("releases the secondary cache when PDF.js cleanup fails", () =>
-  Effect.tryPromise({
-    try: async () => {
-      const runtime = makePDFRuntime();
-      const file = new File(["plain"], "document.pdf", { type: "application/pdf" });
-
-      await runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([])));
-      pdfServiceMock.releaseFile.mockReturnValueOnce(
-        Effect.fail(
-          new PDFProcessingError({
-            operation: "cleanup-pdf-js",
-            file,
-            cause: new Error("cleanup failed"),
-            message: "cleanup failed",
+it("interrupts runtime-owned work before disposing services", async () => {
+  const started = Promise.withResolvers<void>();
+  let interrupted = false;
+  const fiber = runtime.runFork(
+    PDFProcessing.use(() =>
+      Effect.sync(started.resolve).pipe(
+        Effect.andThen(Effect.never),
+        Effect.onInterrupt(() =>
+          Effect.sync(() => {
+            interrupted = true;
           })
         )
-      );
+      )
+    )
+  );
+  pdfServiceMock.dispose.mockImplementation(() =>
+    Effect.sync(() => {
+      expect(interrupted).toBe(true);
+    })
+  );
 
-      await expect(
-        runtime.runPromise(PDFProcessing.use((service) => service.releaseFile(file)))
-      ).rejects.toMatchObject({ operation: "cleanup-pdf-js", file });
-      expect(operationsServiceMock.releaseFile).toHaveBeenCalledWith(file);
+  await started.promise;
+  await runtime.dispose();
 
-      await runtime.dispose();
-    },
-    catch: (cause) => cause,
-  })
-);
+  expect(Exit.isFailure(await Effect.runPromise(Fiber.await(fiber)))).toBe(true);
+  expect(pdfServiceMock.dispose).toHaveBeenCalledTimes(1);
+});
 
-it.effect("shares lazy PDF editing support across concurrent exports", () => {
-  let activeBuilds = 0;
-  let maximumActiveBuilds = 0;
-  operationsServiceMock.buildPDF.mockImplementation(() =>
-    Effect.promise(
-      () =>
-        new Promise((resolve) => {
-          activeBuilds += 1;
-          maximumActiveBuilds = Math.max(maximumActiveBuilds, activeBuilds);
-          setTimeout(() => {
-            activeBuilds -= 1;
-            resolve({ data: new Uint8Array(), suggestedFileName: "document.pdf" });
-          }, 0);
-        })
+it("loads PDF editing support on first use and shares it with image conversion", async () => {
+  const files = [new File(["image"], "image.png", { type: "image/png" })];
+  expect(operationsServiceMock.constructed).toBe(0);
+
+  await runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([])));
+  await runtime.runPromise(PDFProcessing.use((service) => service.imagesToPDF(files)));
+
+  expect(operationsServiceMock.constructed).toBe(1);
+  expect(operationsServiceMock.buildPDF).toHaveBeenCalledExactlyOnceWith([], undefined);
+  expect(operationsServiceMock.imagesToPDF).toHaveBeenCalledExactlyOnceWith(files, undefined);
+
+  await runtime.dispose();
+  expect(operationsServiceMock.clearCache).toHaveBeenCalledTimes(1);
+});
+
+it("releases a file from each initialized service even when PDF.js cleanup fails", async () => {
+  const file = new File(["plain"], "document.pdf", { type: "application/pdf" });
+  await runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([])));
+  pdfServiceMock.releaseFile.mockReturnValueOnce(
+    Effect.fail(
+      new PDFProcessingError({
+        operation: "cleanup-pdf-js",
+        file,
+        cause: new Error("cleanup failed"),
+        message: "cleanup failed",
+      })
     )
   );
 
-  return Effect.tryPromise({
-    try: async () => {
-      const runtime = makePDFRuntime();
-
-      await Promise.all([
-        runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([]))),
-        runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([]))),
-      ]);
-
-      expect(operationsServiceMock.constructed).toBe(1);
-      expect(operationsServiceMock.buildPDF).toHaveBeenCalledTimes(2);
-      expect(maximumActiveBuilds).toBe(2);
-
-      await runtime.dispose();
-    },
-    catch: (cause) => cause,
-  });
+  await expect(
+    runtime.runPromise(PDFProcessing.use((service) => service.releaseFile(file)))
+  ).rejects.toMatchObject({ operation: "cleanup-pdf-js", file });
+  expect(pdfServiceMock.releaseFile).toHaveBeenCalledExactlyOnceWith(file);
+  expect(operationsServiceMock.releaseFile).toHaveBeenCalledExactlyOnceWith(file);
 });
 
-it.effect("loads image export support only when exporting pages", () => {
-  return Effect.tryPromise({
-    try: async () => {
-      const runtime = makePDFRuntime();
+it("shares lazy editing support across concurrent exports without serializing them", async () => {
+  const release = Promise.withResolvers<void>();
+  operationsServiceMock.buildPDF.mockReturnValue(
+    Effect.promise(() => release.promise).pipe(
+      Effect.as({ data: new Uint8Array(), suggestedFileName: "document.pdf" })
+    )
+  );
 
-      expect(imageExportServiceMock.constructed).toBe(0);
-      await runtime.runPromise(PDFProcessing.use((service) => service.exportImages([])));
-      expect(imageExportServiceMock.constructed).toBe(1);
-      expect(imageExportServiceMock.exportImages).toHaveBeenCalledWith([], undefined);
-
-      await runtime.dispose();
-    },
-    catch: (cause) => cause,
-  });
+  const builds = Promise.all([
+    runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([]))),
+    runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([]))),
+  ]);
+  try {
+    await vi.waitFor(() => expect(operationsServiceMock.buildPDF).toHaveBeenCalledTimes(2));
+    expect(operationsServiceMock.constructed).toBe(1);
+  } finally {
+    release.resolve();
+    await builds;
+  }
 });
 
-it.effect("does not load PDF editing support during runtime cleanup", () => {
-  return Effect.tryPromise({
-    try: async () => {
-      const runtime = makePDFRuntime();
-      const file = new File(["plain"], "document.pdf", { type: "application/pdf" });
+it("loads image export support only on first use", async () => {
+  expect(imageExportServiceMock.constructed).toBe(0);
 
-      await runtime.runPromise(PDFProcessing.use((service) => service.loadPDF(file)));
+  await runtime.runPromise(PDFProcessing.use((service) => service.exportImages([])));
+  await runtime.runPromise(PDFProcessing.use((service) => service.exportImages([])));
 
-      await runtime.dispose();
-
-      expect(operationsServiceMock.constructed).toBe(0);
-      expect(operationsServiceMock.clearCache).not.toHaveBeenCalled();
-      expect(pdfServiceMock.reset).toHaveBeenCalledTimes(1);
-    },
-    catch: (cause) => cause,
-  });
+  expect(imageExportServiceMock.constructed).toBe(1);
+  expect(imageExportServiceMock.exportImages).toHaveBeenCalledTimes(2);
 });
 
-it.effect("passes the unlocked source PDF to lossless compression", () => {
-  vi.clearAllMocks();
+it("cleans loaded PDFs without initializing PDF editing support", async () => {
+  const file = new File(["plain"], "document.pdf", { type: "application/pdf" });
+  await runtime.runPromise(PDFProcessing.use((service) => service.loadPDF(file)));
+
+  await runtime.dispose();
+
+  expect(operationsServiceMock.constructed).toBe(0);
+  expect(operationsServiceMock.clearCache).not.toHaveBeenCalled();
+  expect(pdfServiceMock.reset).toHaveBeenCalledTimes(1);
+});
+
+it("passes the unlocked source PDF to compression and closes qpdf on disposal", async () => {
   pdfServiceMock.getPassword.mockReturnValue("623");
-  pdfServiceMock.reset.mockReturnValue(Effect.succeed(undefined));
-  operationsServiceMock.clearCache.mockReturnValue(Effect.succeed(undefined));
   qpdfProcessingMock.optimizeLosslessly.mockReturnValue(
     Effect.succeed({
       data: new Uint8Array([4, 5]),
@@ -320,27 +248,20 @@ it.effect("passes the unlocked source PDF to lossless compression", () => {
       reduced: true,
     })
   );
+  const file = new File(["source"], "source.pdf", { type: "application/pdf" });
 
-  return Effect.tryPromise({
-    try: async () => {
-      const runtime = makePDFRuntime({ qpdfWorkerUrl: "/qpdf/qpdf-worker.js" });
-      const file = new File(["source"], "source.pdf", { type: "application/pdf" });
-
-      await expect(
-        runtime.runPromise(PDFProcessing.use((service) => service.compressPDF(file)))
-      ).resolves.toMatchObject({
-        inputBytes: 6,
-        outputBytes: 2,
-        suggestedFileName: "source-compressed.pdf",
-      });
-      expect(qpdfProcessingMock.optimizeLosslessly).toHaveBeenCalledWith(
-        new Uint8Array(await file.arrayBuffer()),
-        "623"
-      );
-
-      await runtime.dispose();
-      expect(qpdfProcessingMock.close).toHaveBeenCalledTimes(1);
-    },
-    catch: (cause) => cause,
+  await expect(
+    runtime.runPromise(PDFProcessing.use((service) => service.compressPDF(file)))
+  ).resolves.toMatchObject({
+    inputBytes: 6,
+    outputBytes: 2,
+    suggestedFileName: "source-compressed.pdf",
   });
+  expect(qpdfProcessingMock.optimizeLosslessly).toHaveBeenCalledExactlyOnceWith(
+    new Uint8Array(await file.arrayBuffer()),
+    "623"
+  );
+
+  await runtime.dispose();
+  expect(qpdfProcessingMock.close).toHaveBeenCalledTimes(1);
 });

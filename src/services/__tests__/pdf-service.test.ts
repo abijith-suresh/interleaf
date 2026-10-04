@@ -1,5 +1,5 @@
 import { Effect, Fiber } from "effect";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { PDFPasswordRequiredError } from "../../types/interfaces";
 
 const decodeData = (value: ArrayBuffer | ArrayBufferView | undefined) => {
@@ -18,52 +18,55 @@ const loadingTaskDestroyMock = vi.fn().mockResolvedValue(undefined);
 const renderCancelMock = vi.fn();
 const pageCleanupMock = vi.fn();
 
-const pdfjsGetDocumentMock = vi
-  .fn()
-  .mockImplementation((options?: { data?: Uint8Array; password?: string }) => {
-    const label = decodeData(options?.data);
+const createLoadingTask = (options?: {
+  data?: Uint8Array;
+  password?: string;
+}): { promise: Promise<unknown>; destroy?: () => Promise<void> } => {
+  const label = decodeData(options?.data);
 
-    if (label.includes("needs-password")) {
-      if (options?.password !== "623") {
-        return {
-          promise: Promise.reject(
-            Object.assign(new Error("Password required"), { name: "PasswordException" })
-          ),
-        };
-      }
+  if (label.includes("needs-password")) {
+    if (options?.password !== "623") {
+      return {
+        promise: Promise.reject(
+          Object.assign(new Error("Password required"), { name: "PasswordException" })
+        ),
+      };
     }
+  }
 
-    const baseSize = label.includes("wide")
-      ? { width: 300, height: 150 }
-      : { width: 100, height: 200 };
-    const pageRotation = label.includes("rotated") ? 90 : 0;
+  const baseSize = label.includes("wide")
+    ? { width: 300, height: 150 }
+    : { width: 100, height: 200 };
+  const pageRotation = label.includes("rotated") ? 90 : 0;
 
-    return {
-      promise: Promise.resolve({
-        numPages: label.includes("two-pages") ? 2 : 5,
-        getPage: vi.fn().mockResolvedValue({
-          rotate: pageRotation,
-          getViewport: vi.fn().mockImplementation(({ scale = 1, rotation = 0 } = {}) => {
-            const width = baseSize.width * scale;
-            const height = baseSize.height * scale;
+  return {
+    promise: Promise.resolve({
+      numPages: label.includes("two-pages") ? 2 : 5,
+      getPage: vi.fn().mockResolvedValue({
+        rotate: pageRotation,
+        getViewport: vi.fn().mockImplementation(({ scale = 1, rotation = 0 } = {}) => {
+          const width = baseSize.width * scale;
+          const height = baseSize.height * scale;
 
-            if (rotation === 90 || rotation === 270) {
-              return { width: height, height: width };
-            }
+          if (rotation === 90 || rotation === 270) {
+            return { width: height, height: width };
+          }
 
-            return { width, height };
-          }),
-          cleanup: pageCleanupMock,
-          render: vi.fn().mockReturnValue({
-            promise: Promise.resolve(),
-            cancel: renderCancelMock,
-          }),
+          return { width, height };
         }),
-        cleanup: vi.fn().mockResolvedValue(undefined),
+        cleanup: pageCleanupMock,
+        render: vi.fn().mockReturnValue({
+          promise: Promise.resolve(),
+          cancel: renderCancelMock,
+        }),
       }),
-      destroy: loadingTaskDestroyMock,
-    };
-  });
+      cleanup: vi.fn().mockResolvedValue(undefined),
+    }),
+    destroy: loadingTaskDestroyMock,
+  };
+};
+
+const pdfjsGetDocumentMock = vi.fn(createLoadingTask);
 
 vi.mock("pdfjs-dist", () => ({
   getDocument: pdfjsGetDocumentMock,
@@ -73,26 +76,20 @@ vi.mock("pdfjs-dist", () => ({
 describe("PDFService", () => {
   let PDFService: typeof import("../pdf-service").PDFService;
 
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    const module = await import("../pdf-service");
-    PDFService = module.PDFService;
+  beforeAll(async () => {
+    PDFService = (await import("../pdf-service")).PDFService;
+  });
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    loadingTaskDestroyMock.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("loads an unencrypted PDF and tracks it as active", async () => {
-    const service = new PDFService();
-    const file = new File(["plain"], "test.pdf", { type: "application/pdf" });
-
-    await Effect.runPromise(service.loadPDF(file));
-
-    expect(service.getPageCount()).toBe(5);
-  });
-
-  it("uses PDF.js page metadata before an export is requested", async () => {
+  it("tracks the loaded PDF's page count", async () => {
     const service = new PDFService();
     const file = new File(["two-pages"], "test.pdf", { type: "application/pdf" });
 
@@ -554,17 +551,6 @@ describe("PDFService", () => {
     expect(destroy).toHaveBeenCalledTimes(1);
   });
 
-  it("loads an owner-password encrypted PDF without prompting for a password", async () => {
-    const service = new PDFService();
-    const file = new File(["owner-encrypted"], "owner-protected.pdf", {
-      type: "application/pdf",
-    });
-
-    await Effect.runPromise(service.loadPDF(file));
-
-    expect(service.getPageCount()).toBe(5);
-  });
-
   it("requires a password for a user-password encrypted PDF", async () => {
     const service = new PDFService();
     const file = new File(["needs-password encrypted"], "protected.pdf", {
@@ -626,8 +612,8 @@ describe("PDFService", () => {
       Effect.runPromise(service.renderPage(wideFile, 1, wideCanvas, 1, 0)),
     ]);
 
-    expect(portraitCanvas.height).toBeGreaterThan(portraitCanvas.width);
-    expect(wideCanvas.width).toBeGreaterThan(wideCanvas.height);
+    expect([portraitCanvas.width, portraitCanvas.height]).toEqual([100, 200]);
+    expect([wideCanvas.width, wideCanvas.height]).toEqual([300, 150]);
   });
 
   it("renders a rotated page using the requested file", async () => {
@@ -642,7 +628,7 @@ describe("PDFService", () => {
     const canvas = document.createElement("canvas");
     await Effect.runPromise(service.renderPage(file, 1, canvas, 1, 90));
 
-    expect(canvas.width).toBeGreaterThan(canvas.height);
+    expect([canvas.width, canvas.height]).toEqual([200, 100]);
     expect(pageCleanupMock).toHaveBeenCalledTimes(1);
   });
 

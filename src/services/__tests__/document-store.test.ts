@@ -110,11 +110,7 @@ describe("makeDocumentStore", () => {
 
     await Effect.runPromise(Fiber.interrupt(fiber));
 
-    const result = await Promise.race([
-      Effect.runPromise(store.releaseFile(file)).then(() => "released"),
-      new Promise<string>((resolve) => setTimeout(() => resolve("timed out"), 250)),
-    ]);
-    expect(result).toBe("released");
+    await Effect.runPromise(store.releaseFile(file));
   });
 
   it.effect("retains a resident record across sequential acquires", () => {

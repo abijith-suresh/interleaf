@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@solidjs/testing-library";
+import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { Effect } from "effect";
 import { createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
@@ -13,10 +13,6 @@ const pdfServiceMocks = vi.hoisted(() => ({
   reset: vi.fn(),
 }));
 
-const pdfOperationsMocks = vi.hoisted(() => ({
-  clearCache: vi.fn(),
-}));
-
 vi.mock("@/services/pdf-service", () => ({
   PDFService: class {
     getPageRotation = pdfServiceMocks.getPageRotation;
@@ -24,11 +20,6 @@ vi.mock("@/services/pdf-service", () => ({
     renderPage = pdfServiceMocks.renderPage;
     reset = pdfServiceMocks.reset;
     dispose = () => Effect.void;
-  },
-}));
-vi.mock("@/services/pdf-operations-service", () => ({
-  PDFOperationsService: class {
-    clearCache = pdfOperationsMocks.clearCache;
   },
 }));
 
@@ -49,7 +40,7 @@ describe("EditorPageViewer", () => {
   let runtime: PDFRuntime;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(0));
     pdfServiceMocks.getPageSize.mockReturnValue(Effect.succeed({ width: 100, height: 200 }));
     pdfServiceMocks.renderPage.mockImplementation(
@@ -60,16 +51,13 @@ describe("EditorPageViewer", () => {
         })
     );
     pdfServiceMocks.reset.mockReturnValue(Effect.succeed(undefined));
-    pdfOperationsMocks.clearCache.mockReturnValue(Effect.succeed(undefined));
     runtime = makePDFRuntime();
   });
 
   afterEach(async () => {
     await runtime.dispose();
-    Object.defineProperty(window, "devicePixelRatio", {
-      configurable: true,
-      value: 1,
-    });
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -80,7 +68,7 @@ describe("EditorPageViewer", () => {
       setActivePageId(pageId);
     });
 
-    const { getByTestId, findAllByRole } = render(() => (
+    render(() => (
       <EditorPageViewer
         pages={pages}
         navigationPageIds={pages.map((page) => page.id)}
@@ -91,24 +79,35 @@ describe("EditorPageViewer", () => {
       />
     ));
 
-    await waitFor(() => expect(getByTestId("editor-page-viewer")).toBeInTheDocument());
-    expect(getByTestId("editor-viewer-title")).toHaveTextContent("Page 1");
-    expect(getByTestId("editor-page-viewer-previous")).toBeDisabled();
-    expect(getByTestId("editor-page-viewer-next")).toBeEnabled();
-    expect(await findAllByRole("button", { name: /Review page/ })).toHaveLength(3);
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: /Page \d/ })).toHaveTextContent("Page 1");
+    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
+    expect(await screen.findAllByRole("button", { name: /Review page/ })).toHaveLength(3);
 
-    fireEvent.click(getByTestId("editor-page-viewer-next"));
-    await waitFor(() => expect(onActivePageChange).toHaveBeenCalledWith("page-2"));
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Page 2" })).toBeInTheDocument()
+    );
+    expect(screen.getByRole("button", { name: "Review page 2" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
 
-    fireEvent.click(getByTestId("editor-page-viewer-previous"));
-    await waitFor(() => expect(onActivePageChange).toHaveBeenLastCalledWith("page-1"));
+    fireEvent.click(screen.getByRole("button", { name: "Previous page" }));
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Page 1" })).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Review page 3" }));
+    expect(screen.getByRole("heading", { name: "Page 3" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
   });
 
   it("limits navigation to the selected review scope and closes from Escape", async () => {
     const pages = makePages();
     const onClose = vi.fn();
 
-    const { getByTestId, findAllByRole } = render(() => (
+    render(() => (
       <EditorPageViewer
         pages={pages}
         navigationPageIds={["page-1", "page-3"]}
@@ -119,19 +118,21 @@ describe("EditorPageViewer", () => {
       />
     ));
 
-    await waitFor(() => expect(getByTestId("editor-viewer-title")).toHaveTextContent("Page 3"));
-    expect(getByTestId("editor-page-viewer-next")).toBeDisabled();
-    expect(getByTestId("editor-page-viewer-previous")).toBeEnabled();
-    expect(await findAllByRole("button", { name: /Review page/ })).toHaveLength(2);
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: /Page \d/ })).toHaveTextContent("Page 3")
+    );
+    expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Previous page" })).toBeEnabled();
+    expect(await screen.findAllByRole("button", { name: /Review page/ })).toHaveLength(2);
 
-    fireEvent.keyDown(getByTestId("editor-page-viewer"), { key: "Escape" });
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("rerenders the active page when its organizer rotation changes", async () => {
     const [pages, setPages] = createStore(makePages());
 
-    const { getByTestId } = render(() => (
+    render(() => (
       <EditorPageViewer
         pages={pages}
         navigationPageIds={pages.map((page) => page.id)}
@@ -142,7 +143,7 @@ describe("EditorPageViewer", () => {
       />
     ));
 
-    await waitFor(() => expect(getByTestId("editor-page-viewer")).toBeInTheDocument());
+    await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1));
     pdfServiceMocks.renderPage.mockClear();
     setPages(0, "rotation", 90);
 
@@ -157,61 +158,36 @@ describe("EditorPageViewer", () => {
     );
   });
 
-  it("uses a capped device-pixel ratio for a sharper viewer without enlarging the layout", async () => {
-    Object.defineProperty(window, "devicePixelRatio", {
-      configurable: true,
-      value: 2,
-    });
-    const pages = makePages();
+  it.each([
+    { pixelRatio: 1, pixelWidth: 150, pixelHeight: 300 },
+    { pixelRatio: 2, pixelWidth: 300, pixelHeight: 600 },
+    { pixelRatio: 4, pixelWidth: 300, pixelHeight: 600 },
+  ])(
+    "renders at pixel ratio $pixelRatio with a cap and stable display size",
+    async ({ pixelRatio, pixelWidth, pixelHeight }) => {
+      vi.stubGlobal("devicePixelRatio", pixelRatio);
+      const pages = makePages();
+      render(() => (
+        <EditorPageViewer
+          pages={pages}
+          navigationPageIds={pages.map((page) => page.id)}
+          activePageId="page-1"
+          runtime={runtime}
+          onActivePageChange={vi.fn()}
+          onClose={vi.fn()}
+        />
+      ));
+      const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
 
-    const { getByTestId } = render(() => (
-      <EditorPageViewer
-        pages={pages}
-        navigationPageIds={pages.map((page) => page.id)}
-        activePageId="page-1"
-        runtime={runtime}
-        onActivePageChange={vi.fn()}
-        onClose={vi.fn()}
-      />
-    ));
-
-    await waitFor(() =>
-      expect(pdfServiceMocks.renderPage).toHaveBeenCalledWith(
-        expect.any(File),
-        1,
-        expect.any(HTMLCanvasElement),
-        3,
-        0
-      )
-    );
-    const canvas = getByTestId("editor-page-viewer").querySelector(
-      ".editor-review-canvas"
-    ) as HTMLCanvasElement;
-    expect(canvas.style.width).toBe("150px");
-    expect(canvas.style.height).toBe("300px");
-    expect(canvas.width).toBe(300);
-    expect(canvas.height).toBe(600);
-
-    pdfServiceMocks.renderPage.mockClear();
-    Object.defineProperty(window, "devicePixelRatio", {
-      configurable: true,
-      value: 1,
-    });
-    fireEvent(window, new Event("resize"));
-    await waitFor(() =>
-      expect(pdfServiceMocks.renderPage).toHaveBeenCalledWith(
-        expect.any(File),
-        1,
-        expect.any(HTMLCanvasElement),
-        1.5,
-        0
-      )
-    );
-  });
+      await waitFor(() => expect([canvas.width, canvas.height]).toEqual([pixelWidth, pixelHeight]));
+      expect(canvas.style.width).toBe("150px");
+      expect(canvas.style.height).toBe("300px");
+    }
+  );
 
   it("debounces rerenders while the viewer is resizing", async () => {
     const pages = makePages();
-    const { getByTestId } = render(() => (
+    render(() => (
       <EditorPageViewer
         pages={pages}
         navigationPageIds={pages.map((page) => page.id)}
@@ -222,17 +198,24 @@ describe("EditorPageViewer", () => {
       />
     ));
 
-    await waitFor(() => expect(getByTestId("editor-page-viewer")).toBeInTheDocument());
+    await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1));
     pdfServiceMocks.renderPage.mockClear();
-    vi.useFakeTimers();
+    vi.stubGlobal("devicePixelRatio", 2);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 
     try {
       fireEvent(window, new Event("resize"));
       fireEvent(window, new Event("resize"));
       expect(pdfServiceMocks.renderPage).not.toHaveBeenCalled();
 
-      vi.advanceTimersByTime(80);
+      vi.advanceTimersByTime(40);
+      fireEvent(window, new Event("resize"));
+      vi.advanceTimersByTime(40);
+      expect(pdfServiceMocks.renderPage).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(40);
       await vi.waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1));
+      const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
+      expect([canvas.width, canvas.height]).toEqual([300, 600]);
     } finally {
       vi.useRealTimers();
     }
@@ -240,10 +223,11 @@ describe("EditorPageViewer", () => {
 
   it("contains keyboard focus while the review dialog is open", async () => {
     const pages = makePages();
+    let background!: HTMLElement;
 
-    const { getByTestId } = render(() => (
+    render(() => (
       <div class="editor-workspace">
-        <section class="editor-workspace-main">
+        <section ref={background} class="editor-workspace-main">
           <button type="button">Organizer</button>
         </section>
         <EditorPageViewer
@@ -257,16 +241,18 @@ describe("EditorPageViewer", () => {
       </div>
     ));
 
-    const viewer = getByTestId("editor-page-viewer");
+    const viewer = screen.getByRole("dialog");
     await waitFor(() => expect(viewer).toBeInTheDocument());
     expect(viewer).toHaveAttribute("role", "dialog");
     expect(viewer).toHaveAttribute("aria-modal", "true");
-    expect(document.querySelector(".editor-workspace-main")).toHaveAttribute("inert");
+    expect(background).toHaveAttribute("inert");
 
-    const next = getByTestId("editor-page-viewer-next");
-    const close = getByTestId("editor-page-viewer-close-button");
+    const next = screen.getByRole("button", { name: "Next page" });
+    const close = screen.getByRole("button", { name: "Close page review" });
     next.focus();
     fireEvent.keyDown(viewer, { key: "Tab" });
-    expect(document.activeElement).toBe(close);
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(viewer, { key: "Tab", shiftKey: true });
+    expect(next).toHaveFocus();
   });
 });
