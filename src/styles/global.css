@@ -1,34 +1,17 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Bebas Neue", sans-serif;
   --font-body: "Work Sans", sans-serif;
-  --text-micro: 0.6875rem;
-  --text-nano: 0.65rem;
   --tracking-label: 0.15em;
-  --tracking-section: 0.2em;
   --color-white: #fff;
   --color-primary: #111;
   --color-accent: #ff0000;
-  --color-accent-hover: #d90000;
   --color-muted: #666;
   --color-body: #444;
   --color-border: #d6d6d1;
   --color-border-strong: #8d8d86;
   --color-hover: #f1f1ed;
-  --color-surface-muted: #f7f7f3;
-  --color-on-dark-muted: #bdbdb6;
-  --color-toast-error-border: #ffb3b3;
-  --color-toast-error-bg: #fff5f5;
-  --color-toast-error-text: #8a1111;
-  --color-toast-success-border: #d7e7d7;
-  --color-toast-success-bg: #f5fbf5;
-  --color-toast-success-text: #1f5f1f;
-  --color-placeholder: #f0f0f0;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-
-  --animate-fade-in: fadeIn 0.5s var(--ease-out) both;
-  --animate-slide-up: slideUp 0.5s var(--ease-out) both;
 }
 
 :root {
@@ -57,20 +40,17 @@ body {
   --marketing-rule-strong: #c7c3ba;
   --marketing-hover: #ebe8e1;
   --marketing-accent: #ff2a1f;
-  --marketing-accent-hover: #d21f17;
   --marketing-nav-height: 4.75rem;
   --marketing-radius-sm: 0.45rem;
   --marketing-radius-md: 0.75rem;
   --color-white: var(--marketing-paper);
   --color-primary: var(--marketing-ink);
   --color-accent: var(--marketing-accent);
-  --color-accent-hover: var(--marketing-accent-hover);
   --color-muted: var(--marketing-muted);
   --color-body: var(--marketing-body);
   --color-border: var(--marketing-rule);
   --color-border-strong: var(--marketing-rule-strong);
   --color-hover: var(--marketing-hover);
-  --color-surface-muted: var(--marketing-page);
   display: flex;
   min-height: 100svh;
   flex-direction: column;
@@ -181,27 +161,6 @@ body:has(.marketing-page) {
   }
 }
 
-/* Entrance animation keyframes */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .skip-link {
   position: fixed;
   top: 0.5rem;
@@ -221,67 +180,7 @@ body:has(.marketing-page) {
   outline-offset: 3px;
 }
 
-/* Scroll-triggered animations */
-.animate-on-scroll {
-  opacity: 1;
-  transform: none;
-}
-
-.has-scroll-animations .animate-on-scroll {
-  opacity: 0;
-  transform: translateY(1.25rem);
-  transition:
-    opacity 0.5s var(--ease-out),
-    transform 0.5s var(--ease-out);
-}
-
-.has-scroll-animations .animate-on-scroll.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* Stagger delays */
-.stagger-1 {
-  transition-delay: 50ms;
-}
-.stagger-2 {
-  transition-delay: 100ms;
-}
-.stagger-3 {
-  transition-delay: 150ms;
-}
-.stagger-4 {
-  transition-delay: 200ms;
-}
-.stagger-5 {
-  transition-delay: 250ms;
-}
-.stagger-6 {
-  transition-delay: 300ms;
-}
-.stagger-7 {
-  transition-delay: 350ms;
-}
-.stagger-8 {
-  transition-delay: 400ms;
-}
-
 /* Micro-interactions */
-
-/* Interactive focus ring + disabled state */
-.interactive-focus:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.interactive-focus:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-.press-feedback {
-  transition: transform 0.15s var(--ease-out);
-}
 
 .press-feedback:active {
   transform: scale(0.97);
@@ -290,34 +189,6 @@ body:has(.marketing-page) {
 .press-feedback:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 3px;
-}
-
-.link-slide {
-  position: relative;
-}
-
-.link-slide::after {
-  content: "";
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  width: 0;
-  height: 1px;
-  background-color: currentColor;
-  transition: width 0.25s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.link-slide:hover::after {
-  width: 100%;
-}
-
-.link-slide:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 4px;
-}
-
-.link-slide:focus-visible::after {
-  width: 100%;
 }
 
 .marketing-container {
@@ -663,19 +534,9 @@ body:has(.marketing-page) {
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .has-scroll-animations .animate-on-scroll {
-    opacity: 1;
-    transform: none;
-    transition: none;
-  }
-
   .press-feedback:active,
   .press-feedback:focus-visible {
     transform: none;
-  }
-
-  .link-slide::after {
-    transition: none;
   }
 
   .marketing-hero-action {

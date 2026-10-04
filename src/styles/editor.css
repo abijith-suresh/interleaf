@@ -254,7 +254,6 @@ body:has([data-page="editor"]) {
 }
 
 .editor-back svg,
-.editor-download-action svg,
 .editor-dropzone-icon svg,
 .editor-files-button svg,
 .editor-files-dialog svg {
@@ -319,13 +318,6 @@ body:has([data-page="editor"]) {
   letter-spacing: -0.08em;
   line-height: 0.95;
   text-wrap: balance;
-}
-
-.editor-uploader-intro p {
-  margin: 0;
-  color: var(--editor-body);
-  font-size: 1rem;
-  line-height: 1.5;
 }
 
 .editor-dropzone {
@@ -1425,16 +1417,6 @@ body:has([data-page="editor"]) {
   border-color: var(--editor-line-strong);
   background: var(--editor-hover);
   color: var(--editor-ink);
-}
-
-.editor-toolbar-action-danger {
-  color: var(--editor-danger-ink);
-}
-
-.editor-toolbar-action-danger:hover:not(:disabled) {
-  border-color: #e8b6b0;
-  background: var(--editor-danger-bg);
-  color: var(--editor-danger-ink);
 }
 
 .editor-download-action {

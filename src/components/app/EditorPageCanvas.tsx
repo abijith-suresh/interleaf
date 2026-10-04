@@ -18,11 +18,9 @@ export default function EditorPageCanvas(props: Props) {
   const [renderState, setRenderState] = createSignal<"loading" | "ready" | "error">("loading");
   const [baseAspectRatio, setBaseAspectRatio] = createSignal(3 / 4);
 
-  // Solid.js refs are assigned via JSX ref attribute
   let container!: HTMLSpanElement;
   let canvas!: HTMLCanvasElement;
   let observer: IntersectionObserver | null = null;
-  let renderAttempt = 0;
   let renderInFlight = false;
   let renderFiber: Fiber.Fiber<unknown, unknown> | null = null;
   let disposed = false;
@@ -51,14 +49,12 @@ export default function EditorPageCanvas(props: Props) {
     return `--frame-ratio: ${PAGE_FRAME_RATIO}; --stage-width: ${stageWidth}%; --stage-height: ${stageHeight}%; --page-rotation: ${props.rotation}deg`;
   };
 
-  const canUpdateRenderState = (attempt: number) =>
-    !disposed && attempt === renderAttempt && container.isConnected;
+  const canUpdateRenderState = () => !disposed && container.isConnected;
 
   const renderThumbnail = () => {
     if (disposed || renderInFlight) return;
 
     renderInFlight = true;
-    const attempt = ++renderAttempt;
     canvas.width = 0;
     canvas.height = 0;
     setRenderState("loading");
@@ -84,7 +80,7 @@ export default function EditorPageCanvas(props: Props) {
       );
     } catch {
       renderInFlight = false;
-      if (canUpdateRenderState(attempt)) {
+      if (canUpdateRenderState()) {
         setRenderState("error");
       }
       return;
@@ -95,22 +91,20 @@ export default function EditorPageCanvas(props: Props) {
       .runPromise(Fiber.join(fiber))
       .then(
         () => {
-          if (!canUpdateRenderState(attempt)) return;
+          if (!canUpdateRenderState()) return;
           if (canvas.width > 0 && canvas.height > 0) {
             setBaseAspectRatio(canvas.width / canvas.height);
           }
           setRenderState("ready");
         },
         () => {
-          if (canUpdateRenderState(attempt)) {
+          if (canUpdateRenderState()) {
             setRenderState("error");
           }
         }
       )
       .finally(() => {
-        if (attempt === renderAttempt) {
-          renderInFlight = false;
-        }
+        renderInFlight = false;
         if (renderFiber === fiber) {
           renderFiber = null;
         }
@@ -160,7 +154,6 @@ export default function EditorPageCanvas(props: Props) {
 
     onCleanup(() => {
       disposed = true;
-      renderAttempt += 1;
       const fiber = renderFiber;
       renderFiber = null;
       if (fiber) {

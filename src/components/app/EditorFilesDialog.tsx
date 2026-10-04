@@ -89,6 +89,7 @@ export default function EditorFilesDialog(props: Props) {
             <h2 id="editor-files-title">Files</h2>
           </div>
           <button
+            ref={closeButton}
             type="button"
             data-testid="editor-files-close-button"
             class="editor-files-close"

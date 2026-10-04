@@ -7,8 +7,6 @@ export function errorMessage(cause: unknown, fallback: string): string {
   return fallback;
 }
 
-export const messageFromCause = errorMessage;
-
 export function processingError(operation: string, file: File, cause: unknown): PDFProcessingError {
   return new PDFProcessingError({
     operation,

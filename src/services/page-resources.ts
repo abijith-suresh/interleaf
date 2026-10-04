@@ -13,7 +13,6 @@ interface PendingPageRequest {
   cleanupError: PDFProcessingError | undefined;
   pageSettled: boolean;
   cleanupStarted: boolean;
-  cleaned: boolean;
 }
 
 interface PageResource {
@@ -80,7 +79,6 @@ export class PageResources {
         cleanupError: undefined,
         pageSettled: false,
         cleanupStarted: false,
-        cleaned: false,
       };
       const requests = this.pendingPageRequests.get(file) ?? new Set();
       requests.add(request);
@@ -144,7 +142,7 @@ export class PageResources {
 
   private cleanupPendingPage(request: PendingPageRequest): Effect.Effect<void, PDFProcessingError> {
     return Effect.suspend(() => {
-      if (request.cleaned || request.cleanupStarted) {
+      if (request.cleanupStarted) {
         return Deferred.await(request.completion).pipe(
           Effect.andThen(
             Effect.suspend(() =>
@@ -187,7 +185,6 @@ export class PageResources {
           ),
           Effect.andThen(
             Effect.sync(() => {
-              request.cleaned = true;
               this.removePendingPageRequest(request);
               Deferred.doneUnsafe(request.completion, Effect.void);
             })

@@ -1,7 +1,11 @@
 import { Cause, Deferred, Effect, Exit, Option } from "effect";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { type PDFError, PDFPasswordRequiredError, PDFProcessingError } from "../types/interfaces";
+import {
+  type PDFError,
+  PDFPasswordRequiredError,
+  type PDFProcessingError,
+} from "../types/interfaces";
 import { type DocumentKey, makeDocumentStore } from "./document-store";
 import { PageRenderer } from "./page-renderer";
 import { PageResources } from "./page-resources";
@@ -36,13 +40,6 @@ export class PDFService {
     load: (key) => this.loadDocumentRecord(key),
     cleanup: (record) => this.cleanupRecord(record),
     drain: (file) => this.pageResources.drain(file),
-    releaseError: (file) =>
-      new PDFProcessingError({
-        operation: "release-file",
-        file,
-        cause: new Error("The PDF was released before loading completed."),
-        message: "The PDF was released before loading completed.",
-      }),
   });
   private readonly pageResources = new PageResources();
   private readonly pageRenderer = new PageRenderer();
@@ -231,12 +228,8 @@ export class PDFService {
         try: () => Promise.resolve(record.pdfjsDocument.cleanup()),
         catch: (cause) => processingError("cleanup-pdf-js", record.file, cause),
       }),
-      this.destroyLoadingTask(record),
+      this.destroyLoadingTaskForFile(record.file, record.loadingTask),
     ]);
-  }
-
-  private destroyLoadingTask(record: LoadedPDFRecord): Effect.Effect<void, PDFProcessingError> {
-    return this.destroyLoadingTaskForFile(record.file, record.loadingTask);
   }
 
   private destroyLoadingTaskForFile(

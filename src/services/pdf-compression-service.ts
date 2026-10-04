@@ -1,7 +1,7 @@
 import { Data, Effect } from "effect";
 import type { PDFCompressionResult, PDFError } from "../types/interfaces";
 import { PDFProcessingError } from "../types/interfaces";
-import { errorMessage, messageFromCause } from "./pdf-errors";
+import { errorMessage } from "./pdf-errors";
 import type { QpdfProcessingError, QpdfProcessingShape } from "./qpdf-processing";
 
 export type PDFCompressionStage = "compressing";
@@ -42,7 +42,7 @@ export class PDFCompressionService {
           new PDFCompressionError({
             operation: "report-stage",
             cause,
-            message: messageFromCause(cause, "Could not report PDF compression progress."),
+            message: errorMessage(cause, "Could not report PDF compression progress."),
           }),
       });
 
