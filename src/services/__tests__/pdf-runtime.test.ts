@@ -4,11 +4,8 @@ import { PDFProcessingError } from "../../types/interfaces";
 
 const pdfServiceMock = vi.hoisted(() => ({
   loadPDF: vi.fn(),
-  loadPDFWithPassword: vi.fn(),
   getPageCount: vi.fn(),
   getPassword: vi.fn(),
-  getPageRotation: vi.fn(),
-  renderPage: vi.fn(),
   releaseFile: vi.fn(),
   reset: vi.fn(),
   dispose: vi.fn(),
@@ -20,12 +17,10 @@ const operationsServiceMock = vi.hoisted(() => ({
   releaseFile: vi.fn(),
   clearCache: vi.fn(),
   dispose: vi.fn(),
-  constructed: 0,
 }));
 
 const imageExportServiceMock = vi.hoisted(() => ({
   exportImages: vi.fn(),
-  constructed: 0,
 }));
 
 const qpdfProcessingMock = vi.hoisted(() => ({
@@ -34,39 +29,31 @@ const qpdfProcessingMock = vi.hoisted(() => ({
 }));
 
 vi.mock("../pdf-service", () => ({
-  PDFService: class {
-    loadPDF = pdfServiceMock.loadPDF;
-    loadPDFWithPassword = pdfServiceMock.loadPDFWithPassword;
-    getPageCount = pdfServiceMock.getPageCount;
-    getPassword = pdfServiceMock.getPassword;
-    getPageRotation = pdfServiceMock.getPageRotation;
-    renderPage = pdfServiceMock.renderPage;
-    releaseFile = pdfServiceMock.releaseFile;
-    reset = pdfServiceMock.reset;
-    dispose = pdfServiceMock.dispose;
-  },
+  PDFService: vi.fn(
+    class {
+      constructor() {
+        Object.assign(this, pdfServiceMock);
+      }
+    }
+  ),
 }));
 vi.mock("../pdf-operations-service", () => ({
-  PDFOperationsService: class {
-    constructor() {
-      operationsServiceMock.constructed += 1;
+  PDFOperationsService: vi.fn(
+    class {
+      constructor() {
+        Object.assign(this, operationsServiceMock);
+      }
     }
-
-    buildPDF = operationsServiceMock.buildPDF;
-    imagesToPDF = operationsServiceMock.imagesToPDF;
-    releaseFile = operationsServiceMock.releaseFile;
-    clearCache = operationsServiceMock.clearCache;
-    dispose = operationsServiceMock.dispose;
-  },
+  ),
 }));
 vi.mock("../pdf-image-export-service", () => ({
-  PDFImageExportService: class {
-    constructor() {
-      imageExportServiceMock.constructed += 1;
+  PDFImageExportService: vi.fn(
+    class {
+      constructor() {
+        Object.assign(this, imageExportServiceMock);
+      }
     }
-
-    exportImages = imageExportServiceMock.exportImages;
-  },
+  ),
 }));
 vi.mock("../qpdf-processing", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../qpdf-processing")>();
@@ -83,6 +70,8 @@ vi.mock("../qpdf-processing", async (importOriginal) => {
   };
 });
 
+import { PDFImageExportService } from "../pdf-image-export-service";
+import { PDFOperationsService } from "../pdf-operations-service";
 import { makePDFRuntime, PDFProcessing, type PDFRuntime } from "../pdf-runtime";
 
 let runtime: PDFRuntime;
@@ -90,11 +79,8 @@ let runtime: PDFRuntime;
 beforeEach(() => {
   vi.resetAllMocks();
   pdfServiceMock.loadPDF.mockReturnValue(Effect.succeed(undefined));
-  pdfServiceMock.loadPDFWithPassword.mockReturnValue(Effect.succeed(undefined));
   pdfServiceMock.getPageCount.mockReturnValue(0);
   pdfServiceMock.getPassword.mockReturnValue(undefined);
-  pdfServiceMock.getPageRotation.mockReturnValue(Effect.succeed(0));
-  pdfServiceMock.renderPage.mockReturnValue(Effect.succeed(undefined));
   pdfServiceMock.releaseFile.mockReturnValue(Effect.succeed(undefined));
   pdfServiceMock.reset.mockReturnValue(Effect.succeed(undefined));
   pdfServiceMock.dispose.mockReturnValue(Effect.void);
@@ -107,11 +93,9 @@ beforeEach(() => {
   operationsServiceMock.releaseFile.mockReturnValue(Effect.succeed(undefined));
   operationsServiceMock.clearCache.mockReturnValue(Effect.succeed(undefined));
   operationsServiceMock.dispose.mockReturnValue(Effect.void);
-  operationsServiceMock.constructed = 0;
   imageExportServiceMock.exportImages.mockReturnValue(
     Effect.succeed({ data: new Blob(), suggestedFileName: "document-images.zip" })
   );
-  imageExportServiceMock.constructed = 0;
   runtime = makePDFRuntime({ qpdfWorkerUrl: "/qpdf/qpdf-worker.js" });
 });
 
@@ -161,12 +145,12 @@ it("interrupts runtime-owned work before disposing services", async () => {
 
 it("loads PDF editing support on first use and shares it with image conversion", async () => {
   const files = [new File(["image"], "image.png", { type: "image/png" })];
-  expect(operationsServiceMock.constructed).toBe(0);
+  expect(PDFOperationsService).not.toHaveBeenCalled();
 
   await runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([])));
   await runtime.runPromise(PDFProcessing.use((service) => service.imagesToPDF(files)));
 
-  expect(operationsServiceMock.constructed).toBe(1);
+  expect(PDFOperationsService).toHaveBeenCalledTimes(1);
   expect(operationsServiceMock.buildPDF).toHaveBeenCalledExactlyOnceWith([], undefined);
   expect(operationsServiceMock.imagesToPDF).toHaveBeenCalledExactlyOnceWith(files, undefined);
 
@@ -209,7 +193,7 @@ it("shares lazy editing support across concurrent exports without serializing th
   ]);
   try {
     await vi.waitFor(() => expect(operationsServiceMock.buildPDF).toHaveBeenCalledTimes(2));
-    expect(operationsServiceMock.constructed).toBe(1);
+    expect(PDFOperationsService).toHaveBeenCalledTimes(1);
   } finally {
     release.resolve();
     await builds;
@@ -217,12 +201,12 @@ it("shares lazy editing support across concurrent exports without serializing th
 });
 
 it("loads image export support only on first use", async () => {
-  expect(imageExportServiceMock.constructed).toBe(0);
+  expect(PDFImageExportService).not.toHaveBeenCalled();
 
   await runtime.runPromise(PDFProcessing.use((service) => service.exportImages([])));
   await runtime.runPromise(PDFProcessing.use((service) => service.exportImages([])));
 
-  expect(imageExportServiceMock.constructed).toBe(1);
+  expect(PDFImageExportService).toHaveBeenCalledTimes(1);
   expect(imageExportServiceMock.exportImages).toHaveBeenCalledTimes(2);
 });
 
@@ -232,7 +216,7 @@ it("cleans loaded PDFs without initializing PDF editing support", async () => {
 
   await runtime.dispose();
 
-  expect(operationsServiceMock.constructed).toBe(0);
+  expect(PDFOperationsService).not.toHaveBeenCalled();
   expect(operationsServiceMock.clearCache).not.toHaveBeenCalled();
   expect(pdfServiceMock.reset).toHaveBeenCalledTimes(1);
 });
