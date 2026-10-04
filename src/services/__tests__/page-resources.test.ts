@@ -1,7 +1,7 @@
 import { it } from "@effect/vitest";
 import { Deferred, Effect, Fiber } from "effect";
 import type * as pdfjsLib from "pdfjs-dist";
-import { describe, expect } from "vitest";
+import { describe, expect, vi } from "vitest";
 import { PageResources } from "../page-resources";
 
 const makeFile = (name: string): File => new File([name], name, { type: "application/pdf" });
@@ -10,59 +10,55 @@ const makeDocument = (page: { cleanup: () => boolean }) =>
   ({ getPage: () => Promise.resolve(page) }) as unknown as pdfjsLib.PDFDocumentProxy;
 
 describe("PageResources", () => {
-  it.effect("serializes page access so cleanup cannot interrupt a concurrent use", () => {
+  it.effect("finishes one page use and cleanup before starting the next", () => {
     const resources = new PageResources();
     const file = makeFile("shared.pdf");
-    const page = { cleanup: () => true };
+    const events: string[] = [];
+    const page = {
+      cleanup: vi.fn(() => {
+        events.push("cleanup");
+        return true;
+      }),
+    };
     const document = makeDocument(page);
-
-    const started = Deferred.makeUnsafe<void>();
+    const firstStarted = Deferred.makeUnsafe<void>();
+    const secondAttempted = Deferred.makeUnsafe<void>();
     const release = Deferred.makeUnsafe<void>();
-    let activeUses = 0;
-    let maxConcurrentUses = 0;
-    let secondRan = false;
-
-    const first = resources.withPageCleanup(
-      file,
-      1,
-      resources.getPage(document, file, 1, "use"),
-      () =>
-        Effect.gen(function* () {
-          activeUses += 1;
-          maxConcurrentUses = Math.max(maxConcurrentUses, activeUses);
-          yield* Deferred.succeed(started, undefined);
-          yield* Deferred.await(release);
-          activeUses -= 1;
-        })
-    );
-    const second = resources.withPageCleanup(
-      file,
-      1,
-      resources.getPage(document, file, 1, "use"),
-      () =>
-        Effect.sync(() => {
-          secondRan = true;
-        })
-    );
 
     return Effect.gen(function* () {
-      const fiber = yield* Effect.forkChild(
-        Effect.all([first, second], { concurrency: 2, discard: true })
+      // Ready acquisitions make a missing lock observable without scheduler spin loops.
+      const firstPage = yield* resources.getPage(document, file, 1, "use");
+      const secondPage = yield* resources.getPage(document, file, 1, "use");
+      const first = resources.withPageCleanup(file, 1, Effect.succeed(firstPage), () =>
+        Effect.gen(function* () {
+          events.push("first-start");
+          yield* Deferred.succeed(firstStarted, undefined);
+          yield* Deferred.await(release);
+          events.push("first-end");
+        })
       );
-
-      yield* Deferred.await(started);
-      for (let i = 0; i < 50; i += 1) {
-        yield* Effect.yieldNow;
-      }
-
-      expect(secondRan).toBe(false);
-      expect(maxConcurrentUses).toBe(1);
+      const second = Deferred.succeed(secondAttempted, undefined).pipe(
+        Effect.andThen(
+          resources.withPageCleanup(file, 1, Effect.succeed(secondPage), () =>
+            Effect.sync(() => {
+              expect(events).toEqual(["first-start", "first-end", "cleanup"]);
+              events.push("second");
+            })
+          )
+        )
+      );
+      const firstFiber = yield* Effect.forkChild(first);
+      yield* Deferred.await(firstStarted);
+      const secondFiber = yield* Effect.forkChild(second);
+      yield* Deferred.await(secondAttempted);
+      yield* Effect.yieldNow;
+      expect(events).toEqual(["first-start"]);
 
       yield* Deferred.succeed(release, undefined);
-      yield* Fiber.join(fiber);
+      yield* Fiber.join(firstFiber);
+      yield* Fiber.join(secondFiber);
 
-      expect(secondRan).toBe(true);
-      expect(maxConcurrentUses).toBe(1);
+      expect(events).toEqual(["first-start", "first-end", "cleanup", "second", "cleanup"]);
     });
   });
 
@@ -72,14 +68,20 @@ describe("PageResources", () => {
     const page = { cleanup: () => true };
     const document = makeDocument(page);
 
+    const firstStarted = Deferred.makeUnsafe<void>();
     const holdFirst = Deferred.makeUnsafe<void>();
-    let secondRan = false;
+    let firstFinished = false;
 
     const first = resources.withPageCleanup(
       file,
       1,
       resources.getPage(document, file, 1, "use"),
-      () => Deferred.await(holdFirst)
+      () =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(firstStarted, undefined);
+          yield* Deferred.await(holdFirst);
+          firstFinished = true;
+        })
     );
     const second = resources.withPageCleanup(
       file,
@@ -87,19 +89,19 @@ describe("PageResources", () => {
       resources.getPage(document, file, 2, "use"),
       () =>
         Effect.sync(() => {
-          secondRan = true;
+          expect(firstFinished).toBe(false);
         })
     );
 
     return Effect.gen(function* () {
-      const fiber = yield* Effect.forkChild(
-        Effect.all([first, second], { concurrency: 2, discard: true })
-      );
+      const firstFiber = yield* Effect.forkChild(first);
+      yield* Deferred.await(firstStarted);
+      yield* second;
 
       yield* Deferred.succeed(holdFirst, undefined);
-      yield* Fiber.join(fiber);
+      yield* Fiber.join(firstFiber);
 
-      expect(secondRan).toBe(true);
+      expect(firstFinished).toBe(true);
     });
   });
 });

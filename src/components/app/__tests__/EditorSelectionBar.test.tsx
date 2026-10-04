@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@solidjs/testing-library";
+import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { describe, expect, it, vi } from "vitest";
 import EditorSelectionBar from "../EditorSelectionBar";
 
@@ -25,133 +25,120 @@ function makeProps(overrides: Partial<Parameters<typeof EditorSelectionBar>[0]> 
 }
 
 describe("EditorSelectionBar", () => {
-  it("keeps the compact triggers stable and exposes disabled edit items", async () => {
-    const { getByTestId, queryByTestId } = render(() => <EditorSelectionBar {...makeProps()} />);
+  it("disables selection actions and ignores clicks until pages are selected", () => {
+    const props = makeProps();
+    render(() => <EditorSelectionBar {...props} />);
 
-    expect(getByTestId("editor-edit-menu-button")).toBeEnabled();
-    expect(getByTestId("editor-download-button")).toBeEnabled();
-    expect(getByTestId("editor-download-options-button")).toBeEnabled();
-    expect(queryByTestId("editor-edit-menu")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit pages" }));
 
-    fireEvent.click(getByTestId("editor-edit-menu-button"));
-    await waitFor(() => expect(getByTestId("editor-edit-menu")).toBeVisible());
-
-    expect(getByTestId("editor-clear-selection-button")).toHaveAttribute("aria-disabled", "true");
-    expect(getByTestId("editor-clear-selection-button")).toHaveAttribute("tabindex", "-1");
-    expect(getByTestId("editor-clear-selection-button")).toHaveTextContent("No pages selected");
-    expect(getByTestId("editor-rotate-button")).toHaveAttribute("aria-disabled", "true");
-    expect(getByTestId("editor-delete-button")).toHaveAttribute("aria-disabled", "true");
+    for (const name of [
+      "No pages selected to clear",
+      "Select pages to rotate",
+      "Select pages to mark or restore",
+    ]) {
+      const item = screen.getByRole("menuitem", { name });
+      expect(item).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(item);
+    }
+    expect(props.onClearSelection).not.toHaveBeenCalled();
+    expect(props.onRotate).not.toHaveBeenCalled();
+    expect(props.onDelete).not.toHaveBeenCalled();
+    expect(screen.getByRole("menu", { name: "Page editing options" })).toBeVisible();
   });
 
-  it("supports keyboard navigation and restores focus when a menu closes", async () => {
-    const { getByTestId, queryByTestId } = render(() => (
+  it("supports arrow, Home, End, and Escape keys in the edit menu", async () => {
+    render(() => (
       <EditorSelectionBar {...makeProps({ selectedCount: 1, selectedActiveCount: 1 })} />
     ));
-    const trigger = getByTestId("editor-edit-menu-button");
+    const trigger = screen.getByRole("button", { name: "Edit pages" });
 
     fireEvent.keyDown(trigger, { key: "ArrowDown" });
-    await waitFor(() => expect(getByTestId("editor-edit-menu")).toBeVisible());
-    expect(document.activeElement).toBe(getByTestId("editor-select-all-button"));
+    const selectAll = screen.getByRole("menuitem", { name: "Select all pages" });
+    const clear = screen.getByRole("menuitem", { name: "Clear page selection" });
+    const remove = screen.getByRole("menuitem", { name: "Mark selected pages for deletion" });
+    await waitFor(() => expect(selectAll).toHaveFocus());
 
-    fireEvent.keyDown(getByTestId("editor-select-all-button"), { key: "ArrowDown" });
-    expect(document.activeElement).toBe(getByTestId("editor-clear-selection-button"));
-
-    fireEvent.keyDown(getByTestId("editor-clear-selection-button"), { key: "End" });
-    expect(document.activeElement).toBe(getByTestId("editor-delete-button"));
-
-    fireEvent.keyDown(getByTestId("editor-delete-button"), { key: "Home" });
-    expect(document.activeElement).toBe(getByTestId("editor-select-all-button"));
-
-    fireEvent.keyDown(getByTestId("editor-select-all-button"), { key: "Tab" });
-    await waitFor(() => expect(queryByTestId("editor-edit-menu")).not.toBeInTheDocument());
-    expect(document.activeElement).toBe(getByTestId("editor-download-button"));
-
-    fireEvent.keyDown(trigger, { key: "ArrowDown" });
-    await waitFor(() => expect(getByTestId("editor-edit-menu")).toBeVisible());
-    fireEvent.keyDown(getByTestId("editor-select-all-button"), {
-      key: "Tab",
-      shiftKey: true,
-    });
-    await waitFor(() => expect(queryByTestId("editor-edit-menu")).not.toBeInTheDocument());
-    expect(document.activeElement).toBe(trigger);
+    fireEvent.keyDown(selectAll, { key: "ArrowDown" });
+    expect(clear).toHaveFocus();
+    fireEvent.keyDown(clear, { key: "End" });
+    expect(remove).toHaveFocus();
+    fireEvent.keyDown(remove, { key: "Home" });
+    expect(selectAll).toHaveFocus();
+    fireEvent.keyDown(selectAll, { key: "Escape" });
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
 
     fireEvent.keyDown(trigger, { key: "ArrowUp" });
-    await waitFor(() => expect(getByTestId("editor-edit-menu")).toBeVisible());
-    expect(document.activeElement).toBe(getByTestId("editor-delete-button"));
-    fireEvent.keyDown(getByTestId("editor-delete-button"), { key: "Escape" });
-    await waitFor(() => expect(queryByTestId("editor-edit-menu")).not.toBeInTheDocument());
-    expect(document.activeElement).toBe(trigger);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("menuitem", { name: "Mark selected pages for deletion" })
+      ).toHaveFocus()
+    );
   });
 
-  it("keeps menus mutually exclusive and closes them on an outside pointer", async () => {
-    const { getByTestId, queryByTestId } = render(() => <EditorSelectionBar {...makeProps()} />);
+  it.each([false, true])("closes the edit menu with Tab, shiftKey=%s", async (shiftKey) => {
+    render(() => <EditorSelectionBar {...makeProps()} />);
+    const trigger = screen.getByRole("button", { name: "Edit pages" });
+    fireEvent.click(trigger);
+    const selectAll = screen.getByRole("menuitem", { name: "Select all pages" });
+    await waitFor(() => expect(selectAll).toHaveFocus());
 
-    fireEvent.click(getByTestId("editor-edit-menu-button"));
-    await waitFor(() => expect(getByTestId("editor-edit-menu")).toBeVisible());
+    fireEvent.keyDown(selectAll, { key: "Tab", shiftKey });
 
-    fireEvent.click(getByTestId("editor-download-options-button"));
-    await waitFor(() => expect(getByTestId("editor-download-options-menu")).toBeVisible());
-    expect(queryByTestId("editor-edit-menu")).not.toBeInTheDocument();
+    const target = shiftKey
+      ? trigger
+      : screen.getByRole("button", { name: "Download a PDF with all active pages" });
+    await waitFor(() => expect(target).toHaveFocus());
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("keeps menus mutually exclusive and closes them on an outside pointer", () => {
+    render(() => <EditorSelectionBar {...makeProps()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit pages" }));
+    expect(screen.getByRole("menu", { name: "Page editing options" })).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "More download options" }));
+    expect(screen.getByRole("menu", { name: "Download options" })).toBeVisible();
+    expect(screen.queryByRole("menu", { name: "Page editing options" })).not.toBeInTheDocument();
 
     fireEvent.pointerDown(document.body);
-    await waitFor(() =>
-      expect(queryByTestId("editor-download-options-menu")).not.toBeInTheDocument()
-    );
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
-  it("keeps output options visible with reasons when they are unavailable", async () => {
-    const { getByTestId } = render(() => (
-      <EditorSelectionBar
-        {...makeProps({
-          selectedCount: 1,
-          selectedActiveCount: 0,
-          compressionAvailable: false,
-          compressionDisabledReason: "Restore pages before compressing the original PDF",
-        })}
-      />
-    ));
-
-    fireEvent.click(getByTestId("editor-download-options-button"));
-    await waitFor(() => expect(getByTestId("editor-download-options-menu")).toBeVisible());
-
-    expect(getByTestId("editor-export-images-button")).toHaveAttribute("aria-disabled", "true");
-    expect(getByTestId("editor-export-images-button")).toHaveTextContent("Restore pages first");
-    expect(getByTestId("editor-compress-button")).toHaveAttribute("aria-disabled", "true");
-    expect(getByTestId("editor-compress-button")).toHaveTextContent(
-      "Restore pages before compressing the original PDF"
-    );
-    expect(document.activeElement).toBe(getByTestId("editor-export-images-button"));
-  });
-
-  it("keeps the primary PDF download one click and closes an open menu", async () => {
-    const props = makeProps();
-    const { getByTestId, queryByTestId } = render(() => <EditorSelectionBar {...props} />);
-
-    fireEvent.click(getByTestId("editor-edit-menu-button"));
-    await waitFor(() => expect(getByTestId("editor-edit-menu")).toBeVisible());
-    fireEvent.click(getByTestId("editor-download-button"));
-
-    expect(props.onDownload).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(queryByTestId("editor-edit-menu")).not.toBeInTheDocument());
-
-    fireEvent.click(getByTestId("editor-download-options-button"));
-    await waitFor(() => expect(getByTestId("editor-download-options-menu")).toBeVisible());
-    fireEvent.keyDown(getByTestId("editor-export-images-button"), {
-      key: "Tab",
-      shiftKey: true,
+  it("explains unavailable output options and ignores clicks on them", async () => {
+    const reason = "Restore pages before compressing the original PDF";
+    const props = makeProps({
+      selectedCount: 1,
+      selectedActiveCount: 0,
+      compressionAvailable: false,
+      compressionDisabledReason: reason,
     });
-    await waitFor(() =>
-      expect(queryByTestId("editor-download-options-menu")).not.toBeInTheDocument()
-    );
-    expect(document.activeElement).toBe(getByTestId("editor-download-options-button"));
+    render(() => <EditorSelectionBar {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "More download options" }));
+    const images = screen.getByRole("menuitem", { name: "Restore pages before exporting images" });
+    const compression = screen.getByRole("menuitem", { name: reason });
 
-    fireEvent.click(getByTestId("editor-download-options-button"));
-    await waitFor(() => expect(getByTestId("editor-download-options-menu")).toBeVisible());
-    fireEvent.click(getByTestId("editor-download-button"));
-
-    expect(props.onDownload).toHaveBeenCalledTimes(2);
-    await waitFor(() =>
-      expect(queryByTestId("editor-download-options-menu")).not.toBeInTheDocument()
-    );
+    expect(images).toHaveAttribute("aria-disabled", "true");
+    expect(images).toHaveTextContent("Restore pages first");
+    expect(compression).toHaveAttribute("aria-disabled", "true");
+    expect(compression).toHaveTextContent(reason);
+    await waitFor(() => expect(images).toHaveFocus());
+    fireEvent.click(images);
+    fireEvent.click(compression);
+    expect(props.onExportImages).not.toHaveBeenCalled();
+    expect(props.onCompress).not.toHaveBeenCalled();
   });
+
+  it.each(["Edit pages", "More download options"])(
+    "downloads a PDF and closes the menu opened by %s",
+    (trigger) => {
+      const props = makeProps();
+      render(() => <EditorSelectionBar {...props} />);
+      fireEvent.click(screen.getByRole("button", { name: trigger }));
+      fireEvent.click(screen.getByRole("button", { name: "Download a PDF with all active pages" }));
+
+      expect(props.onDownload).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    }
+  );
 });

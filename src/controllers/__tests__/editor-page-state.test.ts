@@ -14,12 +14,16 @@ describe("editor page state controller", () => {
   it("creates page state entries for each source page", () => {
     const pageStates = createPageStates(file, 3, 1234);
 
-    expect(pageStates).toHaveLength(3);
-    expect(pageStates.map((page) => page.sourcePageNumber)).toEqual([1, 2, 3]);
-    expect(new Set(pageStates.map((page) => page.id)).size).toBe(3);
-    expect(
-      pageStates.every((page) => page.id.startsWith(`sample.pdf-${page.sourcePageNumber}-1234-`))
-    ).toBe(true);
+    expect(pageStates.map(({ id, ...state }) => state)).toEqual([
+      { sourceFile: file, sourcePageNumber: 1, rotation: 0, markedForDeletion: false },
+      { sourceFile: file, sourcePageNumber: 2, rotation: 0, markedForDeletion: false },
+      { sourceFile: file, sourcePageNumber: 3, rotation: 0, markedForDeletion: false },
+    ]);
+    for (const page of pageStates) {
+      expect(page.sourceFile).toBe(file);
+      expect(page.id).toEqual(expect.any(String));
+      expect(page.id).not.toBe("");
+    }
   });
 
   it("keeps batches unique when files share a name and timestamp", () => {

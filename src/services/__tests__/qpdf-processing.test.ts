@@ -8,13 +8,18 @@ import {
 } from "../qpdf-processing";
 
 class FakeWorker implements QpdfWorkerPort {
-  request: QpdfWorkerOptimizeRequest | undefined;
+  private sentRequest: QpdfWorkerOptimizeRequest | undefined;
+
+  get request(): QpdfWorkerOptimizeRequest {
+    if (!this.sentRequest) throw new Error("No optimize request was sent to the worker");
+    return this.sentRequest;
+  }
   terminated = false;
   private messageListeners = new Set<(event: MessageEvent<QpdfWorkerResponse>) => void>();
   private errorListeners = new Set<(event: ErrorEvent) => void>();
 
-  postMessage(message: QpdfWorkerOptimizeRequest): void {
-    this.request = message;
+  postMessage(message: QpdfWorkerOptimizeRequest, transfer: Transferable[]): void {
+    this.sentRequest = structuredClone(message, { transfer });
   }
 
   addEventListener(
@@ -61,18 +66,20 @@ describe("QpdfProcessing", () => {
   it("copies input bytes before transferring them and returns a smaller candidate", async () => {
     const worker = new FakeWorker();
     const service = makeService(worker);
-    const input = new Uint8Array([1, 2, 3, 4]);
+    const storage = new Uint8Array([0, 1, 2, 3, 4, 5]);
+    const input = storage.subarray(1, 5);
     const effect = service.optimizeLosslessly(input, "secret");
     const resultPromise = Effect.runPromise(effect);
 
-    expect(worker.request?.type).toBe("optimize");
-    expect(worker.request?.password).toBe("secret");
-    expect(new Uint8Array(worker.request?.input ?? new ArrayBuffer(0))).toEqual(input);
+    expect(worker.request.type).toBe("optimize");
+    expect(worker.request.password).toBe("secret");
+    expect(new Uint8Array(worker.request.input)).toEqual(input);
     expect(input).toEqual(new Uint8Array([1, 2, 3, 4]));
+    expect(storage).toEqual(new Uint8Array([0, 1, 2, 3, 4, 5]));
 
     worker.respond({
       type: "result",
-      id: worker.request?.id ?? "",
+      id: worker.request.id,
       output: new Uint8Array([1, 2]).buffer,
       inputSize: 4,
       candidateSize: 2,
@@ -96,7 +103,7 @@ describe("QpdfProcessing", () => {
 
     worker.respond({
       type: "result",
-      id: worker.request?.id ?? "",
+      id: worker.request.id,
       output: new Uint8Array([7, 8, 9]).buffer,
       inputSize: 3,
       candidateSize: 9,
@@ -119,7 +126,7 @@ describe("QpdfProcessing", () => {
 
     worker.respond({
       type: "error",
-      id: worker.request?.id ?? "",
+      id: worker.request.id,
       code: "QPDF_EXEC_FAILED",
       message: "Password required",
     });

@@ -1,78 +1,45 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, screen, within } from "@solidjs/testing-library";
+import { afterEach, describe, expect, it } from "vitest";
+import { promptForPassword } from "../password-prompt";
 
-describe("password-prompt utility", () => {
-  let promptForPassword: typeof import("../password-prompt").promptForPassword;
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    const module = await import("../password-prompt");
-    promptForPassword = module.promptForPassword;
-  });
-
+describe("promptForPassword", () => {
   afterEach(() => {
     document.body.innerHTML = "";
   });
 
-  it("should return a promise", () => {
-    const result = promptForPassword("test.pdf", false);
-    expect(result).toBeInstanceOf(Promise);
-    result.then(() => {}).catch(() => {});
-  });
+  it.each([false, true])("shows the retry error only when isRetry=%s", async (isRetry) => {
+    const result = promptForPassword("protected.pdf", isRetry);
+    const dialog = screen.getByRole("dialog", { name: "Password required" });
+    const error = within(dialog).getByText("Incorrect password. Try again.");
 
-  it("should show error message when isRetry is true", async () => {
-    const promise = promptForPassword("test.pdf", true);
-
-    const errorMsg = document.querySelector('[aria-live="polite"]');
-    expect(errorMsg).not.toBeNull();
-    expect(errorMsg?.textContent).toContain("Incorrect password");
-
-    const cancelBtn = document.querySelector("button");
-    if (cancelBtn) {
-      cancelBtn.click();
+    expect(within(dialog).getByText("protected.pdf")).toBeInTheDocument();
+    if (isRetry) {
+      expect(error).not.toHaveClass("is-hidden");
+    } else {
+      expect(error).toHaveClass("is-hidden");
     }
 
-    await promise;
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    await expect(result).resolves.toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("should resolve with entered password on submit", async () => {
-    const promise = promptForPassword("test.pdf", false);
+  it.each(["Unlock", "Enter"])(
+    "returns the password through %s and removes the dialog",
+    async (action) => {
+      const result = promptForPassword("protected.pdf", false);
+      const input = screen.getByLabelText<HTMLInputElement>("PDF password");
+      fireEvent.input(input, { target: { value: "mypassword" } });
 
-    const input = document.querySelector('input[type="password"]') as HTMLInputElement;
-    const unlockBtn = document.querySelectorAll("button")[1];
+      if (action === "Unlock") {
+        fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
+      } else {
+        fireEvent.keyDown(input, { key: "Enter" });
+      }
 
-    if (input && unlockBtn) {
-      input.value = "mypassword";
-      unlockBtn.click();
+      await expect(result).resolves.toBe("mypassword");
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     }
-
-    const result = await promise;
-    expect(result).toBe("mypassword");
-  });
-
-  it("should resolve to null when cancel button is clicked", async () => {
-    const promise = promptForPassword("test.pdf", false);
-
-    const cancelBtn = document.querySelector("button");
-
-    if (cancelBtn) {
-      cancelBtn.click();
-    }
-
-    const result = await promise;
-    expect(result).toBeNull();
-  });
-
-  it("should submit on Enter key", async () => {
-    const promise = promptForPassword("test.pdf", false);
-
-    const input = document.querySelector('input[type="password"]') as HTMLInputElement;
-
-    if (input) {
-      input.value = "enterpassword";
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
-    }
-
-    const result = await promise;
-    expect(result).toBe("enterpassword");
-  });
+  );
 });

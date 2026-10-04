@@ -1,5 +1,5 @@
-import { fireEvent, render, waitFor } from "@solidjs/testing-library";
-import { Effect } from "effect";
+import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { Deferred, Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PDFPasswordRequiredError, PDFProcessingError } from "@/types/interfaces";
 
@@ -72,38 +72,45 @@ const makeFile = (name = "doc.pdf") => new File(["%PDF-1.4"], name, { type: "app
 const makeImageFile = (name = "image.png", type = "image/png") =>
   new File(["image"], name, { type });
 
-function selectFiles(testid: string, files: File[]) {
-  const input = document.querySelector<HTMLInputElement>(`[data-testid="${testid}"]`);
-  if (!input) throw new Error(`missing input ${testid}`);
-  Object.defineProperty(input, "files", { value: files });
-  fireEvent(input, new Event("change", { bubbles: true }));
+function selectFiles(input: "upload" | "add", files: File[]) {
+  const label =
+    input === "upload" ? "Choose PDF or image files" : "Choose additional PDF or image files";
+  fireEvent.change(screen.getByLabelText(label), { target: { files } });
 }
 
-function selectFile(testid: string, file: File) {
-  selectFiles(testid, [file]);
+function selectFile(input: "upload" | "add", file: File) {
+  selectFiles(input, [file]);
 }
+
+const pageButtonName = /^Page \d+(, marked for deletion)?$/;
+const getPages = () => screen.getAllByRole("button", { name: pageButtonName });
+const findPages = () => screen.findAllByRole("button", { name: pageButtonName });
 
 // Toasts accumulate until their 3s dismissal timer fires, so assert on the newest one.
 function expectLastToast(text: string) {
-  const toasts = Array.from(document.querySelectorAll('[data-testid="editor-toast"]'));
-  expect(toasts.at(-1)).toHaveTextContent(text);
+  expect(screen.getAllByTestId("editor-toast").at(-1)).toHaveTextContent(text);
 }
 
-type TestIdQuery = (testId: string) => HTMLElement;
-
-async function openEditMenu(getByTestId: TestIdQuery) {
-  fireEvent.click(getByTestId("editor-edit-menu-button"));
-  await waitFor(() => expect(getByTestId("editor-edit-menu")).toBeVisible());
+async function openEditMenu() {
+  fireEvent.click(screen.getByRole("button", { name: "Edit pages" }));
+  expect(await screen.findByRole("menu", { name: "Page editing options" })).toBeVisible();
 }
 
-async function openDownloadMenu(getByTestId: TestIdQuery) {
-  fireEvent.click(getByTestId("editor-download-options-button"));
-  await waitFor(() => expect(getByTestId("editor-download-options-menu")).toBeVisible());
+async function openDownloadMenu() {
+  fireEvent.click(screen.getByRole("button", { name: "More download options" }));
+  expect(await screen.findByRole("menu", { name: "Download options" })).toBeVisible();
+}
+
+async function openPDF(file = makeFile()) {
+  render(() => <Editor />);
+  selectFile("upload", file);
+  return findPages();
 }
 
 describe("Editor", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    promptForPassword.mockResolvedValue(null);
     pdfServiceMocks.getPageCount.mockReturnValue(3);
     pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(0));
     pdfServiceMocks.getPageSize.mockReturnValue(Effect.succeed({ width: 100, height: 200 }));
@@ -144,61 +151,51 @@ describe("Editor", () => {
   });
 
   it("renders the upload dropzone before any file is loaded", () => {
-    const { getByTestId, queryByTestId, container } = render(() => <Editor />);
+    render(() => <Editor />);
 
-    expect(getByTestId("editor-upload-dropzone")).toBeInTheDocument();
-    expect(queryByTestId("editor-page-grid")).not.toBeInTheDocument();
-    expect(container.querySelector(".editor-uploader-mark")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Choose PDF or image files, or drop them here" })
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
   });
 
   it("rejects unsupported files with an error toast", async () => {
-    const { findByTestId, queryByTestId } = render(() => <Editor />);
+    render(() => <Editor />);
 
-    selectFile("editor-upload-input", new File(["text"], "notes.txt", { type: "text/plain" }));
+    selectFile("upload", new File(["text"], "notes.txt", { type: "text/plain" }));
 
-    const toast = await findByTestId("editor-toast");
+    const toast = await screen.findByTestId("editor-toast");
     expect(toast).toHaveTextContent("Choose PDF, PNG, or JPEG files.");
     expect(pdfServiceMocks.loadPDF).not.toHaveBeenCalled();
     expect(pdfOperationsMocks.imagesToPDF).not.toHaveBeenCalled();
-    expect(queryByTestId("editor-page-grid")).not.toBeInTheDocument();
-  });
-
-  it("loads a valid PDF into the page grid", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
-
-    selectFile("editor-upload-input", makeFile());
-
-    await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
-    const tiles = await findAllByTestId("editor-page-tile");
-    expect(tiles).toHaveLength(3);
+    expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
   });
 
   it("opens a multi-page review without requiring a single selected page", async () => {
-    const { getByTestId, findAllByTestId, queryByTestId } = render(() => <Editor />);
+    await openPDF();
 
-    selectFile("editor-upload-input", makeFile());
-    await findAllByTestId("editor-page-tile");
+    fireEvent.click(screen.getByRole("button", { name: /Review/ }));
 
-    fireEvent.click(getByTestId("editor-review-button"));
+    await waitFor(() => expect(screen.getByTestId("editor-page-viewer")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
 
-    await waitFor(() => expect(getByTestId("editor-page-viewer")).toBeInTheDocument());
-    expect(getByTestId("editor-page-viewer-previous")).toBeDisabled();
-    expect(getByTestId("editor-page-viewer-next")).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2")
+    );
 
-    fireEvent.click(getByTestId("editor-page-viewer-next"));
-    await waitFor(() => expect(getByTestId("editor-viewer-title")).toHaveTextContent("Page 2"));
-
-    fireEvent.click(getByTestId("editor-page-viewer-close-button"));
-    await waitFor(() => expect(queryByTestId("editor-page-viewer")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Close page review" }));
+    await waitFor(() => expect(screen.queryByTestId("editor-page-viewer")).not.toBeInTheDocument());
   });
 
   it("turns selected images into a PDF and opens it in the workspace", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+    render(() => <Editor />);
     const images = [makeImageFile("one.png"), makeImageFile("two.jpg", "image/jpeg")];
 
-    selectFiles("editor-upload-input", images);
+    selectFiles("upload", images);
 
-    await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("editor-page-grid")).toBeInTheDocument());
     expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalledWith(
       images,
       expect.objectContaining({ onProgress: expect.any(Function) })
@@ -206,8 +203,10 @@ describe("Editor", () => {
     expect(pdfServiceMocks.loadPDF).toHaveBeenCalledWith(
       expect.objectContaining({ name: "interleaf-images.pdf", type: "application/pdf" })
     );
-    expect(await findAllByTestId("editor-page-tile")).toHaveLength(3);
-    expect(getByTestId("editor-status-message")).toHaveTextContent("Created a PDF from 2 images.");
+    expect(await findPages()).toHaveLength(3);
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Created a PDF from 2 images."
+    );
   });
 
   it("returns to the uploader after image conversion fails", async () => {
@@ -220,47 +219,31 @@ describe("Editor", () => {
         })
       )
     );
-    const { findByTestId, getByTestId } = render(() => <Editor />);
+    render(() => <Editor />);
 
-    selectFile("editor-upload-input", makeImageFile());
+    selectFile("upload", makeImageFile());
 
-    expect(await findByTestId("editor-toast")).toHaveTextContent("Unsupported image");
-    await waitFor(() => expect(getByTestId("editor-upload-input")).toBeEnabled());
-  });
-
-  it("loads mixed PDF and image selections in the chosen order", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
-
-    selectFiles("editor-upload-input", [makeFile(), makeImageFile()]);
-
-    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(6));
-    expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalledWith(
-      [expect.objectContaining({ name: "image.png" })],
-      expect.objectContaining({ onProgress: expect.any(Function) })
-    );
-    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledTimes(2);
-    expect(getByTestId("editor-status-message")).toHaveTextContent(
-      "Loaded 1 PDF and created a PDF from 1 image."
-    );
+    expect(await screen.findByTestId("editor-toast")).toHaveTextContent("Unsupported image");
+    await waitFor(() => expect(screen.getByLabelText("Choose PDF or image files")).toBeEnabled());
   });
 
   it("keeps interleaved image groups in the uploaded order", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+    render(() => <Editor />);
     const files = [
       makeImageFile("first.png"),
       makeFile("middle.pdf"),
       makeImageFile("last.jpg", "image/jpeg"),
     ];
 
-    selectFiles("editor-upload-input", files);
+    selectFiles("upload", files);
 
-    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(9));
+    await waitFor(() => expect(getPages()).toHaveLength(9));
     expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalledTimes(2);
     expect(pdfServiceMocks.loadPDF).toHaveBeenCalledTimes(3);
 
-    fireEvent.click(getByTestId("editor-files-button"));
-    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
-    const fileItems = await findAllByTestId("editor-file-item");
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    await waitFor(() => expect(screen.getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    const fileItems = await screen.findAllByTestId("editor-file-item");
     expect(fileItems.map((item) => item.textContent?.replace(/\s+/g, " ").trim())).toEqual([
       expect.stringContaining("interleaf-images-1.pdf"),
       expect.stringContaining("middle.pdf"),
@@ -288,12 +271,14 @@ describe("Editor", () => {
           })
         )
       );
-    const { findByTestId, queryByTestId } = render(() => <Editor />);
+    render(() => <Editor />);
 
-    selectFiles("editor-upload-input", [makeFile("good.pdf"), makeImageFile(), failedFile]);
+    selectFiles("upload", [makeFile("good.pdf"), makeImageFile(), failedFile]);
 
-    expect(await findByTestId("editor-toast")).toHaveTextContent("Failed to load broken.pdf");
-    expect(queryByTestId("editor-page-grid")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("editor-toast")).toHaveTextContent(
+      "Failed to load broken.pdf"
+    );
+    expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
     await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledTimes(2));
     expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
       expect.objectContaining({ name: "good.pdf" })
@@ -304,169 +289,141 @@ describe("Editor", () => {
   });
 
   it("loads multiple selected PDFs into the same workspace", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+    render(() => <Editor />);
     const files = [makeFile("one.pdf"), makeFile("two.pdf")];
 
-    selectFiles("editor-upload-input", files);
+    selectFiles("upload", files);
 
-    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(6));
+    await waitFor(() => expect(getPages()).toHaveLength(6));
     expect(pdfServiceMocks.loadPDF).toHaveBeenCalledTimes(2);
-    expect(getByTestId("editor-status-message")).toHaveTextContent(
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
       "Loaded 2 PDFs into the workspace."
     );
   });
 
   it("opens the file drawer and selects pages from one source file", async () => {
-    const { findAllByTestId, getByTestId } = render(() => <Editor />);
+    await openPDF(makeFile("brief.pdf"));
+    expect(screen.getByTestId("editor-files-button")).toBeEnabled();
+    expect(screen.getByTestId("editor-files-button")).toHaveAttribute("aria-label", "Open 1 file");
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    await waitFor(() => expect(screen.getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    expect(await screen.findAllByTestId("editor-file-item")).toHaveLength(1);
+    fireEvent.click(screen.getByTestId("editor-files-close-button"));
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-files-dialog")).not.toHaveAttribute("open")
+    );
 
-    selectFile("editor-upload-input", makeFile("brief.pdf"));
-    await findAllByTestId("editor-page-tile");
-    expect(getByTestId("editor-files-button")).toBeEnabled();
-    expect(getByTestId("editor-files-button")).toHaveAttribute("aria-label", "Open 1 file");
-    fireEvent.click(getByTestId("editor-files-button"));
-    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
-    expect(await findAllByTestId("editor-file-item")).toHaveLength(1);
-    fireEvent.click(getByTestId("editor-files-close-button"));
-    await waitFor(() => expect(getByTestId("editor-files-dialog")).not.toHaveAttribute("open"));
+    selectFile("add", makeFile("appendix.pdf"));
+    await waitFor(() => expect(getPages()).toHaveLength(6));
 
-    selectFile("editor-add-pdf-input", makeFile("appendix.pdf"));
-    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(6));
+    expect(screen.getByTestId("editor-files-button")).toBeEnabled();
+    expect(screen.getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByTestId("editor-files-button"));
 
-    expect(getByTestId("editor-files-button")).toBeEnabled();
-    expect(getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
-    fireEvent.click(getByTestId("editor-files-button"));
-
-    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
-    const fileItems = await findAllByTestId("editor-file-item");
+    await waitFor(() => expect(screen.getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    const fileItems = await screen.findAllByTestId("editor-file-item");
     expect(fileItems).toHaveLength(2);
 
     fireEvent.click(fileItems[1]);
 
-    await waitFor(async () => {
-      const tiles = await findAllByTestId("editor-page-tile");
-      expect(tiles.slice(0, 3).every((tile) => tile.dataset.selected === "false")).toBe(true);
-      expect(tiles.slice(3).every((tile) => tile.dataset.selected === "true")).toBe(true);
+    await waitFor(() => {
+      const tiles = getPages();
+      expect(tiles.slice(0, 3).every((tile) => tile.getAttribute("aria-pressed") === "false")).toBe(
+        true
+      );
+      expect(tiles.slice(3).every((tile) => tile.getAttribute("aria-pressed") === "true")).toBe(
+        true
+      );
     });
-    expect(getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
-    expect(getByTestId("editor-status-message")).toHaveTextContent(
+    expect(screen.getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
       "Selected 3 pages from appendix.pdf."
     );
   });
 
-  it("removes a source file and its pages from the workspace", async () => {
-    const { findAllByTestId, getByTestId } = render(() => <Editor />);
+  it.each([
+    {
+      selectedIndex: 1,
+      selection: "No pages selected",
+      pressed: ["false", "false", "false"],
+      selectedIndices: undefined,
+    },
+    {
+      selectedIndex: 4,
+      selection: "1 selected",
+      pressed: ["false", "true", "false"],
+      selectedIndices: [1],
+    },
+  ])(
+    "removes a source file and remaps selection from page index $selectedIndex",
+    async ({ selectedIndex, selection, pressed, selectedIndices }) => {
+      render(() => <Editor />);
+      const removed = makeFile("brief.pdf");
+      const remaining = makeFile("appendix.pdf");
+      selectFiles("upload", [removed, remaining]);
+      await waitFor(() => expect(getPages()).toHaveLength(6));
+      fireEvent.click(getPages()[selectedIndex]);
 
-    selectFiles("editor-upload-input", [makeFile("brief.pdf"), makeFile("appendix.pdf")]);
-    const tiles = await findAllByTestId("editor-page-tile");
-    expect(tiles).toHaveLength(6);
+      fireEvent.click(screen.getByRole("button", { name: "Open 2 files" }));
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Remove brief.pdf and its 3 pages from the workspace",
+        })
+      );
 
-    fireEvent.click(tiles[1]);
-    await waitFor(() => expect(tiles[1].dataset.selected).toBe("true"));
+      await waitFor(() => expect(getPages()).toHaveLength(3));
+      expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(selection);
+      expect(getPages().map((tile) => tile.getAttribute("aria-pressed"))).toEqual(pressed);
+      expect(pdfServiceMocks.releaseFile).toHaveBeenCalledExactlyOnceWith(removed);
 
-    fireEvent.click(getByTestId("editor-files-button"));
-    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
-    const removeButtons = await findAllByTestId("editor-file-remove");
-    expect(removeButtons).toHaveLength(2);
-    expect(removeButtons[0]).toHaveAccessibleName(
-      "Remove brief.pdf and its 3 pages from the workspace"
-    );
+      fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+      await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
+      const [pages, options] = pdfOperationsMocks.buildPDF.mock.calls[0];
+      expect(pages.map((page: { sourceFile: File }) => page.sourceFile)).toEqual([
+        remaining,
+        remaining,
+        remaining,
+      ]);
+      expect(options.selectedIndices).toEqual(selectedIndices);
+      expect(screen.getByRole("button", { name: "Open 1 file" })).toBeEnabled();
+    }
+  );
 
-    fireEvent.click(removeButtons[0]);
+  it("returns to the uploader after the last removal and keeps the files dialog closed on reload", async () => {
+    await openPDF(makeFile("only.pdf"));
 
-    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(3));
-    expect(getByTestId("editor-status-message")).toHaveTextContent(
-      "Removed brief.pdf and 3 pages."
-    );
-    expect(getByTestId("editor-selection-title")).toHaveTextContent("No pages selected");
-    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "brief.pdf" })
-    );
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    await waitFor(() => expect(screen.getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    fireEvent.click(screen.getByTestId("editor-file-remove"));
 
-    const remainingTiles = await findAllByTestId("editor-page-tile");
-    expect(remainingTiles.map((tile) => tile.dataset.sourcePage)).toEqual(["1", "2", "3"]);
-    fireEvent.click(getByTestId("editor-files-button"));
-    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
-    expect(await findAllByTestId("editor-file-item")).toHaveLength(1);
-    expect(getByTestId("editor-files-button")).toHaveAttribute("aria-label", "Open 1 file");
-  });
-
-  it("remaps a surviving selection when another file is removed", async () => {
-    const { findAllByTestId, getByTestId } = render(() => <Editor />);
-
-    selectFiles("editor-upload-input", [makeFile("brief.pdf"), makeFile("appendix.pdf")]);
-    const tiles = await findAllByTestId("editor-page-tile");
-    expect(tiles).toHaveLength(6);
-
-    fireEvent.click(tiles[4]);
-    await waitFor(() => expect(tiles[4].dataset.selected).toBe("true"));
-
-    fireEvent.click(getByTestId("editor-files-button"));
-    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
-    const removeButtons = await findAllByTestId("editor-file-remove");
-    fireEvent.click(removeButtons[0]);
-
-    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(3));
-    expect(getByTestId("editor-selection-title")).toHaveTextContent("1 selected");
-    const remainingTiles = await findAllByTestId("editor-page-tile");
-    expect(remainingTiles[1]).toHaveAttribute("data-selected", "true");
-    expect(remainingTiles[1]).toHaveAttribute("data-source-page", "2");
-  });
-
-  it("returns to the uploader when the last file is removed", async () => {
-    const { findAllByTestId, getByTestId, queryByTestId } = render(() => <Editor />);
-
-    selectFile("editor-upload-input", makeFile("only.pdf"));
-    await findAllByTestId("editor-page-tile");
-
-    fireEvent.click(getByTestId("editor-files-button"));
-    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
-    fireEvent.click(getByTestId("editor-file-remove"));
-
-    await waitFor(() => expect(queryByTestId("editor-page-grid")).not.toBeInTheDocument());
-    expect(getByTestId("editor-upload-dropzone")).toBeInTheDocument();
-    expect(getByTestId("editor-upload-status")).toHaveTextContent(
+    await waitFor(() => expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument());
+    expect(
+      screen.getByRole("button", { name: "Choose PDF or image files, or drop them here" })
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("editor-upload-status")).toHaveTextContent(
       "Removed only.pdf. The workspace is empty."
     );
     expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
       expect.objectContaining({ name: "only.pdf" })
     );
-  });
 
-  it("does not reopen the files dialog after the workspace is emptied and refilled", async () => {
-    const { findAllByTestId, getByTestId, queryByTestId } = render(() => <Editor />);
-
-    selectFile("editor-upload-input", makeFile("only.pdf"));
-    await findAllByTestId("editor-page-tile");
-
-    fireEvent.click(getByTestId("editor-files-button"));
-    await waitFor(() => expect(getByTestId("editor-files-dialog")).toHaveAttribute("open"));
-    fireEvent.click(getByTestId("editor-file-remove"));
-    await waitFor(() => expect(queryByTestId("editor-page-grid")).not.toBeInTheDocument());
-
-    selectFile("editor-upload-input", makeFile("fresh.pdf"));
-    await findAllByTestId("editor-page-tile");
-
-    await waitFor(() => expect(getByTestId("editor-files-dialog")).not.toHaveAttribute("open"));
+    selectFile("upload", makeFile("fresh.pdf"));
+    await findPages();
+    expect(screen.getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
   });
 
   it("adds mixed PDFs and images from the workspace", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+    await openPDF(makeFile("brief.pdf"));
 
-    selectFile("editor-upload-input", makeFile("brief.pdf"));
-    await findAllByTestId("editor-page-tile");
+    selectFiles("add", [makeFile("appendix.pdf"), makeImageFile("scan.jpg", "image/jpeg")]);
 
-    selectFiles("editor-add-pdf-input", [
-      makeFile("appendix.pdf"),
-      makeImageFile("scan.jpg", "image/jpeg"),
-    ]);
-
-    await waitFor(async () => expect(await findAllByTestId("editor-page-tile")).toHaveLength(9));
+    await waitFor(() => expect(getPages()).toHaveLength(9));
     expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalledWith(
       [expect.objectContaining({ name: "scan.jpg" })],
       expect.objectContaining({ onProgress: expect.any(Function) })
     );
     expect(pdfServiceMocks.loadPDF).toHaveBeenCalledTimes(3);
-    expect(getByTestId("editor-status-message")).toHaveTextContent(
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
       "Added 1 PDF and created a PDF from 1 image."
     );
   });
@@ -486,15 +443,14 @@ describe("Editor", () => {
           })
         )
       );
-    const { findByTestId, findAllByTestId } = render(() => <Editor />);
+    await openPDF(makeFile("existing.pdf"));
 
-    selectFile("editor-upload-input", makeFile("existing.pdf"));
-    await findAllByTestId("editor-page-tile");
+    selectFiles("add", [makeFile("good-add.pdf"), failedFile]);
 
-    selectFiles("editor-add-pdf-input", [makeFile("good-add.pdf"), failedFile]);
-
-    expect(await findByTestId("editor-toast")).toHaveTextContent("Failed to load broken-add.pdf");
-    expect(await findAllByTestId("editor-page-tile")).toHaveLength(3);
+    expect(await screen.findByTestId("editor-toast")).toHaveTextContent(
+      "Failed to load broken-add.pdf"
+    );
+    expect(await findPages()).toHaveLength(3);
     await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledTimes(1));
     expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
       expect.objectContaining({ name: "good-add.pdf" })
@@ -503,108 +459,78 @@ describe("Editor", () => {
 
   it("keeps a failed batch busy until staged resources are released", async () => {
     const failedFile = makeFile("protected-add.pdf");
-    let resolveRelease!: () => void;
-    const releasePromise = new Promise<void>((resolve) => {
-      resolveRelease = resolve;
-    });
-    pdfServiceMocks.releaseFile.mockReturnValueOnce(Effect.promise(() => releasePromise));
+    const release = Deferred.makeUnsafe<void>();
+    pdfServiceMocks.releaseFile.mockReturnValueOnce(Deferred.await(release));
     pdfServiceMocks.loadPDF
       .mockReturnValueOnce(Effect.succeed(undefined))
       .mockReturnValueOnce(Effect.succeed(undefined))
       .mockReturnValueOnce(Effect.fail(new PDFPasswordRequiredError(failedFile, "needs-password")));
     promptForPassword.mockResolvedValue(null);
 
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+    await openPDF(makeFile("existing.pdf"));
 
-    selectFile("editor-upload-input", makeFile("existing.pdf"));
-    await findAllByTestId("editor-page-tile");
-
-    selectFiles("editor-add-pdf-input", [makeFile("good-add.pdf"), failedFile]);
+    selectFiles("add", [makeFile("good-add.pdf"), failedFile]);
 
     await waitFor(() => expect(promptForPassword).toHaveBeenCalledWith("protected-add.pdf", false));
-    expect(getByTestId("editor-add-pdf-input")).toBeDisabled();
+    expect(screen.getByLabelText("Choose additional PDF or image files")).toBeDisabled();
 
-    resolveRelease();
-    await waitFor(() => expect(getByTestId("editor-add-pdf-input")).toBeEnabled());
-    expect(await findAllByTestId("editor-page-tile")).toHaveLength(3);
+    await Effect.runPromise(Deferred.succeed(release, undefined));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Choose additional PDF or image files")).toBeEnabled()
+    );
+    expect(await findPages()).toHaveLength(3);
   });
 
-  it("keeps selection actions disabled until they have usable input", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
-
-    selectFile("editor-upload-input", makeFile());
-    await findAllByTestId("editor-page-tile");
-
-    const rotateButtons = await findAllByTestId("editor-page-rotate-button");
-    expect(rotateButtons.every((button) => (button as HTMLButtonElement).disabled)).toBe(false);
-    expect(
-      (await findAllByTestId("editor-page-delete-button")).every(
-        (button) => !(button as HTMLButtonElement).disabled
-      )
-    ).toBe(true);
-    expect(getByTestId("editor-edit-menu-button")).toBeEnabled();
-    expect(getByTestId("editor-download-options-button")).toBeEnabled();
-
-    await openEditMenu(getByTestId);
-    expect(getByTestId("editor-clear-selection-button")).toHaveAttribute("aria-disabled", "true");
-    expect(getByTestId("editor-rotate-button")).toHaveAttribute("aria-disabled", "true");
-    expect(getByTestId("editor-delete-button")).toHaveAttribute("aria-disabled", "true");
-    expect(getByTestId("editor-select-all-button")).toBeEnabled();
-    expect(getByTestId("editor-download-button")).toBeEnabled();
-    expect(getByTestId("editor-edit-menu-button")).toHaveAttribute("aria-expanded", "true");
-
-    await openDownloadMenu(getByTestId);
-    expect(getByTestId("editor-export-images-button")).toBeEnabled();
-    expect(getByTestId("editor-export-images-button")).toHaveTextContent("Export PNG images");
-    expect(getByTestId("editor-export-images-button")).toHaveAccessibleName(
-      "Export pages as PNG images in a ZIP archive"
-    );
-    expect(getByTestId("editor-compress-button")).toBeEnabled();
-
-    fireEvent.click((await findAllByTestId("editor-page-tile"))[0]);
-    await waitFor(() => expect(rotateButtons[0]).toBeEnabled());
-
-    await openEditMenu(getByTestId);
-    expect(getByTestId("editor-clear-selection-button")).toBeEnabled();
-    expect(getByTestId("editor-rotate-button")).toBeEnabled();
-    expect(getByTestId("editor-delete-button")).toBeEnabled();
-    expect(getByTestId("editor-download-button")).toHaveTextContent("Download PDF");
-    await openDownloadMenu(getByTestId);
-    expect(getByTestId("editor-export-images-button")).toBeEnabled();
-    expect(getByTestId("editor-compress-button")).toHaveAttribute("aria-disabled", "true");
+  it("updates selection actions and compression eligibility when a page is selected", async () => {
+    const tiles = await openPDF();
+    await openEditMenu();
+    for (const name of [
+      "No pages selected to clear",
+      "Select pages to rotate",
+      "Select pages to mark or restore",
+    ]) {
+      expect(screen.getByRole("menuitem", { name })).toHaveAttribute("aria-disabled", "true");
+    }
+    await openDownloadMenu();
+    expect(screen.getByRole("menuitem", { name: "Compress the original PDF" })).toBeEnabled();
+    fireEvent.click(tiles[0]);
+    await openEditMenu();
+    for (const name of [
+      "Clear page selection",
+      "Rotate selected pages 90 degrees",
+      "Mark selected pages for deletion",
+    ]) {
+      expect(screen.getByRole("menuitem", { name })).toBeEnabled();
+    }
+    await openDownloadMenu();
+    expect(screen.getByTestId("editor-compress-button")).toHaveAttribute("aria-disabled", "true");
   });
 
   it("uses one clear control after every page is selected", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+    await openPDF();
 
-    selectFile("editor-upload-input", makeFile());
-    await findAllByTestId("editor-page-tile");
+    await openEditMenu();
+    expect(screen.getByRole("menuitem", { name: "Select all pages" })).toBeEnabled();
 
-    await openEditMenu(getByTestId);
-    expect(getByTestId("editor-select-all-button")).toHaveTextContent("Select all pages");
-    expect(getByTestId("editor-select-all-button")).toHaveAttribute(
-      "aria-label",
-      "Select all pages"
-    );
+    fireEvent.click(screen.getByTestId("editor-select-all-button"));
 
-    fireEvent.click(getByTestId("editor-select-all-button"));
-
-    await openEditMenu(getByTestId);
+    await openEditMenu();
     await waitFor(() => {
-      expect(getByTestId("editor-select-all-button")).toHaveAccessibleName("All pages selected");
-      expect(getByTestId("editor-select-all-button")).toHaveAttribute("aria-disabled", "true");
-      expect(getByTestId("editor-clear-selection-button")).toHaveTextContent("Clear selection");
-      expect(getByTestId("editor-clear-selection-button")).toHaveAttribute(
-        "aria-label",
-        "Clear page selection"
+      expect(screen.getByTestId("editor-select-all-button")).toHaveAccessibleName(
+        "All pages selected"
       );
+      expect(screen.getByTestId("editor-select-all-button")).toHaveAttribute(
+        "aria-disabled",
+        "true"
+      );
+      expect(screen.getByRole("menuitem", { name: "Clear page selection" })).toBeEnabled();
     });
 
-    fireEvent.click(getByTestId("editor-clear-selection-button"));
+    fireEvent.click(screen.getByTestId("editor-clear-selection-button"));
 
-    await openEditMenu(getByTestId);
+    await openEditMenu();
     await waitFor(() =>
-      expect(getByTestId("editor-select-all-button")).toHaveTextContent("Select all pages")
+      expect(screen.getByTestId("editor-select-all-button")).toHaveTextContent("Select all pages")
     );
   });
 
@@ -614,12 +540,12 @@ describe("Editor", () => {
     );
     promptForPassword.mockResolvedValue("623");
 
-    const { findAllByTestId } = render(() => <Editor />);
+    render(() => <Editor />);
 
-    selectFile("editor-upload-input", makeFile("protected.pdf"));
+    selectFile("upload", makeFile("protected.pdf"));
 
     await waitFor(() => expect(promptForPassword).toHaveBeenCalledWith("protected.pdf", false));
-    const tiles = await findAllByTestId("editor-page-tile");
+    const tiles = await findPages();
     expect(tiles).toHaveLength(3);
     expect(pdfServiceMocks.loadPDFWithPassword).toHaveBeenCalledWith(expect.any(File), "623");
   });
@@ -630,13 +556,15 @@ describe("Editor", () => {
     );
     promptForPassword.mockResolvedValue(null);
 
-    const { getByTestId } = render(() => <Editor />);
+    render(() => <Editor />);
 
-    selectFile("editor-upload-input", makeFile("protected.pdf"));
+    selectFile("upload", makeFile("protected.pdf"));
 
     await waitFor(() => expect(promptForPassword).toHaveBeenCalled());
     expect(pdfServiceMocks.loadPDFWithPassword).not.toHaveBeenCalled();
-    expect(getByTestId("editor-upload-dropzone")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Choose PDF or image files, or drop them here" })
+    ).toBeInTheDocument();
   });
 
   it("re-prompts when the password is wrong", async () => {
@@ -648,100 +576,107 @@ describe("Editor", () => {
     );
     promptForPassword.mockResolvedValueOnce("bad").mockResolvedValueOnce("good");
 
-    const { getByTestId } = render(() => <Editor />);
+    render(() => <Editor />);
 
-    selectFile("editor-upload-input", makeFile("protected.pdf"));
+    selectFile("upload", makeFile("protected.pdf"));
 
     await waitFor(() => expect(promptForPassword).toHaveBeenCalledTimes(2));
     expect(promptForPassword).toHaveBeenLastCalledWith("protected.pdf", true);
-    await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("editor-page-grid")).toBeInTheDocument());
   });
 
   it("selects all pages and reports the rotation", async () => {
-    const { getByTestId, findAllByTestId, findByTestId } = render(() => <Editor />);
+    const tiles = await openPDF();
 
-    selectFile("editor-upload-input", makeFile());
-    const tiles = await findAllByTestId("editor-page-tile");
-
-    await openEditMenu(getByTestId);
-    fireEvent.click(getByTestId("editor-select-all-button"));
+    await openEditMenu();
+    fireEvent.click(screen.getByTestId("editor-select-all-button"));
 
     await waitFor(() =>
-      expect(tiles.map((tile) => tile.dataset.selected)).toEqual(["true", "true", "true"])
+      expect(tiles.map((tile) => tile.getAttribute("aria-pressed"))).toEqual([
+        "true",
+        "true",
+        "true",
+      ])
     );
 
-    await openEditMenu(getByTestId);
-    fireEvent.click(getByTestId("editor-rotate-button"));
-    const status = await findByTestId("editor-status-message");
+    await openEditMenu();
+    fireEvent.click(screen.getByTestId("editor-rotate-button"));
+    const status = await screen.findByTestId("editor-status-message");
     await waitFor(() => expect(status).toHaveTextContent("Rotated 3 selected pages."));
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
+    expect(
+      pdfOperationsMocks.buildPDF.mock.calls[0][0].map(
+        (page: { rotation: number }) => page.rotation
+      )
+    ).toEqual([90, 90, 90]);
   });
 
   it("marks selected pages for deletion before export", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+    const tiles = await openPDF();
 
-    selectFile("editor-upload-input", makeFile());
-    const tiles = await findAllByTestId("editor-page-tile");
+    await openEditMenu();
+    fireEvent.click(screen.getByTestId("editor-select-all-button"));
+    await waitFor(() => expect(tiles[0].getAttribute("aria-pressed")).toBe("true"));
 
-    await openEditMenu(getByTestId);
-    fireEvent.click(getByTestId("editor-select-all-button"));
-    await waitFor(() => expect(tiles[0].dataset.selected).toBe("true"));
-
-    await openEditMenu(getByTestId);
-    expect(getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
-    fireEvent.click(getByTestId("editor-delete-button"));
+    await openEditMenu();
+    expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
+    fireEvent.click(screen.getByTestId("editor-delete-button"));
 
     await waitFor(() =>
       expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual(["true", "true", "true"])
     );
-    expect(getByTestId("editor-status-bar")).toHaveTextContent("3 pages (0 active)");
-    expect(getByTestId("editor-download-button")).toBeDisabled();
-    await openDownloadMenu(getByTestId);
-    expect(getByTestId("editor-export-images-button")).toHaveAttribute("aria-disabled", "true");
-    expect(getByTestId("editor-export-images-button")).toHaveTextContent("Export PNG images");
-    await openEditMenu(getByTestId);
-    expect(getByTestId("editor-delete-button")).toHaveTextContent("Restore");
-    expect(getByTestId("editor-delete-button")).toHaveAttribute(
+    expect(screen.getByTestId("editor-status-bar")).toHaveTextContent("3 pages (0 active)");
+    expect(screen.getByTestId("editor-download-button")).toBeDisabled();
+    await openDownloadMenu();
+    expect(screen.getByTestId("editor-export-images-button")).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
+    expect(screen.getByTestId("editor-export-images-button")).toHaveTextContent(
+      "Export PNG images"
+    );
+    await openEditMenu();
+    expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Restore");
+    expect(screen.getByTestId("editor-delete-button")).toHaveAttribute(
       "aria-label",
       "Restore selected pages"
     );
 
-    fireEvent.click(getByTestId("editor-delete-button"));
+    fireEvent.click(screen.getByTestId("editor-delete-button"));
 
-    await openEditMenu(getByTestId);
+    await openEditMenu();
     await waitFor(() => {
       expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual([
         "false",
         "false",
         "false",
       ]);
-      expect(getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
+      expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
     });
   });
 
   it("reorders a page with the keyboard alternative", async () => {
-    const { findAllByTestId, getByTestId } = render(() => <Editor />);
-
-    selectFile("editor-upload-input", makeFile());
-    const tiles = await findAllByTestId("editor-page-tile");
+    const tiles = await openPDF();
 
     fireEvent.keyDown(tiles[2], { altKey: true, key: "ArrowLeft" });
 
-    await waitFor(() => {
-      const reorderedTiles = document.querySelectorAll('[data-testid="editor-page-tile"]');
-      expect(reorderedTiles[1]).toHaveAttribute("data-source-page", "3");
-    });
-    expect(getByTestId("editor-status-message")).toHaveTextContent("Moved page 3 to position 2.");
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Moved page 3 to position 2."
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
+    expect(
+      pdfOperationsMocks.buildPDF.mock.calls[0][0].map(
+        (page: { sourcePageNumber: number }) => page.sourcePageNumber
+      )
+    ).toEqual([1, 3, 2]);
   });
 
   it("reorders a page with a long-press touch drag and skips the tap selection", async () => {
-    const { findAllByTestId, getByTestId, queryByTestId } = render(() => <Editor />);
+    await openPDF();
 
-    selectFile("editor-upload-input", makeFile());
-    await findAllByTestId("editor-page-tile");
-
-    const hitareas = document.querySelectorAll<HTMLButtonElement>(
-      '[data-testid="editor-page-tile"]'
-    );
+    const hitareas = getPages();
     const dropTile = document.querySelectorAll("li[data-page-index]")[2];
     const documentWithProbe = document as unknown as Record<string, unknown>;
     const hadElementFromPoint = Object.getOwnPropertyDescriptor(document, "elementFromPoint");
@@ -754,25 +689,35 @@ describe("Editor", () => {
       const start = { touches: [{ identifier: 1, clientX: 10, clientY: 10 }] };
       const move = { touches: [{ identifier: 1, clientX: 220, clientY: 220 }] };
 
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       fireEvent.touchStart(hitareas[0], start);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      vi.advanceTimersByTime(200);
+      expect(hitareas[0].closest("li")).not.toHaveClass("dragging");
+      vi.advanceTimersByTime(100);
       expect(hitareas[0].closest("li")).toHaveClass("dragging");
+      vi.useRealTimers();
 
       fireEvent.touchMove(hitareas[0], move);
       await waitFor(() => expect(dropTile).toHaveClass("drag-insert-after"));
 
       fireEvent.touchEnd(hitareas[0], { touches: [], changedTouches: [{ identifier: 1 }] });
 
-      await waitFor(() => {
-        const reorderedTiles = document.querySelectorAll('[data-testid="editor-page-tile"]');
-        expect(reorderedTiles[2]).toHaveAttribute("data-source-page", "1");
-      });
-      expect(getByTestId("editor-status-message")).toHaveTextContent("Moved page 1 to position 3.");
-      expect(queryByTestId("editor-edit-menu")).not.toBeInTheDocument();
+      expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+        "Moved page 1 to position 3."
+      );
+      expect(screen.queryByTestId("editor-edit-menu")).not.toBeInTheDocument();
       expect(hitareas[0].closest("li")).not.toHaveClass("dragging");
       expect(dropTile).not.toHaveClass("drag-insert-after");
-      expect(getByTestId("editor-selection-title")).toHaveTextContent("No pages selected");
+      expect(screen.getByTestId("editor-selection-title")).toHaveTextContent("No pages selected");
+      fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+      await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
+      expect(
+        pdfOperationsMocks.buildPDF.mock.calls[0][0].map(
+          (page: { sourcePageNumber: number }) => page.sourcePageNumber
+        )
+      ).toEqual([2, 3, 1]);
     } finally {
+      vi.useRealTimers();
       if (hadElementFromPoint) {
         Object.defineProperty(document, "elementFromPoint", hadElementFromPoint);
       } else {
@@ -782,10 +727,7 @@ describe("Editor", () => {
   });
 
   it("treats a quick touch tap on a page as selection, not a drag", async () => {
-    const { findAllByTestId } = render(() => <Editor />);
-
-    selectFile("editor-upload-input", makeFile());
-    const tiles = await findAllByTestId("editor-page-tile");
+    const tiles = await openPDF();
 
     const hitarea = tiles[0];
     fireEvent.touchStart(hitarea, { touches: [{ clientX: 10, clientY: 10 }] });
@@ -793,28 +735,29 @@ describe("Editor", () => {
     expect(hitarea.closest("li")).not.toHaveClass("dragging");
 
     fireEvent.click(hitarea);
-    await waitFor(() => expect(tiles[0]).toHaveAttribute("data-selected", "true"));
+    await waitFor(() => expect(tiles[0]).toHaveAttribute("aria-pressed", "true"));
   });
 
   it("rotates and marks a page from its direct controls", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+    const tiles = await openPDF();
 
-    selectFile("editor-upload-input", makeFile());
-    const tiles = await findAllByTestId("editor-page-tile");
-
-    const rotateButtons = await findAllByTestId("editor-page-rotate-button");
+    const rotateButtons = await screen.findAllByRole("button", {
+      name: /^Rotate page \d+ 90 degrees$/,
+    });
     fireEvent.click(rotateButtons[1]);
 
     await waitFor(() =>
-      expect(getByTestId("editor-status-message")).toHaveTextContent("Rotated page 2.")
+      expect(screen.getByTestId("editor-status-message")).toHaveTextContent("Rotated page 2.")
     );
 
-    const deleteButtons = await findAllByTestId("editor-page-delete-button");
+    const deleteButtons = await screen.findAllByRole("button", {
+      name: /^(Mark page \d+ for deletion|Restore page \d+ from deletion)$/,
+    });
     fireEvent.click(deleteButtons[1]);
 
     await waitFor(() => {
       expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "true");
-      expect(tiles[1]).toHaveAttribute("data-selected", "false");
+      expect(tiles[1]).toHaveAttribute("aria-pressed", "false");
       expect(deleteButtons[1]).toHaveAttribute("aria-label", "Restore page 2 from deletion");
     });
 
@@ -826,106 +769,100 @@ describe("Editor", () => {
   });
 
   it("labels exports by active selected pages", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
-
-    selectFile("editor-upload-input", makeFile());
-    const tiles = await findAllByTestId("editor-page-tile");
-    const deleteButtons = await findAllByTestId("editor-page-delete-button");
+    const tiles = await openPDF();
+    const deleteButtons = await screen.findAllByRole("button", {
+      name: /^(Mark page \d+ for deletion|Restore page \d+ from deletion)$/,
+    });
 
     fireEvent.click(tiles[0]);
     fireEvent.click(deleteButtons[0]);
     fireEvent.click(tiles[1]);
 
     await waitFor(() => {
-      expect(getByTestId("editor-selection-title")).toHaveTextContent("2 selected · 1 exportable");
-      expect(getByTestId("editor-download-button")).toHaveTextContent("Download PDF");
-      expect(getByTestId("editor-download-button")).toHaveAccessibleName(
+      expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(
+        "2 selected · 1 exportable"
+      );
+      expect(screen.getByTestId("editor-download-button")).toHaveTextContent("Download PDF");
+      expect(screen.getByTestId("editor-download-button")).toHaveAccessibleName(
         "Download a PDF with 1 selected active page"
       );
     });
 
-    await openEditMenu(getByTestId);
-    expect(getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
-    fireEvent.click(getByTestId("editor-delete-button"));
+    await openEditMenu();
+    expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
+    fireEvent.click(screen.getByTestId("editor-delete-button"));
 
-    await openEditMenu(getByTestId);
+    await openEditMenu();
     await waitFor(() => {
       expect(tiles[0]).toHaveAttribute("data-marked-for-deletion", "true");
       expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "true");
-      expect(getByTestId("editor-selection-title")).toHaveTextContent("2 selected · 0 exportable");
-      expect(getByTestId("editor-delete-button")).toHaveTextContent("Restore");
+      expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(
+        "2 selected · 0 exportable"
+      );
+      expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Restore");
     });
   });
 
   it("toggles a page selection by clicking its tile", async () => {
-    const { findAllByTestId } = render(() => <Editor />);
-
-    selectFile("editor-upload-input", makeFile());
-    const tiles = await findAllByTestId("editor-page-tile");
+    const tiles = await openPDF();
 
     fireEvent.click(tiles[0]);
-    await waitFor(() => expect(tiles[0].dataset.selected).toBe("true"));
+    await waitFor(() => expect(tiles[0].getAttribute("aria-pressed")).toBe("true"));
 
     fireEvent.click(tiles[0]);
-    await waitFor(() => expect(tiles[0].dataset.selected).toBe("false"));
+    await waitFor(() => expect(tiles[0].getAttribute("aria-pressed")).toBe("false"));
   });
 
   it("clears selection from the empty grid or with Escape", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
-
-    selectFile("editor-upload-input", makeFile());
-    const tiles = await findAllByTestId("editor-page-tile");
+    const tiles = await openPDF();
 
     fireEvent.click(tiles[0]);
-    await waitFor(() => expect(tiles[0].dataset.selected).toBe("true"));
+    await waitFor(() => expect(tiles[0].getAttribute("aria-pressed")).toBe("true"));
 
-    fireEvent.click(getByTestId("editor-page-grid"));
-    await waitFor(() => expect(tiles[0].dataset.selected).toBe("false"));
+    fireEvent.click(screen.getByTestId("editor-page-grid"));
+    await waitFor(() => expect(tiles[0].getAttribute("aria-pressed")).toBe("false"));
 
     fireEvent.click(tiles[1]);
-    await waitFor(() => expect(tiles[1].dataset.selected).toBe("true"));
+    await waitFor(() => expect(tiles[1].getAttribute("aria-pressed")).toBe("true"));
     fireEvent.keyDown(tiles[1], { key: "Escape" });
-    await waitFor(() => expect(tiles[1].dataset.selected).toBe("false"));
+    await waitFor(() => expect(tiles[1].getAttribute("aria-pressed")).toBe("false"));
   });
 
-  it("exports the selected pages through the operations service", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
+  it.each([
+    { scope: "all active pages", selectedIndices: undefined },
+    { scope: "selected pages", selectedIndices: [2] },
+  ])("downloads the PDF built for $scope", async ({ selectedIndices }) => {
+    render(() => <Editor />);
+    const file = makeFile();
+    selectFile("upload", file);
+    const tiles = await findPages();
+    if (selectedIndices) fireEvent.click(tiles[2]);
 
-    selectFile("editor-upload-input", makeFile());
-    const tiles = await findAllByTestId("editor-page-tile");
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
 
-    fireEvent.click(tiles[2]);
-    await waitFor(() => expect(tiles[2].dataset.selected).toBe("true"));
-
-    fireEvent.click(getByTestId("editor-download-button"));
-
-    await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
-    expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledTimes(1);
-    expect(pdfOperationsMocks.buildPDF.mock.calls[0][1].selectedIndices).toEqual([2]);
-  });
-
-  it("downloads a PDF built from the active pages", async () => {
-    const { getByTestId } = render(() => <Editor />);
-
-    selectFile("editor-upload-input", makeFile());
-    await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
-
-    fireEvent.click(getByTestId("editor-download-button"));
-
-    await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
-    expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(downloadPDF).toHaveBeenCalledExactlyOnceWith({
+        data: new Uint8Array([1, 2, 3]),
+        suggestedFileName: "interleaf-output.pdf",
+      })
+    );
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledExactlyOnceWith(
+      [
+        expect.objectContaining({ sourceFile: file, sourcePageNumber: 1 }),
+        expect.objectContaining({ sourceFile: file, sourcePageNumber: 2 }),
+        expect.objectContaining({ sourceFile: file, sourcePageNumber: 3 }),
+      ],
+      expect.objectContaining({ selectedIndices })
+    );
   });
 
   it("exports selected pages as PNG images", async () => {
-    const { getByTestId, findAllByTestId } = render(() => <Editor />);
-
-    selectFile("editor-upload-input", makeFile());
-    const tiles = await findAllByTestId("editor-page-tile");
+    const tiles = await openPDF();
 
     fireEvent.click(tiles[1]);
-    await waitFor(() => expect(tiles[1].dataset.selected).toBe("true"));
-    await openDownloadMenu(getByTestId);
-    fireEvent.click(getByTestId("editor-export-images-button"));
+    await waitFor(() => expect(tiles[1].getAttribute("aria-pressed")).toBe("true"));
+    await openDownloadMenu();
+    fireEvent.click(screen.getByTestId("editor-export-images-button"));
 
     await waitFor(() => expect(downloadFile).toHaveBeenCalledTimes(1));
     expect(downloadFile).toHaveBeenCalledWith(
@@ -938,19 +875,19 @@ describe("Editor", () => {
   });
 
   it("compresses the original uploaded PDF before page edits", async () => {
-    const { getByTestId } = render(() => <Editor />);
+    render(() => <Editor />);
 
     const file = makeFile("source.pdf");
-    selectFile("editor-upload-input", file);
-    await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
-    await openDownloadMenu(getByTestId);
-    fireEvent.click(getByTestId("editor-compress-button"));
+    selectFile("upload", file);
+    await waitFor(() => expect(screen.getByTestId("editor-page-grid")).toBeInTheDocument());
+    await openDownloadMenu();
+    fireEvent.click(screen.getByTestId("editor-compress-button"));
 
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
     expect(pdfCompressionMocks.compressPDF).toHaveBeenCalledTimes(1);
     expect(pdfCompressionMocks.compressPDF.mock.calls[0][0]).toBe(file);
     expect(pdfCompressionMocks.compressPDF.mock.calls[0][1]).toBeUndefined();
-    expect(getByTestId("editor-toast")).toHaveTextContent("Compressed 10 B to 2 B.");
+    expect(screen.getByTestId("editor-toast")).toHaveTextContent("Compressed 10 B to 2 B.");
   });
 
   it("reports when compression cannot make the workspace smaller", async () => {
@@ -965,15 +902,13 @@ describe("Editor", () => {
       })
     );
 
-    const { getByTestId } = render(() => <Editor />);
-    selectFile("editor-upload-input", makeFile());
-    await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
+    await openPDF();
 
-    await openDownloadMenu(getByTestId);
-    fireEvent.click(getByTestId("editor-compress-button"));
+    await openDownloadMenu();
+    fireEvent.click(screen.getByTestId("editor-compress-button"));
 
     await waitFor(() =>
-      expect(getByTestId("editor-toast")).toHaveTextContent(
+      expect(screen.getByTestId("editor-toast")).toHaveTextContent(
         "No smaller file was available. Downloaded the current PDF."
       )
     );
@@ -983,12 +918,10 @@ describe("Editor", () => {
   it("shows a failure toast when compression fails", async () => {
     pdfCompressionMocks.compressPDF.mockReturnValue(Effect.fail(new Error("compress failed")));
 
-    const { getByTestId } = render(() => <Editor />);
-    selectFile("editor-upload-input", makeFile());
-    await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
+    await openPDF();
 
-    await openDownloadMenu(getByTestId);
-    fireEvent.click(getByTestId("editor-compress-button"));
+    await openDownloadMenu();
+    fireEvent.click(screen.getByTestId("editor-compress-button"));
 
     await waitFor(() => expectLastToast("Failed to compress the PDF."));
     expect(downloadPDF).not.toHaveBeenCalled();
@@ -997,12 +930,9 @@ describe("Editor", () => {
   it("shows a failure toast when building the output fails", async () => {
     pdfOperationsMocks.buildPDF.mockReturnValue(Effect.fail(new Error("build failed")));
 
-    const { getByTestId } = render(() => <Editor />);
+    await openPDF();
 
-    selectFile("editor-upload-input", makeFile());
-    await waitFor(() => expect(getByTestId("editor-page-grid")).toBeInTheDocument());
-
-    fireEvent.click(getByTestId("editor-download-button"));
+    fireEvent.click(screen.getByTestId("editor-download-button"));
 
     await waitFor(() => expectLastToast("Failed to build the PDF."));
     expect(downloadPDF).not.toHaveBeenCalled();

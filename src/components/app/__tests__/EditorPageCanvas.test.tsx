@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@solidjs/testing-library";
+import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { THUMBNAIL_SCALE } from "@/constants";
@@ -11,10 +11,6 @@ const pdfServiceMocks = vi.hoisted(() => ({
   reset: vi.fn(),
 }));
 
-const pdfOperationsMocks = vi.hoisted(() => ({
-  clearCache: vi.fn(),
-}));
-
 vi.mock("@/services/pdf-service", () => ({
   PDFService: class {
     getPageRotation = pdfServiceMocks.getPageRotation;
@@ -23,19 +19,18 @@ vi.mock("@/services/pdf-service", () => ({
     dispose = () => Effect.void;
   },
 }));
-vi.mock("@/services/pdf-operations-service", () => ({
-  PDFOperationsService: class {
-    clearCache = pdfOperationsMocks.clearCache;
-  },
-}));
 
 import EditorPageCanvas from "../EditorPageCanvas";
 
 class TestIntersectionObserver {
   static instances: TestIntersectionObserver[] = [];
 
+  static intersect(isIntersecting = true) {
+    for (const observer of TestIntersectionObserver.instances) observer.trigger(isIntersecting);
+  }
+
   private readonly callback: IntersectionObserverCallback;
-  private target!: Element;
+  private target: Element | undefined;
 
   constructor(callback: IntersectionObserverCallback) {
     this.callback = callback;
@@ -46,9 +41,12 @@ class TestIntersectionObserver {
     this.target = target;
   });
 
-  disconnect = vi.fn();
+  disconnect() {
+    this.target = undefined;
+  }
 
   trigger(isIntersecting = true) {
+    if (!this.target) return;
     this.callback(
       [{ isIntersecting, target: this.target } as IntersectionObserverEntry],
       this as unknown as IntersectionObserver
@@ -68,11 +66,10 @@ describe("EditorPageCanvas", () => {
   let runtime: PDFRuntime;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(0));
     pdfServiceMocks.renderPage.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.reset.mockReturnValue(Effect.succeed(undefined));
-    pdfOperationsMocks.clearCache.mockReturnValue(Effect.succeed(undefined));
     runtime = makePDFRuntime();
     TestIntersectionObserver.instances = [];
     vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
@@ -95,33 +92,29 @@ describe("EditorPageCanvas", () => {
       );
 
     const scrollRoot = document.createElement("div");
-    const { getByTestId, queryByTestId } = render(() => (
+    const { getByTestId } = render(() => (
       <EditorPageCanvas page={makePage()} rotation={90} scrollRoot={scrollRoot} runtime={runtime} />
     ));
 
     expect(pdfServiceMocks.renderPage).not.toHaveBeenCalled();
-    expect(TestIntersectionObserver.instances).toHaveLength(1);
-
-    TestIntersectionObserver.instances[0].trigger();
+    TestIntersectionObserver.intersect(false);
+    expect(pdfServiceMocks.renderPage).not.toHaveBeenCalled();
+    TestIntersectionObserver.intersect();
 
     const canvasFrame = getByTestId("editor-page-canvas");
     await waitFor(() => expect(canvasFrame).toHaveAttribute("data-render-state", "error"));
 
-    expect(getByTestId("editor-page-canvas-error")).toHaveTextContent("Preview unavailable.");
-    expect(getByTestId("editor-page-canvas-error")).toHaveAttribute("role", "status");
-    expect(getByTestId("editor-page-canvas-error")).toHaveAttribute("aria-live", "polite");
-    expect(getByTestId("editor-page-canvas-retry")).toHaveAccessibleName("Retry page preview");
+    expect(screen.getByRole("status")).toHaveTextContent("Preview unavailable.");
+    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
     expect(canvasFrame).toHaveStyle({ "--frame-ratio": "0.75", "--page-rotation": "90deg" });
 
-    fireEvent.click(getByTestId("editor-page-canvas-retry"));
+    fireEvent.click(screen.getByRole("button", { name: "Retry page preview" }));
 
-    await waitFor(() => expect(TestIntersectionObserver.instances).toHaveLength(2));
     expect(canvasFrame).toHaveAttribute("data-render-state", "loading");
-
-    TestIntersectionObserver.instances[1].trigger();
+    TestIntersectionObserver.intersect();
 
     await waitFor(() => expect(canvasFrame).toHaveAttribute("data-render-state", "ready"));
-    expect(queryByTestId("editor-page-canvas-error")).not.toBeInTheDocument();
+    expect(screen.queryByText("Preview unavailable.")).not.toBeInTheDocument();
     expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2);
     expect(pdfServiceMocks.renderPage).toHaveBeenNthCalledWith(
       1,
@@ -149,11 +142,11 @@ describe("EditorPageCanvas", () => {
     ));
 
     await runtime.dispose();
-    TestIntersectionObserver.instances[0].trigger();
+    TestIntersectionObserver.intersect();
 
     const canvasFrame = getByTestId("editor-page-canvas");
     await waitFor(() => expect(canvasFrame).toHaveAttribute("data-render-state", "error"));
-    expect(getByTestId("editor-page-canvas-error")).toHaveTextContent("Preview unavailable.");
+    expect(screen.getByRole("status")).toHaveTextContent("Preview unavailable.");
     expect(pdfServiceMocks.renderPage).not.toHaveBeenCalled();
   });
 });
