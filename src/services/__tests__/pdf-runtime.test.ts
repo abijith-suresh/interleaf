@@ -1,4 +1,4 @@
-import { Effect, Exit, Fiber } from "effect";
+import { Deferred, Effect, Exit, Fiber } from "effect";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { PDFProcessingError } from "../../types/interfaces";
 
@@ -116,11 +116,11 @@ it("returns the active page count after loading a PDF", async () => {
 });
 
 it("interrupts runtime-owned work before disposing services", async () => {
-  const started = Promise.withResolvers<void>();
+  const started = Deferred.makeUnsafe<void>();
   let interrupted = false;
   const fiber = runtime.runFork(
     PDFProcessing.use(() =>
-      Effect.sync(started.resolve).pipe(
+      Deferred.succeed(started, undefined).pipe(
         Effect.andThen(Effect.never),
         Effect.onInterrupt(() =>
           Effect.sync(() => {
@@ -136,7 +136,7 @@ it("interrupts runtime-owned work before disposing services", async () => {
     })
   );
 
-  await started.promise;
+  await Effect.runPromise(Deferred.await(started));
   await runtime.dispose();
 
   expect(Exit.isFailure(await Effect.runPromise(Fiber.await(fiber)))).toBe(true);
@@ -180,9 +180,9 @@ it("releases a file from each initialized service even when PDF.js cleanup fails
 });
 
 it("shares lazy editing support across concurrent exports without serializing them", async () => {
-  const release = Promise.withResolvers<void>();
+  const release = Deferred.makeUnsafe<void>();
   operationsServiceMock.buildPDF.mockReturnValue(
-    Effect.promise(() => release.promise).pipe(
+    Deferred.await(release).pipe(
       Effect.as({ data: new Uint8Array(), suggestedFileName: "document.pdf" })
     )
   );
@@ -195,7 +195,7 @@ it("shares lazy editing support across concurrent exports without serializing th
     await vi.waitFor(() => expect(operationsServiceMock.buildPDF).toHaveBeenCalledTimes(2));
     expect(PDFOperationsService).toHaveBeenCalledTimes(1);
   } finally {
-    release.resolve();
+    await Effect.runPromise(Deferred.succeed(release, undefined));
     await builds;
   }
 });

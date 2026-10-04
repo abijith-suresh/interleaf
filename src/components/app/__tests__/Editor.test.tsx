@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
-import { Effect } from "effect";
+import { Deferred, Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PDFPasswordRequiredError, PDFProcessingError } from "@/types/interfaces";
 
@@ -459,8 +459,8 @@ describe("Editor", () => {
 
   it("keeps a failed batch busy until staged resources are released", async () => {
     const failedFile = makeFile("protected-add.pdf");
-    const release = Promise.withResolvers<void>();
-    pdfServiceMocks.releaseFile.mockReturnValueOnce(Effect.promise(() => release.promise));
+    const release = Deferred.makeUnsafe<void>();
+    pdfServiceMocks.releaseFile.mockReturnValueOnce(Deferred.await(release));
     pdfServiceMocks.loadPDF
       .mockReturnValueOnce(Effect.succeed(undefined))
       .mockReturnValueOnce(Effect.succeed(undefined))
@@ -474,7 +474,7 @@ describe("Editor", () => {
     await waitFor(() => expect(promptForPassword).toHaveBeenCalledWith("protected-add.pdf", false));
     expect(screen.getByLabelText("Choose additional PDF or image files")).toBeDisabled();
 
-    release.resolve();
+    await Effect.runPromise(Deferred.succeed(release, undefined));
     await waitFor(() =>
       expect(screen.getByLabelText("Choose additional PDF or image files")).toBeEnabled()
     );
