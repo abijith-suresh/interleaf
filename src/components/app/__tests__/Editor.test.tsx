@@ -314,7 +314,7 @@ describe("Editor", () => {
   it("opens the file drawer and selects pages from one source file", async () => {
     await openPDF(makeFile("brief.pdf"));
     expect(screen.getByTestId("editor-files-button")).toBeEnabled();
-    expect(screen.getByTestId("editor-files-button")).toHaveAttribute("aria-label", "Open 1 file");
+    expect(screen.getByTestId("editor-files-button")).toHaveAttribute("aria-label", "View 1 file");
     fireEvent.click(screen.getByTestId("editor-files-button"));
     await waitFor(() => expect(screen.getByTestId("editor-files-dialog")).toHaveAttribute("open"));
     expect(await screen.findAllByTestId("editor-file-item")).toHaveLength(1);
@@ -374,7 +374,7 @@ describe("Editor", () => {
       await waitFor(() => expect(getPages()).toHaveLength(6));
       fireEvent.click(getPages()[selectedIndex]);
 
-      fireEvent.click(screen.getByRole("button", { name: "Open 2 files" }));
+      fireEvent.click(screen.getByRole("button", { name: "View 2 files" }));
       fireEvent.click(
         await screen.findByRole("button", {
           name: "Remove brief.pdf and its 3 pages from the workspace",
@@ -395,7 +395,7 @@ describe("Editor", () => {
         remaining,
       ]);
       expect(options.selectedIndices).toEqual(selectedIndices);
-      expect(screen.getByRole("button", { name: "Open 1 file" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "View 1 file" })).toBeEnabled();
     }
   );
 
@@ -673,7 +673,7 @@ describe("Editor", () => {
     await waitFor(() =>
       expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual(["true", "true", "true"])
     );
-    expect(screen.getByTestId("editor-status-bar")).toHaveTextContent("3 pages (0 active)");
+    expect(screen.getByTestId("editor-status-bar")).toHaveTextContent("0 of 3 pages exportable.");
     expect(screen.getByTestId("editor-download-button")).toBeDisabled();
     await openDownloadMenu();
     expect(screen.getByTestId("editor-export-images-button")).toHaveAttribute(
@@ -835,7 +835,7 @@ describe("Editor", () => {
       );
       expect(screen.getByTestId("editor-download-button")).toHaveTextContent("Download PDF");
       expect(screen.getByTestId("editor-download-button")).toHaveAccessibleName(
-        "Download a PDF with 1 selected active page"
+        "Download a PDF with 1 exportable page"
       );
     });
 
@@ -880,7 +880,7 @@ describe("Editor", () => {
   });
 
   it.each([
-    { scope: "all active pages", selectedIndices: undefined },
+    { scope: "all exportable pages", selectedIndices: undefined },
     { scope: "selected pages", selectedIndices: [2] },
   ])("downloads the PDF built for $scope", async ({ selectedIndices }) => {
     render(() => <Editor />);
@@ -960,7 +960,7 @@ describe("Editor", () => {
 
     await waitFor(() =>
       expect(screen.getByTestId("editor-toast")).toHaveTextContent(
-        "No smaller file was available. Downloaded the current PDF."
+        "No smaller file was available. The original PDF was exported."
       )
     );
     expect(downloadPDF).toHaveBeenCalledTimes(1);
@@ -985,7 +985,7 @@ describe("Editor", () => {
 
     fireEvent.click(screen.getByTestId("editor-download-button"));
 
-    await waitFor(() => expectLastToast("Failed to build the PDF."));
+    await waitFor(() => expectLastToast("Failed to export the PDF."));
     expect(downloadPDF).not.toHaveBeenCalled();
   });
 });

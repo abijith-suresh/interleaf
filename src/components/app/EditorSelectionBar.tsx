@@ -43,28 +43,28 @@ export default function EditorSelectionBar(props: Props) {
     if (props.busy) return props.busyLabel;
     if (props.selectedActiveCount === 0) {
       return hasSelection()
-        ? "Restore pages before downloading a PDF"
-        : "No active pages to download as a PDF";
+        ? "Restore marked pages to download a PDF"
+        : "No exportable pages to download";
     }
     return hasSelection()
-      ? `Download a PDF with ${props.selectedActiveCount} selected active page${
+      ? `Download a PDF with ${props.selectedActiveCount} exportable page${
           props.selectedActiveCount === 1 ? "" : "s"
         }`
-      : "Download a PDF with all active pages";
+      : "Download a PDF with all exportable pages";
   };
   const imageExportDisabled = () => props.busy || props.selectedActiveCount === 0;
   const imageExportAriaLabel = () => {
     if (props.busy) return props.busyLabel;
     if (props.selectedActiveCount === 0) {
       return hasSelection()
-        ? "Restore pages before exporting images"
-        : "No active pages to export as images";
+        ? "Restore marked pages to export images"
+        : "No exportable pages to export as images";
     }
     return "Export pages as PNG images in a ZIP archive";
   };
   const imageExportReason = () => {
     if (props.busy || props.selectedActiveCount > 0) return "";
-    return hasSelection() ? "Restore pages first" : "No active pages";
+    return hasSelection() ? "Restore marked pages first" : "No exportable pages";
   };
   const selectAllLabel = () => (props.allPagesSelected ? "All pages selected" : "Select all pages");
   const clearSelectionLabel = () =>

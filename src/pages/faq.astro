@@ -8,7 +8,7 @@ const questions = [
   },
   {
     q: "Is my data private?",
-    a: "Yes. Your files never leave your device. There are no uploads, server-side processing, or data collection. You can verify this in your browser's developer tools by inspecting the network tab.",
+    a: "Yes. Your files never leave your device. There are no uploads, server-side processing, or data collection. You can verify this in your browser's network inspector.",
   },
   {
     q: "Which browsers are supported?",
@@ -16,7 +16,7 @@ const questions = [
   },
   {
     q: "Is there a file size limit?",
-    a: "There is no universal file size limit, but operations run in your browser's available memory. Very large files, and image exports that create very large archives, may be slower or stop depending on your device.",
+    a: "There is no fixed file size limit. Operations run in your browser's available memory, so very large files can be slower or fail, depending on your device.",
   },
   {
     q: "Is Interleaf free to use?",
@@ -28,11 +28,11 @@ const questions = [
   },
   {
     q: "Does Interleaf work offline?",
-    a: "Once the page is loaded, most operations work without an internet connection. You need to be online to load the application initially.",
+    a: "After the page loads, most operations work without an internet connection. Loading the editor needs a connection the first time.",
   },
   {
     q: "What PDF operations are supported?",
-    a: "Interleaf currently supports opening PDFs and PNG or JPEG images together, adding more files, reviewing, extracting selected pages, reordering, rotating, marking pages for deletion, exporting selected or active pages as PNG images, unlocking password-protected PDFs, and losslessly compressing an untouched, single uploaded PDF. All operations run in your browser.",
+    a: "Interleaf opens PDFs and PNG or JPEG images together, converts images to PDF pages, reviews pages one at a time, reorders and rotates pages, marks pages for deletion, extracts selected pages into a new PDF, exports pages as PNG images, unlocks password-protected PDFs, and compresses one untouched PDF. All operations run in your browser.",
   },
 ];
 ---

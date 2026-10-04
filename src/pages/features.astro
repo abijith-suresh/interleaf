@@ -7,50 +7,52 @@ const base = import.meta.env.BASE_URL;
 
 const capabilities = [
   {
-    title: "Get a document together",
+    title: "Bring a document together",
     description:
-      "Open PDFs and PNG or JPEG images together, add more files later, or pull selected pages into a separate file.",
+      "Open PDFs and PNG or JPEG images in the same workspace. Add more files later, or extract selected pages into a separate PDF.",
   },
   {
     title: "Shape the pages",
     description:
-      "Arrange pages by dragging, turn them in 90° steps, and mark the ones you no longer need before export.",
+      "Reorder pages with drag and drop, rotate them in 90-degree steps, and mark the ones you no longer need.",
   },
   {
-    title: "Review the document",
+    title: "Review every page",
     description:
-      "Inspect pages one at a time with previous/next navigation and a compact filmstrip.",
+      "Move through pages one at a time with previous and next controls, or jump straight to a page from the filmstrip.",
   },
   {
     title: "Open protected files",
-    description: "Use an in-browser password prompt to unlock a protected PDF and keep working.",
+    description:
+      "An in-browser prompt asks for the password. Enter it to unlock a protected PDF and keep working.",
   },
   {
     title: "Reduce a PDF",
-    description: "Losslessly compress an untouched, single uploaded PDF in your browser.",
+    description:
+      "Losslessly compress one untouched PDF in your browser. Compression is available before page edits.",
   },
   {
     title: "Take pages with you",
-    description: "Export selected or active pages as PNG images in a local ZIP archive.",
+    description:
+      "Export selected pages, or every page not marked for deletion, as PNG images in a ZIP archive.",
   },
 ];
 ---
 
 <MarketingLayout
   title="Features — Interleaf"
-  description="A local workspace for opening PDFs and images together, arranging their pages, exporting images, opening protected documents, and compressing PDFs."
+  description="What Interleaf does in your browser: bring PDFs and images together, shape their pages, and export the result."
   currentPage="features"
 >
   <MarketingHero titleId="features-title">
     <h1 slot="primary" id="features-title" class="marketing-hero-title">
-      Make the<br /><span>document ready.</span>
+      Everything<br /><span>before the export.</span>
     </h1>
 
     <div slot="secondary" class="hero-copy">
       <p>
-        Interleaf is a local workspace for the work that happens before a PDF is ready to share.
-        Start with PNG/JPEG images or PDFs, add files as you work, shape their pages, export images, open protected documents, and
-        compress PDFs in the browser.
+        Interleaf is a local workspace that runs entirely in your browser. The list below is the
+        full current scope.
       </p>
       <a class="marketing-hero-action" href={`${base}app`}>
         Open editor <span aria-hidden="true"><ArrowIcon /></span>
@@ -62,7 +64,7 @@ const capabilities = [
     <div class="marketing-container">
       <div class="section-intro">
         <p class="section-index">The work in between</p>
-        <h2 id="capability-title">A few careful steps before the file goes out.</h2>
+        <h2 id="capability-title">What you can do today.</h2>
       </div>
 
       <div class="capability-list">
@@ -82,7 +84,7 @@ const capabilities = [
   <section class="local-note marketing-container" aria-label="Local processing">
     <span class="local-note-marker" aria-hidden="true"></span>
     <p>
-      <strong>Your files stay with you.</strong> Interleaf processes documents in your browser.
+      <strong>Your files never leave your device.</strong> Interleaf runs entirely in your browser.
       Nothing is uploaded.
     </p>
   </section>

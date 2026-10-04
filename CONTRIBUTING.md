@@ -103,6 +103,42 @@ Cover services, controllers, utilities, and editor components. Use Vitest with t
 - Use existing utility classes and CSS custom properties.
 - Follow the Swiss-industrial aesthetic: minimal, typographic, high contrast.
 
+## Copy And Voice
+
+All user-facing copy — marketing pages, editor strings, statuses, toasts, social previews — follows one written standard. It adapts rules from ASD-STE100 Simplified Technical English to product copy, with mainstream web UX writing guidance (NN/g, Microsoft, and Mailchimp house styles): short declarative sentences, active voice, present tense, second person, concrete verbs, and exactly one canonical phrasing per concept.
+
+### Mechanics
+
+- Use sentence case for headings, buttons, links, and page titles. Page titles read `<Page> — Interleaf`.
+- Write one idea per sentence. Aim for 15 words; cap at 25.
+- Use active voice, present tense, and "you/your" for anything instructional.
+- Avoid exclamation marks, hype adjectives, and idioms in functional copy.
+- Use digits for counts and degrees: "3 files", "90-degree steps" ("90°" only in compact UI labels).
+- Use "…" only on in-progress statuses. End other sentences with a period.
+- Never use "upload" as a user action. State the privacy claim with "No uploads." or "nothing is uploaded"; file picking is "choose" or "open".
+
+### Canonical terms
+
+Use the canonical phrasing exact. Do not introduce variants.
+
+| Concept | Canonical | Not |
+| --- | --- | --- |
+| File privacy | "Your files never leave your device." | "stay with you", "stay on your device", "keep the file with you" |
+| Processing mechanism | "Everything runs in your browser. Nothing is uploaded." | "client-side", "browser-local", "server-free" |
+| File types in prose | "PDFs and PNG or JPEG images" | "PNG/JPEG images", "PDFs and images" |
+| File types in tight UI and allowlists | "PDFs and images", "PDF, PNG, or JPEG files" | "PNG/JPEG images" |
+| The application | "the editor" | "the PDF editor", "the tool" |
+| Pages kept for export | "exportable pages" | "active pages" |
+| Removing a page from the export | "mark for deletion" / "restore" | "delete a page" |
+| Output actions | "Download PDF", "Export PNG images", "Export started." | "build", "generate", "download started" |
+| Compression scope | "one untouched PDF" | "untouched PDFs", "compressed PDFs" |
+
+### Scope honesty
+
+Copy may promise only what the Product Truth section of `AGENTS.md` lists as the current product surface. Update that section first, then code, then copy.
+
+If two phrasings exist for one concept, one of them is a defect: add the canonical choice here, then replace the variant everywhere.
+
 ## Documentation
 
 - `README.md` — user-facing current behavior only.
