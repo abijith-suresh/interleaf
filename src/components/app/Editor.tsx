@@ -1,7 +1,7 @@
-import { Effect, Fiber } from "effect";
+import { Effect, Exit, Fiber } from "effect";
 import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
-import { IMAGES_TO_PDF_FILENAME, ROTATION_STEP } from "../../constants";
+import { ROTATION_STEP, TOAST_DISMISS_TIMEOUT_MS } from "../../constants";
 import { planUploadGroups } from "../../controllers/editor-import";
 import {
   areAllPagesSelected,
@@ -13,19 +13,14 @@ import {
   toggleSelection,
 } from "../../controllers/editor-page-state";
 import { groupWorkspaceFiles, type WorkspaceFile } from "../../controllers/editor-workspace";
-import { makePDFRuntime, PDFProcessing } from "../../services/pdf-runtime";
+import { makePDFRuntime, PDFProcessing, type PDFProcessingShape } from "../../services/pdf-runtime";
 import { QpdfProcessingError } from "../../services/qpdf-processing";
 import type { PageState } from "../../types/interfaces";
-import { PDFPasswordRequiredError, PDFProcessingError } from "../../types/interfaces";
+import { PDFProcessingError } from "../../types/interfaces";
 import { downloadFile, downloadPDF } from "../../utils/download";
 import { getSupportedFileKind } from "../../utils/file-types";
 import { promptForPassword } from "../../utils/password-prompt";
-import {
-  showToast as dispatchToast,
-  getToastDismissTimeout,
-  TOAST_EVENT_NAME,
-  type ToastDetail,
-} from "../../utils/toast";
+import { showToast as dispatchToast, TOAST_EVENT_NAME, type ToastDetail } from "../../utils/toast";
 import EditorFilesDialog from "./EditorFilesDialog";
 import EditorPageGrid from "./EditorPageGrid";
 import EditorPageViewer from "./EditorPageViewer";
@@ -163,7 +158,7 @@ export default function Editor() {
   function addToast(message: string, tone: ToastTone) {
     if (disposed) return;
     const id = ++nextToastId;
-    const timer = window.setTimeout(() => dismissToast(id), getToastDismissTimeout());
+    const timer = window.setTimeout(() => dismissToast(id), TOAST_DISMISS_TIMEOUT_MS);
     toastTimers.set(id, timer);
     setToasts((current) => [...current, { id, message, tone }]);
   }
@@ -189,10 +184,13 @@ export default function Editor() {
     stopTouchAutoScroll();
     const fiber = activeOperationFiber;
     activeOperationFiber = null;
-    const interrupt = fiber
-      ? Effect.runPromise(Fiber.interrupt(fiber)).catch(() => undefined)
-      : Promise.resolve();
-    void interrupt.then(() => pdfRuntime.dispose()).catch(() => undefined);
+    Effect.runFork(
+      (fiber ? Fiber.interrupt(fiber) : Effect.void).pipe(
+        Effect.ignoreCause,
+        Effect.andThen(Effect.promise(() => pdfRuntime.dispose())),
+        Effect.ignoreCause
+      )
+    );
   });
 
   async function runPDF<A, E>(program: Effect.Effect<A, E, PDFProcessing>): Promise<A> {
@@ -225,67 +223,35 @@ export default function Editor() {
     return `Failed to load ${file.name}.`;
   }
 
-  async function unlockPdf(
-    file: File,
-    isRetry: boolean,
-    manageOperation = true
-  ): Promise<number | null> {
-    if (disposed) return null;
-    const password = await promptForPassword(file.name, isRetry);
-    if (disposed || password === null) {
-      if (manageOperation) setReadyStatus();
-      return null;
-    }
+  function loadPdfFile(service: PDFProcessingShape, file: File) {
+    const unlock = (isRetry: boolean): Effect.Effect<boolean, unknown> =>
+      Effect.gen(function* () {
+        const password = yield* Effect.tryPromise({
+          try: (signal) => promptForPassword(file.name, isRetry, signal),
+          catch: (cause) => cause,
+        });
+        if (password === null || disposed) return false;
+        setStatusMessage("Unlocking PDF…");
+        return yield* service.loadPDFWithPassword(file, password).pipe(
+          Effect.as(true),
+          Effect.catchTag("PDFPasswordRequiredError", () => unlock(true))
+        );
+      });
 
-    setStatusMessage("Unlocking PDF…");
-
-    try {
-      await runPDF(PDFProcessing.use((service) => service.loadPDFWithPassword(file, password)));
-      if (disposed) return null;
-      return await runPDF(PDFProcessing.use((service) => service.getPageCount));
-    } catch (err) {
-      if (disposed) return null;
-      if (err instanceof PDFPasswordRequiredError) {
-        return unlockPdf(file, true, manageOperation);
-      }
-      dispatchToast(getLoadErrorMessage(file, err), "error");
-      if (manageOperation) setReadyStatus();
-      return null;
-    }
+    return service.loadPDF(file).pipe(
+      Effect.as(true),
+      Effect.catchTag("PDFPasswordRequiredError", (error) =>
+        unlock(error.reason === "wrong-password")
+      ),
+      Effect.catch((error) =>
+        Effect.sync(() => {
+          dispatchToast(getLoadErrorMessage(file, error), "error");
+          return false;
+        })
+      ),
+      Effect.flatMap((loaded) => (loaded ? service.getPageCount : Effect.succeed(null)))
+    );
   }
-
-  async function loadPdfFile(
-    file: File,
-    mode: "upload" | "add",
-    manageOperation = true
-  ): Promise<number | null> {
-    if (disposed || getSupportedFileKind(file) !== "pdf") {
-      if (disposed) return null;
-      dispatchToast("Please upload a valid PDF file.", "error");
-      return null;
-    }
-
-    if (manageOperation) {
-      setOperation(mode === "upload" ? "uploading" : "adding");
-      setStatusMessage(mode === "upload" ? "Loading PDF…" : "Adding PDF…");
-    }
-
-    try {
-      await runPDF(PDFProcessing.use((service) => service.loadPDF(file)));
-      if (disposed) return null;
-      return await runPDF(PDFProcessing.use((service) => service.getPageCount));
-    } catch (err) {
-      if (disposed) return null;
-      if (err instanceof PDFPasswordRequiredError) {
-        return unlockPdf(file, err.reason === "wrong-password", manageOperation);
-      }
-      dispatchToast(getLoadErrorMessage(file, err), "error");
-      if (manageOperation) setReadyStatus();
-      return null;
-    }
-  }
-
-  // --- File loading ---
 
   function commitWorkspaceFiles(files: LoadedWorkspaceFile[], replace: boolean): void {
     const nextPages = files.flatMap(({ file, pageCount }) => createPageStates(file, pageCount));
@@ -304,56 +270,6 @@ export default function Editor() {
       })
     );
     if (!activePageId()) setActivePageId(nextPages[0]?.id ?? null);
-  }
-
-  async function createPdfFromImages(
-    files: File[],
-    outputFileName = IMAGES_TO_PDF_FILENAME
-  ): Promise<File | null> {
-    try {
-      const result = await runPDF(
-        PDFProcessing.use((service) =>
-          service.imagesToPDF(files, {
-            onProgress: ({ completed, total }) => {
-              if (disposed) return;
-              setStatusMessage(`Creating PDF from images… ${completed}/${total}`);
-            },
-          })
-        )
-      );
-      if (disposed) return null;
-
-      const generatedBytes = new Uint8Array(new ArrayBuffer(result.data.byteLength));
-      generatedBytes.set(result.data);
-      return new File([generatedBytes], outputFileName || result.suggestedFileName, {
-        type: "application/pdf",
-      });
-    } catch (error) {
-      if (disposed) return null;
-      const message =
-        error instanceof PDFProcessingError
-          ? error.message
-          : "Failed to create a PDF from the selected images.";
-      dispatchToast(message, "error");
-      return null;
-    }
-  }
-
-  async function releaseStagedFiles(
-    loadedFiles: LoadedWorkspaceFile[],
-    existingFiles: Set<File>
-  ): Promise<void> {
-    if (disposed || loadedFiles.length === 0) return;
-
-    for (const { file } of loadedFiles) {
-      if (existingFiles.has(file)) continue;
-      try {
-        await runPDF(PDFProcessing.use((service) => service.releaseFile(file)));
-      } catch {
-        // Cleanup is best effort; the runtime also releases all remaining files
-        // when the editor is disposed.
-      }
-    }
   }
 
   function describeLoadedFiles(mode: "upload" | "add", pdfCount: number, imageCount: number) {
@@ -386,54 +302,92 @@ export default function Editor() {
     setOperation(mode === "upload" ? "uploading" : "adding");
     setStatusMessage(mode === "upload" ? "Loading files…" : "Adding files…");
 
-    const replaceWorkspace = mode === "upload";
-    const loadedFiles: LoadedWorkspaceFile[] = [];
     const existingFiles = new Set(pages.map((page) => page.sourceFile));
-    let pdfCount = 0;
-    let imageCount = 0;
-    let committed = false;
+    return runPDF(
+      PDFProcessing.use((service) =>
+        Effect.suspend(() => {
+          const loadedFiles: LoadedWorkspaceFile[] = [];
+          let pdfCount = 0;
+          let imageCount = 0;
 
-    try {
-      for (const group of groups) {
-        if (disposed) return false;
+          return Effect.gen(function* () {
+            for (const group of groups) {
+              let pdfFile: File;
+              if (group.kind === "images") {
+                imageCount += group.files.length;
+                setOperation("building");
+                setStatusMessage(`Creating PDF from images… 0/${group.files.length}`);
+                const generatedFile = yield* service
+                  .imagesToPDF(group.files, {
+                    onProgress: ({ completed, total }) => {
+                      if (!disposed)
+                        setStatusMessage(`Creating PDF from images… ${completed}/${total}`);
+                    },
+                  })
+                  .pipe(
+                    Effect.flatMap((result) =>
+                      Effect.try({
+                        try: () => {
+                          const bytes = new Uint8Array(new ArrayBuffer(result.data.byteLength));
+                          bytes.set(result.data);
+                          return new File([bytes], group.outputFileName, {
+                            type: "application/pdf",
+                          });
+                        },
+                        catch: (cause) => cause,
+                      })
+                    ),
+                    Effect.catch((error) =>
+                      Effect.sync(() => {
+                        dispatchToast(
+                          error instanceof PDFProcessingError
+                            ? error.message
+                            : "Failed to create a PDF from the selected images.",
+                          "error"
+                        );
+                        return null;
+                      })
+                    )
+                  );
+                if (!generatedFile || disposed) return false;
+                pdfFile = generatedFile;
+              } else {
+                pdfCount += group.files.length;
+                pdfFile = group.files[0];
+              }
 
-        let pdfFile: File;
-        if (group.kind === "images") {
-          imageCount += group.files.length;
-          setOperation("building");
-          setStatusMessage(`Creating PDF from images… 0/${group.files.length}`);
-          const generatedFile = await createPdfFromImages(group.files, group.outputFileName);
-          if (!generatedFile) return false;
-          pdfFile = generatedFile;
-        } else {
-          pdfCount += group.files.length;
-          pdfFile = group.files[0];
-        }
+              setOperation(mode === "upload" && loadedFiles.length === 0 ? "uploading" : "adding");
+              setStatusMessage(`Loading ${pdfFile.name}…`);
+              const pageCount = yield* loadPdfFile(service, pdfFile);
+              if (pageCount === null || disposed) return false;
+              loadedFiles.push({ file: pdfFile, pageCount });
+            }
 
-        const isFirstFile = loadedFiles.length === 0;
-        setOperation(mode === "upload" && isFirstFile ? "uploading" : "adding");
-        setStatusMessage(`Loading ${pdfFile.name}…`);
-        const pageCount = await loadPdfFile(
-          pdfFile,
-          mode === "upload" && isFirstFile ? "upload" : "add",
-          false
-        );
-        if (pageCount === null || disposed) return false;
-
-        loadedFiles.push({ file: pdfFile, pageCount });
-      }
-
-      commitWorkspaceFiles(loadedFiles, replaceWorkspace);
-      committed = true;
-      setReadyStatus();
-      setStatusMessage(describeLoadedFiles(mode, pdfCount, imageCount));
-      return true;
-    } finally {
-      if (!committed) {
-        await releaseStagedFiles(loadedFiles, existingFiles);
-        setReadyStatus();
-      }
-    }
+            commitWorkspaceFiles(loadedFiles, mode === "upload");
+            setStatusMessage(describeLoadedFiles(mode, pdfCount, imageCount));
+            return true;
+          }).pipe(
+            Effect.onExit((exit) =>
+              Exit.isSuccess(exit) && exit.value
+                ? Effect.void
+                : Effect.forEach(
+                    loadedFiles.filter(({ file }) => !existingFiles.has(file)),
+                    ({ file }) =>
+                      Effect.suspend(() => service.releaseFile(file)).pipe(Effect.ignoreCause),
+                    { discard: true }
+                  )
+            ),
+            Effect.onExit((exit) =>
+              Effect.sync(() => {
+                if (Exit.isSuccess(exit) && exit.value) {
+                  if (!disposed) setOperation("idle");
+                } else setReadyStatus();
+              })
+            )
+          );
+        })
+      )
+    ).catch(() => false);
   }
 
   function requestAddFiles(): void {
@@ -521,24 +475,14 @@ export default function Editor() {
     const removedPageCount = workspaceFile.pageCount;
     const removedFileName = file.name;
 
-    const indexRemap = new Map<number, number | null>();
-    let nextIndex = 0;
-    pages.forEach((page, oldIndex) => {
-      if (page.sourceFile === file) {
-        indexRemap.set(oldIndex, null);
-        return;
-      }
-      indexRemap.set(oldIndex, nextIndex);
-      nextIndex += 1;
-    });
-
+    const selection = selectedIndices();
     const nextSelection = new Set<number>();
-    for (const oldIndex of selectedIndices()) {
-      const mapped = indexRemap.get(oldIndex);
-      if (mapped !== null && mapped !== undefined) nextSelection.add(mapped);
-    }
-
-    const remainingPages = pages.filter((page) => page.sourceFile !== file);
+    const remainingPages: PageState[] = [];
+    pages.forEach((page, oldIndex) => {
+      if (page.sourceFile === file) return;
+      if (selection.has(oldIndex)) nextSelection.add(remainingPages.length);
+      remainingPages.push(page);
+    });
     setPages(remainingPages);
     setSelectedIndices(nextSelection);
     setDragSourceIndex(null);
@@ -709,15 +653,7 @@ export default function Editor() {
     setStatusMessage("Compressing PDF…");
 
     try {
-      const result = await runPDF(
-        PDFProcessing.use((service) =>
-          service.compressPDF(file, {
-            onCompressionStage: () => {
-              if (!disposed) setStatusMessage("Compressing PDF…");
-            },
-          })
-        )
-      );
+      const result = await runPDF(PDFProcessing.use((service) => service.compressPDF(file)));
       if (disposed) return;
       downloadPDF(result);
       if (result.reduced) {
@@ -825,7 +761,7 @@ export default function Editor() {
   // --- Touch reordering ---
 
   let touchAutoScrollTimer: number | null = null;
-  let touchPointer = { x: 0, y: 0 };
+  let touchPointerY = 0;
 
   function gridScrollElement(): HTMLDivElement | null {
     return editorRoot?.querySelector<HTMLDivElement>(".editor-page-scroll") ?? null;
@@ -845,9 +781,9 @@ export default function Editor() {
     }
   }
 
-  function handleTouchDragStart(index: number, x: number, y: number): void {
+  function handleTouchDragStart(index: number, y: number): void {
     if (isBusy()) return;
-    touchPointer = { x, y };
+    touchPointerY = y;
     setDragSourceIndex(index);
     setDragOverTarget(null);
     stopTouchAutoScroll();
@@ -855,16 +791,16 @@ export default function Editor() {
       const scrollElement = gridScrollElement();
       if (!scrollElement) return;
       const bounds = scrollElement.getBoundingClientRect();
-      if (touchPointer.y < bounds.top + TOUCH_AUTO_SCROLL_EDGE_PX) {
+      if (touchPointerY < bounds.top + TOUCH_AUTO_SCROLL_EDGE_PX) {
         scrollElement.scrollTop -= TOUCH_AUTO_SCROLL_SPEED_PX;
-      } else if (touchPointer.y > bounds.bottom - TOUCH_AUTO_SCROLL_EDGE_PX) {
+      } else if (touchPointerY > bounds.bottom - TOUCH_AUTO_SCROLL_EDGE_PX) {
         scrollElement.scrollTop += TOUCH_AUTO_SCROLL_SPEED_PX;
       }
     }, TOUCH_AUTO_SCROLL_INTERVAL_MS);
   }
 
   function handleTouchDragMove(x: number, y: number): void {
-    touchPointer = { x, y };
+    touchPointerY = y;
     const from = dragSourceIndex();
     if (from === null || isBusy()) return;
     const target = touchTileIndexAt(x, y);

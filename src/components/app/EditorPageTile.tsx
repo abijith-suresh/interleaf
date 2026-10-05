@@ -25,7 +25,7 @@ interface Props {
   onDragLeave: () => void;
   onDrop: (e: DragEvent) => void;
   onDragEnd: () => void;
-  onTouchDragStart: (index: number, x: number, y: number) => void;
+  onTouchDragStart: (index: number, y: number) => void;
   onTouchDragMove: (x: number, y: number) => void;
   onTouchDragEnd: () => void;
   onTouchDragCancel: () => void;
@@ -36,7 +36,6 @@ export default function EditorPageTile(props: Props) {
   let hitarea: HTMLButtonElement | undefined;
   let touchDragTimer: number | null = null;
   let touchDragId: number | null = null;
-  let touchDragging = false;
   let touchStartX = 0;
   let touchStartY = 0;
 
@@ -49,7 +48,6 @@ export default function EditorPageTile(props: Props) {
 
   const resetTouchDrag = () => {
     clearTouchDragTimer();
-    touchDragging = false;
     touchDragId = null;
     setTouchLifted(false);
   };
@@ -63,9 +61,8 @@ export default function EditorPageTile(props: Props) {
     touchStartY = touch.clientY;
     touchDragTimer = window.setTimeout(() => {
       touchDragTimer = null;
-      touchDragging = true;
       setTouchLifted(true);
-      props.onTouchDragStart(props.index, touchStartX, touchStartY);
+      props.onTouchDragStart(props.index, touchStartY);
     }, TOUCH_DRAG_DELAY_MS);
   };
 
@@ -75,7 +72,7 @@ export default function EditorPageTile(props: Props) {
       (candidate) => candidate.identifier === touchDragId
     );
     if (!touch) return;
-    if (touchDragging) {
+    if (touchLifted()) {
       event.preventDefault();
       props.onTouchDragMove(touch.clientX, touch.clientY);
       return;
@@ -92,7 +89,7 @@ export default function EditorPageTile(props: Props) {
       (candidate) => candidate.identifier === touchDragId
     );
     if (!lifted) return;
-    const wasDragging = touchDragging;
+    const wasDragging = touchLifted();
     resetTouchDrag();
     if (wasDragging) {
       event.preventDefault();
@@ -106,7 +103,7 @@ export default function EditorPageTile(props: Props) {
       (candidate) => candidate.identifier === touchDragId
     );
     if (!lifted) return;
-    const wasDragging = touchDragging;
+    const wasDragging = touchLifted();
     resetTouchDrag();
     if (wasDragging) props.onTouchDragCancel();
   };

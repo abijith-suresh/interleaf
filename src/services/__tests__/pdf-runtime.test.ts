@@ -101,6 +101,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await runtime.dispose();
+  vi.restoreAllMocks();
 });
 
 it("returns the active page count after loading a PDF", async () => {
@@ -143,11 +144,12 @@ it("interrupts runtime-owned work before disposing services", async () => {
   expect(pdfServiceMock.dispose).toHaveBeenCalledTimes(1);
 });
 
-it("loads PDF editing support on first use and shares it with image conversion", async () => {
+it("shares lazy PDF editing support for the lifetime of the runtime", async () => {
   const files = [new File(["image"], "image.png", { type: "image/png" })];
   expect(PDFOperationsService).not.toHaveBeenCalled();
 
   await runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([])));
+  vi.spyOn(Date, "now").mockReturnValue(Date.now() + 2 * 60 * 60 * 1000);
   await runtime.runPromise(PDFProcessing.use((service) => service.imagesToPDF(files)));
 
   expect(PDFOperationsService).toHaveBeenCalledTimes(1);

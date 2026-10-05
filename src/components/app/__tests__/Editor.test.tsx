@@ -13,12 +13,15 @@ const pdfServiceMocks = vi.hoisted(() => ({
   renderPage: vi.fn(),
   releaseFile: vi.fn(),
   reset: vi.fn(),
+  dispose: vi.fn(),
 }));
 
 const pdfOperationsMocks = vi.hoisted(() => ({
   buildPDF: vi.fn(),
   imagesToPDF: vi.fn(),
   clearCache: vi.fn(),
+  releaseFile: vi.fn(),
+  dispose: vi.fn(),
 }));
 
 const pdfCompressionMocks = vi.hoisted(() => ({
@@ -44,6 +47,7 @@ vi.mock("@/services/pdf-service", () => ({
     renderPage = pdfServiceMocks.renderPage;
     releaseFile = pdfServiceMocks.releaseFile;
     reset = pdfServiceMocks.reset;
+    dispose = pdfServiceMocks.dispose;
   },
 }));
 vi.mock("@/services/pdf-operations-service", () => ({
@@ -51,6 +55,8 @@ vi.mock("@/services/pdf-operations-service", () => ({
     buildPDF = pdfOperationsMocks.buildPDF;
     imagesToPDF = pdfOperationsMocks.imagesToPDF;
     clearCache = pdfOperationsMocks.clearCache;
+    releaseFile = pdfOperationsMocks.releaseFile;
+    dispose = pdfOperationsMocks.dispose;
   },
 }));
 vi.mock("@/services/pdf-compression-service", () => ({
@@ -119,6 +125,9 @@ describe("Editor", () => {
     pdfServiceMocks.renderPage.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.releaseFile.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.reset.mockReturnValue(Effect.succeed(undefined));
+    pdfServiceMocks.dispose.mockReturnValue(Effect.void);
+    pdfOperationsMocks.releaseFile.mockReturnValue(Effect.void);
+    pdfOperationsMocks.dispose.mockReturnValue(Effect.void);
     pdfOperationsMocks.buildPDF.mockReturnValue(
       Effect.succeed({
         data: new Uint8Array([1, 2, 3]),
@@ -243,6 +252,7 @@ describe("Editor", () => {
 
     fireEvent.click(screen.getByTestId("editor-files-button"));
     await waitFor(() => expect(screen.getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    expect(screen.getByTestId("editor-files-close-button")).toHaveFocus();
     const fileItems = await screen.findAllByTestId("editor-file-item");
     expect(fileItems.map((item) => item.textContent?.replace(/\s+/g, " ").trim())).toEqual([
       expect.stringContaining("interleaf-images-1.pdf"),
@@ -471,7 +481,13 @@ describe("Editor", () => {
 
     selectFiles("add", [makeFile("good-add.pdf"), failedFile]);
 
-    await waitFor(() => expect(promptForPassword).toHaveBeenCalledWith("protected-add.pdf", false));
+    await waitFor(() =>
+      expect(promptForPassword).toHaveBeenCalledWith(
+        "protected-add.pdf",
+        false,
+        expect.any(AbortSignal)
+      )
+    );
     expect(screen.getByLabelText("Choose additional PDF or image files")).toBeDisabled();
 
     await Effect.runPromise(Deferred.succeed(release, undefined));
@@ -479,6 +495,27 @@ describe("Editor", () => {
       expect(screen.getByLabelText("Choose additional PDF or image files")).toBeEnabled()
     );
     expect(await findPages()).toHaveLength(3);
+  });
+
+  it("interrupts an import and rolls back staged files before disposing the editor", async () => {
+    const release = Deferred.makeUnsafe<void>();
+    const interrupted = vi.fn();
+    pdfServiceMocks.releaseFile.mockReturnValueOnce(Deferred.await(release));
+    pdfOperationsMocks.imagesToPDF.mockReturnValue(
+      Effect.never.pipe(Effect.onInterrupt(() => Effect.sync(interrupted)))
+    );
+    const view = render(() => <Editor />);
+    const stagedFile = makeFile("staged.pdf");
+    selectFiles("upload", [stagedFile, makeImageFile()]);
+    await waitFor(() => expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalled());
+
+    view.unmount();
+
+    await waitFor(() => expect(interrupted).toHaveBeenCalledOnce());
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(stagedFile);
+    expect(pdfServiceMocks.reset).not.toHaveBeenCalled();
+    await Effect.runPromise(Deferred.succeed(release, undefined));
+    await waitFor(() => expect(pdfServiceMocks.reset).toHaveBeenCalledOnce());
   });
 
   it("updates selection actions and compression eligibility when a page is selected", async () => {
@@ -544,7 +581,13 @@ describe("Editor", () => {
 
     selectFile("upload", makeFile("protected.pdf"));
 
-    await waitFor(() => expect(promptForPassword).toHaveBeenCalledWith("protected.pdf", false));
+    await waitFor(() =>
+      expect(promptForPassword).toHaveBeenCalledWith(
+        "protected.pdf",
+        false,
+        expect.any(AbortSignal)
+      )
+    );
     const tiles = await findPages();
     expect(tiles).toHaveLength(3);
     expect(pdfServiceMocks.loadPDFWithPassword).toHaveBeenCalledWith(expect.any(File), "623");
@@ -581,7 +624,11 @@ describe("Editor", () => {
     selectFile("upload", makeFile("protected.pdf"));
 
     await waitFor(() => expect(promptForPassword).toHaveBeenCalledTimes(2));
-    expect(promptForPassword).toHaveBeenLastCalledWith("protected.pdf", true);
+    expect(promptForPassword).toHaveBeenLastCalledWith(
+      "protected.pdf",
+      true,
+      expect.any(AbortSignal)
+    );
     await waitFor(() => expect(screen.getByTestId("editor-page-grid")).toBeInTheDocument());
   });
 
@@ -686,21 +733,25 @@ describe("Editor", () => {
     });
 
     try {
-      const start = { touches: [{ identifier: 1, clientX: 10, clientY: 10 }] };
+      const scrollContainer = screen.getByTestId("editor-page-grid").parentElement as HTMLElement;
+      vi.spyOn(scrollContainer, "getBoundingClientRect").mockReturnValue({
+        top: 0,
+        bottom: 400,
+      } as DOMRect);
+      const start = { touches: [{ identifier: 1, clientX: 10, clientY: 390 }] };
       const move = { touches: [{ identifier: 1, clientX: 220, clientY: 220 }] };
 
-      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
       fireEvent.touchStart(hitareas[0], start);
       vi.advanceTimersByTime(200);
       expect(hitareas[0].closest("li")).not.toHaveClass("dragging");
       vi.advanceTimersByTime(100);
       expect(hitareas[0].closest("li")).toHaveClass("dragging");
-      vi.useRealTimers();
-
+      vi.advanceTimersByTime(16);
+      expect(scrollContainer.scrollTop).toBeGreaterThan(0);
       fireEvent.touchMove(hitareas[0], move);
-      await waitFor(() => expect(dropTile).toHaveClass("drag-insert-after"));
-
       fireEvent.touchEnd(hitareas[0], { touches: [], changedTouches: [{ identifier: 1 }] });
+      vi.useRealTimers();
 
       expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
         "Moved page 1 to position 3."

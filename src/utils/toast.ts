@@ -1,5 +1,3 @@
-import { TOAST_DISMISS_TIMEOUT_MS } from "../constants";
-
 export type ToastType = "success" | "error" | "info";
 
 export interface ToastDetail {
@@ -15,8 +13,4 @@ export function showToast(message: string, type: ToastType): void {
       detail: { message, type },
     })
   );
-}
-
-export function getToastDismissTimeout(): number {
-  return TOAST_DISMISS_TIMEOUT_MS;
 }

@@ -1,6 +1,5 @@
 ---
 import { ClientRouter } from "astro:transitions";
-import "@fontsource/bebas-neue";
 import "@fontsource/work-sans/300.css";
 import "@fontsource/work-sans/400.css";
 import "@fontsource/work-sans/500.css";
@@ -55,8 +54,5 @@ const resolvedOgImage = ogImage ?? `${siteOrigin}${base}og/${socialPreviewFilena
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <slot />
-    <script>
-      import "../scripts/scroll-animations";
-    </script>
   </body>
 </html>

@@ -1,4 +1,4 @@
-import { Cause, Deferred, Effect, Exit, Fiber, Option, Ref, Scope } from "effect";
+import { Cause, Deferred, Effect, Exit, Fiber, Option, Scope } from "effect";
 import { type PDFError, PDFProcessingError } from "../types/interfaces";
 import { collectFirstError, processingError } from "./pdf-errors";
 
@@ -50,8 +50,6 @@ interface InFlightLoad<A> {
   readonly fileVersion: number;
   readonly deferred: Deferred.Deferred<A, PDFError>;
   readonly fiberReady: Deferred.Deferred<Fiber.Fiber<A, PDFError>>;
-  readonly cleanupError: Ref.Ref<PDFProcessingError | undefined>;
-  fiber: Fiber.Fiber<A, PDFError> | null;
 }
 
 interface DocumentStoreState<A> {
@@ -63,45 +61,10 @@ interface DocumentStoreState<A> {
   readonly operationFibers: ReadonlyArray<FileEntry<ReadonlyArray<Fiber.Fiber<unknown, unknown>>>>;
 }
 
-type AcquireDecision<A> =
-  | { readonly _tag: "barrier"; readonly barrier: Deferred.Deferred<void, PDFProcessingError> }
-  | { readonly _tag: "resident"; readonly record: A }
-  | { readonly _tag: "inflight"; readonly load: InFlightLoad<A> }
-  | { readonly _tag: "start"; readonly load: InFlightLoad<A> };
-
 type LoadPlacement<A> =
   | { readonly _tag: "resident" }
   | { readonly _tag: "duplicate"; readonly record: A }
   | { readonly _tag: "stale" };
-
-type ReleaseDecision<A> =
-  | { readonly _tag: "awaitReset"; readonly barrier: Deferred.Deferred<void, PDFProcessingError> }
-  | { readonly _tag: "awaitRelease"; readonly barrier: Deferred.Deferred<void, PDFProcessingError> }
-  | {
-      readonly _tag: "start";
-      readonly barrier: Deferred.Deferred<void, PDFProcessingError>;
-      readonly loads: ReadonlyArray<InFlightLoad<A>>;
-      readonly operations: ReadonlyArray<Fiber.Fiber<unknown, unknown>>;
-      readonly record: A | undefined;
-    };
-
-type ResetDecision<A> =
-  | { readonly _tag: "await"; readonly barrier: Deferred.Deferred<void, PDFProcessingError> }
-  | {
-      readonly _tag: "start";
-      readonly barrier: Deferred.Deferred<void, PDFProcessingError>;
-      readonly fileBarriers: ReadonlyArray<Deferred.Deferred<void, PDFProcessingError>>;
-      readonly loads: ReadonlyArray<InFlightLoad<A>>;
-      readonly operations: ReadonlyArray<Fiber.Fiber<unknown, unknown>>;
-      readonly records: ReadonlyArray<A>;
-      readonly files: ReadonlyArray<File>;
-    };
-
-interface ClearDecision<A> {
-  readonly loads: ReadonlyArray<InFlightLoad<A>>;
-  readonly operations: ReadonlyArray<Fiber.Fiber<unknown, unknown>>;
-  readonly records: ReadonlyArray<A>;
-}
 
 const lookupEntry = <V>(entries: ReadonlyArray<FileEntry<V>>, file: File): V | undefined => {
   for (const [entryFile, value] of entries) {
@@ -153,21 +116,13 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
   const scope = Scope.makeUnsafe();
   const fileVersions = new WeakMap<File, number>();
   let disposed = false;
-  const stateRef = Ref.makeUnsafe<DocumentStoreState<A>>({
+  let state: DocumentStoreState<A> = {
     sessionVersion: 0,
     resident: [],
     loads: [],
     releaseBarriers: [],
     resetBarrier: undefined,
     operationFibers: [],
-  });
-
-  const mutate = <B>(
-    f: (state: DocumentStoreState<A>) => readonly [B, DocumentStoreState<A>]
-  ): B => {
-    const [result, next] = f(stateRef.ref.current);
-    stateRef.ref.current = next;
-    return result;
   };
 
   const releaseErrorFor = (file: File): PDFProcessingError =>
@@ -188,25 +143,11 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
       )
     );
 
-  const interruptLoadFiber = (
-    load: InFlightLoad<A>,
-    fiber: Fiber.Fiber<A, PDFError>
-  ): Effect.Effect<void, PDFProcessingError> =>
-    Fiber.interrupt(fiber).pipe(
-      Effect.andThen(Fiber.await(fiber)),
-      Effect.andThen((exit) => {
-        const cleanupError = load.cleanupError.ref.current;
-        if (cleanupError) return Effect.fail(cleanupError);
-        const error = processingErrorFromExit(exit);
-        return error ? Effect.fail(error) : Effect.void;
-      })
-    );
-
   const cancelLoad = (load: InFlightLoad<A>): Effect.Effect<void, PDFProcessingError> =>
     Effect.gen(function* () {
       yield* Deferred.fail(load.deferred, releaseErrorFor(load.key.file));
-      const fiber = load.fiber ?? (yield* Deferred.await(load.fiberReady));
-      yield* interruptLoadFiber(load, fiber);
+      const fiber = yield* Deferred.await(load.fiberReady);
+      yield* interruptOperationFibers([fiber]);
     });
 
   const cancelLoads = (
@@ -214,62 +155,48 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
   ): Effect.Effect<void, PDFProcessingError> =>
     collectFirstError(loads.map((load) => cancelLoad(load)));
 
-  const finishLoad = (load: InFlightLoad<A>, exit: Exit.Exit<A, PDFError>): Effect.Effect<void> =>
+  const finishLoad = (
+    load: InFlightLoad<A>,
+    exit: Exit.Exit<A, PDFError>
+  ): Effect.Effect<void, PDFProcessingError> =>
     Effect.suspend(() => {
-      const placement: LoadPlacement<A> = Exit.isSuccess(exit)
-        ? mutate<LoadPlacement<A>>((state) => {
-            if (
-              state.sessionVersion === load.sessionVersion &&
-              (fileVersions.get(load.key.file) ?? 0) === load.fileVersion
-            ) {
-              const resident = lookupEntry(state.resident, load.key.file);
-              if (resident !== undefined) {
-                return [{ _tag: "duplicate", record: resident }, state];
-              }
-              return [
-                { _tag: "resident" },
-                { ...state, resident: upsertEntry(state.resident, load.key.file, exit.value) },
-              ];
-            }
-            return [{ _tag: "stale" }, state];
-          })
-        : { _tag: "stale" };
+      let placement: LoadPlacement<A> = { _tag: "stale" };
+      if (
+        Exit.isSuccess(exit) &&
+        state.sessionVersion === load.sessionVersion &&
+        (fileVersions.get(load.key.file) ?? 0) === load.fileVersion
+      ) {
+        const resident = lookupEntry(state.resident, load.key.file);
+        if (resident !== undefined) {
+          placement = { _tag: "duplicate", record: resident };
+        } else {
+          placement = { _tag: "resident" };
+          state = {
+            ...state,
+            resident: upsertEntry(state.resident, load.key.file, exit.value),
+          };
+        }
+      }
 
-      const cleanup =
-        Exit.isSuccess(exit) && placement._tag !== "resident"
-          ? hooks.cleanup(exit.value).pipe(
-              Effect.catch((error) =>
-                Effect.sync(() => {
-                  load.cleanupError.ref.current = error;
-                })
-              )
-            )
-          : Effect.void;
+      return Effect.gen(function* () {
+        const cleanup = yield* Effect.exit(
+          Exit.isSuccess(exit) && placement._tag !== "resident"
+            ? hooks.cleanup(exit.value)
+            : Effect.void
+        );
+        state = { ...state, loads: state.loads.filter((entry) => entry !== load) };
 
-      return cleanup.pipe(
-        Effect.andThen(
-          Effect.sync(() => {
-            mutate((state) =>
-              state.loads.includes(load)
-                ? [undefined, { ...state, loads: state.loads.filter((entry) => entry !== load) }]
-                : [undefined, state]
-            );
-          })
-        ),
-        Effect.andThen(
-          Effect.suspend(() => {
-            const cleanupError = load.cleanupError.ref.current;
-            if (cleanupError) return Deferred.fail(load.deferred, cleanupError);
-            if (placement._tag === "duplicate") {
-              return Deferred.succeed(load.deferred, placement.record);
-            }
-            if (Exit.isSuccess(exit) && placement._tag === "stale") {
-              return Deferred.fail(load.deferred, releaseErrorFor(load.key.file));
-            }
-            return Deferred.done(load.deferred, exit);
-          })
-        )
-      );
+        if (Exit.isFailure(cleanup)) {
+          yield* Deferred.failCause(load.deferred, cleanup.cause);
+        } else if (placement._tag === "duplicate") {
+          yield* Deferred.succeed(load.deferred, placement.record);
+        } else if (Exit.isSuccess(exit) && placement._tag === "stale") {
+          yield* Deferred.fail(load.deferred, releaseErrorFor(load.key.file));
+        } else {
+          yield* Deferred.done(load.deferred, exit);
+        }
+        yield* cleanup;
+      });
     });
 
   const startLoad = (load: InFlightLoad<A>): Effect.Effect<void> =>
@@ -279,8 +206,7 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
           Effect.onExit((exit) => finishLoad(load, exit))
         )
       );
-      load.fiber = Fiber.runIn(scope)(fiber);
-      yield* Deferred.succeed(load.fiberReady, fiber);
+      yield* Deferred.succeed(load.fiberReady, Fiber.runIn(scope)(fiber));
     });
 
   const completeRelease = (
@@ -289,11 +215,9 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
     exit: Exit.Exit<void, PDFProcessingError>
   ): Effect.Effect<void> =>
     Effect.sync(() => {
-      mutate((state) =>
-        lookupEntry(state.releaseBarriers, file) === barrier
-          ? [undefined, { ...state, releaseBarriers: removeEntry(state.releaseBarriers, file) }]
-          : [undefined, state]
-      );
+      if (lookupEntry(state.releaseBarriers, file) === barrier) {
+        state = { ...state, releaseBarriers: removeEntry(state.releaseBarriers, file) };
+      }
     }).pipe(Effect.andThen(Deferred.done(barrier, exit)), Effect.asVoid);
 
   const completeReset = (
@@ -301,140 +225,102 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
     exit: Exit.Exit<void, PDFProcessingError>
   ): Effect.Effect<void> =>
     Effect.sync(() => {
-      mutate((state) =>
-        state.resetBarrier === barrier
-          ? [undefined, { ...state, resetBarrier: undefined }]
-          : [undefined, state]
-      );
+      if (state.resetBarrier === barrier) {
+        state = { ...state, resetBarrier: undefined };
+      }
     }).pipe(Effect.andThen(Deferred.done(barrier, exit)), Effect.asVoid);
 
   const releaseFile = (file: File): Effect.Effect<void, PDFProcessingError> =>
     Effect.uninterruptible(
       Effect.suspend(() => {
-        const decision = mutate<ReleaseDecision<A>>((state) => {
-          if (state.resetBarrier) {
-            return [{ _tag: "awaitReset", barrier: state.resetBarrier }, state];
-          }
-
-          const existingBarrier = lookupEntry(state.releaseBarriers, file);
-          if (existingBarrier) {
-            return [{ _tag: "awaitRelease", barrier: existingBarrier }, state];
-          }
-
-          const barrier = Deferred.makeUnsafe<void, PDFProcessingError>();
-          const loads = state.loads.filter((load) => load.key.file === file);
-          const operations = lookupEntry(state.operationFibers, file) ?? [];
-          const record = lookupEntry(state.resident, file);
-          fileVersions.set(file, (fileVersions.get(file) ?? 0) + 1);
-
-          return [
-            { _tag: "start", barrier, loads, operations, record },
-            {
-              ...state,
-              releaseBarriers: upsertEntry(state.releaseBarriers, file, barrier),
-              resident: removeEntry(state.resident, file),
-              loads: state.loads.filter((load) => load.key.file !== file),
-              operationFibers: removeEntry(state.operationFibers, file),
-            },
-          ];
-        });
-
-        switch (decision._tag) {
-          case "awaitReset":
-            return Deferred.await(decision.barrier).pipe(Effect.andThen(releaseFile(file)));
-          case "awaitRelease":
-            return Deferred.await(decision.barrier);
-          case "start": {
-            const effects: Array<Effect.Effect<void, PDFProcessingError>> = [
-              interruptOperationFibers(decision.operations),
-              cancelLoads(decision.loads),
-            ];
-            if (hooks.drain) effects.push(hooks.drain(file));
-            if (decision.record !== undefined) effects.push(hooks.cleanup(decision.record));
-            return collectFirstError(effects).pipe(
-              Effect.onExit((exit) => completeRelease(file, decision.barrier, exit))
-            );
-          }
+        if (state.resetBarrier) {
+          return Deferred.await(state.resetBarrier).pipe(Effect.andThen(releaseFile(file)));
         }
+        const existingBarrier = lookupEntry(state.releaseBarriers, file);
+        if (existingBarrier) return Deferred.await(existingBarrier);
+
+        const barrier = Deferred.makeUnsafe<void, PDFProcessingError>();
+        const loads = state.loads.filter((load) => load.key.file === file);
+        const operations = lookupEntry(state.operationFibers, file) ?? [];
+        const record = lookupEntry(state.resident, file);
+        fileVersions.set(file, (fileVersions.get(file) ?? 0) + 1);
+        state = {
+          ...state,
+          releaseBarriers: upsertEntry(state.releaseBarriers, file, barrier),
+          resident: removeEntry(state.resident, file),
+          loads: state.loads.filter((load) => load.key.file !== file),
+          operationFibers: removeEntry(state.operationFibers, file),
+        };
+
+        const effects: Array<Effect.Effect<void, PDFProcessingError>> = [
+          interruptOperationFibers(operations),
+          cancelLoads(loads),
+        ];
+        if (hooks.drain) effects.push(hooks.drain(file));
+        if (record !== undefined) effects.push(hooks.cleanup(record));
+        return collectFirstError(effects).pipe(
+          Effect.onExit((exit) => completeRelease(file, barrier, exit))
+        );
       })
     );
 
   const reset: Effect.Effect<void, PDFProcessingError> = Effect.uninterruptible(
     Effect.suspend(() => {
-      const decision = mutate<ResetDecision<A>>((state) => {
-        if (state.resetBarrier) {
-          return [{ _tag: "await", barrier: state.resetBarrier }, state];
-        }
+      if (state.resetBarrier) return Deferred.await(state.resetBarrier);
 
-        const barrier = Deferred.makeUnsafe<void, PDFProcessingError>();
-        const files: Array<File> = [];
-        const addFile = (file: File): void => {
-          if (!files.includes(file)) files.push(file);
-        };
+      const barrier = Deferred.makeUnsafe<void, PDFProcessingError>();
+      const files = new Set<File>();
+      const fileBarriers = state.releaseBarriers.map(([, releaseBarrier]) => releaseBarrier);
+      const loads = state.loads;
+      const operations = state.operationFibers.flatMap(([, fibers]) => fibers);
+      const records = state.resident.map(([, record]) => record);
 
-        const fileBarriers = state.releaseBarriers.map(([, releaseBarrier]) => releaseBarrier);
-        const loads = state.loads;
-        const operations = state.operationFibers.flatMap(([, fibers]) => fibers);
-        const records = state.resident.map(([, record]) => record);
+      for (const load of loads) files.add(load.key.file);
+      for (const [file] of state.operationFibers) files.add(file);
+      for (const [file] of state.resident) files.add(file);
+      for (const [file] of state.releaseBarriers) files.add(file);
 
-        for (const load of loads) addFile(load.key.file);
-        for (const [file] of state.operationFibers) addFile(file);
-        for (const [file] of state.resident) addFile(file);
-        for (const [file] of state.releaseBarriers) addFile(file);
-
-        return [
-          { _tag: "start", barrier, fileBarriers, loads, operations, records, files },
-          {
-            ...state,
-            sessionVersion: state.sessionVersion + 1,
-            resident: [],
-            loads: [],
-            operationFibers: [],
-            resetBarrier: barrier,
-          },
-        ];
-      });
-
-      if (decision._tag === "await") return Deferred.await(decision.barrier);
+      state = {
+        ...state,
+        sessionVersion: state.sessionVersion + 1,
+        resident: [],
+        loads: [],
+        operationFibers: [],
+        resetBarrier: barrier,
+      };
 
       const effects: Array<Effect.Effect<void, PDFProcessingError>> = [
-        ...decision.fileBarriers.map((fileBarrier) => Deferred.await(fileBarrier)),
-        interruptOperationFibers(decision.operations),
-        cancelLoads(decision.loads),
+        ...fileBarriers.map((fileBarrier) => Deferred.await(fileBarrier)),
+        interruptOperationFibers(operations),
+        cancelLoads(loads),
       ];
       if (hooks.drain) {
         const drain = hooks.drain;
-        effects.push(...decision.files.map((file) => drain(file)));
+        effects.push(...Array.from(files, (file) => drain(file)));
       }
-      effects.push(...decision.records.map((record) => hooks.cleanup(record)));
+      effects.push(...records.map((record) => hooks.cleanup(record)));
 
-      return collectFirstError(effects).pipe(
-        Effect.onExit((exit) => completeReset(decision.barrier, exit))
-      );
+      return collectFirstError(effects).pipe(Effect.onExit((exit) => completeReset(barrier, exit)));
     })
   );
 
   const clear: Effect.Effect<void, PDFProcessingError> = Effect.uninterruptible(
     Effect.suspend(() => {
-      const decision = mutate<ClearDecision<A>>((state) => [
-        {
-          loads: state.loads,
-          operations: state.operationFibers.flatMap(([, fibers]) => fibers),
-          records: state.resident.map(([, record]) => record),
-        },
-        {
-          ...state,
-          sessionVersion: state.sessionVersion + 1,
-          resident: [],
-          loads: [],
-          operationFibers: [],
-        },
-      ]);
+      const loads = state.loads;
+      const operations = state.operationFibers.flatMap(([, fibers]) => fibers);
+      const records = state.resident.map(([, record]) => record);
+      state = {
+        ...state,
+        sessionVersion: state.sessionVersion + 1,
+        resident: [],
+        loads: [],
+        operationFibers: [],
+      };
 
       return collectFirstError([
-        interruptOperationFibers(decision.operations),
-        cancelLoads(decision.loads),
-        ...decision.records.map((record) => hooks.cleanup(record)),
+        interruptOperationFibers(operations),
+        cancelLoads(loads),
+        ...records.map((record) => hooks.cleanup(record)),
       ]);
     })
   );
@@ -452,67 +338,45 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
           );
         }
 
-        const decision = mutate<AcquireDecision<A>>((state) => {
-          const resetBarrier = state.resetBarrier;
-          if (resetBarrier) return [{ _tag: "barrier", barrier: resetBarrier }, state];
-
-          const releaseBarrier = lookupEntry(state.releaseBarriers, key.file);
-          if (releaseBarrier) return [{ _tag: "barrier", barrier: releaseBarrier }, state];
-
-          const record = lookupEntry(state.resident, key.file);
-          if (record !== undefined) return [{ _tag: "resident", record }, state];
-
-          const existing = state.loads.find(
-            (load) => load.key.file === key.file && load.key.variant === key.variant
-          );
-          if (existing) return [{ _tag: "inflight", load: existing }, state];
-
-          const load: InFlightLoad<A> = {
-            key,
-            sessionVersion: state.sessionVersion,
-            fileVersion: fileVersions.get(key.file) ?? 0,
-            deferred: Deferred.makeUnsafe<A, PDFError>(),
-            fiberReady: Deferred.makeUnsafe<Fiber.Fiber<A, PDFError>>(),
-            cleanupError: Ref.makeUnsafe<PDFProcessingError | undefined>(undefined),
-            fiber: null,
-          };
-
-          return [
-            { _tag: "start", load },
-            { ...state, loads: [...state.loads, load] },
-          ];
-        });
-
-        switch (decision._tag) {
-          case "barrier":
-            return restore(Deferred.await(decision.barrier)).pipe(
-              Effect.andThen(
-                Effect.fail(
-                  processingError(
-                    "document-operation",
-                    key.file,
-                    new Error("The PDF changed before the document operation could start.")
-                  )
+        const barrier = state.resetBarrier ?? lookupEntry(state.releaseBarriers, key.file);
+        if (barrier) {
+          return restore(Deferred.await(barrier)).pipe(
+            Effect.andThen(
+              Effect.fail(
+                processingError(
+                  "document-operation",
+                  key.file,
+                  new Error("The PDF changed before the document operation could start.")
                 )
               )
-            );
-          case "resident":
-            return Effect.succeed(decision.record);
-          case "inflight":
-            return restore(Deferred.await(decision.load.deferred));
-          case "start":
-            return startLoad(decision.load).pipe(
-              Effect.andThen(restore(Deferred.await(decision.load.deferred)))
-            );
+            )
+          );
         }
+
+        const record = lookupEntry(state.resident, key.file);
+        if (record !== undefined) return Effect.succeed(record);
+
+        const existing = state.loads.find(
+          (load) => load.key.file === key.file && load.key.variant === key.variant
+        );
+        if (existing) return restore(Deferred.await(existing.deferred));
+
+        const load: InFlightLoad<A> = {
+          key,
+          sessionVersion: state.sessionVersion,
+          fileVersion: fileVersions.get(key.file) ?? 0,
+          deferred: Deferred.makeUnsafe<A, PDFError>(),
+          fiberReady: Deferred.makeUnsafe<Fiber.Fiber<A, PDFError>>(),
+        };
+        state = { ...state, loads: [...state.loads, load] };
+        return startLoad(load).pipe(Effect.andThen(restore(Deferred.await(load.deferred))));
       })
     );
 
   const peek = (file: File): Option.Option<A> =>
-    Option.fromUndefinedOr(lookupEntry(Ref.getUnsafe(stateRef).resident, file));
+    Option.fromUndefinedOr(lookupEntry(state.resident, file));
 
   const version = (file: File): DocumentVersion => {
-    const state = Ref.getUnsafe(stateRef);
     return {
       session: state.sessionVersion,
       file: fileVersions.get(file) ?? 0,
@@ -520,7 +384,6 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
   };
 
   const isCurrentVersion = (file: File, documentVersion: DocumentVersion): boolean => {
-    const state = Ref.getUnsafe(stateRef);
     return (
       state.sessionVersion === documentVersion.session &&
       (fileVersions.get(file) ?? 0) === documentVersion.file
@@ -528,12 +391,10 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
   };
 
   const isCurrent = (file: File, sessionVersion: number, fileVersion: number): boolean => {
-    const state = Ref.getUnsafe(stateRef);
     return state.sessionVersion === sessionVersion && (fileVersions.get(file) ?? 0) === fileVersion;
   };
 
   const barrierFor = (file: File): Deferred.Deferred<void, PDFProcessingError> | undefined => {
-    const state = Ref.getUnsafe(stateRef);
     return state.resetBarrier ?? lookupEntry(state.releaseBarriers, file);
   };
 
@@ -566,35 +427,27 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
             );
           }
 
-          mutate((state) => [
-            undefined,
-            {
-              ...state,
-              operationFibers: upsertEntry(state.operationFibers, file, [
-                ...(lookupEntry(state.operationFibers, file) ?? []),
-                fiber,
-              ]),
-            },
-          ]);
+          state = {
+            ...state,
+            operationFibers: upsertEntry(state.operationFibers, file, [
+              ...(lookupEntry(state.operationFibers, file) ?? []),
+              fiber,
+            ]),
+          };
 
           return Effect.ensuring(
             restore(effect),
             Effect.sync(() => {
-              mutate((state) => {
-                const remaining = (lookupEntry(state.operationFibers, file) ?? []).filter(
-                  (entry) => entry !== fiber
-                );
-                return [
-                  undefined,
-                  {
-                    ...state,
-                    operationFibers:
-                      remaining.length === 0
-                        ? removeEntry(state.operationFibers, file)
-                        : upsertEntry(state.operationFibers, file, remaining),
-                  },
-                ];
-              });
+              const remaining = (lookupEntry(state.operationFibers, file) ?? []).filter(
+                (entry) => entry !== fiber
+              );
+              state = {
+                ...state,
+                operationFibers:
+                  remaining.length === 0
+                    ? removeEntry(state.operationFibers, file)
+                    : upsertEntry(state.operationFibers, file, remaining),
+              };
             })
           );
         })
@@ -634,7 +487,6 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
     <R, E extends PDFError>(
       effect: Effect.Effect<R, E>
     ): Effect.Effect<R, E | PDFProcessingError> => {
-      const state = Ref.getUnsafe(stateRef);
       return trackWith(file, operation, state.sessionVersion, fileVersions.get(file) ?? 0, effect);
     };
 
@@ -643,7 +495,6 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
     <R, E extends PDFError>(
       effect: Effect.Effect<R, E>
     ): Effect.Effect<R, E | PDFProcessingError> => {
-      const state = Ref.getUnsafe(stateRef);
       return gateWith(file, operation, state.sessionVersion, fileVersions.get(file) ?? 0, effect);
     };
 

@@ -7,8 +7,6 @@ export function errorMessage(cause: unknown, fallback: string): string {
   return fallback;
 }
 
-export const messageFromCause = errorMessage;
-
 export function processingError(operation: string, file: File, cause: unknown): PDFProcessingError {
   return new PDFProcessingError({
     operation,
@@ -23,18 +21,5 @@ export function collectFirstError(
 ): Effect.Effect<void, PDFProcessingError> {
   return Effect.validate(effects, (effect) => effect, { discard: true }).pipe(
     Effect.mapError((errors) => errors[0])
-  );
-}
-
-export function continueAfterError(
-  accumulator: { current?: PDFProcessingError },
-  effect: Effect.Effect<void, PDFProcessingError>
-): Effect.Effect<void> {
-  return effect.pipe(
-    Effect.catch((error) =>
-      Effect.sync(() => {
-        accumulator.current ??= error;
-      })
-    )
   );
 }

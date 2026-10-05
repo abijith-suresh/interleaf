@@ -33,7 +33,6 @@ export default function EditorPageViewer(props: Props) {
   let canvas!: HTMLCanvasElement;
   let mounted = false;
   let disposed = false;
-  let renderAttempt = 0;
   let renderQueued = false;
   let renderLoopRunning = false;
   let renderFiber: Fiber.Fiber<unknown, unknown> | null = null;
@@ -93,8 +92,8 @@ export default function EditorPageViewer(props: Props) {
     void Effect.runPromise(Fiber.interrupt(fiber)).catch(() => undefined);
   }
 
-  function canUpdateRenderState(attempt: number): boolean {
-    return !disposed && attempt === renderAttempt && canvas.isConnected;
+  function canUpdateRenderState(): boolean {
+    return !disposed && canvas.isConnected;
   }
 
   function getViewerScale(
@@ -132,7 +131,6 @@ export default function EditorPageViewer(props: Props) {
       while (renderQueued && !disposed) {
         renderQueued = false;
         const page = currentPage();
-        const attempt = ++renderAttempt;
 
         if (!page) {
           setRenderState("loading");
@@ -142,7 +140,6 @@ export default function EditorPageViewer(props: Props) {
         setRenderState("loading");
         canvas.width = 0;
         canvas.height = 0;
-        interruptRender();
 
         let fiber: Fiber.Fiber<unknown, unknown>;
         try {
@@ -173,18 +170,18 @@ export default function EditorPageViewer(props: Props) {
             )
           );
         } catch {
-          if (canUpdateRenderState(attempt)) setRenderState("error");
+          if (canUpdateRenderState()) setRenderState("error");
           continue;
         }
 
         renderFiber = fiber;
         try {
           await props.runtime.runPromise(Fiber.join(fiber));
-          if (canUpdateRenderState(attempt)) setRenderState("ready");
+          if (canUpdateRenderState()) setRenderState("ready");
         } catch {
           // Navigation and resizing interrupt the current render on purpose. The queued
           // request will render the latest page or fit when this fiber settles.
-          if (canUpdateRenderState(attempt) && !renderQueued) setRenderState("error");
+          if (canUpdateRenderState() && !renderQueued) setRenderState("error");
         } finally {
           if (renderFiber === fiber) renderFiber = null;
         }
@@ -325,7 +322,6 @@ export default function EditorPageViewer(props: Props) {
   onCleanup(() => {
     disposed = true;
     renderQueued = false;
-    renderAttempt += 1;
     if (resizeTimer !== null) {
       window.clearTimeout(resizeTimer);
       resizeTimer = null;

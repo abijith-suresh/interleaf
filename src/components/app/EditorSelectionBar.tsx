@@ -129,13 +129,8 @@ export default function EditorSelectionBar(props: Props) {
     if (props.busy) return;
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
-    if (openMenu() !== menu) {
-      setOpenMenu(menu);
-      focusMenuItem(menu, event.key === "ArrowUp" ? -1 : 0);
-      return;
-    }
-    const items = menuItems(menu);
-    focusMenuItem(menu, event.key === "ArrowUp" ? items.length - 1 : 0);
+    setOpenMenu(menu);
+    focusMenuItem(menu, event.key === "ArrowUp" ? -1 : 0);
   };
 
   const handleMenuKeyDown = (menu: Exclude<OpenMenu, null>, event: KeyboardEvent) => {

@@ -283,7 +283,7 @@ export class PDFOperationsService {
       });
 
       return {
-        data: new Uint8Array(data),
+        data,
         suggestedFileName: IMAGES_TO_PDF_FILENAME,
       };
     });
@@ -299,22 +299,8 @@ export class PDFOperationsService {
           .filter((page): page is PageState => Boolean(page) && !page.markedForDeletion)
       : pages.filter((page) => !page.markedForDeletion);
 
-    return this.buildOutputFromPages(
-      pagesToBuild,
-      "No pages to include in the PDF",
-      OUTPUT_FILENAME,
-      options.onProgress
-    );
-  }
-
-  private buildOutputFromPages(
-    pagesToBuild: readonly PageState[],
-    emptyStateMessage: string,
-    suggestedFileName: string,
-    onProgress?: (progress: PDFBuildProgress) => void
-  ): Effect.Effect<PDFOperationResult, PDFError> {
     if (pagesToBuild.length === 0) {
-      return Effect.fail(new PDFNoPagesError({ message: emptyStateMessage }));
+      return Effect.fail(new PDFNoPagesError({ message: "No pages to include in the PDF" }));
     }
 
     return Effect.gen({ self: this }, function* () {
@@ -358,7 +344,7 @@ export class PDFOperationsService {
 
         yield* Effect.try({
           try: () => {
-            onProgress?.({ completed: index + 1, total: pagesToBuild.length });
+            options.onProgress?.({ completed: index + 1, total: pagesToBuild.length });
           },
           catch: (cause) => processingError("report-progress", page.sourceFile, cause),
         });
@@ -369,13 +355,7 @@ export class PDFOperationsService {
         catch: (cause) => processingError("save-output", pagesToBuild[0].sourceFile, cause),
       });
 
-      return yield* Effect.try({
-        try: () => ({
-          data: new Uint8Array(data),
-          suggestedFileName,
-        }),
-        catch: (cause) => processingError("serialize-output", pagesToBuild[0].sourceFile, cause),
-      });
+      return { data, suggestedFileName: OUTPUT_FILENAME };
     });
   }
 

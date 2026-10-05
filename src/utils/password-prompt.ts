@@ -6,8 +6,16 @@ import { PASSWORD_MODAL_TITLE } from "../constants";
  * @param isRetry - If true, shows an "Incorrect password" message.
  * @returns The entered password string, or null if the user cancelled.
  */
-export function promptForPassword(fileName: string, isRetry: boolean): Promise<string | null> {
+export function promptForPassword(
+  fileName: string,
+  isRetry: boolean,
+  signal?: AbortSignal
+): Promise<string | null> {
   return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve(null);
+      return;
+    }
     // Store the element that triggered the modal so focus can be restored on close
     const triggerElement = document.activeElement as HTMLElement | null;
 
@@ -72,22 +80,26 @@ export function promptForPassword(fileName: string, isRetry: boolean): Promise<s
     document.body.appendChild(backdrop);
 
     // Focus the input after mounting
-    requestAnimationFrame(() => input.focus());
+    const focusFrame = requestAnimationFrame(() => input.focus());
 
-    const cleanup = () => {
-      document.body.removeChild(backdrop);
+    const finish = (password: string | null) => {
+      if (!backdrop.isConnected) return;
+      cancelAnimationFrame(focusFrame);
+      signal?.removeEventListener("abort", cancel);
+      backdrop.remove();
       triggerElement?.focus();
+      resolve(password);
     };
 
     const submit = () => {
-      cleanup();
-      resolve(input.value);
+      finish(input.value);
     };
 
     const cancel = () => {
-      cleanup();
-      resolve(null);
+      finish(null);
     };
+
+    signal?.addEventListener("abort", cancel, { once: true });
 
     unlockBtn.addEventListener("click", submit);
     cancelBtn.addEventListener("click", cancel);

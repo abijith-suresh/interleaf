@@ -42,4 +42,27 @@ describe("promptForPassword", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     }
   );
+
+  it("closes an interrupted prompt and restores focus", async () => {
+    const trigger = document.createElement("button");
+    document.body.append(trigger);
+    trigger.focus();
+    const controller = new AbortController();
+    const result = promptForPassword("protected.pdf", false, controller.signal);
+    screen.getByLabelText("PDF password").focus();
+
+    controller.abort();
+
+    await expect(result).resolves.toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("does not open a prompt for an already interrupted operation", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(promptForPassword("protected.pdf", false, controller.signal)).resolves.toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
 });

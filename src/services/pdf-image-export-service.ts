@@ -35,11 +35,9 @@ function canvasToPNG(
   file: File
 ): Effect.Effect<Uint8Array, PDFProcessingError> {
   return Effect.gen(function* () {
-    let cancelled = false;
     const blob = yield* Effect.callback<Blob, PDFProcessingError>((resume) => {
       try {
         canvas.toBlob((nextBlob) => {
-          if (cancelled) return;
           if (nextBlob) {
             resume(Effect.succeed(nextBlob));
             return;
@@ -54,10 +52,6 @@ function canvasToPNG(
       } catch (cause) {
         resume(Effect.fail(processingError("encode-image", file, cause)));
       }
-
-      return Effect.sync(() => {
-        cancelled = true;
-      });
     });
 
     return yield* Effect.tryPromise({

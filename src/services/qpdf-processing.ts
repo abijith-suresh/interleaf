@@ -1,5 +1,5 @@
 import { Context, Data, Effect, Layer } from "effect";
-import { messageFromCause } from "./pdf-errors";
+import { errorMessage } from "./pdf-errors";
 
 export interface QpdfWorkerOptimizeRequest {
   readonly type: "optimize";
@@ -116,7 +116,7 @@ export function makeQpdfProcessing(options: QpdfProcessingOptions): QpdfProcessi
               new QpdfProcessingError({
                 operation: "create-worker",
                 cause,
-                message: messageFromCause(cause, "Could not create the qpdf worker."),
+                message: errorMessage(cause, "Could not create the qpdf worker."),
               })
             )
           );
@@ -124,11 +124,10 @@ export function makeQpdfProcessing(options: QpdfProcessingOptions): QpdfProcessi
         }
         const id = `qpdf-${++nextRequestId}`;
         let finished = false;
-        let cancel: (() => void) | undefined;
         const cleanup = () => {
           if (finished) return;
           finished = true;
-          if (cancel) activeCancellations.delete(cancel);
+          activeCancellations.delete(cancel);
           worker.removeEventListener("message", onMessage);
           worker.removeEventListener("error", onError);
           worker.terminate();
@@ -171,13 +170,13 @@ export function makeQpdfProcessing(options: QpdfProcessingOptions): QpdfProcessi
               new QpdfProcessingError({
                 operation: "optimize",
                 cause: event.error ?? event,
-                message: messageFromCause(event.error ?? event.message, "The qpdf worker failed."),
+                message: errorMessage(event.error ?? event.message, "The qpdf worker failed."),
               })
             )
           );
         };
 
-        cancel = () =>
+        const cancel = () =>
           finish(
             Effect.fail(
               new QpdfProcessingError({
@@ -210,7 +209,7 @@ export function makeQpdfProcessing(options: QpdfProcessingOptions): QpdfProcessi
               new QpdfProcessingError({
                 operation: "optimize",
                 cause,
-                message: messageFromCause(cause, "Could not send the PDF to the qpdf worker."),
+                message: errorMessage(cause, "Could not send the PDF to the qpdf worker."),
               })
             )
           );
