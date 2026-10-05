@@ -10,7 +10,7 @@ permissions:
 jobs:
   title-check:
     name: title-check
-    uses: abijith-suresh/workflows/.github/workflows/conventional-commit-title.yml@e59572c426373f5864ef1a6dad2524b47280a30c # v0.4.1
+    uses: abijith-suresh/workflows/.github/workflows/conventional-commit-title.yml@163055ac24b4169ae93ae05c5d7491b1cd5d96c7 # v0.6.0
     permissions:
       pull-requests: read
 
