@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
-import { Effect } from "effect";
+import { Deferred, Effect } from "effect";
 import { createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -101,6 +101,43 @@ describe("EditorPageViewer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Review page 3" }));
     expect(screen.getByRole("heading", { name: "Page 3" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
+  });
+
+  it("waits for render cancellation, skips superseded pages, and stops on unmount", async () => {
+    const pages = makePages();
+    const [activePageId, setActivePageId] = createSignal("page-1");
+    const releaseCleanup = Deferred.makeUnsafe<void>();
+    const cancelFirst = vi.fn(() => Deferred.await(releaseCleanup));
+    const cancelLatest = vi.fn(() => Effect.void);
+    pdfServiceMocks.renderPage.mockImplementation((_file: File, pageNumber: number) =>
+      Effect.never.pipe(Effect.onInterrupt(pageNumber === 1 ? cancelFirst : cancelLatest))
+    );
+    const view = render(() => (
+      <EditorPageViewer
+        pages={pages}
+        navigationPageIds={pages.map((page) => page.id)}
+        activePageId={activePageId()}
+        runtime={runtime}
+        onActivePageChange={setActivePageId}
+        onClose={vi.fn()}
+      />
+    ));
+
+    try {
+      await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1));
+      fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+      fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+      await waitFor(() => expect(cancelFirst).toHaveBeenCalledTimes(1));
+      expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1);
+      await Effect.runPromise(Deferred.succeed(releaseCleanup, undefined));
+      await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2));
+      expect(pdfServiceMocks.renderPage.mock.calls.map((call) => call[1])).toEqual([1, 3]);
+      view.unmount();
+      await waitFor(() => expect(cancelLatest).toHaveBeenCalledTimes(1));
+    } finally {
+      await Effect.runPromise(Deferred.succeed(releaseCleanup, undefined));
+      view.unmount();
+    }
   });
 
   it("limits navigation to the selected review scope and closes from Escape", async () => {

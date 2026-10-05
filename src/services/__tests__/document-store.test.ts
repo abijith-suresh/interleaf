@@ -277,6 +277,53 @@ describe("makeDocumentStore", () => {
     });
   });
 
+  it.effect("reports duplicate cleanup failure while keeping the winning resident", () => {
+    const gate = Deferred.makeUnsafe<TestRecord>();
+    const started = Deferred.makeUnsafe<void>();
+    const duplicate = { id: "duplicate" };
+    const failure = processingError("cleanup-record", file, new Error("cleanup failed"));
+    load.mockImplementation(({ variant }) =>
+      variant === "pending"
+        ? Deferred.succeed(started, undefined).pipe(Effect.andThen(Deferred.await(gate)))
+        : Effect.succeed(resident)
+    );
+    cleanup.mockReturnValueOnce(Effect.fail(failure));
+    return Effect.gen(function* () {
+      const pending = yield* Effect.forkChild(store.acquire(makeKey(file, "pending")));
+      yield* Deferred.await(started);
+      expect(yield* store.acquire(key)).toBe(resident);
+      yield* Deferred.succeed(gate, duplicate);
+      expect(yield* pending.pipe(Fiber.join, Effect.flip)).toBe(failure);
+      expect(cleanup).toHaveBeenCalledExactlyOnceWith(duplicate);
+      expect(Option.getOrUndefined(store.peek(file))).toBe(resident);
+    });
+  });
+
+  it.effect("reports cleanup failure for a load that completes during release", () => {
+    const gate = Deferred.makeUnsafe<TestRecord>();
+    const started = Deferred.makeUnsafe<void>();
+    const failure = processingError("cleanup-record", file, new Error("cleanup failed"));
+    load.mockReturnValue(
+      Deferred.succeed(started, undefined).pipe(
+        Effect.andThen(Deferred.await(gate)),
+        Effect.uninterruptible
+      )
+    );
+    cleanup.mockReturnValueOnce(Effect.fail(failure));
+    return Effect.gen(function* () {
+      const pending = yield* Effect.forkChild(store.acquire(key));
+      yield* Deferred.await(started);
+      const release = yield* Effect.forkChild(store.releaseFile(file).pipe(Effect.flip));
+      expect(yield* pending.pipe(Fiber.join, Effect.flip)).toMatchObject({
+        operation: "release-file",
+      });
+      yield* Deferred.succeed(gate, resident);
+      expect(yield* Fiber.join(release)).toBe(failure);
+      expect(cleanup).toHaveBeenCalledExactlyOnceWith(resident);
+      expect(Option.isNone(store.peek(file))).toBe(true);
+    });
+  });
+
   it.effect("does not retain a file after its tracked operation completes", () =>
     Effect.gen(function* () {
       yield* store.track(file, "inspect")(Effect.void);

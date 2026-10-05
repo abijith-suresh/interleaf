@@ -7,11 +7,7 @@ import type {
   PDFOperationResult,
 } from "../types/interfaces";
 import { PDFProcessingError } from "../types/interfaces";
-import {
-  type PDFCompressionError,
-  type PDFCompressionOptions,
-  PDFCompressionService,
-} from "./pdf-compression-service";
+import { PDFCompressionService } from "./pdf-compression-service";
 import { collectFirstError } from "./pdf-errors";
 import type { PDFImageExportOptions } from "./pdf-image-export-service";
 import type {
@@ -56,9 +52,8 @@ export interface PDFProcessingShape {
     options?: PDFImageExportOptions
   ) => Effect.Effect<PDFImageExportResult, PDFError>;
   readonly compressPDF: (
-    file: File,
-    options?: PDFCompressionOptions
-  ) => Effect.Effect<PDFCompressionResult, PDFError | QpdfProcessingError | PDFCompressionError>;
+    file: File
+  ) => Effect.Effect<PDFCompressionResult, PDFError | QpdfProcessingError>;
   readonly releaseFile: (file: File) => Effect.Effect<void, PDFProcessingError>;
   readonly reset: Effect.Effect<void, PDFProcessingError>;
   readonly clearCache: Effect.Effect<void>;
@@ -113,7 +108,7 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
                     : "Could not load PDF editing support.",
               }),
           }),
-          (exit) => (Exit.isSuccess(exit) ? "1 hour" : 0)
+          (exit) => (Exit.isSuccess(exit) ? Infinity : 0)
         );
         const getImageExportService = yield* Effect.cachedWithTTL(
           Effect.tryPromise({
@@ -132,7 +127,7 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
                     : "Could not load PDF image export support.",
               }),
           }),
-          (exit) => (Exit.isSuccess(exit) ? "1 hour" : 0)
+          (exit) => (Exit.isSuccess(exit) ? Infinity : 0)
         );
         const qpdfProcessing = yield* QpdfProcessing;
         const compressionService = new PDFCompressionService(qpdfProcessing);
@@ -163,8 +158,8 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
             Effect.flatMap(getImageExportService, (service) =>
               service.exportImages(pages, options)
             ),
-          compressPDF: (file: File, options?: PDFCompressionOptions) =>
-            compressionService.compressPDF(file, pdfService.getPassword(file), options),
+          compressPDF: (file: File) =>
+            compressionService.compressPDF(file, pdfService.getPassword(file)),
           releaseFile: (file: File) =>
             collectFirstError([
               pdfService.releaseFile(file),

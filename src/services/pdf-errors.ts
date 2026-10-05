@@ -23,16 +23,3 @@ export function collectFirstError(
     Effect.mapError((errors) => errors[0])
   );
 }
-
-export function continueAfterError(
-  accumulator: { current?: PDFProcessingError },
-  effect: Effect.Effect<void, PDFProcessingError>
-): Effect.Effect<void> {
-  return effect.pipe(
-    Effect.catch((error) =>
-      Effect.sync(() => {
-        accumulator.current ??= error;
-      })
-    )
-  );
-}

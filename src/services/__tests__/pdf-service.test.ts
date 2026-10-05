@@ -145,6 +145,31 @@ describe("PDFService", () => {
     }
   );
 
+  it.each(["release", "reset"] as const)(
+    "reports late document cleanup failure during %s",
+    async (action) => {
+      const pending = pendingLoad();
+      pending.task.destroy.mockResolvedValue(undefined);
+      pdf.cleanup.mockRejectedValue(new Error("late cleanup failed"));
+      getDocument.mockReturnValueOnce(pending.task);
+      const load = runFork(service.loadPDF(file));
+      await vi.waitFor(() => expect(getDocument).toHaveBeenCalledOnce());
+
+      const cleanup = runPromise(
+        action === "release" ? service.releaseFile(file) : service.reset()
+      );
+      const failure = expect(cleanup).rejects.toMatchObject({ operation: "cleanup-pdf-js", file });
+      await vi.waitFor(() => expect(pending.task.destroy).toHaveBeenCalledOnce());
+      pending.resolve(pdf);
+
+      await failure;
+      await expect(runPromise(Fiber.join(load))).rejects.toMatchObject({
+        operation: "release-file",
+      });
+      expect(pdf.cleanup).toHaveBeenCalledOnce();
+    }
+  );
+
   it("waits for duplicate cleanup and retains the first successful document", async () => {
     const first = pendingLoad();
     const second = pendingLoad();

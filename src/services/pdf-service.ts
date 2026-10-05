@@ -236,11 +236,8 @@ export class PDFService {
     file: File,
     loadingTask: ReturnType<typeof pdfjsLib.getDocument>
   ): Effect.Effect<void, PDFProcessingError> {
-    const destroy = loadingTask?.destroy;
-    if (typeof destroy !== "function") return Effect.void;
-
     return Effect.tryPromise({
-      try: () => Promise.resolve(destroy.call(loadingTask)),
+      try: () => loadingTask.destroy(),
       catch: (cause) => processingError("destroy-pdf-js", file, cause),
     });
   }
@@ -253,30 +250,10 @@ export class PDFService {
 
     return Effect.suspend(() => {
       let loadingTask: ReturnType<typeof pdfjsLib.getDocument> | undefined;
-      let documentResolution: Deferred.Deferred<void> | undefined;
+      let documentResolution: Deferred.Deferred<void, PDFProcessingError> | undefined;
       let resolvedRecord: LoadedPDFRecord | undefined;
       let cleanupError: PDFProcessingError | undefined;
-      let cleanupStarted = false;
-      let cleanupFailed = false;
       let cancelled = false;
-
-      const destroyLoadingTask = (): Effect.Effect<void, PDFProcessingError> => {
-        const task = loadingTask;
-        if (!task || cleanupStarted) return Effect.void;
-        cleanupStarted = true;
-
-        return this.destroyLoadingTaskForFile(file, task).pipe(
-          Effect.onExit((exit) =>
-            Effect.sync(() => {
-              if (Exit.isSuccess(exit)) {
-                loadingTask = undefined;
-              } else {
-                cleanupFailed = true;
-              }
-            })
-          )
-        );
-      };
 
       const cleanupPartial = (): Effect.Effect<void, PDFProcessingError> =>
         Effect.suspend(() => {
@@ -290,10 +267,13 @@ export class PDFService {
               })
             : Effect.void;
 
-          return collectFirstError([cleanupResolvedDocument, destroyLoadingTask()]).pipe(
+          return collectFirstError([
+            cleanupResolvedDocument,
+            loadingTask ? this.destroyLoadingTaskForFile(file, loadingTask) : Effect.void,
+          ]).pipe(
             Effect.andThen(
               Effect.suspend(() => {
-                if (cleanupFailed || !resolution) return Effect.void;
+                if (!resolution) return Effect.void;
                 return Deferred.await(resolution);
               })
             )
@@ -315,7 +295,7 @@ export class PDFService {
           catch: (cause) => processingError("load-pdf-js", file, cause),
         });
         loadingTask = task;
-        const resolution = Deferred.makeUnsafe<void>();
+        const resolution = Deferred.makeUnsafe<void, PDFProcessingError>();
         documentResolution = resolution;
 
         return yield* Effect.tryPromise({
@@ -323,7 +303,7 @@ export class PDFService {
             task.promise.then(
               async (pdfjsDocument) => {
                 try {
-                  if (cancelled || cleanupStarted) {
+                  if (cancelled) {
                     try {
                       await Promise.resolve(pdfjsDocument.cleanup());
                     } catch (cause) {
@@ -341,7 +321,10 @@ export class PDFService {
                   resolvedRecord = loadedRecord;
                   return loadedRecord;
                 } finally {
-                  Deferred.doneUnsafe(resolution, Effect.void);
+                  Deferred.doneUnsafe(
+                    resolution,
+                    cleanupError ? Effect.fail(cleanupError) : Effect.void
+                  );
                 }
               },
               (cause) => {

@@ -283,7 +283,7 @@ export class PDFOperationsService {
       });
 
       return {
-        data: new Uint8Array(data),
+        data,
         suggestedFileName: IMAGES_TO_PDF_FILENAME,
       };
     });
@@ -355,13 +355,7 @@ export class PDFOperationsService {
         catch: (cause) => processingError("save-output", pagesToBuild[0].sourceFile, cause),
       });
 
-      return yield* Effect.try({
-        try: () => ({
-          data: new Uint8Array(data),
-          suggestedFileName: OUTPUT_FILENAME,
-        }),
-        catch: (cause) => processingError("serialize-output", pagesToBuild[0].sourceFile, cause),
-      });
+      return { data, suggestedFileName: OUTPUT_FILENAME };
     });
   }
 

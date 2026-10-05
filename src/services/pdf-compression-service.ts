@@ -1,29 +1,16 @@
-import { Data, Effect } from "effect";
+import { Effect } from "effect";
 import type { PDFCompressionResult, PDFError } from "../types/interfaces";
 import { PDFProcessingError } from "../types/interfaces";
 import { errorMessage } from "./pdf-errors";
 import type { QpdfProcessingError, QpdfProcessingShape } from "./qpdf-processing";
-
-export type PDFCompressionStage = "compressing";
-
-export interface PDFCompressionOptions {
-  readonly onCompressionStage?: (stage: PDFCompressionStage) => void;
-}
-
-export class PDFCompressionError extends Data.TaggedError("PDFCompressionError")<{
-  readonly operation: "report-stage";
-  readonly cause: unknown;
-  readonly message: string;
-}> {}
 
 export class PDFCompressionService {
   constructor(private readonly qpdfProcessing: Pick<QpdfProcessingShape, "optimizeLosslessly">) {}
 
   compressPDF(
     file: File,
-    password: string | undefined,
-    options: PDFCompressionOptions = {}
-  ): Effect.Effect<PDFCompressionResult, PDFError | QpdfProcessingError | PDFCompressionError> {
+    password: string | undefined
+  ): Effect.Effect<PDFCompressionResult, PDFError | QpdfProcessingError> {
     return Effect.gen({ self: this }, function* () {
       const input = yield* Effect.tryPromise({
         try: async () => new Uint8Array(await file.arrayBuffer()),
@@ -33,16 +20,6 @@ export class PDFCompressionService {
             file,
             cause,
             message: errorMessage(cause, `Could not read ${file.name}.`),
-          }),
-      });
-
-      yield* Effect.try({
-        try: () => options.onCompressionStage?.("compressing"),
-        catch: (cause) =>
-          new PDFCompressionError({
-            operation: "report-stage",
-            cause,
-            message: errorMessage(cause, "Could not report PDF compression progress."),
           }),
       });
 

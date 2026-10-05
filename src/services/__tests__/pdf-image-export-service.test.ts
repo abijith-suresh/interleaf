@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Deferred, Effect, Fiber } from "effect";
 import { unzipSync } from "fflate";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PDFNoPagesError } from "../../types/interfaces";
@@ -124,6 +124,29 @@ describe("PDFImageExportService", () => {
         "page-002.png",
       ]);
     }
+  });
+
+  it("cleans the canvas and ignores PNG encoding that finishes after cancellation", async () => {
+    const sourceFile = new File(["source"], "source.pdf", { type: "application/pdf" });
+    const pending = Deferred.makeUnsafe<BlobCallback>();
+    vi.mocked(HTMLCanvasElement.prototype.toBlob).mockImplementation((callback) => {
+      Deferred.doneUnsafe(pending, Effect.succeed(callback));
+    });
+    const onProgress = vi.fn();
+    const service = new PDFImageExportService({ getPageRotation, renderPage });
+    const fiber = Effect.runFork(
+      service.exportImages([createPageState(sourceFile, 1)], { onProgress })
+    );
+    const callback = await Effect.runPromise(Deferred.await(pending));
+    await Effect.runPromise(Fiber.interrupt(fiber));
+    const canvas = renderPage.mock.calls[0][2] as HTMLCanvasElement;
+    expect([canvas.width, canvas.height]).toEqual([0, 0]);
+    const blob = new Blob(["late PNG"]);
+    const read = vi.spyOn(blob, "arrayBuffer");
+    callback(blob);
+    await Effect.runPromise(Effect.yieldNow);
+    expect(read).not.toHaveBeenCalled();
+    expect(onProgress).not.toHaveBeenCalled();
   });
 
   it("fails when a page cannot be encoded as PNG", async () => {

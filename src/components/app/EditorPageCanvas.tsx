@@ -21,7 +21,6 @@ export default function EditorPageCanvas(props: Props) {
   let container!: HTMLSpanElement;
   let canvas!: HTMLCanvasElement;
   let observer: IntersectionObserver | null = null;
-  let renderInFlight = false;
   let renderFiber: Fiber.Fiber<unknown, unknown> | null = null;
   let disposed = false;
 
@@ -52,9 +51,8 @@ export default function EditorPageCanvas(props: Props) {
   const canUpdateRenderState = () => !disposed && container.isConnected;
 
   const renderThumbnail = () => {
-    if (disposed || renderInFlight) return;
+    if (disposed || renderFiber !== null) return;
 
-    renderInFlight = true;
     canvas.width = 0;
     canvas.height = 0;
     setRenderState("loading");
@@ -79,7 +77,6 @@ export default function EditorPageCanvas(props: Props) {
         )
       );
     } catch {
-      renderInFlight = false;
       if (canUpdateRenderState()) {
         setRenderState("error");
       }
@@ -104,7 +101,6 @@ export default function EditorPageCanvas(props: Props) {
         }
       )
       .finally(() => {
-        renderInFlight = false;
         if (renderFiber === fiber) {
           renderFiber = null;
         }
@@ -121,7 +117,7 @@ export default function EditorPageCanvas(props: Props) {
         if (
           observer !== nextObserver ||
           !entries.some((entry) => entry.isIntersecting) ||
-          renderInFlight
+          renderFiber !== null
         ) {
           return;
         }

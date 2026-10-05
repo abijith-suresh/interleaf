@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { runPromise } from "effect/Effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { type PDFCompressionError, PDFCompressionService } from "../pdf-compression-service";
+import { PDFCompressionService } from "../pdf-compression-service";
 import { QpdfProcessingError } from "../qpdf-processing";
 
 const sourceFile = new File(["original PDF bytes"], "source.pdf", {
@@ -25,15 +25,12 @@ describe("PDFCompressionService", () => {
   });
 
   it("passes the original file bytes and password to qpdf", async () => {
-    const onCompressionStage = vi.fn();
-
-    await runPromise(service.compressPDF(sourceFile, "623", { onCompressionStage }));
+    await runPromise(service.compressPDF(sourceFile, "623"));
 
     expect(qpdfProcessing.optimizeLosslessly).toHaveBeenCalledWith(
       new Uint8Array(await sourceFile.arrayBuffer()),
       "623"
     );
-    expect(onCompressionStage).toHaveBeenCalledWith("compressing");
   });
 
   it("returns the reduced output and source-based filename", async () => {
@@ -68,25 +65,5 @@ describe("PDFCompressionService", () => {
     qpdfProcessing.optimizeLosslessly.mockReturnValue(Effect.fail(failure));
 
     await expect(runPromise(service.compressPDF(sourceFile, undefined))).rejects.toBe(failure);
-  });
-
-  it("models a compression stage callback failure as a typed error", async () => {
-    const callbackFailure = new Error("stage callback failed");
-
-    await expect(
-      runPromise(
-        service.compressPDF(sourceFile, undefined, {
-          onCompressionStage: () => {
-            throw callbackFailure;
-          },
-        })
-      )
-    ).rejects.toMatchObject<Partial<PDFCompressionError>>({
-      _tag: "PDFCompressionError",
-      operation: "report-stage",
-      cause: callbackFailure,
-      message: "stage callback failed",
-    });
-    expect(qpdfProcessing.optimizeLosslessly).not.toHaveBeenCalled();
   });
 });

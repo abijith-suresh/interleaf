@@ -10,6 +10,33 @@ const makeDocument = (page: { cleanup: () => boolean }) =>
   ({ getPage: () => Promise.resolve(page) }) as unknown as pdfjsLib.PDFDocumentProxy;
 
 describe("PageResources", () => {
+  it.effect("waits for an interrupted acquisition and cleans the late page", () => {
+    const resources = new PageResources();
+    const file = makeFile("late.pdf");
+    const page = { cleanup: vi.fn(() => true) };
+    const pending = Promise.withResolvers<typeof page>();
+    const started = Deferred.makeUnsafe<void>();
+    const document = {
+      getPage: () => {
+        Deferred.doneUnsafe(started, Effect.void);
+        return pending.promise;
+      },
+    } as unknown as pdfjsLib.PDFDocumentProxy;
+
+    return Effect.gen(function* () {
+      const acquisition = yield* Effect.forkChild(resources.getPage(document, file, 1, "use"));
+      yield* Deferred.await(started);
+      const interruption = yield* Effect.forkChild(Fiber.interrupt(acquisition));
+      yield* Effect.yieldNow;
+      expect(page.cleanup).not.toHaveBeenCalled();
+
+      pending.resolve(page);
+      yield* Fiber.join(interruption);
+      yield* resources.drain(file);
+      expect(page.cleanup).toHaveBeenCalledOnce();
+    });
+  });
+
   it.effect("finishes one page use and cleanup before starting the next", () => {
     const resources = new PageResources();
     const file = makeFile("shared.pdf");

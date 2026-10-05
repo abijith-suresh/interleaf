@@ -63,9 +63,10 @@ self.addEventListener("message", async (event) => {
         return;
       }
 
-      const candidate = module.HEAPU8.slice(outputPointer, outputPointer + candidateSize);
-      const reduced = candidate.byteLength < input.byteLength;
-      const output = reduced ? candidate : input.slice();
+      const reduced = candidateSize < input.byteLength;
+      const output = reduced
+        ? module.HEAPU8.slice(outputPointer, outputPointer + candidateSize)
+        : input;
 
       self.postMessage(
         {

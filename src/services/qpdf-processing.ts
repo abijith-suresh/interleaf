@@ -124,11 +124,10 @@ export function makeQpdfProcessing(options: QpdfProcessingOptions): QpdfProcessi
         }
         const id = `qpdf-${++nextRequestId}`;
         let finished = false;
-        let cancel: (() => void) | undefined;
         const cleanup = () => {
           if (finished) return;
           finished = true;
-          if (cancel) activeCancellations.delete(cancel);
+          activeCancellations.delete(cancel);
           worker.removeEventListener("message", onMessage);
           worker.removeEventListener("error", onError);
           worker.terminate();
@@ -177,7 +176,7 @@ export function makeQpdfProcessing(options: QpdfProcessingOptions): QpdfProcessi
           );
         };
 
-        cancel = () =>
+        const cancel = () =>
           finish(
             Effect.fail(
               new QpdfProcessingError({

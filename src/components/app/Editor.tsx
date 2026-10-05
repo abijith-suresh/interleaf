@@ -475,24 +475,14 @@ export default function Editor() {
     const removedPageCount = workspaceFile.pageCount;
     const removedFileName = file.name;
 
-    const indexRemap = new Map<number, number | null>();
-    let nextIndex = 0;
-    pages.forEach((page, oldIndex) => {
-      if (page.sourceFile === file) {
-        indexRemap.set(oldIndex, null);
-        return;
-      }
-      indexRemap.set(oldIndex, nextIndex);
-      nextIndex += 1;
-    });
-
+    const selection = selectedIndices();
     const nextSelection = new Set<number>();
-    for (const oldIndex of selectedIndices()) {
-      const mapped = indexRemap.get(oldIndex);
-      if (mapped !== null && mapped !== undefined) nextSelection.add(mapped);
-    }
-
-    const remainingPages = pages.filter((page) => page.sourceFile !== file);
+    const remainingPages: PageState[] = [];
+    pages.forEach((page, oldIndex) => {
+      if (page.sourceFile === file) return;
+      if (selection.has(oldIndex)) nextSelection.add(remainingPages.length);
+      remainingPages.push(page);
+    });
     setPages(remainingPages);
     setSelectedIndices(nextSelection);
     setDragSourceIndex(null);
@@ -663,15 +653,7 @@ export default function Editor() {
     setStatusMessage("Compressing PDF…");
 
     try {
-      const result = await runPDF(
-        PDFProcessing.use((service) =>
-          service.compressPDF(file, {
-            onCompressionStage: () => {
-              if (!disposed) setStatusMessage("Compressing PDF…");
-            },
-          })
-        )
-      );
+      const result = await runPDF(PDFProcessing.use((service) => service.compressPDF(file)));
       if (disposed) return;
       downloadPDF(result);
       if (result.reduced) {
