@@ -391,9 +391,10 @@ body:has(.marketing-page) {
   outline-offset: 4px;
 }
 
-/* The header CTA is persistent site chrome: one quiet outlined action.
+/* The header CTA is desktop site chrome: one quiet outlined action.
    It never competes with the page's own primary action (the accent pill
-   inside the page hero). */
+   inside the page hero), and below 48rem it is hidden — the mobile menu
+   sheet carries the editor action instead. */
 .nav-editor-link {
   display: inline-flex;
   flex: 0 0 auto;
@@ -514,6 +515,40 @@ body:has(.marketing-page) {
   outline-offset: 2px;
 }
 
+/* The sheet's primary action: the one accent element inside the menu. */
+.mobile-nav-cta {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.35rem;
+  padding: 0.6rem 1rem;
+  border-radius: var(--marketing-radius-sm, 0.45rem);
+  background: var(--marketing-accent, var(--color-accent));
+  color: var(--marketing-paper, var(--color-white));
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 150ms var(--ease-out),
+    color 150ms var(--ease-out);
+}
+
+.mobile-nav-cta:hover {
+  background: var(--marketing-ink, var(--color-primary));
+}
+
+/* On the accent fill the page-wide accent ring would blend in. */
+.marketing-page .mobile-nav-cta:focus-visible {
+  outline: 2px solid var(--marketing-ink, var(--color-primary));
+  outline-offset: 3px;
+}
+
 @media (max-width: 47.99rem) {
   .marketing-hero {
     min-height: auto;
@@ -537,13 +572,10 @@ body:has(.marketing-page) {
     display: block;
   }
 
-  /* On small screens the header CTA is the only loud element, so it keeps
-     the accent fill; the outlined chrome style is reserved for desktop. */
+  /* Below 48rem the trigger is the header's single control; the editor
+     action lives inside the opened menu sheet. */
   .nav-editor-link {
-    padding: 0.55rem 0.9rem;
-    background: var(--marketing-accent, var(--color-accent));
-    border-color: var(--marketing-accent, var(--color-accent));
-    color: var(--marketing-paper, var(--color-white));
+    display: none;
   }
 }
 
