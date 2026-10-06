@@ -148,7 +148,7 @@ body {
 
 .marketing-hero {
   display: grid;
-  align-items: end;
+  align-items: center;
   min-height: min(35rem, calc(100svh - var(--marketing-nav-height)));
   padding-block: clamp(4rem, 8vw, 6rem) clamp(3.5rem, 7vw, 5.5rem);
   border-bottom: 1px solid var(--marketing-rule, var(--color-border));
@@ -157,7 +157,7 @@ body {
 .marketing-hero-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(16rem, 0.8fr);
-  align-items: end;
+  align-items: center;
   gap: clamp(2.5rem, 8vw, 8rem);
 }
 
