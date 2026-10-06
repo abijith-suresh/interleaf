@@ -36,7 +36,18 @@ const links = [
       </div>
 
       <details class="mobile-nav">
-        <summary class="mobile-nav-trigger">Menu</summary>
+        <summary class="mobile-nav-trigger">
+          Menu
+          <svg class="mobile-nav-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+            <path
+              d="M2.5 4.25 6 7.75l3.5-3.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"></path>
+          </svg>
+        </summary>
         <div class="mobile-nav-panel">
           {
             links.map((link) => (
@@ -52,7 +63,7 @@ const links = [
         </div>
       </details>
 
-      <a href={`${base}app`} class="btn-primary nav-editor-link press-feedback">Open editor</a>
+      <a href={`${base}app`} class="nav-editor-link press-feedback">Open editor</a>
     </div>
   </div>
 </nav>
