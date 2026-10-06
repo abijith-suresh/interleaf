@@ -15,7 +15,7 @@ const siteOrigin = Astro.site?.toString().replace(/\/$/, "") ?? "";
 const canonicalURL = new URL(Astro.url.pathname, Astro.site).toString();
 const slug = Astro.url.pathname.replace(base, "").replace(/\/$/, "") || "index";
 const resolvedOgImage = ogImage ?? `${siteOrigin}${base}og/${socialPreviewFilename(slug)}`;
-const preloadedFontFaces = [400, 500, 600];
+const preloadedFontFaces = [300, 400, 500, 600];
 ---
 
 <html lang="en">
