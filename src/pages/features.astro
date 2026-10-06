@@ -1,6 +1,5 @@
 ---
 import MarketingLayout from "../components/marketing/MarketingLayout.astro";
-import ArrowIcon from "../components/shared/ArrowIcon.astro";
 import MarketingHero from "../components/marketing/MarketingHero.astro";
 
 const base = import.meta.env.BASE_URL;
@@ -54,9 +53,7 @@ const capabilities = [
         Interleaf is a local workspace that runs entirely in your browser. The list below is the
         full current scope.
       </p>
-      <a class="marketing-hero-action" href={`${base}app`}>
-        Open editor <span aria-hidden="true"><ArrowIcon /></span>
-      </a>
+      <a class="marketing-hero-action" href={`${base}app`}>Open editor</a>
     </div>
   </MarketingHero>
 
