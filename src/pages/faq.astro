@@ -121,35 +121,37 @@ const questions = [
     max-width: 54rem;
     margin-inline: auto;
     border-top: 1px solid var(--marketing-rule-strong);
-    background: var(--marketing-paper);
   }
 
   details {
     border-bottom: 1px solid var(--marketing-rule);
-    transition: background-color 340ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
   }
 
-  details[open] {
-    background: #fffefa;
-  }
-
-  /* Smooth expand/collapse: the ::details-content box is a grid whose row
-     interpolates 0fr -> 1fr. ::details-content is supported in Chrome/Edge 131+,
-     Safari 18.4+, and Firefox 143+; older browsers fall back to an instant,
-     jank-free toggle. */
+  /* Smooth expand/collapse: ::details-content is a grid whose row interpolates
+     0fr -> 1fr. Supported in Chrome/Edge 131+, Safari 18.4+, and Firefox 143+;
+     older browsers fall back to an instant, jank-free toggle. The closed state
+     owns content-visibility: hidden and defers it via a 0s discrete transition
+     delayed to the end of the collapse, so the browser cannot skip (and
+     size-contain) the content mid-collapse; the open state reveals immediately. */
   details::details-content {
     display: grid;
     grid-template-rows: 0fr;
     opacity: 0;
+    content-visibility: hidden;
     transition:
       grid-template-rows 340ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
       opacity 260ms ease,
-      content-visibility 340ms allow-discrete;
+      content-visibility 0s allow-discrete 340ms;
   }
 
   details[open]::details-content {
     grid-template-rows: 1fr;
     opacity: 1;
+    content-visibility: visible;
+    transition:
+      grid-template-rows 340ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+      opacity 260ms ease,
+      content-visibility 0s allow-discrete;
   }
 
   summary {
@@ -203,11 +205,12 @@ const questions = [
     max-width: 43rem;
     min-height: 0;
     overflow: clip;
-    padding: 0 4.5rem 1.5rem 1.5rem;
+    padding: 0 4.5rem 0 1.5rem;
   }
 
   .faq-answer p {
     margin: 0;
+    padding-bottom: 1.5rem;
     color: var(--marketing-muted);
     font-size: 0.98rem;
     line-height: 1.65;
@@ -239,8 +242,11 @@ const questions = [
       transition-duration: 0.01ms;
     }
 
-    details::details-content {
+    details::details-content,
+    details[open]::details-content,
+    details .summary-mark {
       transition-duration: 0.01ms;
+      transition-delay: 0s;
     }
   }
 </style>
