@@ -86,12 +86,13 @@ const questions = [
   }
 
   .page-intro {
-    border-bottom: 1px solid var(--marketing-rule);
-    padding-block: clamp(4.5rem, 10vw, 7.5rem) clamp(3rem, 6vw, 5rem);
+    padding-block: clamp(4.5rem, 10vw, 7.5rem) 0;
   }
 
+  /* One column: the intro copy shares the answer list's width and centering. */
   .page-intro-copy {
-    max-width: 48rem;
+    max-width: 54rem;
+    margin-inline: auto;
   }
 
   h1 {
@@ -125,10 +126,30 @@ const questions = [
 
   details {
     border-bottom: 1px solid var(--marketing-rule);
+    transition: background-color 340ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
   }
 
   details[open] {
     background: #fffefa;
+  }
+
+  /* Smooth expand/collapse: the ::details-content box is a grid whose row
+     interpolates 0fr -> 1fr. ::details-content is supported in Chrome/Edge 131+,
+     Safari 18.4+, and Firefox 143+; older browsers fall back to an instant,
+     jank-free toggle. */
+  details::details-content {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition:
+      grid-template-rows 340ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+      opacity 260ms ease,
+      content-visibility 340ms allow-discrete;
+  }
+
+  details[open]::details-content {
+    grid-template-rows: 1fr;
+    opacity: 1;
   }
 
   summary {
@@ -144,6 +165,8 @@ const questions = [
     font-weight: 500;
     line-height: 1.35;
     list-style: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   summary::-webkit-details-marker {
@@ -166,6 +189,7 @@ const questions = [
     font-size: 1.1rem;
     font-weight: 300;
     line-height: 1;
+    transition: transform 340ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
   }
 
   details[open] .summary-mark {
@@ -177,6 +201,8 @@ const questions = [
 
   .faq-answer {
     max-width: 43rem;
+    min-height: 0;
+    overflow: clip;
     padding: 0 4.5rem 1.5rem 1.5rem;
   }
 
@@ -210,6 +236,10 @@ const questions = [
       animation-duration: 0.01ms;
       animation-iteration-count: 1;
       scroll-behavior: auto;
+      transition-duration: 0.01ms;
+    }
+
+    details::details-content {
       transition-duration: 0.01ms;
     }
   }
