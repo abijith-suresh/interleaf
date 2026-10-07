@@ -1,4 +1,3 @@
-import { degrees, PDFDocument } from "pdf-lib";
 import type { PageState } from "../../types/interfaces";
 
 export interface PdfFixturePage {
@@ -8,21 +7,30 @@ export interface PdfFixturePage {
 }
 
 export async function createPdfFile(name: string, pages: readonly PdfFixturePage[]): Promise<File> {
-  const document = await PDFDocument.create();
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Kids [${pages.map((_, i) => `${i + 3} 0 R`).join(" ")}] /Count ${pages.length} >>`,
+    ...pages.map(
+      (page) =>
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width} ${page.height}] /Rotate ${page.rotation ?? 0} /Resources << >> >>`
+    ),
+  ];
+  return new File([createPdfBytes(objects)], name, { type: "application/pdf" });
+}
 
-  for (const pageSpec of pages) {
-    const page = document.addPage([pageSpec.width, pageSpec.height]);
-
-    if (pageSpec.rotation !== undefined) {
-      page.setRotation(degrees(pageSpec.rotation));
-    }
+/** Independent, uncompressed fixture writer. Deliberately does not use the engine under test. */
+export function createPdfBytes(objects: string[]): Uint8Array<ArrayBuffer> {
+  let pdf = "%PDF-1.7\n";
+  const offsets = [0];
+  for (const [index, object] of objects.entries()) {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
   }
-
-  const data = await document.save();
-  const fileBytes = new Uint8Array(data.byteLength);
-  fileBytes.set(data);
-
-  return new File([fileBytes], name, { type: "application/pdf" });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1)) pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new TextEncoder().encode(pdf);
 }
 
 export function createPageState(
@@ -70,4 +78,42 @@ export function createJpegFile(name = "image.jpg", rotated = false): File {
       ])
     : JPEG_BYTES;
   return new File([bytes], name, { type: "image/jpeg" });
+}
+
+export function formBytes(
+  paired = false,
+  pageOptions: { rotation?: number; crop?: readonly number[] } = {}
+) {
+  const text = "BT /F1 16 Tf 20 260 Td (Original phrase) Tj ET";
+  return createPdfBytes([
+    "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [6 0 R 7 0 R 10 0 R 11 0 R] /DR << /Font << /Helv 4 0 R >> >> /DA (/Helv 12 Tf 0 g) >> >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 400] /Rotate ${pageOptions.rotation ?? 0} ${pageOptions.crop ? `/CropBox [${pageOptions.crop.join(" ")}]` : ""} /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R /Annots [6 0 R 7 0 R 10 0 R 11 0 R] >>`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${text.length} >>\nstream\n${text}\nendstream`,
+    "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Name) /V (Before) /Rect [20 200 220 225] /P 3 0 R /F 4 /DA (/Helv 12 Tf 0 g) >>",
+    "<< /Type /Annot /Subtype /Widget /FT /Btn /T (Agree) /V /Off /AS /Off /Rect [20 150 40 170] /P 3 0 R /F 4 /AP << /N << /Off 8 0 R /Accepted 9 0 R >> >> >>",
+    "<< /Type /XObject /Subtype /Form /BBox [0 0 20 20] /Length 0 >>\nstream\n\nendstream",
+    "<< /Type /XObject /Subtype /Form /BBox [0 0 20 20] /Length 22 >>\nstream\n0 0 20 20 re 0.2 g f\nendstream",
+    `<< /Type /Annot /Subtype /Widget /FT /Ch /Ff 131072 /T (Color) /Opt ${paired ? "[[(r) (Red)] [(b) (Blue)]]" : "[(Red) (Blue)]"} /V (${paired ? "r" : "Red"}) /Rect [20 100 220 125] /P 3 0 R /F 4 /DA (/Helv 12 Tf 0 g) >>`,
+    "<< /Type /Annot /Subtype /Widget /FT /Tx /Ff 1 /T (ReadOnly) /V (Fixed) /Rect [20 50 220 75] /P 3 0 R /F 4 /DA (/Helv 12 Tf 0 g) >>",
+  ]);
+}
+
+export function sharedFormBytes(): Uint8Array<ArrayBuffer> {
+  return createPdfBytes([
+    "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [6 0 R 7 0 R] /DR << /Font << /Helv 5 0 R >> >> /DA (/Helv 12 Tf 0 g) >> >>",
+    "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 400] /Resources << >> /Annots [8 0 R 10 0 R] >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 400] /Resources << >> /Annots [9 0 R 11 0 R] >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    "<< /FT /Tx /T (Shared) /V (Before) /Kids [8 0 R 9 0 R] /DA (/Helv 12 Tf 0 g) >>",
+    "<< /FT /Btn /Ff 32768 /T (Choice) /V /A /Kids [10 0 R 11 0 R] >>",
+    "<< /Type /Annot /Subtype /Widget /Parent 6 0 R /Rect [20 200 220 225] /P 3 0 R /F 4 >>",
+    "<< /Type /Annot /Subtype /Widget /Parent 6 0 R /Rect [20 200 220 225] /P 4 0 R /F 4 >>",
+    "<< /Type /Annot /Subtype /Widget /Parent 7 0 R /Rect [20 150 40 170] /P 3 0 R /F 4 /AS /A /AP << /N << /Off 12 0 R /A 13 0 R >> >> >>",
+    "<< /Type /Annot /Subtype /Widget /Parent 7 0 R /Rect [20 150 40 170] /P 4 0 R /F 4 /AS /Off /AP << /N << /Off 12 0 R /B 13 0 R >> >> >>",
+    "<< /Type /XObject /Subtype /Form /BBox [0 0 20 20] /Length 0 >>\nstream\n\nendstream",
+    "<< /Type /XObject /Subtype /Form /BBox [0 0 20 20] /Length 20 >>\nstream\n0 0 20 20 re 0 g f\nendstream",
+  ]);
 }

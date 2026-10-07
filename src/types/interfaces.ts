@@ -39,6 +39,7 @@ export interface PageState {
   sourcePageNumber: number;
   rotation: number;
   markedForDeletion: boolean;
+  contentRevision?: number;
 }
 
 export interface PDFOperationResult {

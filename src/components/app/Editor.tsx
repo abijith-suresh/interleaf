@@ -1,5 +1,5 @@
 import { Effect, Exit, Fiber } from "effect";
-import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { ROTATION_STEP, TOAST_DISMISS_TIMEOUT_MS } from "../../constants";
 import { planUploadGroups } from "../../controllers/editor-import";
@@ -78,6 +78,24 @@ export default function Editor() {
   const toastTimers = new Map<number, number>();
   const pdfRuntime = makePDFRuntime();
   let disposed = false;
+  let preloadIdleCallback: number | null = null;
+  let preloadTimer: number | null = null;
+
+  onMount(() => {
+    const preload = () => {
+      preloadIdleCallback = null;
+      preloadTimer = null;
+      if (disposed) return;
+      void pdfRuntime
+        .runPromise(PDFProcessing.use((service) => service.preload))
+        .catch(() => undefined);
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      preloadIdleCallback = window.requestIdleCallback(preload, { timeout: 1_000 });
+    } else {
+      preloadTimer = window.setTimeout(preload, 300);
+    }
+  });
 
   const [phase, setPhase] = createSignal<"upload" | "edit">("upload");
   const [pages, setPages] = createStore<PageState[]>([]);
@@ -122,7 +140,8 @@ export default function Editor() {
         page.sourceFile === sourceFile &&
         page.sourcePageNumber === index + 1 &&
         page.rotation === 0 &&
-        !page.markedForDeletion
+        !page.markedForDeletion &&
+        !page.contentRevision
     );
 
     return isUnmodified ? sourceFile : null;
@@ -176,6 +195,8 @@ export default function Editor() {
 
   onCleanup(() => {
     disposed = true;
+    if (preloadIdleCallback !== null) window.cancelIdleCallback(preloadIdleCallback);
+    if (preloadTimer !== null) window.clearTimeout(preloadTimer);
     if (typeof document !== "undefined") {
       document.removeEventListener(TOAST_EVENT_NAME, handleToast);
     }
@@ -596,9 +617,12 @@ export default function Editor() {
       if (disposed) return;
       downloadPDF(result);
       setStatusMessage("Export started.");
-    } catch (_err) {
+    } catch (error) {
       if (disposed) return;
-      dispatchToast("Failed to export the PDF.", "error");
+      dispatchToast(
+        error instanceof PDFProcessingError ? error.message : "Failed to export the PDF.",
+        "error"
+      );
       setStatusMessage("Export failed. Try again.");
     } finally {
       if (!disposed) setOperation("idle");
@@ -1024,6 +1048,15 @@ export default function Editor() {
                 activePageId={activePageId()}
                 runtime={pdfRuntime}
                 onActivePageChange={(pageId) => setActivePageId(pageId)}
+                onContentChange={(file, pageNumber?: number) => {
+                  for (const [index, page] of pages.entries()) {
+                    if (
+                      page.sourceFile === file &&
+                      (pageNumber === undefined || page.sourcePageNumber === pageNumber)
+                    )
+                      setPages(index, "contentRevision", (page.contentRevision ?? 0) + 1);
+                  }
+                }}
                 onClose={closePageReview}
               />
             </Show>

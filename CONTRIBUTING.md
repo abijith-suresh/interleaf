@@ -96,6 +96,32 @@ bun run test:watch   # Watch mode
 
 Cover services, controllers, utilities, and editor components. Use Vitest with the `jsdom` environment.
 
+### Browser regression checks
+
+After PDF engine changes, build the app and run the browser smoke check against a local server.
+The Playwright runner installs separately from the application dependencies.
+
+```sh
+npm install --prefix /tmp/interleaf-browser-runner --no-package-lock playwright@1.55.0
+/tmp/interleaf-browser-runner/node_modules/.bin/playwright install chromium
+bun run build
+python3 -m http.server 4873 --bind 127.0.0.1 --directory dist
+```
+
+In a second terminal:
+
+```sh
+bun tools/pdfium-wasm/browser-smoke.mjs http://127.0.0.1:4873 /tmp/interleaf-browser-runner
+```
+
+The runner checks editing, form values, exports, mixed inputs, source removal, passwords,
+compression, mobile touch and pinch controls, keyboard-sized and landscape layouts,
+and the absence of uploads or third-party requests. Keyboard-sized checks emulate viewport
+height; they do not open an operating system keyboard.
+
+Set `INTERLEAF_BROWSER=firefox` or `INTERLEAF_BROWSER=webkit` to use an installed Playwright
+browser. `INTERLEAF_BROWSER_EXECUTABLE` can select a compatible local browser executable.
+
 ### Styling
 
 - Tailwind CSS v4 with CSS-first `@theme` tokens in `global.css`.

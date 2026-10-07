@@ -33,11 +33,48 @@ jobs:
     permissions:
       contents: read
 
+  pdfium-browser:
+    name: pdfium-browser
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.1
+
+      - name: Install and build application
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: Install Chromium runner
+        run: |
+          npm install --prefix /tmp/interleaf-browser-runner --no-package-lock playwright@1.55.0
+          /tmp/interleaf-browser-runner/node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Serve application and run browser regression checks
+        run: |
+          python3 -m http.server 4873 --bind 127.0.0.1 --directory dist >/tmp/interleaf-http.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4873/app/ >/dev/null; then break; fi
+            sleep 1
+          done
+          bun tools/pdfium-wasm/browser-smoke.mjs http://127.0.0.1:4873 /tmp/interleaf-browser-runner
+
   quality:
     name: quality
     runs-on: ubuntu-latest
     if: always()
-    needs: [bun-quality, dependency-review, qpdf]
+    needs: [bun-quality, dependency-review, qpdf, pdfium-browser]
 
     steps:
       - name: Verify required checks passed
@@ -45,10 +82,12 @@ jobs:
           BUN_QUALITY_RESULT: ${{ needs.bun-quality.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           QPDF_RESULT: ${{ needs.qpdf.result }}
+          PDFIUM_BROWSER_RESULT: ${{ needs.pdfium-browser.result }}
         run: |
-          if [[ "$BUN_QUALITY_RESULT" != "success" || "$DEPENDENCY_REVIEW_RESULT" != "success" || "$QPDF_RESULT" != "success" ]]; then
+          if [[ "$BUN_QUALITY_RESULT" != "success" || "$DEPENDENCY_REVIEW_RESULT" != "success" || "$QPDF_RESULT" != "success" || "$PDFIUM_BROWSER_RESULT" != "success" ]]; then
             echo "bun-quality: $BUN_QUALITY_RESULT"
             echo "dependency-review: $DEPENDENCY_REVIEW_RESULT"
             echo "qpdf: $QPDF_RESULT"
+            echo "pdfium-browser: $PDFIUM_BROWSER_RESULT"
             exit 1
           fi

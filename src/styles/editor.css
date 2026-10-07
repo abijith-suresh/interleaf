@@ -1685,3 +1685,488 @@ body:has([data-page="editor"]) {
     transition-duration: 0.01ms;
   }
 }
+
+/* Content tools follow the workspace's compact, typographic controls. */
+
+.editor-review-body {
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+.editor-review-stage {
+  display: flex;
+  align-items: flex-start;
+  padding: 16px;
+}
+.editor-review-page {
+  position: relative;
+  flex: 0 0 auto;
+  margin: auto;
+  background: white;
+  box-shadow: 0 8px 30px rgb(36 36 33 / 14%);
+}
+.editor-review-canvas {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  box-shadow: none;
+}
+.editor-review-state {
+  pointer-events: none;
+  background: rgb(233 231 225 / 35%);
+}
+.editor-review-error {
+  pointer-events: auto;
+}
+.editor-review-edit {
+  margin-left: auto;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--editor-line);
+  border-radius: 6px;
+  background: var(--editor-paper);
+  color: var(--editor-ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.editor-review-edit[aria-pressed="true"] {
+  color: var(--editor-accent);
+  border-color: var(--editor-accent);
+}
+.editor-review-zoom {
+  position: absolute;
+  z-index: 3;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  padding: 3px;
+  border: 1px solid var(--editor-line);
+  border-radius: 8px;
+  background: var(--editor-paper);
+  box-shadow: 0 3px 12px rgb(36 36 33 / 8%);
+}
+.editor-review-zoom button {
+  min-width: 44px;
+  min-height: 44px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--editor-ink);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.editor-review-zoom button:hover {
+  background: var(--editor-hover);
+}
+.editor-review-zoom button:disabled {
+  opacity: 0.35;
+}
+.editor-review-body.has-tools .editor-review-stage {
+  padding-bottom: 128px;
+}
+.editor-content-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  color: var(--editor-ink);
+  font-size: 13px;
+}
+.editor-content-panel button,
+.editor-content-panel input,
+.editor-content-panel select {
+  font: inherit;
+}
+.editor-content-panel button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--editor-line);
+  border-radius: 5px;
+  background: var(--editor-paper);
+  color: inherit;
+  cursor: pointer;
+}
+.editor-content-panel button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.editor-content-panel button:hover:not(:disabled) {
+  border-color: var(--editor-line-strong);
+}
+.editor-content-toolbar {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  display: flex;
+  gap: 4px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 6px;
+  transform: translateX(-50%);
+  border: 1px solid var(--editor-line);
+  border-radius: 12px;
+  background: var(--editor-paper);
+  box-shadow: 0 4px 24px rgb(36 36 33 / 12%);
+  pointer-events: auto;
+}
+.editor-content-toolbar button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  border-color: transparent;
+  padding: 8px 18px;
+}
+.editor-content-toolbar button span {
+  font-size: 18px;
+  font-weight: 600;
+}
+.editor-content-toolbar button[aria-pressed="true"] {
+  background: var(--editor-accent);
+  color: white;
+}
+.editor-content-guidance {
+  position: absolute;
+  bottom: 86px;
+  left: 50%;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 0 12px;
+  transform: translateX(-50%);
+  border: 1px solid var(--editor-line);
+  border-radius: 8px;
+  background: var(--editor-paper);
+  pointer-events: auto;
+}
+.editor-content-guidance p {
+  margin: 10px 0;
+  line-height: 1.5;
+}
+.editor-content-guidance button {
+  border: 0;
+  color: var(--editor-accent);
+  white-space: nowrap;
+  padding: 6px;
+}
+.editor-content-composer,
+.editor-content-picker {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 310px;
+  max-height: calc(100% - 96px);
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid var(--editor-line-strong);
+  border-radius: 12px;
+  background: var(--editor-paper);
+  box-shadow: 0 6px 30px rgb(36 36 33 / 16%);
+  pointer-events: auto;
+}
+.editor-content-composer header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.editor-content-composer header h3 {
+  margin: 4px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+}
+.editor-content-composer header button {
+  padding: 0;
+  min-width: 44px;
+  font-size: 25px;
+  border: 0;
+}
+.editor-content-eyebrow {
+  color: var(--editor-muted);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+}
+.editor-content-composer label {
+  display: grid;
+  gap: 6px;
+  font-weight: 500;
+}
+.editor-content-composer input:not([type="checkbox"]):not([type="radio"]),
+.editor-content-composer select {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 10px;
+  border: 1px solid var(--editor-line-strong);
+  border-radius: 5px;
+  background: white;
+  color: var(--editor-ink);
+  font-size: 16px;
+  font-weight: 400;
+}
+.editor-content-note {
+  margin: 10px 0;
+  color: var(--editor-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.editor-content-composer details {
+  border-top: 1px solid var(--editor-line);
+  padding-top: 4px;
+  margin: 12px 0;
+}
+.editor-content-composer summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--editor-muted);
+}
+.editor-content-position {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.editor-content-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 14px;
+}
+.editor-content-panel .editor-content-apply {
+  flex: 1;
+  background: var(--editor-accent);
+  border-color: var(--editor-accent);
+  color: white;
+}
+.editor-content-picker {
+  display: grid;
+  gap: 6px;
+}
+.editor-content-picker button {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.editor-content-message {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(420px, calc(100% - 40px));
+  margin: 0;
+  padding: 0;
+  line-height: 1.5;
+}
+.editor-content-message.has-message {
+  padding: 10px 14px;
+  border: 1px solid var(--editor-line);
+  border-radius: 8px;
+  background: var(--editor-paper);
+}
+.editor-content-error {
+  color: var(--editor-danger-ink);
+  line-height: 1.5;
+}
+.editor-content-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.editor-content-placement {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: crosshair;
+  pointer-events: auto;
+  touch-action: pan-x pan-y;
+}
+.editor-content-hit {
+  position: absolute;
+  padding: 0;
+  border: 1px solid rgb(235 65 54 / 55%);
+  border-radius: 2px;
+  background: rgb(235 65 54 / 6%);
+  pointer-events: auto;
+  cursor: text;
+  touch-action: pan-x pan-y;
+}
+.editor-content-hit.is-field {
+  border-color: rgb(32 107 155 / 65%);
+  background: rgb(32 107 155 / 10%);
+  cursor: pointer;
+}
+.editor-content-hit::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  min-width: 44px;
+  min-height: 44px;
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%);
+}
+.editor-content-hit:hover,
+.editor-content-hit.is-selected {
+  border: 2px solid var(--editor-accent);
+  background: rgb(235 65 54 / 14%);
+}
+.editor-content-hit.is-readonly {
+  opacity: 0.4;
+  cursor: default;
+}
+.editor-content-draft {
+  position: absolute;
+  border: 1px dashed var(--editor-accent);
+  background: rgb(255 255 255 / 85%);
+  color: black;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.editor-content-draft span {
+  display: block;
+  transform-origin: top left;
+  line-height: 1.3;
+}
+.editor-review-pane.is-editing .editor-review-filmstrip {
+  display: none;
+}
+.editor-review-pane.is-editing .editor-review-bottom {
+  justify-content: space-between;
+  min-height: 50px;
+  padding-top: 3px;
+  padding-bottom: calc(3px + env(safe-area-inset-bottom));
+}
+@media (max-width: 700px) {
+  .editor-review-header {
+    gap: 8px;
+    min-height: calc(56px + env(safe-area-inset-top));
+  }
+  .editor-review-heading {
+    gap: 8px;
+  }
+  .editor-review-heading h2 {
+    font-size: 14px;
+  }
+  .editor-review-position {
+    font-size: 11px;
+  }
+  .editor-review-edit {
+    padding: 8px 10px;
+  }
+  .editor-review-zoom {
+    top: 8px;
+    left: 8px;
+  }
+  .editor-content-toolbar {
+    bottom: 8px;
+    width: calc(100% - 16px);
+    max-width: none;
+    justify-content: space-around;
+    gap: 2px;
+    padding: 4px;
+  }
+  .editor-content-toolbar button {
+    flex: 1;
+    padding: 6px 8px;
+    gap: 5px;
+    justify-content: center;
+    font-size: 12px;
+  }
+  .editor-content-toolbar button span {
+    font-size: 16px;
+  }
+  .editor-content-guidance {
+    bottom: 78px;
+    width: calc(100% - 24px);
+    max-width: none;
+    gap: 6px;
+    font-size: 12px;
+  }
+  .editor-content-composer,
+  .editor-content-picker {
+    top: auto;
+    bottom: 76px;
+    right: 8px;
+    width: calc(100% - 16px);
+    max-height: calc(100% - 88px);
+    padding: 14px;
+    border-radius: 12px;
+  }
+  .editor-content-composer header {
+    margin-bottom: 12px;
+  }
+  .editor-content-composer header h3 {
+    font-size: 16px;
+  }
+  .editor-content-composer details {
+    margin: 4px 0;
+  }
+  .editor-content-composer .editor-content-note {
+    margin: 6px 0;
+  }
+  .editor-content-actions {
+    margin-top: 10px;
+  }
+  .editor-content-message.has-message {
+    top: 64px;
+    width: calc(100% - 24px);
+    max-width: none;
+    font-size: 12px;
+  }
+}
+
+.editor-content-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.editor-content-composer textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--editor-line-strong);
+  border-radius: 5px;
+  background: white;
+  color: var(--editor-ink);
+  font: inherit;
+  font-size: 16px;
+  resize: vertical;
+}
+.editor-content-toolbar,
+.editor-review-zoom {
+  margin: 0;
+  min-width: 0;
+}
+@media (min-width: 740px) {
+  .editor-review-body.has-selection {
+    padding-right: 334px;
+  }
+}
+
+@media (max-height: 550px) {
+  .editor-content-composer > header {
+    display: none;
+  }
+  .editor-content-composer details:not([open]) {
+    display: none;
+  }
+}
