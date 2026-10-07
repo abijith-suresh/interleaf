@@ -122,7 +122,8 @@ export default function Editor() {
         page.sourceFile === sourceFile &&
         page.sourcePageNumber === index + 1 &&
         page.rotation === 0 &&
-        !page.markedForDeletion
+        !page.markedForDeletion &&
+        !page.contentRevision
     );
 
     return isUnmodified ? sourceFile : null;
@@ -596,9 +597,12 @@ export default function Editor() {
       if (disposed) return;
       downloadPDF(result);
       setStatusMessage("Export started.");
-    } catch (_err) {
+    } catch (error) {
       if (disposed) return;
-      dispatchToast("Failed to export the PDF.", "error");
+      dispatchToast(
+        error instanceof PDFProcessingError ? error.message : "Failed to export the PDF.",
+        "error"
+      );
       setStatusMessage("Export failed. Try again.");
     } finally {
       if (!disposed) setOperation("idle");
@@ -1024,6 +1028,12 @@ export default function Editor() {
                 activePageId={activePageId()}
                 runtime={pdfRuntime}
                 onActivePageChange={(pageId) => setActivePageId(pageId)}
+                onContentChange={(file) => {
+                  for (const [index, page] of pages.entries()) {
+                    if (page.sourceFile === file)
+                      setPages(index, "contentRevision", (page.contentRevision ?? 0) + 1);
+                  }
+                }}
                 onClose={closePageReview}
               />
             </Show>

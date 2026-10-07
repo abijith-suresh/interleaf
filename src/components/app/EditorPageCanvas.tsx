@@ -1,5 +1,5 @@
 import { Effect, Fiber } from "effect";
-import { createSignal, onCleanup, onMount } from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { THUMBNAIL_INTERSECTION_MARGIN, THUMBNAIL_SCALE } from "../../constants";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
@@ -23,6 +23,8 @@ export default function EditorPageCanvas(props: Props) {
   let observer: IntersectionObserver | null = null;
   let renderFiber: Fiber.Fiber<unknown, unknown> | null = null;
   let disposed = false;
+  let visible = false;
+  let rerender = false;
 
   const frameStyle = () => {
     const ratio = baseAspectRatio();
@@ -103,6 +105,10 @@ export default function EditorPageCanvas(props: Props) {
       .finally(() => {
         if (renderFiber === fiber) {
           renderFiber = null;
+          if (rerender && !disposed) {
+            rerender = false;
+            renderThumbnail();
+          }
         }
       });
   };
@@ -123,6 +129,7 @@ export default function EditorPageCanvas(props: Props) {
         }
         nextObserver.disconnect();
         observer = null;
+        visible = true;
         renderThumbnail();
       },
       {
@@ -144,6 +151,13 @@ export default function EditorPageCanvas(props: Props) {
     setRenderState("loading");
     observeForRender();
   };
+
+  createEffect(() => {
+    void props.page.contentRevision;
+    if (!visible || disposed) return;
+    if (renderFiber) rerender = true;
+    else renderThumbnail();
+  });
 
   onMount(() => {
     observeForRender();

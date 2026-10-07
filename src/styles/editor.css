@@ -1685,3 +1685,143 @@ body:has([data-page="editor"]) {
     transition-duration: 0.01ms;
   }
 }
+
+/* Content tools follow the workspace's compact, typographic controls. */
+.editor-review-body {
+  flex: 1;
+  display: grid;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.editor-review-body.has-tools {
+  grid-template-columns: minmax(0, 1fr) 300px;
+}
+
+.editor-review-edit {
+  margin-left: auto;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border, #ccc);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.editor-content-panel {
+  overflow: auto;
+  padding: 16px;
+  border-left: 1px solid var(--color-border, #ccc);
+  background: var(--color-surface, #fff);
+  color: var(--color-ink, #222);
+  font-size: 13px;
+}
+
+.editor-content-tabs {
+  display: flex;
+  border-bottom: 1px solid #ccc;
+  margin-bottom: 16px;
+}
+
+.editor-content-panel button {
+  padding: 8px;
+  border: 1px solid #ccc;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.editor-content-tabs button {
+  flex: 1;
+  border: 0;
+  border-bottom: 2px solid transparent;
+}
+
+.editor-content-panel button[aria-pressed="true"] {
+  border-color: currentColor;
+  background: #f0f0ee;
+}
+
+.editor-content-panel label {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0;
+}
+
+.editor-content-panel input:not([type="checkbox"]),
+.editor-content-panel select {
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid #bbb;
+  background: #fff;
+  color: #222;
+  font: inherit;
+}
+
+.editor-content-position {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+
+.editor-content-note {
+  font-size: 12px;
+  line-height: 1.6;
+  opacity: 0.7;
+  margin: 12px 0;
+}
+
+.editor-content-runs {
+  display: grid;
+  gap: 4px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.editor-content-runs button {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.editor-content-panel button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.editor-content-panel .editor-content-apply {
+  width: 100%;
+  background: #242424;
+  color: #fff;
+  margin-top: 12px;
+}
+
+.editor-content-field {
+  padding: 8px 0;
+  border-bottom: 1px solid #ddd;
+}
+
+.editor-content-panel .editor-content-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-content-message {
+  margin-top: 16px;
+  line-height: 1.6;
+}
+
+@media (max-width: 700px) {
+  .editor-review-body.has-tools {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(160px, 1fr) minmax(0, 45%);
+  }
+
+  .editor-content-panel {
+    border-left: 0;
+    border-top: 1px solid #ccc;
+  }
+}

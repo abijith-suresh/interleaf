@@ -29,6 +29,9 @@ The active product supports:
 - opening one or more PDFs and PNG or JPEG images together at initial upload, with images converted to PDF pages in the browser
 - adding one or more PDFs and PNG or JPEG images to an existing workspace, with images converted to PDF pages in the browser
 - removing a source file and its pages from the workspace
+- filling supported existing PDF text, checkbox, radio, and single-choice form fields in the browser
+- adding one line of basic Latin text to PDF pages in the browser with an explicit Helvetica font fallback
+- replacing supported original PDF text runs within their original width, with explicit Helvetica font fallback and overflow rejection
 
 These are the only current public product promises.
 

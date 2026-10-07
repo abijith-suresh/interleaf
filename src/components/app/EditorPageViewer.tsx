@@ -2,6 +2,7 @@ import { Effect, Fiber } from "effect";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
+import EditorContentPanel from "./EditorContentPanel";
 import EditorPageCanvas from "./EditorPageCanvas";
 
 const VIEWER_MAX_PIXELS = 16_000_000;
@@ -20,10 +21,13 @@ interface Props {
   runtime: PDFRuntime;
   onActivePageChange: (pageId: string) => void;
   onClose: () => void;
+  onContentChange?: (file: File) => void;
 }
 
 export default function EditorPageViewer(props: Props) {
   const [renderState, setRenderState] = createSignal<"loading" | "ready" | "error">("loading");
+  const [editing, setEditing] = createSignal(false);
+  const [editBusy, setEditBusy] = createSignal(false);
   const [filmstripWindowStart, setFilmstripWindowStart] = createSignal(0);
 
   let pane!: HTMLElement;
@@ -209,6 +213,7 @@ export default function EditorPageViewer(props: Props) {
   }
 
   function selectPage(pageId: string): void {
+    if (editBusy()) return;
     if (navigationPages().some((page) => page.id === pageId)) {
       props.onActivePageChange(pageId);
     }
@@ -227,6 +232,10 @@ export default function EditorPageViewer(props: Props) {
 
   function handleKeyDown(event: KeyboardEvent): void {
     if (event.key === "Escape") {
+      if (editBusy()) {
+        event.preventDefault();
+        return;
+      }
       event.preventDefault();
       props.onClose();
       return;
@@ -235,7 +244,7 @@ export default function EditorPageViewer(props: Props) {
     if (event.key === "Tab") {
       const focusable = Array.from(
         pane.querySelectorAll<HTMLElement>(
-          "button:not(:disabled), [href], [tabindex]:not([tabindex='-1'])"
+          "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex='-1'])"
         )
       );
       const first = focusable[0];
@@ -256,6 +265,11 @@ export default function EditorPageViewer(props: Props) {
       return;
     }
 
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.closest("input, textarea, select, [contenteditable]")
+    )
+      return;
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
       moveBy(event.key === "ArrowLeft" ? -1 : 1);
@@ -265,6 +279,7 @@ export default function EditorPageViewer(props: Props) {
   createEffect(() => {
     const page = currentPage();
     const rotation = page?.rotation;
+    void page?.contentRevision;
     if (page && page.id !== props.activePageId) {
       props.onActivePageChange(page.id);
     }
@@ -360,12 +375,24 @@ export default function EditorPageViewer(props: Props) {
             {currentNavigationIndex() + 1} of {navigationPages().length}
           </span>
         </div>
+        <Show when={props.onContentChange}>
+          <button
+            type="button"
+            class="editor-review-edit"
+            aria-pressed={editing()}
+            disabled={editBusy()}
+            onClick={() => setEditing(!editing())}
+          >
+            {editing() ? "Close tools" : "Edit page"}
+          </button>
+        </Show>
         <button
           ref={closeButton}
           type="button"
           data-testid="editor-page-viewer-close-button"
           class="editor-review-close"
           aria-label="Close page review"
+          disabled={editBusy()}
           onClick={props.onClose}
         >
           <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -374,47 +401,57 @@ export default function EditorPageViewer(props: Props) {
         </button>
       </header>
 
-      <div
-        ref={stage}
-        class="editor-review-stage"
-        data-render-state={renderState()}
-        aria-busy={renderState() === "loading"}
-      >
-        <canvas
-          ref={canvas}
-          class="editor-review-canvas"
-          role="img"
-          aria-label={`Preview of page ${currentWorkspaceIndex() + 1}`}
+      <div class="editor-review-body" classList={{ "has-tools": editing() }}>
+        <div
+          ref={stage}
+          class="editor-review-stage"
+          data-render-state={renderState()}
+          aria-busy={renderState() === "loading"}
         >
-          Page preview.
-        </canvas>
-        <Show when={renderState() === "loading"}>
-          <p class="editor-review-state" role="status" aria-live="polite">
-            Loading page…
-          </p>
-        </Show>
-        <Show when={renderState() === "error"}>
-          <div class="editor-review-state editor-review-error" role="alert">
-            <span>Preview unavailable.</span>
-            <button
-              type="button"
-              data-testid="editor-page-viewer-retry"
-              class="editor-review-retry"
-              onClick={retryRender}
-            >
-              Retry
-            </button>
-          </div>
+          <canvas
+            ref={canvas}
+            class="editor-review-canvas"
+            role="img"
+            aria-label={`Preview of page ${currentWorkspaceIndex() + 1}`}
+          >
+            Page preview.
+          </canvas>
+          <Show when={renderState() === "loading"}>
+            <p class="editor-review-state" role="status" aria-live="polite">
+              Loading page…
+            </p>
+          </Show>
+          <Show when={renderState() === "error"}>
+            <div class="editor-review-state editor-review-error" role="alert">
+              <span>Preview unavailable.</span>
+              <button
+                type="button"
+                data-testid="editor-page-viewer-retry"
+                class="editor-review-retry"
+                onClick={retryRender}
+              >
+                Retry
+              </button>
+            </div>
+          </Show>
+        </div>
+
+        <Show when={editing() && currentPage() && props.onContentChange}>
+          <EditorContentPanel
+            page={currentPage() as PageState}
+            runtime={props.runtime}
+            onChange={(file) => props.onContentChange?.(file)}
+            onBusy={setEditBusy}
+          />
         </Show>
       </div>
-
       <footer class="editor-review-bottom">
         <button
           type="button"
           data-testid="editor-page-viewer-previous"
           class="editor-review-nav"
           aria-label="Previous page"
-          disabled={currentNavigationIndex() <= 0}
+          disabled={editBusy() || currentNavigationIndex() <= 0}
           onClick={() => moveBy(-1)}
         >
           <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -473,7 +510,7 @@ export default function EditorPageViewer(props: Props) {
           data-testid="editor-page-viewer-next"
           class="editor-review-nav"
           aria-label="Next page"
-          disabled={currentNavigationIndex() >= navigationPages().length - 1}
+          disabled={editBusy() || currentNavigationIndex() >= navigationPages().length - 1}
           onClick={() => moveBy(1)}
         >
           <svg viewBox="0 0 20 20" aria-hidden="true">

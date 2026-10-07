@@ -2,13 +2,13 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@solidjs/testing-library";
 import { afterEach } from "vitest";
 
-afterEach(cleanup);
+if (typeof document !== "undefined") afterEach(cleanup);
 
-if (!Element.prototype.scrollIntoView) {
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
 
-if (!window.matchMedia) {
+if (typeof window !== "undefined" && !window.matchMedia) {
   window.matchMedia = (query: string) =>
     ({
       matches: false,
@@ -23,7 +23,7 @@ if (!window.matchMedia) {
 }
 
 // EditorPageCanvas starts observing on mount; jsdom has no implementation.
-if (typeof globalThis.IntersectionObserver === "undefined") {
+if (typeof window !== "undefined" && typeof globalThis.IntersectionObserver === "undefined") {
   class IntersectionObserverStub {
     observe(): void {}
     unobserve(): void {}
