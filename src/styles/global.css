@@ -391,12 +391,42 @@ body:has(.marketing-page) {
   outline-offset: 4px;
 }
 
+/* The header CTA is desktop site chrome: one quiet outlined action.
+   It never competes with the page's own primary action (the accent pill
+   inside the page hero), and below 48rem it is hidden — the mobile menu
+   sheet carries the editor action instead. */
 .nav-editor-link {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 2.75rem;
+  align-items: center;
+  padding: 0.55rem 1.15rem;
+  border: 1px solid var(--marketing-ink, var(--color-primary));
+  border-radius: var(--marketing-radius-sm, 0.45rem);
+  background: transparent;
+  color: var(--marketing-ink, var(--color-primary));
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  text-decoration: none;
   white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 150ms var(--ease-out),
+    border-color 150ms var(--ease-out),
+    color 150ms var(--ease-out),
+    transform 150ms var(--ease-out);
+}
+
+.nav-editor-link:hover {
+  background: var(--marketing-ink, var(--color-primary));
+  color: var(--marketing-paper, var(--color-white));
 }
 
 .mobile-nav {
-  position: relative;
   display: none;
 }
 
@@ -405,12 +435,13 @@ body:has(.marketing-page) {
   min-height: 2.75rem;
   align-items: center;
   gap: 0.45rem;
-  padding: 0 0.7rem;
+  padding: 0 0.85rem;
   border: 1px solid var(--marketing-rule-strong, var(--color-border-strong));
   border-radius: var(--marketing-radius-sm, 0.45rem);
+  background: transparent;
   color: var(--marketing-ink, var(--color-primary));
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 500;
   line-height: 1;
   list-style: none;
@@ -418,31 +449,40 @@ body:has(.marketing-page) {
   -webkit-tap-highlight-color: transparent;
 }
 
-.mobile-nav-trigger::after {
+.mobile-nav-trigger:hover {
+  background: var(--marketing-hover, var(--color-hover));
+}
+
+.mobile-nav[open] .mobile-nav-trigger {
+  border-color: var(--marketing-ink, var(--color-primary));
+}
+
+.mobile-nav-chevron {
+  flex: 0 0 auto;
   color: var(--marketing-muted, var(--color-muted));
-  content: "+";
-  font-size: 1rem;
-  font-weight: 400;
   transition: transform 180ms var(--ease-out);
 }
 
-.mobile-nav[open] .mobile-nav-trigger::after {
-  transform: rotate(45deg);
+.mobile-nav[open] .mobile-nav-chevron {
+  transform: rotate(180deg);
 }
 
 .mobile-nav-trigger::-webkit-details-marker {
   display: none;
 }
 
+/* The panel is an overlay pinned to the header, so opening it never
+   shifts the page layout. It spans the nav gutter width for
+   comfortable touch targets. */
 .mobile-nav-panel {
   position: absolute;
-  top: calc(100% + 0.5rem);
-  right: 0;
+  top: calc(100% + 0.4rem);
+  right: 1rem;
+  left: 1rem;
   z-index: 20;
   display: grid;
-  min-width: 12rem;
   gap: 0.15rem;
-  padding: 0.35rem;
+  padding: 0.5rem;
   border: 1px solid var(--marketing-rule, var(--color-border));
   border-radius: var(--marketing-radius-md, 0.75rem);
   background: var(--marketing-paper, var(--color-white));
@@ -475,6 +515,40 @@ body:has(.marketing-page) {
   outline-offset: 2px;
 }
 
+/* The sheet's primary action: the one accent element inside the menu. */
+.mobile-nav-cta {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.35rem;
+  padding: 0.6rem 1rem;
+  border-radius: var(--marketing-radius-sm, 0.45rem);
+  background: var(--marketing-accent, var(--color-accent));
+  color: var(--marketing-paper, var(--color-white));
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 150ms var(--ease-out),
+    color 150ms var(--ease-out);
+}
+
+.mobile-nav-cta:hover {
+  background: var(--marketing-ink, var(--color-primary));
+}
+
+/* On the accent fill the page-wide accent ring would blend in. */
+.marketing-page .mobile-nav-cta:focus-visible {
+  outline: 2px solid var(--marketing-ink, var(--color-primary));
+  outline-offset: 3px;
+}
+
 @media (max-width: 47.99rem) {
   .marketing-hero {
     min-height: auto;
@@ -497,59 +571,12 @@ body:has(.marketing-page) {
   .mobile-nav {
     display: block;
   }
-}
 
-.btn-primary {
-  display: inline-flex;
-  min-height: 2.75rem;
-  align-items: center;
-  justify-content: center;
-  padding: 0.75rem 1.25rem;
-  background: var(--color-accent);
-  color: var(--color-white);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-label);
-  font-weight: 600;
-  text-decoration: none;
-  transition:
-    background-color 0.15s var(--ease-out),
-    transform 0.15s var(--ease-out);
-}
-
-.btn-primary:hover {
-  background: var(--color-primary);
-}
-
-.btn-primary:active {
-  transform: translateY(1px);
-}
-
-.btn-primary:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 3px;
-}
-
-/* Marketing buttons are softer and stay isolated from the editor controls. */
-.marketing-page .btn-primary {
-  min-height: 3rem;
-  border-radius: var(--marketing-radius-sm);
-  background: var(--marketing-accent);
-  color: var(--marketing-paper);
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  text-transform: none;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.marketing-page .btn-primary:hover {
-  background: var(--marketing-ink);
-}
-
-.marketing-page .btn-primary:focus-visible {
-  outline-color: var(--marketing-accent);
+  /* Below 48rem the trigger is the header's single control; the editor
+     action lives inside the opened menu sheet. */
+  .nav-editor-link {
+    display: none;
+  }
 }
 
 .marketing-footer {
