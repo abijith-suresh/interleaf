@@ -1,9 +1,5 @@
 ---
 import { ClientRouter } from "astro:transitions";
-import "@fontsource/work-sans/300.css";
-import "@fontsource/work-sans/400.css";
-import "@fontsource/work-sans/500.css";
-import "@fontsource/work-sans/600.css";
 import "../styles/global.css";
 import { socialPreviewFilename, socialPreviewSize } from "../utils/social-preview";
 
@@ -19,6 +15,7 @@ const siteOrigin = Astro.site?.toString().replace(/\/$/, "") ?? "";
 const canonicalURL = new URL(Astro.url.pathname, Astro.site).toString();
 const slug = Astro.url.pathname.replace(base, "").replace(/\/$/, "") || "index";
 const resolvedOgImage = ogImage ?? `${siteOrigin}${base}og/${socialPreviewFilename(slug)}`;
+const preloadedFontFaces = [300, 400, 500, 600];
 ---
 
 <html lang="en">
@@ -29,6 +26,17 @@ const resolvedOgImage = ogImage ?? `${siteOrigin}${base}og/${socialPreviewFilena
     <link rel="apple-touch-icon" sizes="180x180" href={`${base}apple-touch-icon.png`} />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#ffffff" />
+    {
+      preloadedFontFaces.map((weight) => (
+        <link
+          rel="preload"
+          href={`${base}fonts/work-sans-latin-${weight}-normal.woff2`}
+          as="font"
+          type="font/woff2"
+          crossorigin
+        />
+      ))
+    }
     <meta name="generator" content={Astro.generator} />
     <link rel="canonical" href={canonicalURL} />
     {description && <meta name="description" content={description} />}

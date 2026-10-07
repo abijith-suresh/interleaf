@@ -75,7 +75,7 @@ export class PDFImageExportService {
       : pages.filter((page) => !page.markedForDeletion);
 
     if (pagesToExport.length === 0) {
-      return Effect.fail(new PDFNoPagesError({ message: "No pages to export as images" }));
+      return Effect.fail(new PDFNoPagesError({ message: "No pages to export as images." }));
     }
 
     return Effect.scoped(

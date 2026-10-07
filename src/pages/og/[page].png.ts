@@ -8,23 +8,23 @@ import { socialPreviewFilename, socialPreviewSize } from "../../utils/social-pre
 const pages: Record<string, { title: string; description: string }> = {
   index: {
     title: "Make the\ndocument ready.",
-    description: "PDFs and images. All on your device.",
+    description: "PDFs and images. Your files never leave your device.",
   },
   app: {
     title: "Your PDF\nworkspace.",
-    description: "Open, arrange, and export in your browser.",
+    description: "Open, shape, and export in your browser.",
   },
   features: {
     title: "Features",
-    description: "Merge, shape, export, and compress.",
+    description: "Everything before the export.",
   },
   about: {
     title: "About",
-    description: "Work with PDFs. Keep the file with you.",
+    description: "Work with PDFs. Keep the file local.",
   },
   privacy: {
     title: "Privacy",
-    description: "Your files stay with you. Nothing is uploaded.",
+    description: "Your files never leave your device. Nothing is uploaded.",
   },
   terms: {
     title: "Terms of service",

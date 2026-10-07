@@ -12,7 +12,7 @@ function makeProps(overrides: Partial<Parameters<typeof EditorSelectionBar>[0]> 
     deletionLabel: "Mark for deletion",
     deletionAriaLabel: "Mark selected pages for deletion",
     compressionAvailable: true,
-    compressionDisabledReason: "Compression is available before page edits",
+    compressionDisabledReason: "Compress only before page edits",
     onSelectAll: vi.fn(),
     onClearSelection: vi.fn(),
     onRotate: vi.fn(),
@@ -87,7 +87,7 @@ describe("EditorSelectionBar", () => {
 
     const target = shiftKey
       ? trigger
-      : screen.getByRole("button", { name: "Download a PDF with all active pages" });
+      : screen.getByRole("button", { name: "Download a PDF with all exportable pages" });
     await waitFor(() => expect(target).toHaveFocus());
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
@@ -106,7 +106,7 @@ describe("EditorSelectionBar", () => {
   });
 
   it("explains unavailable output options and ignores clicks on them", async () => {
-    const reason = "Restore pages before compressing the original PDF";
+    const reason = "Restore marked pages to compress the original PDF";
     const props = makeProps({
       selectedCount: 1,
       selectedActiveCount: 0,
@@ -115,11 +115,11 @@ describe("EditorSelectionBar", () => {
     });
     render(() => <EditorSelectionBar {...props} />);
     fireEvent.click(screen.getByRole("button", { name: "More download options" }));
-    const images = screen.getByRole("menuitem", { name: "Restore pages before exporting images" });
+    const images = screen.getByRole("menuitem", { name: "Restore marked pages to export images" });
     const compression = screen.getByRole("menuitem", { name: reason });
 
     expect(images).toHaveAttribute("aria-disabled", "true");
-    expect(images).toHaveTextContent("Restore pages first");
+    expect(images).toHaveTextContent("Restore marked pages first");
     expect(compression).toHaveAttribute("aria-disabled", "true");
     expect(compression).toHaveTextContent(reason);
     await waitFor(() => expect(images).toHaveFocus());
@@ -135,7 +135,9 @@ describe("EditorSelectionBar", () => {
       const props = makeProps();
       render(() => <EditorSelectionBar {...props} />);
       fireEvent.click(screen.getByRole("button", { name: trigger }));
-      fireEvent.click(screen.getByRole("button", { name: "Download a PDF with all active pages" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Download a PDF with all exportable pages" })
+      );
 
       expect(props.onDownload).toHaveBeenCalledTimes(1);
       expect(screen.queryByRole("menu")).not.toBeInTheDocument();

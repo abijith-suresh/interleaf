@@ -1,7 +1,89 @@
 @import "tailwindcss";
 
+/* Work Sans is self-hosted with a fixed URL per face so the latin files can be
+   preloaded from the layout. font-display: optional keeps hard refreshes free of
+   a visible font swap: the font is only used when it is ready to paint. */
+@font-face {
+  font-family: "Work Sans";
+  font-style: normal;
+  font-weight: 300;
+  font-display: optional;
+  src: url("/fonts/work-sans-latin-300-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Work Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: optional;
+  src: url("/fonts/work-sans-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Work Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: optional;
+  src: url("/fonts/work-sans-latin-500-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Work Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: optional;
+  src: url("/fonts/work-sans-latin-600-normal.woff2") format("woff2");
+}
+
+/* Metric-compatible Arial fallbacks (size-adjust and metric overrides verified
+   against the Work Sans typo metrics: ascent 930, descent -243, line gap 0,
+   units-per-em 1000). They keep the fallback-to-font paint from moving lines. */
+@font-face {
+  font-family: "Work Sans Fallback";
+  font-style: normal;
+  font-weight: 300;
+  src: local("Arial"), local("Liberation Sans");
+  size-adjust: 103.43%;
+  ascent-override: 89.91%;
+  descent-override: 23.49%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Work Sans Fallback";
+  font-style: normal;
+  font-weight: 400;
+  src: local("Arial"), local("Liberation Sans");
+  size-adjust: 109.68%;
+  ascent-override: 84.79%;
+  descent-override: 22.16%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Work Sans Fallback";
+  font-style: normal;
+  font-weight: 500;
+  src: local("Arial"), local("Liberation Sans");
+  size-adjust: 109.92%;
+  ascent-override: 84.61%;
+  descent-override: 22.11%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Work Sans Fallback";
+  font-style: normal;
+  font-weight: 600;
+  src: local("Arial Bold"), local("Liberation Sans Bold"), local("Arial"), local("Liberation Sans");
+  size-adjust: 104.03%;
+  ascent-override: 89.4%;
+  descent-override: 23.36%;
+  line-gap-override: 0%;
+}
+
 @theme {
-  --font-body: "Work Sans", sans-serif;
+  --font-body: "Work Sans", "Work Sans Fallback", sans-serif;
   --tracking-label: 0.15em;
   --color-white: #fff;
   --color-primary: #111;

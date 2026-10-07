@@ -88,12 +88,16 @@ export default function Editor() {
   const [reviewOpen, setReviewOpen] = createSignal(false);
   const [activePageId, setActivePageId] = createSignal<string | null>(null);
   const [operation, setOperation] = createSignal<EditorOperation>("idle");
-  const [statusMessage, setStatusMessage] = createSignal(
-    "PDF, PNG, and JPEG files stay on your device."
-  );
+  const [statusMessage, setStatusMessage] = createSignal("Your files never leave your device.");
   const [toasts, setToasts] = createSignal<Toast[]>([]);
 
   const activePageCount = () => pages.filter((p) => !p.markedForDeletion).length;
+  const markedPageCount = () => pages.length - activePageCount();
+  const pageStatusSummary = () => {
+    if (pages.length === 0) return "No pages.";
+    if (markedPageCount() === 0) return `${pages.length} pages.`;
+    return `${activePageCount()} of ${pages.length} pages exportable.`;
+  };
   const selectedActivePageCount = () =>
     Array.from(selectedIndices()).filter((index) => !pages[index]?.markedForDeletion).length;
   const isBusy = () => operation() !== "idle";
@@ -129,21 +133,19 @@ export default function Editor() {
       return "Clear page selection to compress the original PDF";
     }
     if (pages.length === 0 || activePageCount() === 0) {
-      return "No active pages to compress";
+      return "Restore marked pages to compress the original PDF";
     }
-    return "Compression is available before page edits";
+    return "Compress only before page edits";
   }
 
   const workspaceFiles = createMemo<WorkspaceFile[]>(() => groupWorkspaceFiles(pages));
   const filesButtonLabel = () =>
-    `Open ${workspaceFiles().length} file${workspaceFiles().length === 1 ? "" : "s"}`;
+    `View ${workspaceFiles().length} file${workspaceFiles().length === 1 ? "" : "s"}`;
 
   function setReadyStatus() {
     if (disposed) return;
     setOperation("idle");
-    setStatusMessage(
-      phase() === "edit" ? "Ready" : "PDF, PNG, and JPEG files stay on your device."
-    );
+    setStatusMessage(phase() === "edit" ? "Ready" : "Your files never leave your device.");
   }
 
   function dismissToast(id: number) {
@@ -534,9 +536,7 @@ export default function Editor() {
     const markedForDeletion = pages[index]?.markedForDeletion ?? false;
     setPages(index, "markedForDeletion", !markedForDeletion);
     setStatusMessage(
-      markedForDeletion
-        ? `Restored page ${index + 1} from deletion.`
-        : `Marked page ${index + 1} for deletion.`
+      markedForDeletion ? `Restored page ${index + 1}.` : `Marked page ${index + 1} for deletion.`
     );
   }
 
@@ -561,7 +561,9 @@ export default function Editor() {
       setPages(index, "markedForDeletion", markForDeletion);
     }
     setStatusMessage(
-      `${markForDeletion ? "Marked" : "Restored"} ${selectedIndices().size} selected page${selectedIndices().size === 1 ? "" : "s"} ${markForDeletion ? "for deletion" : "from deletion"}.`
+      `${markForDeletion ? "Marked" : "Restored"} ${selectedIndices().size} selected page${
+        selectedIndices().size === 1 ? "" : "s"
+      }${markForDeletion ? " for deletion" : ""}.`
     );
   }
 
@@ -574,7 +576,7 @@ export default function Editor() {
 
     setOperation("building");
     setStatusMessage(
-      `${selectedPageIndices ? "Building selected PDF" : "Building PDF"}… 0/${totalPages}`
+      `${selectedPageIndices ? "Exporting selected pages" : "Exporting PDF"}… 0/${totalPages}`
     );
 
     try {
@@ -585,7 +587,7 @@ export default function Editor() {
             onProgress: ({ completed, total }) => {
               if (disposed) return;
               setStatusMessage(
-                `${selectedPageIndices ? "Building selected PDF" : "Building PDF"}… ${completed}/${total}`
+                `${selectedPageIndices ? "Exporting selected pages" : "Exporting PDF"}… ${completed}/${total}`
               );
             },
           })
@@ -596,7 +598,7 @@ export default function Editor() {
       setStatusMessage("Export started.");
     } catch (_err) {
       if (disposed) return;
-      dispatchToast("Failed to build the PDF.", "error");
+      dispatchToast("Failed to export the PDF.", "error");
       setStatusMessage("Export failed. Try again.");
     } finally {
       if (!disposed) setOperation("idle");
@@ -612,7 +614,7 @@ export default function Editor() {
 
     setOperation("exporting-images");
     setStatusMessage(
-      `${selectedPageIndices ? "Building selected images" : "Building images"}… 0/${totalPages}`
+      `${selectedPageIndices ? "Exporting selected images" : "Exporting images"}… 0/${totalPages}`
     );
 
     try {
@@ -623,7 +625,7 @@ export default function Editor() {
             onProgress: ({ completed, total }) => {
               if (disposed) return;
               setStatusMessage(
-                `${selectedPageIndices ? "Building selected images" : "Building images"}… ${completed}/${total}`
+                `${selectedPageIndices ? "Exporting selected images" : "Exporting images"}… ${completed}/${total}`
               );
             },
           })
@@ -631,7 +633,7 @@ export default function Editor() {
       );
       if (disposed) return;
       downloadFile(result, "application/zip");
-      setStatusMessage("Image download started.");
+      setStatusMessage("Export started.");
     } catch (error) {
       if (disposed) return;
       const message =
@@ -661,10 +663,10 @@ export default function Editor() {
           `Compressed ${formatFileSize(result.inputBytes)} to ${formatFileSize(result.outputBytes)}.`,
           "success"
         );
-        setStatusMessage("Compressed PDF download started.");
+        setStatusMessage("Export started.");
       } else {
-        dispatchToast("No smaller file was available. Downloaded the current PDF.", "info");
-        setStatusMessage("Current PDF download started.");
+        dispatchToast("No smaller file was available. The original PDF was exported.", "info");
+        setStatusMessage("Export started.");
       }
     } catch (error) {
       if (disposed) return;
@@ -1011,7 +1013,7 @@ export default function Editor() {
                 data-testid="editor-status-bar"
                 class="sr-only"
               >
-                {pages.length} pages ({activePageCount()} active).{" "}
+                {pageStatusSummary()}{" "}
                 <span data-testid="editor-status-message">{statusMessage()}</span>
               </div>
             </section>

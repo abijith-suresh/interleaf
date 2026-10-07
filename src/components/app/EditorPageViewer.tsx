@@ -402,7 +402,7 @@ export default function EditorPageViewer(props: Props) {
               class="editor-review-retry"
               onClick={retryRender}
             >
-              Try again
+              Retry
             </button>
           </div>
         </Show>
