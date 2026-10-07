@@ -80,12 +80,15 @@ export function createJpegFile(name = "image.jpg", rotated = false): File {
   return new File([bytes], name, { type: "image/jpeg" });
 }
 
-export function formBytes(paired = false) {
+export function formBytes(
+  paired = false,
+  pageOptions: { rotation?: number; crop?: readonly number[] } = {}
+) {
   const text = "BT /F1 16 Tf 20 260 Td (Original phrase) Tj ET";
   return createPdfBytes([
     "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [6 0 R 7 0 R 10 0 R 11 0 R] /DR << /Font << /Helv 4 0 R >> >> /DA (/Helv 12 Tf 0 g) >> >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 400] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R /Annots [6 0 R 7 0 R 10 0 R 11 0 R] >>",
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 400] /Rotate ${pageOptions.rotation ?? 0} ${pageOptions.crop ? `/CropBox [${pageOptions.crop.join(" ")}]` : ""} /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R /Annots [6 0 R 7 0 R 10 0 R 11 0 R] >>`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
     `<< /Length ${text.length} >>\nstream\n${text}\nendstream`,
     "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Name) /V (Before) /Rect [20 200 220 225] /P 3 0 R /F 4 /DA (/Helv 12 Tf 0 g) >>",

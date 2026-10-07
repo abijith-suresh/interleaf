@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PDFPasswordRequiredError, PDFProcessingError } from "@/types/interfaces";
 
 const pdfServiceMocks = vi.hoisted(() => ({
+  preload: vi.fn(),
   loadPDF: vi.fn(),
   loadPDFWithPassword: vi.fn(),
   getPageCount: vi.fn(),
@@ -38,6 +39,7 @@ const downloadFile = vi.hoisted(() => vi.fn());
 
 vi.mock("@/services/pdf-service", () => ({
   PDFService: class {
+    preload = pdfServiceMocks.preload;
     loadPDF = pdfServiceMocks.loadPDF;
     loadPDFWithPassword = pdfServiceMocks.loadPDFWithPassword;
     getPageCount = pdfServiceMocks.getPageCount;
@@ -116,6 +118,7 @@ async function openPDF(file = makeFile()) {
 describe("Editor", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    pdfServiceMocks.preload.mockReturnValue(Effect.void);
     promptForPassword.mockResolvedValue(null);
     pdfServiceMocks.getPageCount.mockReturnValue(3);
     pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(0));
@@ -166,6 +169,50 @@ describe("Editor", () => {
       screen.getByRole("button", { name: "Choose PDF or image files, or drop them here" })
     ).toBeInTheDocument();
     expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
+  });
+
+  it("warms the engine during browser idle before a file is opened", async () => {
+    let idleCallback!: IdleRequestCallback;
+    const requestIdleCallback = vi.fn((callback: IdleRequestCallback) => {
+      idleCallback = callback;
+      return 17;
+    });
+    vi.stubGlobal("requestIdleCallback", requestIdleCallback);
+    vi.stubGlobal("cancelIdleCallback", vi.fn());
+    const view = render(() => <Editor />);
+    try {
+      expect(requestIdleCallback).toHaveBeenCalledWith(expect.any(Function), {
+        timeout: 1_000,
+      });
+      expect(pdfServiceMocks.preload).not.toHaveBeenCalled();
+      idleCallback({ didTimeout: false, timeRemaining: () => 10 });
+      await waitFor(() => expect(pdfServiceMocks.preload).toHaveBeenCalledOnce());
+      expect(pdfServiceMocks.loadPDF).not.toHaveBeenCalled();
+    } finally {
+      view.unmount();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("cancels idle warmup when the editor is removed", async () => {
+    let idleCallback!: IdleRequestCallback;
+    const cancelIdleCallback = vi.fn();
+    vi.stubGlobal("requestIdleCallback", (callback: IdleRequestCallback) => {
+      idleCallback = callback;
+      return 17;
+    });
+    vi.stubGlobal("cancelIdleCallback", cancelIdleCallback);
+    const view = render(() => <Editor />);
+    try {
+      view.unmount();
+      expect(cancelIdleCallback).toHaveBeenCalledWith(17);
+      idleCallback({ didTimeout: true, timeRemaining: () => 0 });
+      await Promise.resolve();
+      expect(pdfServiceMocks.preload).not.toHaveBeenCalled();
+    } finally {
+      view.unmount();
+      vi.unstubAllGlobals();
+    }
   });
 
   it("rejects unsupported files with an error toast", async () => {

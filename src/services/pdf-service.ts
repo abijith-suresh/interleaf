@@ -6,21 +6,72 @@ import {
 } from "../types/interfaces";
 import { type DocumentKey, makeDocumentStore } from "./document-store";
 import { processingError } from "./pdf-errors";
+import { PDFReadCache } from "./pdfium/cache";
 import { PDFiumClient, PDFiumClientError } from "./pdfium/client";
-import type { PDFContentEdit, PDFiumImage, PDFiumPageRef } from "./pdfium/protocol";
+import type { PDFContentEdit, PDFiumCommands, PDFiumImage, PDFiumPageRef } from "./pdfium/protocol";
 
-type LoadedPDF = { file: File; id: number; count: number };
+type LoadedPDF = { file: File; id: number; count: number; revision: number };
+type PageInfo = PDFiumCommands["info"]["output"];
+type RenderedPage = PDFiumCommands["render"]["output"];
+type PageContent = PDFiumCommands["content"]["output"];
 
 export class PDFService {
   private activeFile: File | null = null;
   private passwords = new Map<File, string>();
+  private readonly infoCache = new PDFReadCache<PageInfo>(64 * 1024, 512);
+  private readonly contentCache = new PDFReadCache<PageContent>(2 * 1024 * 1024, 24);
+  private readonly renderCache = new PDFReadCache<RenderedPage>(24 * 1024 * 1024, 48);
+  private readonly inspecting = new Map<string, Promise<PageContent>>();
+  private readonly measuring = new Map<string, Promise<PageInfo>>();
   private readonly documents = makeDocumentStore<LoadedPDF>({
     load: (key) => this.loadRecord(key),
     cleanup: (record) =>
-      this.command(record.file, "close", () => this.client.request("close", { id: record.id })),
+      this.command(record.file, "close", async () => {
+        this.invalidate(record);
+        this.infoCache.invalidate(record.id);
+        await this.client.request("close", { id: record.id });
+      }),
   });
 
-  constructor(readonly client: Pick<PDFiumClient, "request" | "dispose"> = new PDFiumClient()) {}
+  constructor(
+    readonly client: Pick<PDFiumClient, "request" | "dispose"> &
+      Partial<Pick<PDFiumClient, "preload">> = new PDFiumClient()
+  ) {}
+
+  preload(): Effect.Effect<void> {
+    // Background initialization errors remain visible on the next user operation.
+    return Effect.sync(() => {
+      try {
+        this.client.preload?.();
+      } catch {
+        /* surfaced by the next command */
+      }
+    });
+  }
+
+  private invalidate(doc: LoadedPDF): void {
+    doc.revision++;
+    this.contentCache.invalidate(doc.id);
+    this.renderCache.invalidate(doc.id);
+  }
+
+  private info(doc: LoadedPDF, page: number): Promise<PageInfo> {
+    const key = `${doc.id}:${page}`;
+    const cached = this.infoCache.get(key);
+    if (cached) return Promise.resolve(cached);
+    const pending = this.measuring.get(key);
+    if (pending) return pending;
+    const revision = doc.revision;
+    const request = this.client
+      .request("info", { id: doc.id, page, rotation: 0 })
+      .then((info) => {
+        if (doc.revision === revision) this.infoCache.set(key, info, 48);
+        return info;
+      })
+      .finally(() => this.measuring.delete(key));
+    this.measuring.set(key, request);
+    return request;
+  }
 
   private command<A>(
     file: File,
@@ -50,7 +101,7 @@ export class PDFService {
           await this.client.request("close", { id: result.id });
           throw new Error("PDF loading was cancelled.");
         }
-        return { ...result, file: key.file };
+        return { ...result, file: key.file, revision: 0 };
       },
       catch: (cause) =>
         cause instanceof PDFiumClientError && cause.password
@@ -132,15 +183,20 @@ export class PDFService {
     return this.withDocument(
       file,
       "get-page-rotation",
-      async (doc) =>
-        (await this.client.request("info", { id: doc.id, page: pageNumber, rotation: 0 })).rotation
+      async (doc) => (await this.info(doc, pageNumber)).rotation
     );
   }
 
   getPageSize(file: File, pageNumber: number, rotation = 0) {
-    return this.withDocument(file, "get-page-size", (doc) =>
-      this.client.request("info", { id: doc.id, page: pageNumber, rotation })
-    );
+    return this.withDocument(file, "get-page-size", async (doc) => {
+      const info = await this.info(doc, pageNumber);
+      const swap = Math.abs(rotation) % 180 !== 0;
+      return {
+        width: swap ? info.height : info.width,
+        height: swap ? info.width : info.height,
+        rotation: info.rotation,
+      };
+    });
   }
 
   renderPage(
@@ -151,12 +207,24 @@ export class PDFService {
     rotation = 0
   ): Effect.Effect<void, PDFError> {
     return this.withDocument(file, "render-page", async (doc, signal) => {
-      const rendered = await this.client.request("render", {
-        id: doc.id,
-        page: pageNumber,
-        scale,
-        rotation,
-      });
+      const key = `${doc.id}:${pageNumber}:${rotation}:${scale}`;
+      const revision = doc.revision;
+      let rendered = this.renderCache.get(key);
+      if (!rendered) {
+        rendered = await this.client.request(
+          "render",
+          {
+            id: doc.id,
+            page: pageNumber,
+            scale,
+            rotation,
+          },
+          [],
+          { signal, priority: Math.min(scale, 1) }
+        );
+        if (!signal.aborted && doc.revision === revision)
+          this.renderCache.set(key, rendered, rendered.pixels.byteLength);
+      }
       if (signal.aborted) return;
       canvas.width = rendered.width;
       canvas.height = rendered.height;
@@ -167,17 +235,38 @@ export class PDFService {
   }
 
   getPageContent(file: File, pageNumber: number) {
-    return this.withDocument(file, "inspect-page", (doc) =>
-      this.client.request("content", { id: doc.id, page: pageNumber })
-    );
+    return this.withDocument(file, "inspect-page", (doc) => {
+      const key = `${doc.id}:${pageNumber}:${doc.revision}`;
+      const cached = this.contentCache.get(key);
+      if (cached) return Promise.resolve(cached);
+      const pending = this.inspecting.get(key);
+      if (pending) return pending;
+      const revision = doc.revision;
+      const request = this.client
+        .request("content", { id: doc.id, page: pageNumber })
+        .then((content) => {
+          if (doc.revision === revision)
+            this.contentCache.set(key, content, JSON.stringify(content).length * 2);
+          return content;
+        })
+        .finally(() => this.inspecting.delete(key));
+      this.inspecting.set(key, request);
+      return request;
+    });
   }
 
   editPage(file: File, pageNumber: number, edit: PDFContentEdit) {
     // Mutations complete before releasing a file. Cancellation cannot undo an already dispatched edit.
     return Effect.uninterruptible(
-      this.withDocument(file, "edit-page", (doc) =>
-        this.client.request("edit", { id: doc.id, page: pageNumber, edit })
-      )
+      this.withDocument(file, "edit-page", async (doc) => {
+        this.invalidate(doc);
+        try {
+          await this.client.request("edit", { id: doc.id, page: pageNumber, edit });
+        } finally {
+          // Also discard reads dispatched while a mutation was in progress.
+          this.invalidate(doc);
+        }
+      })
     );
   }
 
@@ -225,6 +314,9 @@ export class PDFService {
       Effect.suspend(() => {
         this.activeFile = null;
         this.passwords.clear();
+        this.infoCache.clear();
+        this.contentCache.clear();
+        this.renderCache.clear();
         return this.documents.reset;
       })
     );

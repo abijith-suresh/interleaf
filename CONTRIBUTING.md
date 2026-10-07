@@ -115,7 +115,12 @@ bun tools/pdfium-wasm/browser-smoke.mjs http://127.0.0.1:4873 /tmp/interleaf-bro
 ```
 
 The runner checks editing, form values, exports, mixed inputs, source removal, passwords,
-compression, mobile controls, and the absence of uploads or third-party requests.
+compression, mobile touch and pinch controls, keyboard-sized and landscape layouts,
+and the absence of uploads or third-party requests. Keyboard-sized checks emulate viewport
+height; they do not open an operating system keyboard.
+
+Set `INTERLEAF_BROWSER=firefox` or `INTERLEAF_BROWSER=webkit` to use an installed Playwright
+browser. `INTERLEAF_BROWSER_EXECUTABLE` can select a compatible local browser executable.
 
 ### Styling
 

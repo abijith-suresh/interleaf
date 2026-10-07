@@ -19,6 +19,22 @@ describe("PDFium WASM", () => {
     expect(() => native.engine.info(doc.id, 2, 0)).toThrow("Invalid PDF page");
   });
 
+  it.each([0, 90, 180, 270])(
+    "locates original text and widgets in unrotated CropBox coordinates at rotation %i",
+    (rotation) => {
+      const doc = native.engine.open(formBytes(false, { rotation, crop: [50, 70, 250, 370] }));
+      const content = native.engine.content(doc.id, 1);
+      expect(content).toMatchObject({ width: 200, height: 300 });
+      expect(content.fields[0].bounds).toEqual({ x: -30, y: 145, width: 200, height: 25 });
+      expect(content.fields[1].bounds).toEqual({ x: -30, y: 200, width: 20, height: 20 });
+      expect(content.text[0].bounds?.x).toBeGreaterThan(-30);
+      expect(content.text[0].bounds?.x).toBeLessThan(-25);
+      expect(content.text[0].bounds?.y).toBeGreaterThan(90);
+      expect(content.text[0].bounds?.y).toBeLessThan(110);
+      expect(content.text[0].bounds?.width).toBeGreaterThan(80);
+    }
+  );
+
   it("replaces original text physically and retains searchable text through save and reopen", () => {
     const doc = native.engine.open(formBytes());
     const old = native.engine.content(doc.id, 1).text[0];

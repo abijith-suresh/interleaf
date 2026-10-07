@@ -19,6 +19,7 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Mark pages for deletion before export
 - Unlock password-protected PDFs with an in-browser prompt
 - Review pages one at a time with previous/next navigation and a compact filmstrip
+- Zoom and pan page previews on desktop and mobile
 - Losslessly compress one untouched PDF
 - Export selected or unmarked pages as PNG images in a ZIP archive
 - Render page thumbnails locally for inspection before export
@@ -26,8 +27,13 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Add one line of text at a chosen position
 - Replace supported original text runs within their original width
 
-Open page review and choose **Edit page** to access content tools. Added and replacement text uses
-Helvetica and accepts basic Latin characters. Replacement changes PDF text objects directly. It does
+Open page review and choose **Edit page**. Tap the page to add text, highlighted text to replace it,
+or a form field to fill it. Use **Save & next** to move through supported fields. Pages without
+interactive fields can be filled by placing text in visible blanks. Drafts preview before applying;
+cancel them to discard the draft. Choose **Done** to review the page, then close page review
+to download your PDF.
+
+Added and replacement text uses Helvetica and accepts basic Latin characters. Replacement changes PDF text objects directly. It does
 not reflow paragraphs. Scanned pages, nested text, rotated text, and text with clipping or unsupported
 styling cannot be replaced. Form scripts, XFA, signatures, and multi-select fields are unavailable.
 Combining sources rebuilds supported fields with basic appearances and distinct source names.

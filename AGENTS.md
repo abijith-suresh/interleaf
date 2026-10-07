@@ -24,6 +24,7 @@ The active product supports:
 - unlocking password-protected PDFs with an in-browser prompt
 - locally rendered page thumbnails for inspection before export
 - reviewing pages one at a time with previous/next navigation and a compact filmstrip
+- zooming and panning page previews, with direct placement of text and selection of supported text or form fields
 - losslessly compressing an untouched, single uploaded PDF in the browser
 - exporting selected or active PDF pages as PNG images in a local ZIP archive
 - opening one or more PDFs and PNG or JPEG images together at initial upload, with images converted to PDF pages in the browser

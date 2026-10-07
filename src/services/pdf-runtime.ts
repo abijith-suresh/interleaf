@@ -24,6 +24,7 @@ import {
 } from "./qpdf-processing";
 
 export interface PDFProcessingShape {
+  readonly preload: Effect.Effect<void>;
   readonly loadPDF: (file: File) => Effect.Effect<void, PDFError>;
   readonly loadPDFWithPassword: (file: File, password: string) => Effect.Effect<void, PDFError>;
   readonly getPageCount: Effect.Effect<number>;
@@ -145,6 +146,7 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
         const service: PDFProcessingShape & {
           readonly dispose: () => Effect.Effect<void, PDFProcessingError>;
         } = {
+          preload: Effect.suspend(() => pdfService.preload()),
           loadPDF: (file: File) => pdfService.loadPDF(file),
           loadPDFWithPassword: (file: File, password: string) =>
             pdfService.loadPDFWithPassword(file, password),

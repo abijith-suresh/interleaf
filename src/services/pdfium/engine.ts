@@ -1,5 +1,7 @@
 import type { WrappedPdfiumModule } from "@embedpdf/pdfium";
+import { PDFReadCache } from "./cache";
 import type {
+  PDFBounds,
   PDFContentEdit,
   PDFFormField,
   PDFiumImage,
@@ -16,6 +18,10 @@ export class PDFiumPasswordError extends Error {}
 export class PDFiumEngine {
   private documents = new Map<number, Document>();
   private nextId = 0;
+  private readonly sizes = new PDFReadCache<{ width: number; height: number; rotation: number }>(
+    64 * 1024,
+    512
+  );
   constructor(private readonly api: WrappedPdfiumModule) {
     api.PDFiumExt_Init();
   }
@@ -127,6 +133,7 @@ export class PDFiumEngine {
     const doc = this.documents.get(id);
     if (doc) {
       this.documents.delete(id);
+      this.sizes.invalidate(id);
       this.destroy(doc);
     }
   }
@@ -136,13 +143,22 @@ export class PDFiumEngine {
   }
 
   info(id: number, number: number, rotation: number) {
-    return this.page(this.document(id), number, (page) => {
-      const source = this.api.FPDFPage_GetRotation(page) * 90;
-      const width = this.api.FPDF_GetPageWidth(page);
-      const height = this.api.FPDF_GetPageHeight(page);
-      const swap = Math.abs(rotation - source) % 180 !== 0;
-      return { width: swap ? height : width, height: swap ? width : height, rotation: source };
-    });
+    const doc = this.document(id);
+    const key = `${id}:${number}`;
+    let size = this.sizes.get(key);
+    if (!size) {
+      size = this.page(doc, number, (page) => ({
+        ...this.unrotatedSize(page),
+        rotation: this.api.FPDFPage_GetRotation(page) * 90,
+      }));
+      this.sizes.set(key, size, 48);
+    }
+    const swap = Math.abs(rotation) % 180 !== 0;
+    return {
+      width: swap ? size.height : size.width,
+      height: swap ? size.width : size.height,
+      rotation: size.rotation,
+    };
   }
 
   render(id: number, number: number, rotation: number, scale: number) {
@@ -200,7 +216,7 @@ export class PDFiumEngine {
     );
   }
 
-  private textRun(object: number, textPage: number, index: number): PDFTextRun {
+  private textRun(object: number, textPage: number, index: number, page?: number): PDFTextRun {
     const text = this.readWide((p, n) => this.api.FPDFTextObj_GetText(object, textPage, p, n));
     const fontSize = this.floats(1, (p) => this.api.FPDFTextObj_GetFontSize(object, p))[0];
     const matrix = this.floats(6, (p) => this.api.FPDFPageObj_GetMatrix(object, p));
@@ -215,7 +231,14 @@ export class PDFiumEngine {
           : !text.trim() || /[\r\n]/.test(text)
             ? "This text run does not contain one editable line."
             : undefined;
-    return { index, text, fontSize, editable: !reason, reason };
+    return {
+      index,
+      text,
+      fontSize,
+      editable: !reason,
+      reason,
+      ...(page ? { bounds: this.normalizedBounds(page, this.bounds(object)) } : {}),
+    };
   }
 
   private field(doc: Document, annot: number, index: number): PDFFormField {
@@ -255,7 +278,15 @@ export class PDFiumEngine {
     for (let i = 0; i < this.api.FPDFPage_GetAnnotCount(page); i++) {
       const annot = this.api.FPDFPage_GetAnnot(page, i);
       try {
-        if (this.api.FPDFAnnot_GetSubtype(annot) === 20) fields.push(this.field(doc, annot, i));
+        if (this.api.FPDFAnnot_GetSubtype(annot) === 20) {
+          const rect = this.floats(4, (p) =>
+            this.checked(this.api.FPDFAnnot_GetRect(annot, p), "Could not locate this form field.")
+          );
+          fields.push({
+            ...this.field(doc, annot, i),
+            bounds: this.normalizedBounds(page, [rect[0], rect[3], rect[2], rect[1]]),
+          });
+        }
       } finally {
         this.api.FPDFPage_CloseAnnot(annot);
       }
@@ -268,6 +299,40 @@ export class PDFiumEngine {
     const width = this.api.FPDF_GetPageWidth(page),
       height = this.api.FPDF_GetPageHeight(page);
     return { width: quarter ? height : width, height: quarter ? width : height };
+  }
+
+  private normalizedBounds(page: number, rect: number[]): PDFBounds {
+    const size = this.unrotatedSize(page);
+    const rotate = (4 - this.api.FPDFPage_GetRotation(page)) % 4;
+    const points = [
+      [rect[0], rect[1]],
+      [rect[2], rect[3]],
+    ].map(([x, y]) =>
+      this.memory(8, (p) => {
+        this.checked(
+          this.api.FPDF_PageToDevice(
+            page,
+            0,
+            0,
+            Math.round(size.width * 100),
+            Math.round(size.height * 100),
+            rotate,
+            x,
+            y,
+            p,
+            p + 4
+          ),
+          "Could not locate this page content."
+        );
+        return [this.heap.HEAP32[p / 4] / 100, this.heap.HEAP32[p / 4 + 1] / 100];
+      })
+    );
+    return {
+      x: Math.min(points[0][0], points[1][0]),
+      y: Math.min(points[0][1], points[1][1]),
+      width: Math.abs(points[1][0] - points[0][0]),
+      height: Math.abs(points[1][1] - points[0][1]),
+    };
   }
 
   private pagePoint(page: number, x: number, y: number): number[] {
@@ -307,7 +372,7 @@ export class PDFiumEngine {
         for (let i = 0; i < this.api.FPDFPage_CountObjects(page); i++) {
           const object = this.api.FPDFPage_GetObject(page, i);
           if (this.api.FPDFPageObj_GetType(object) === 1)
-            text.push(this.textRun(object, textPage, i));
+            text.push(this.textRun(object, textPage, i, page));
         }
         return {
           text,
@@ -495,10 +560,14 @@ export class PDFiumEngine {
       if (edit.kind === "form") {
         for (let i = 1; i <= this.api.FPDF_GetPageCount(candidate.handle); i++)
           this.page(candidate, i, (page) => {
-            for (const field of this.fields(candidate, page)) {
-              const annot = this.api.FPDFPage_GetAnnot(page, field.index);
+            for (let index = 0; index < this.api.FPDFPage_GetAnnotCount(page); index++) {
+              const annot = this.api.FPDFPage_GetAnnot(page, index);
               try {
-                if (field.fieldId === changedFieldId && [2, 3, 4, 5, 6].includes(field.type))
+                if (
+                  this.api.FPDFAnnot_GetSubtype(annot) === 20 &&
+                  this.api.EPDFAnnot_GetFormFieldObjectNumber(candidate.form, annot) ===
+                    changedFieldId
+                )
                   this.checked(
                     this.api.EPDFAnnot_GenerateFormFieldAP(annot),
                     "Could not update form appearance."

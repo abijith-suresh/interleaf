@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { PDFProcessingError } from "../../types/interfaces";
 
 const pdfServiceMock = vi.hoisted(() => ({
+  preload: vi.fn(),
   loadPDF: vi.fn(),
   getPageCount: vi.fn(),
   getPassword: vi.fn(),
@@ -78,6 +79,7 @@ let runtime: PDFRuntime;
 
 beforeEach(() => {
   vi.resetAllMocks();
+  pdfServiceMock.preload.mockReturnValue(Effect.void);
   pdfServiceMock.loadPDF.mockReturnValue(Effect.succeed(undefined));
   pdfServiceMock.getPageCount.mockReturnValue(0);
   pdfServiceMock.getPassword.mockReturnValue(undefined);
@@ -250,4 +252,11 @@ it("passes the unlocked source PDF to compression and closes qpdf on disposal", 
 
   await runtime.dispose();
   expect(qpdfProcessingMock.close).toHaveBeenCalledTimes(1);
+});
+
+it("can warm the PDF engine without opening a document or initializing export services", async () => {
+  await runtime.runPromise(PDFProcessing.use((service) => service.preload));
+  expect(pdfServiceMock.preload).toHaveBeenCalledOnce();
+  expect(pdfServiceMock.loadPDF).not.toHaveBeenCalled();
+  expect(PDFOperationsService).not.toHaveBeenCalled();
 });

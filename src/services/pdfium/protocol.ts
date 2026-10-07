@@ -1,9 +1,17 @@
+export interface PDFBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface PDFTextRun {
   index: number;
   text: string;
   editable: boolean;
   reason?: string;
   fontSize: number;
+  bounds?: PDFBounds;
 }
 
 export interface PDFFormField {
@@ -18,6 +26,7 @@ export interface PDFFormField {
   selectedOption: number;
   flags: number;
   readOnly: boolean;
+  bounds?: PDFBounds;
 }
 
 export interface PDFPageContent {

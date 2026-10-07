@@ -100,6 +100,69 @@ describe("PDFService worker lifecycle", () => {
     expect(request).toHaveBeenCalledWith("close", { id: 1 });
   });
 
+  it("coalesces repeated inspection and caches dimensions across rotation requests", async () => {
+    await Effect.runPromise(service.loadPDF(file));
+    const content = { width: 200, height: 300, text: [], fields: [] };
+    request.mockImplementation(async (command: string) =>
+      command === "content" ? content : { width: 200, height: 300, rotation: 90 }
+    );
+    await Promise.all([
+      Effect.runPromise(service.getPageContent(file, 1)),
+      Effect.runPromise(service.getPageContent(file, 1)),
+    ]);
+    await Effect.runPromise(service.getPageContent(file, 1));
+    expect(request.mock.calls.filter(([command]) => command === "content")).toHaveLength(1);
+    expect(await Effect.runPromise(service.getPageRotation(file, 1))).toBe(90);
+    expect(await Effect.runPromise(service.getPageSize(file, 1, 90))).toMatchObject({
+      width: 300,
+      height: 200,
+    });
+    expect(request.mock.calls.filter(([command]) => command === "info")).toHaveLength(1);
+    await Effect.runPromise(service.editPage(file, 1, { kind: "form", index: 0, value: "New" }));
+    await Effect.runPromise(service.getPageContent(file, 1));
+    expect(request.mock.calls.filter(([command]) => command === "content")).toHaveLength(2);
+  });
+
+  it("reuses bounded preview pixels and discards them after successful and failed edits", async () => {
+    await Effect.runPromise(service.loadPDF(file));
+    const rendered = { width: 1, height: 1, pixels: new Uint8ClampedArray(4) };
+    const putImageData = vi.fn();
+    const canvas = document.createElement("canvas");
+    vi.spyOn(canvas, "getContext").mockReturnValue({
+      putImageData,
+    } as unknown as CanvasRenderingContext2D);
+    vi.stubGlobal("ImageData", class {});
+    request.mockImplementation(async () => rendered);
+    await Effect.runPromise(service.renderPage(file, 1, canvas));
+    await Effect.runPromise(service.renderPage(file, 1, canvas));
+    expect(request.mock.calls.filter(([command]) => command === "render")).toHaveLength(1);
+    expect(putImageData).toHaveBeenCalledTimes(2);
+    request.mockRejectedValueOnce(new Error("Rejected edit"));
+    await expect(
+      Effect.runPromise(service.editPage(file, 1, { kind: "form", index: 0, value: "Bad" }))
+    ).rejects.toMatchObject({ message: "Rejected edit" });
+    await Effect.runPromise(service.renderPage(file, 1, canvas));
+    expect(request.mock.calls.filter(([command]) => command === "render")).toHaveLength(2);
+    await Effect.runPromise(service.editPage(file, 1, { kind: "form", index: 0, value: "New" }));
+    await Effect.runPromise(service.renderPage(file, 1, canvas));
+    expect(request.mock.calls.filter(([command]) => command === "render")).toHaveLength(3);
+    vi.unstubAllGlobals();
+  });
+
+  it("never caches an inspection response arriving across a mutation", async () => {
+    await Effect.runPromise(service.loadPDF(file));
+    const inspection = Promise.withResolvers<PDFiumCommands["content"]["output"]>();
+    request.mockImplementationOnce(() => inspection.promise);
+    const inspecting = Effect.runPromise(service.getPageContent(file, 1));
+    await tick();
+    await Effect.runPromise(service.editPage(file, 1, { kind: "form", index: 0, value: "New" }));
+    inspection.resolve({ width: 200, height: 300, text: [], fields: [] });
+    await inspecting;
+    request.mockResolvedValue({ width: 200, height: 300, text: [], fields: [] });
+    await Effect.runPromise(service.getPageContent(file, 1));
+    expect(request.mock.calls.filter(([command]) => command === "content")).toHaveLength(2);
+  });
+
   it("resets all documents and disposes the worker", async () => {
     await Effect.runPromise(service.loadPDF(file));
     await Effect.runPromise(service.reset());

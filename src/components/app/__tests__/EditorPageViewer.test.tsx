@@ -15,6 +15,7 @@ const pdfServiceMocks = vi.hoisted(() => ({
 
 vi.mock("@/services/pdf-service", () => ({
   PDFService: class {
+    preload = () => Effect.void;
     getPageRotation = pdfServiceMocks.getPageRotation;
     getPageSize = pdfServiceMocks.getPageSize;
     renderPage = pdfServiceMocks.renderPage;
@@ -217,8 +218,8 @@ describe("EditorPageViewer", () => {
       const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
 
       await waitFor(() => expect([canvas.width, canvas.height]).toEqual([pixelWidth, pixelHeight]));
-      expect(canvas.style.width).toBe("150px");
-      expect(canvas.style.height).toBe("300px");
+      expect(canvas.parentElement?.style.width).toBe("150px");
+      expect(canvas.parentElement?.style.height).toBe("300px");
     }
   );
 
@@ -291,5 +292,36 @@ describe("EditorPageViewer", () => {
     expect(close).toHaveFocus();
     fireEvent.keyDown(viewer, { key: "Tab", shiftKey: true });
     expect(next).toHaveFocus();
+  });
+  it("keeps large mobile zoom previews within the pixel memory budget", async () => {
+    vi.stubGlobal("innerWidth", 390);
+    vi.stubGlobal("devicePixelRatio", 2);
+    pdfServiceMocks.getPageSize.mockReturnValue(Effect.succeed({ width: 2000, height: 3000 }));
+    pdfServiceMocks.renderPage.mockImplementation(
+      (_file: File, _page: number, canvas: HTMLCanvasElement, scale: number) =>
+        Effect.sync(() => {
+          canvas.width = Math.ceil(2000 * scale);
+          canvas.height = Math.ceil(3000 * scale);
+        })
+    );
+    render(() => (
+      <EditorPageViewer
+        pages={makePages()}
+        navigationPageIds={["page-1"]}
+        activePageId="page-1"
+        runtime={runtime}
+        onActivePageChange={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalled());
+    const canvas = screen.getByRole("img") as HTMLCanvasElement;
+    const previousWidth = canvas.parentElement?.style.width;
+    for (let step = 0; step < 5; step++)
+      fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Zoom in" })).toBeDisabled());
+    await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2));
+    expect(canvas.width * canvas.height).toBeLessThanOrEqual(4_000_000);
+    expect(canvas.parentElement?.style.width).not.toBe(previousWidth);
   });
 });
