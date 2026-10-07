@@ -1,4 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "bunx bun@1.4.1 install"
+  "installCommand": "bunx bun@1.4.1 install",
+  "headers": [
+    {
+      "source": "/_astro/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
 }
