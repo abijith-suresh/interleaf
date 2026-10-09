@@ -60,9 +60,11 @@ bun run format
 
 CI runs on every PR to `main`:
 
-- **quality**: full verify pass (type-check, lint, format:check, test, build)
+- **ci**: shared Astro pipeline — type-check, lint, format:check, test, build, and Playwright browser tests
+- **gate**: aggregates `ci`, `dependency-review`, and `qpdf`; this is the required branch-protection check
 - **pr-title**: enforces Conventional Commit format on PR titles
 - **dependency-review**: audits dependency changes
+- **qpdf**: builds and smoke-tests the qpdf WASM module when its files change
 
 ## Versioning And Releases
 
@@ -95,6 +97,15 @@ bun run test:watch   # Watch mode
 ```
 
 Cover services, controllers, utilities, and editor components. Use Vitest with the `jsdom` environment.
+
+Browser tests live in `tests/e2e` and use Playwright against a preview build:
+
+```sh
+bunx playwright install chromium   # once per machine
+bun run test:e2e
+```
+
+CI runs the suite in Chromium, Firefox, and WebKit.
 
 ### Styling
 
