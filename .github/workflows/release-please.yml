@@ -5,17 +5,15 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   release-please:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: googleapis/release-please-action@v5
-        id: release
-        with:
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
+    name: release-please
+    uses: abijith-suresh/workflows/.github/workflows/release-please.yml@6838f8e2495013c024606bbf8d63d3d5c66344fa # 0.8.0
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    secrets:
+      RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}

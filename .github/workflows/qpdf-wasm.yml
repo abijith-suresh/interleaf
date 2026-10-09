@@ -99,10 +99,10 @@ jobs:
           path: /tmp/interleaf-qpdf
 
       - name: Install Chromium runner
-        run: npm install --no-save --no-package-lock playwright@1.55.0 pdfjs-dist@6.3.289
+        run: npm install --no-save --no-package-lock --omit=dev playwright@1.55.0 pdfjs-dist@6.3.289
 
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: ./node_modules/.bin/playwright install --with-deps chromium
 
       - name: Serve smoke page
         run: |

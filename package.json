@@ -16,6 +16,7 @@
     "format:check": "biome format .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "bun run build && playwright test",
     "verify": "bun run type-check && bun run lint && bun run format:check && bun run test && bun run build",
     "prepare": "husky"
   },
@@ -38,6 +39,7 @@
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
     "@effect/vitest": "4.0.0-rc.115",
+    "@playwright/test": "^1.63.0",
     "@solidjs/testing-library": "^0.8.10",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.1",
