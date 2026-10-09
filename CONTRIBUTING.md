@@ -101,9 +101,11 @@ Cover services, controllers, utilities, and editor components. Use Vitest with t
 Browser tests live in `tests/e2e` and use Playwright against a preview build:
 
 ```sh
-bunx playwright install chromium   # once per machine
-bun run test:e2e
+bunx playwright install --with-deps chromium firefox webkit   # once per machine
+bun run test:e2e:build             # builds, then runs the browser tests
 ```
+
+Run `bun run test:e2e` to reuse an existing build.
 
 CI runs the suite in Chromium, Firefox, and WebKit.
 

@@ -16,7 +16,8 @@
     "format:check": "biome format .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "bun run build && playwright test",
+    "test:e2e": "playwright test",
+    "test:e2e:build": "bun run build && bun run test:e2e",
     "verify": "bun run type-check && bun run lint && bun run format:check && bun run test && bun run build",
     "prepare": "husky"
   },
