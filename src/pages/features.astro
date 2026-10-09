@@ -1,6 +1,5 @@
 ---
 import MarketingLayout from "../components/marketing/MarketingLayout.astro";
-import ArrowIcon from "../components/shared/ArrowIcon.astro";
 import MarketingHero from "../components/marketing/MarketingHero.astro";
 
 const base = import.meta.env.BASE_URL;
@@ -54,9 +53,7 @@ const capabilities = [
         Interleaf is a local workspace that runs entirely in your browser. The list below is the
         full current scope.
       </p>
-      <a class="marketing-hero-action" href={`${base}app`}>
-        Open editor <span aria-hidden="true"><ArrowIcon /></span>
-      </a>
+      <a class="marketing-hero-action" href={`${base}app`}>Open editor</a>
     </div>
   </MarketingHero>
 
@@ -77,16 +74,15 @@ const capabilities = [
             </article>
           ))
         }
+        <p class="local-note">
+          <span class="local-note-marker" aria-hidden="true"></span>
+          <span class="local-note-copy">
+            <strong>Your files never leave your device.</strong> Interleaf runs entirely in your
+            browser. Nothing is uploaded.
+          </span>
+        </p>
       </div>
     </div>
-  </section>
-
-  <section class="local-note marketing-container" aria-label="Local processing">
-    <span class="local-note-marker" aria-hidden="true"></span>
-    <p>
-      <strong>Your files never leave your device.</strong> Interleaf runs entirely in your browser.
-      Nothing is uploaded.
-    </p>
   </section>
 </MarketingLayout>
 
@@ -124,13 +120,12 @@ const capabilities = [
 
   .section-intro {
     display: grid;
-    grid-template-columns: minmax(9rem, 0.5fr) minmax(0, 1.5fr);
+    grid-template-columns: max-content minmax(0, 1fr);
     gap: 2rem;
-    align-items: start;
+    align-items: baseline;
   }
 
   .section-index {
-    padding-top: 0.55rem;
     color: var(--marketing-muted);
     font-size: 0.7rem;
     letter-spacing: 0.08em;
@@ -160,10 +155,6 @@ const capabilities = [
     border-bottom: 1px solid var(--marketing-rule);
   }
 
-  .capability:last-child {
-    border-bottom-color: var(--marketing-ink);
-  }
-
   .capability-marker,
   .local-note-marker {
     display: block;
@@ -188,15 +179,20 @@ const capabilities = [
   }
 
   .local-note {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: clamp(3rem, 7vw, 5.5rem);
-    padding-block: 1.25rem;
-    border-top: 1px solid var(--marketing-rule);
+    display: grid;
+    grid-template-columns: 1rem minmax(14rem, 0.8fr) minmax(0, 1.2fr);
+    gap: 1.5rem;
+    align-items: baseline;
+    padding-block: 1.6rem;
+    border-bottom: 1px solid var(--marketing-ink);
     color: var(--marketing-muted);
-    font-size: 0.8rem;
-    line-height: 1.5;
+    font-size: 0.95rem;
+    line-height: 1.55;
+  }
+
+  .local-note-copy {
+    grid-column: 2 / -1;
+    max-width: 32rem;
   }
 
   .local-note strong {
@@ -207,7 +203,7 @@ const capabilities = [
   @media (max-width: 48rem) {
     .section-intro {
       grid-template-columns: 1fr;
-      gap: 2rem;
+      gap: 1.25rem;
     }
 
     .hero-copy {
@@ -225,7 +221,7 @@ const capabilities = [
     }
 
     .local-note {
-      align-items: flex-start;
+      grid-template-columns: 1rem minmax(0, 1fr);
     }
   }
 
