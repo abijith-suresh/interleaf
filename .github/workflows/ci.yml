@@ -4,28 +4,24 @@ on:
   pull_request:
     branches: [main]
 
-permissions:
-  contents: read
-  pull-requests: write
+permissions: {}
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  bun-quality:
-    name: bun-quality
-    uses: abijith-suresh/workflows/.github/workflows/bun-quality.yml@163055ac24b4169ae93ae05c5d7491b1cd5d96c7 # v0.6.0
+  ci:
+    name: CI
+    uses: abijith-suresh/workflows/.github/workflows/ci.yml@6838f8e2495013c024606bbf8d63d3d5c66344fa # 0.8.0
     permissions:
       contents: read
 
   dependency-review:
     name: dependency-review
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Dependency review
-        uses: actions/dependency-review-action@v5
+    uses: abijith-suresh/workflows/.github/workflows/dependency-review.yml@6838f8e2495013c024606bbf8d63d3d5c66344fa # 0.8.0
+    permissions:
+      contents: read
 
   qpdf:
     name: qpdf
@@ -33,22 +29,25 @@ jobs:
     permissions:
       contents: read
 
-  quality:
-    name: quality
-    runs-on: ubuntu-latest
-    if: always()
-    needs: [bun-quality, dependency-review, qpdf]
+  gate:
+    name: gate
+    runs-on: ubuntu-24.04
+    if: ${{ !cancelled() }}
+    needs: [ci, dependency-review, qpdf]
+    permissions: {}
 
     steps:
-      - name: Verify required checks passed
+      - name: Require checks to pass
+        shell: bash
         env:
-          BUN_QUALITY_RESULT: ${{ needs.bun-quality.result }}
+          CI_RESULT: ${{ needs.ci.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           QPDF_RESULT: ${{ needs.qpdf.result }}
         run: |
-          if [[ "$BUN_QUALITY_RESULT" != "success" || "$DEPENDENCY_REVIEW_RESULT" != "success" || "$QPDF_RESULT" != "success" ]]; then
-            echo "bun-quality: $BUN_QUALITY_RESULT"
-            echo "dependency-review: $DEPENDENCY_REVIEW_RESULT"
-            echo "qpdf: $QPDF_RESULT"
+          set -euo pipefail
+          if [[ "$CI_RESULT" != success || "$DEPENDENCY_REVIEW_RESULT" != success || "$QPDF_RESULT" != success ]]; then
+            echo "ci: $CI_RESULT" >&2
+            echo "dependency-review: $DEPENDENCY_REVIEW_RESULT" >&2
+            echo "qpdf: $QPDF_RESULT" >&2
             exit 1
           fi
