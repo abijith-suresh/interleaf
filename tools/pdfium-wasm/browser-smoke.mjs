@@ -176,6 +176,55 @@ async function downloadFrom(testId, name, trigger = page.getByTestId(testId)) {
   await download.saveAs(path);
   return new Uint8Array(await readFile(path));
 }
+async function travelHistory(label, redo = false, touch = false) {
+  const button = page
+    .getByRole("button", { name: `${redo ? "Redo" : "Undo"} ${label}`, exact: true })
+    .filter({ visible: true })
+    .last();
+  await button.waitFor();
+  await page.waitForFunction(
+    (name) =>
+      Array.from(document.querySelectorAll("button")).some(
+        (button) =>
+          button.getAttribute("aria-label") === name &&
+          !button.disabled &&
+          button.getClientRects().length
+      ),
+    `${redo ? "Redo" : "Undo"} ${label}`
+  );
+  await button[touch ? "tap" : "click"]();
+  await page.waitForFunction(
+    (text) =>
+      Array.from(document.querySelectorAll('[role="status"]')).some((node) =>
+        node.textContent.includes(text)
+      ),
+    `${redo ? "Redid" : "Undid"} ${label}.`
+  );
+  const opposite = page
+    .getByRole("button", { name: `${redo ? "Undo" : "Redo"} ${label}`, exact: true })
+    .filter({ visible: true })
+    .last();
+  await opposite.waitFor();
+  await page.waitForFunction(
+    (name) =>
+      Array.from(document.querySelectorAll("button")).some(
+        (button) =>
+          button.getAttribute("aria-label") === name &&
+          !button.disabled &&
+          button.getClientRects().length
+      ),
+    `${redo ? "Undo" : "Redo"} ${label}`
+  );
+}
+async function viewerOutput(name) {
+  const bytes = await downloadFrom(
+    "editor-download-button",
+    name,
+    page.getByTestId("editor-page-viewer").getByRole("button", { name: /^Download PDF/ })
+  );
+  const document = engine.open(bytes);
+  return { document, content: engine.content(document.id, 1) };
+}
 async function applyText(text, button) {
   await page.getByLabel("Text", { exact: true }).fill(text);
   assert.deepEqual(
@@ -312,15 +361,46 @@ try {
   assert.equal(await page.locator(".editor-content-toolbar").count(), 0);
   await placeText();
   await applyText("Added line", "Add text");
+  await travelHistory("add text");
+  assert.equal(
+    (await viewerOutput("undo-added.pdf")).content.text.some((run) => run.text === "Added line"),
+    false
+  );
+  await travelHistory("add text", true);
+  assert.equal(
+    (await viewerOutput("redo-added.pdf")).content.text.some((run) => run.text === "Added line"),
+    true
+  );
   await placeText(0.35, 0.4);
   await page.getByRole("button", { name: "Rotate draft text 90 degrees", exact: true }).click();
   await applyText("Turned", "Add text");
   await chooseTool("Edit text");
   await page.getByRole("button", { name: "Edit Original phrase", exact: true }).click();
   await applyText("New phrase", "Replace text");
+  await page.getByRole("button", { name: "Edit New phrase", exact: true }).click();
+  assert.equal(await page.getByLabel("Text", { exact: true }).inputValue(), "New phrase");
+  assert.equal(
+    await page.getByRole("button", { name: "Replace text", exact: true }).isDisabled(),
+    true
+  );
+  await travelHistory("replace text");
+  assert.equal(
+    await page.locator(".editor-content-composer").count(),
+    0,
+    "Undo must close a clean original-text inspector instead of retaining stale content"
+  );
+  await page.getByRole("button", { name: "Edit Original phrase", exact: true }).waitFor();
+  assert.equal((await viewerOutput("undo-replaced.pdf")).content.text[0].text, "Original phrase");
+  await travelHistory("replace text", true);
+  await page.getByRole("button", { name: "Edit New phrase", exact: true }).waitFor();
   await chooseTool("Fill forms");
   await page.getByText("3 interactive fields", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Check Agree", exact: true }).click();
+  await page.getByRole("button", { name: "Uncheck Agree", exact: true }).waitFor();
+  await travelHistory("fill field");
+  await page.getByRole("button", { name: "Check Agree", exact: true }).waitFor();
+  assert.equal((await viewerOutput("undo-checkbox.pdf")).content.fields[1].checked, false);
+  await travelHistory("fill field", true);
   await page.getByRole("button", { name: "Uncheck Agree", exact: true }).waitFor();
   await page.getByRole("button", { name: "Fill Name", exact: true }).click();
   await page.getByLabel("Name", { exact: true }).fill("Alice");
@@ -331,6 +411,34 @@ try {
   await page.getByLabel("Color", { exact: true }).selectOption("Blue");
   await page.getByRole("button", { name: "Save field", exact: true }).click();
   await waitForSaved();
+  await page.getByRole("button", { name: "Fill Color", exact: true }).click();
+  assert.equal(await page.getByLabel("Color", { exact: true }).inputValue(), "Blue");
+  assert.equal(
+    await page.getByRole("button", { name: "Save field", exact: true }).isDisabled(),
+    true
+  );
+  await travelHistory("fill field");
+  assert.equal(
+    await page.locator(".editor-content-composer").count(),
+    0,
+    "Undo must close a clean field inspector instead of retaining stale values"
+  );
+  assert.equal(
+    (await viewerOutput("undo-clean-color-inspector.pdf")).content.fields[2].value,
+    "Red"
+  );
+  await page.getByRole("button", { name: "Fill Color", exact: true }).click();
+  assert.equal(await page.getByLabel("Color", { exact: true }).inputValue(), "Red");
+  await travelHistory("fill field", true);
+  assert.equal(
+    await page.locator(".editor-content-composer").count(),
+    0,
+    "Redo must also refresh a clean field inspector"
+  );
+  assert.equal(
+    (await viewerOutput("redo-clean-color-inspector.pdf")).content.fields[2].value,
+    "Blue"
+  );
   await page.getByRole("button", { name: "Place form text", exact: true }).click();
   await placeText(0.3, 0.75, false, "Fill blank on page");
   assert.match(
@@ -380,6 +488,10 @@ try {
   await backToPages();
   await page.getByRole("button", { name: "Duplicate page 1", exact: true }).click();
   await page.getByRole("button", { name: "Page 2", exact: true }).waitFor();
+  await travelHistory("duplicate page");
+  assert.equal(await page.getByTestId("editor-page-tile").count(), 1);
+  await travelHistory("duplicate page", true);
+  assert.equal(await page.getByTestId("editor-page-tile").count(), 2);
   await chooseTool("Document");
   await page
     .getByRole("combobox", { name: "Go to page", exact: true })
@@ -390,6 +502,11 @@ try {
   await page.getByLabel("Name", { exact: true }).fill("Copy only");
   await page.getByRole("button", { name: "Save field", exact: true }).click();
   await waitForSaved();
+  await travelHistory("fill field");
+  const undoCopy = (await viewerOutput("undo-copy-field.pdf")).document;
+  assert.equal(engine.content(undoCopy.id, 1).fields[0].value, "Alice");
+  assert.equal(engine.content(undoCopy.id, 2).fields[0].value, "Alice");
+  await travelHistory("fill field", true);
   const duplicated = engine.open(
     await downloadFrom(
       "editor-download-button",
@@ -417,6 +534,19 @@ try {
     ["New phrase", "Added line", "Turned", "Manual answer", "X"]
   );
 
+  await page.getByTestId("editor-files-button").click();
+  await page.getByTestId("editor-file-remove").click();
+  await page
+    .getByRole("button", { name: "Choose PDF or image files, or drop them here", exact: true })
+    .waitFor();
+  await travelHistory("remove file");
+  assert.equal(await page.getByTestId("editor-page-tile").count(), 2);
+  await chooseTool("Document");
+  const restoredRemoved = (await viewerOutput("undo-removed-original-and-copy.pdf")).document;
+  assert.equal(engine.content(restoredRemoved.id, 1).fields[0].value, "Alice");
+  assert.equal(engine.content(restoredRemoved.id, 2).fields[0].value, "Copy only");
+  await backToPages();
+
   const sharedPath = join(directory, "shared.pdf");
   await writeFile(sharedPath, sharedFormBytes());
   const pngPath = join(directory, "image.png"),
@@ -440,6 +570,9 @@ try {
   await page.waitForFunction(
     () => document.querySelectorAll('[data-testid="editor-page-canvas"]').length === 3
   );
+  await travelHistory("add files");
+  assert.equal(await page.getByTestId("editor-page-tile").count(), 2);
+  await travelHistory("add files", true);
   const readded = engine.open(await downloadFrom("editor-download-button", "readded.pdf"));
   assert.equal(readded.count, 3);
   assert.equal(engine.content(readded.id, 3).fields[0].value, "Before");
@@ -482,6 +615,7 @@ try {
     "170 660 350 30 re S",
     "BT /F1 12 Tf 65 620 Td (I agree) Tj ET",
     "40 615 16 16 re S",
+    "170 560 m 450 560 l S",
   ].join("\n");
   const flatPath = join(directory, "flat-form.pdf");
   await writeFile(
@@ -524,12 +658,37 @@ try {
     "Tool instructions must attach to the full width of the document stage"
   );
   assert.equal(await page.locator(".editor-content-guidance").count(), 0);
-  await placeText(0.3, 0.135, true, "Fill blank on page");
+  const flatSuggestionCount = engine.content(
+    engine.open(new Uint8Array(await readFile(flatPath))).id,
+    1
+  ).suggestions;
+  assert.equal(flatSuggestionCount.filter((item) => item.kind === "text").length, 2);
+  assert.equal(flatSuggestionCount.filter((item) => item.kind === "checkbox").length, 1);
+  assert.equal(
+    await page.getByRole("button", { name: "Fill suggested blank", exact: true }).count(),
+    2
+  );
+  await page.getByRole("button", { name: "Fill suggested blank", exact: true }).first().tap();
+  await assertDraftWithinStage();
   await applyText("Completed on phone", "Fill text");
-  await page.getByRole("button", { name: "Place X mark", exact: true }).tap();
-  await placeText(0.071, 0.196, true, "Place X mark on page");
+  await travelHistory("fill blank", false, true);
+  assert.equal(
+    (await viewerOutput("undo-flat-answer.pdf")).content.text.some(
+      (run) => run.text === "Completed on phone"
+    ),
+    false
+  );
+  await travelHistory("fill blank", true, true);
+  await page.getByRole("button", { name: "Mark suggested checkbox", exact: true }).tap();
+  assert.equal(await page.getByRole("textbox").count(), 0);
   await assertDraftWithinStage();
   await saveXMark(true);
+  await travelHistory("mark checkbox", false, true);
+  assert.equal(
+    (await viewerOutput("undo-flat-mark.pdf")).content.text.some((run) => run.text === "X"),
+    false
+  );
+  await travelHistory("mark checkbox", true, true);
   await page.getByRole("button", { name: "Place form text", exact: true }).tap();
   await placeText(0.3, 0.4, true, "Fill blank on page");
   await page.getByLabel("Text", { exact: true }).fill("Cancelled answer");
@@ -551,12 +710,68 @@ try {
     "Filling a flat form adds page content, not interactive fields"
   );
 
+  const rotate = page.getByRole("button", { name: "Rotate page 1 90 degrees", exact: true });
+  const initialButtonStyle = await rotate.evaluate((button) => ({
+    background: getComputedStyle(button).backgroundColor,
+    shadow: getComputedStyle(button).boxShadow,
+  }));
+  await rotate.tap();
+  const tappedButtonStyle = await rotate.evaluate((button) => ({
+    background: getComputedStyle(button).backgroundColor,
+    shadow: getComputedStyle(button).boxShadow,
+  }));
+  assert.deepEqual(
+    tappedButtonStyle,
+    initialButtonStyle,
+    "Touch commands must return to idle styling rather than keep hover or pressed shading"
+  );
+  assert.equal(
+    await rotate.evaluate((button) => button.matches(":focus-visible")),
+    false,
+    "Tapping must not create a keyboard-only focus ring"
+  );
+  await travelHistory("rotate page", false, true);
+  const undoRotation = engine.open(
+    await downloadFrom("editor-download-button", "undo-mobile-rotation.pdf")
+  );
+  assert.equal(engine.info(undoRotation.id, 1, 0).rotation, 0);
+  await travelHistory("rotate page", true, true);
+  const redoRotation = engine.open(
+    await downloadFrom("editor-download-button", "redo-mobile-rotation.pdf")
+  );
+  assert.equal(engine.info(redoRotation.id, 1, 0).rotation, 90);
+  await travelHistory("rotate page", false, true);
+  await page.getByRole("button", { name: "Mark page 1 for deletion", exact: true }).tap();
+  assert.equal(
+    await page.getByTestId("editor-page-tile").getAttribute("data-marked-for-deletion"),
+    "true"
+  );
+  await travelHistory("delete page", false, true);
+  assert.equal(
+    await page.getByTestId("editor-page-tile").getAttribute("data-marked-for-deletion"),
+    "false"
+  );
+  assert.equal(
+    await page.getByRole("button", { name: "Redo delete page", exact: true }).isEnabled(),
+    true
+  );
+  await rotate.tap();
+  assert.equal(
+    await page.getByRole("button", { name: "Redo", exact: true }).isDisabled(),
+    true,
+    "A new edit discards redo history"
+  );
+
   const scanPath = join(directory, "image-only-form.pdf");
   await writeFile(
     scanPath,
     engine.images([
       { kind: "jpeg", bytes: new Uint8Array(await readFile(jpegPath)), orientation: 6 },
     ])
+  );
+  assert.deepEqual(
+    engine.content(engine.open(new Uint8Array(await readFile(scanPath))).id, 1).suggestions,
+    []
   );
   await openFiles([scanPath]);
   await chooseTool("Fill forms", true);
@@ -747,7 +962,7 @@ try {
     []
   );
   process.stdout.write(
-    `PASS ${browserName}: universal workspace, direct text placement/rotation/replacement, independent page duplicates, native forms and guided navigation, PNG ZIP, mixed files, file removal, add files, password export, compression, mobile zoom/flat and image form completion/cancelled drafts/native field isolation/short viewport/landscape, and privacy. Artifacts: ${directory}\n`
+    `PASS ${browserName}: universal workspace, direct text placement/rotation/replacement, undo/redo exported edits and independent duplicates, vector form suggestions, native forms and guided navigation, PNG ZIP, mixed files, file removal, add files, password export, compression, mobile zoom/flat and image form completion/cancelled drafts/native field isolation/short viewport/landscape, and privacy. Artifacts: ${directory}\n`
   );
 } catch (error) {
   await page.screenshot({ path: join(directory, "failure.png"), fullPage: true });

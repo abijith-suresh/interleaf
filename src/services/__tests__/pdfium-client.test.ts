@@ -127,4 +127,31 @@ describe("PDFium scheduling", () => {
     await next;
     client.dispose();
   });
+
+  it("keeps checkpoint edits, snapshots, and restore ordered ahead of later reads", async () => {
+    const { client, worker, respond } = fakeWorker();
+    const bytes = new Uint8Array([1]);
+    const requests = [
+      client.request("render", render),
+      client.request("editUndoable", {
+        id: 1,
+        page: 1,
+        edit: { kind: "form", index: 0, value: "New" },
+      }),
+      client.request("snapshot", { id: 1 }),
+      client.request("restore", { id: 1, bytes }, [bytes.buffer]),
+      client.request("content", { id: 1, page: 1 }, [], { priority: 100 }),
+    ];
+    for (const sequence of [1, 2, 3, 4, 5]) respond({ sequence, ok: true, value: bytes });
+    await Promise.all(requests);
+    expect(worker.postMessage.mock.calls.map(([request]) => request.command)).toEqual([
+      "render",
+      "editUndoable",
+      "snapshot",
+      "restore",
+      "content",
+    ]);
+    expect(worker.postMessage.mock.calls[3][1]).toEqual([bytes.buffer]);
+    client.dispose();
+  });
 });

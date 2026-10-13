@@ -1,5 +1,6 @@
 import type { WrappedPdfiumModule } from "@embedpdf/pdfium";
 import { PDFReadCache } from "./cache";
+import { type FormContour, type Point, suggestFormTargets } from "./form-suggestions";
 import type {
   PDFBounds,
   PDFContentEdit,
@@ -360,6 +361,156 @@ export class PDFiumEngine {
     });
   }
 
+  private formSuggestions(page: number, fields: PDFFormField[]) {
+    return this.memory(8, (pointPointer) => {
+      const size = this.unrotatedSize(page);
+      const rotation = (4 - this.api.FPDFPage_GetRotation(page)) % 4;
+      const contours: FormContour[] = [];
+      const occupied = fields.flatMap((field) => (field.bounds ? [field.bounds] : []));
+      let objectsLeft = 3000;
+      let segmentsLeft = 12000;
+      const transform = (point: Point, matrix: number[]): Point => [
+        matrix[0] * point[0] + matrix[2] * point[1] + matrix[4],
+        matrix[1] * point[0] + matrix[3] * point[1] + matrix[5],
+      ];
+      const combine = (parent: number[], child: number[]) => {
+        const origin = transform([child[4], child[5]], parent);
+        return [
+          parent[0] * child[0] + parent[2] * child[1],
+          parent[1] * child[0] + parent[3] * child[1],
+          parent[0] * child[2] + parent[2] * child[3],
+          parent[1] * child[2] + parent[3] * child[3],
+          ...origin,
+        ];
+      };
+      const normalize = (point: Point): Point => {
+        this.checked(
+          this.api.FPDF_PageToDevice(
+            page,
+            0,
+            0,
+            Math.round(size.width * 100),
+            Math.round(size.height * 100),
+            rotation,
+            point[0],
+            point[1],
+            pointPointer,
+            pointPointer + 4
+          ),
+          "Could not locate drawing."
+        );
+        return [
+          this.heap.HEAP32[pointPointer / 4] / 100,
+          this.heap.HEAP32[pointPointer / 4 + 1] / 100,
+        ];
+      };
+      const inspect = (object: number, parent: number[], depth: number): void => {
+        if (depth > 8) {
+          objectsLeft = 0;
+          return;
+        }
+        if (!object || objectsLeft-- <= 0) return;
+        const type = this.api.FPDFPageObj_GetType(object);
+        if (type === 1) {
+          const raw = this.bounds(object);
+          const corners = [
+            transform([raw[0], raw[1]], parent),
+            transform([raw[2], raw[1]], parent),
+            transform([raw[0], raw[3]], parent),
+            transform([raw[2], raw[3]], parent),
+          ].map(normalize);
+          const xs = corners.map((point) => point[0]),
+            ys = corners.map((point) => point[1]);
+          occupied.push({
+            x: Math.min(...xs),
+            y: Math.min(...ys),
+            width: Math.max(...xs) - Math.min(...xs),
+            height: Math.max(...ys) - Math.min(...ys),
+          });
+          return;
+        }
+        if (![2, 5].includes(type)) return;
+        const clip = this.api.FPDFPageObj_GetClipPath(object);
+        if (clip && this.api.FPDFClipPath_CountPaths(clip) > 0) {
+          segmentsLeft = 0;
+          return;
+        }
+        const local = this.floats(6, (p) =>
+          this.checked(
+            this.api.FPDFPageObj_GetMatrix(object, p),
+            "Could not inspect drawing transform."
+          )
+        );
+        const matrix = combine(parent, local);
+        if (!matrix.every(Number.isFinite)) return;
+        if (type === 5) {
+          const count = Math.min(this.api.FPDFFormObj_CountObjects(object), objectsLeft);
+          for (let index = 0; index < count && objectsLeft > 0; index++)
+            inspect(this.api.FPDFFormObj_GetObject(object, index), matrix, depth + 1);
+          return;
+        }
+        const mode = this.memory(8, (p) => {
+          if (!this.api.FPDFPath_GetDrawMode(object, p, p + 4)) return undefined;
+          return [this.heap.HEAP32[p / 4], this.heap.HEAP32[p / 4 + 1]];
+        });
+        if (mode?.[0] !== 0 || !mode[1]) return;
+        const stroke = this.floats(1, (p) =>
+          this.checked(
+            this.api.FPDFPageObj_GetStrokeWidth(object, p),
+            "Could not inspect drawing width."
+          )
+        )[0];
+        if (!Number.isFinite(stroke) || stroke > 3 || this.api.FPDFPageObj_HasTransparency(object))
+          return;
+        const count = this.api.FPDFPath_CountSegments(object);
+        if (count > 512 || count > segmentsLeft) {
+          segmentsLeft = 0;
+          return;
+        }
+        if (count < 2) return;
+        segmentsLeft -= count;
+        const paths: FormContour[] = [];
+        let current: FormContour | undefined;
+        for (let index = 0; index < count; index++) {
+          const segment = this.api.FPDFPath_GetPathSegment(object, index);
+          const type = this.api.FPDFPathSegment_GetType(segment);
+          if (!segment || (type !== 0 && type !== 2)) return;
+          const raw = this.floats(2, (p) =>
+            this.checked(
+              this.api.FPDFPathSegment_GetPoint(segment, p, p + 4),
+              "Could not inspect drawing point."
+            )
+          );
+          if (!raw.every(Number.isFinite)) return;
+          if (type === 2) {
+            current = { points: [], closed: false };
+            paths.push(current);
+          }
+          if (!current) return;
+          current.points.push(normalize(transform([raw[0], raw[1]], matrix)));
+          if (this.api.FPDFPathSegment_GetClose(segment)) current.closed = true;
+        }
+        contours.push(...paths);
+      };
+      try {
+        const count = Math.min(this.api.FPDFPage_CountObjects(page), objectsLeft);
+        for (let index = 0; index < count && objectsLeft > 0; index++) {
+          try {
+            inspect(this.api.FPDFPage_GetObject(page, index), [1, 0, 0, 1, 0, 0], 0);
+          } catch {
+            // Suggestions are optional. A malformed drawing must not prevent reading or editing.
+            return [];
+          }
+        }
+        // Partial traversal could miss occupied text or table edges: fail closed on the budget.
+        if (objectsLeft <= 0 || segmentsLeft <= 0) return [];
+        return suggestFormTargets(contours, occupied, size.width, size.height);
+      } catch {
+        return [];
+      }
+    });
+  }
+
   content(id: number, number: number): PDFPageContent {
     const doc = this.document(id);
     return this.page(doc, number, (page) => {
@@ -374,9 +525,11 @@ export class PDFiumEngine {
           if (this.api.FPDFPageObj_GetType(object) === 1)
             text.push(this.textRun(object, textPage, i, page));
         }
+        const fields = this.fields(doc, page);
         return {
           text,
-          fields: this.fields(doc, page),
+          fields,
+          suggestions: this.formSuggestions(page, fields),
           ...this.unrotatedSize(page),
         };
       } finally {
@@ -385,7 +538,7 @@ export class PDFiumEngine {
     });
   }
 
-  private save(doc: Document): Uint8Array {
+  private save(doc: Document): Uint8Array<ArrayBuffer> {
     const writer = this.checked(
       this.api.PDFiumExt_OpenFileWriter(),
       "Could not allocate PDF writer."
@@ -409,10 +562,38 @@ export class PDFiumEngine {
     return this.load(this.save(doc));
   }
 
+  snapshot(id: number): Uint8Array<ArrayBuffer> {
+    return this.save(this.document(id));
+  }
+
+  restore(id: number, bytes: Uint8Array): Uint8Array<ArrayBuffer> {
+    const original = this.document(id);
+    const candidate = this.load(bytes);
+    try {
+      const count = this.api.FPDF_GetPageCount(candidate.handle);
+      if (count < 1) throw new Error("The saved document has no pages.");
+      for (let number = 1; number <= count; number++)
+        this.page(candidate, number, (page) => this.unrotatedSize(page));
+      const previous = this.save(original);
+      this.documents.set(id, candidate);
+      this.sizes.invalidate(id);
+      this.destroy(original);
+      return previous;
+    } catch (error) {
+      this.destroy(candidate);
+      throw error;
+    }
+  }
+
   edit(id: number, number: number, edit: PDFContentEdit): void {
+    this.editUndoable(id, number, edit);
+  }
+
+  editUndoable(id: number, number: number, edit: PDFContentEdit): Uint8Array<ArrayBuffer> {
     // Stage edits in a copy. Native failures or overflow leave the working document intact.
     const original = this.document(id);
-    const candidate = this.clone(original);
+    const previous = this.save(original);
+    const candidate = this.load(previous);
     let changedFieldId = 0;
     try {
       this.page(candidate, number, (page) => {
@@ -605,6 +786,7 @@ export class PDFiumEngine {
       }
       this.documents.set(id, candidate);
       this.destroy(original);
+      return previous;
     } catch (error) {
       this.destroy(candidate);
       throw error;

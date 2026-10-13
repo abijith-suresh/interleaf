@@ -1,9 +1,12 @@
+import { Effect } from "effect";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
+import type { PDFDocumentCheckpoint } from "../../services/pdf-checkpoint";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type {
   PDFContentEdit,
   PDFFormField,
+  PDFFormSuggestion,
   PDFPageContent,
   PDFTextRun,
 } from "../../services/pdfium/protocol";
@@ -44,6 +47,7 @@ interface Props {
   onBusy: (busy: boolean) => void;
   onDraft?: (draft: boolean) => void;
   onSelection?: (selected: boolean) => void;
+  onCheckpoint?: (file: File, checkpoint: PDFDocumentCheckpoint, label: string) => void;
 }
 
 export default function EditorContentPanel(props: Props) {
@@ -67,6 +71,8 @@ export default function EditorContentPanel(props: Props) {
   const [advance, setAdvance] = createSignal<number>();
   let generation = 0,
     disposed = false;
+  let inspectedPage: string | undefined;
+  let inspectedRevision: number | undefined;
   let input: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | undefined;
   let saveButton: HTMLButtonElement | undefined;
   let pointer: { x: number; y: number; id: number } | undefined;
@@ -108,7 +114,7 @@ export default function EditorContentPanel(props: Props) {
           ? formTool() === "fields"
             ? `${fields().length} interactive ${fields().length === 1 ? "field" : "fields"}`
             : formTool() === "cross"
-              ? "Tap a box to mark."
+              ? "Tap a checkbox to cross it."
               : "Tap a blank to fill."
           : "Tap the page to place text.";
   const toolLabel = () =>
@@ -185,7 +191,13 @@ export default function EditorContentPanel(props: Props) {
   });
   createEffect(() => {
     const page = props.page;
-    void page.contentRevision;
+    const revision = page.contentRevision ?? 0;
+    if (inspectedPage === page.id && inspectedRevision !== revision) {
+      clearSelection();
+      setMessage("");
+    }
+    inspectedPage = page.id;
+    inspectedRevision = revision;
     const current = ++generation;
     setLoading(true);
     void props.runtime
@@ -238,12 +250,30 @@ export default function EditorContentPanel(props: Props) {
     setMessage("");
     setError(false);
     try {
-      await props.runtime.runPromise(
+      const checkpoint = await props.runtime.runPromise(
         PDFProcessing.use((service) =>
-          service.editPage(page.sourceFile, page.sourcePageNumber, edit)
+          props.onCheckpoint
+            ? service.editPageUndoable(page.sourceFile, page.sourcePageNumber, edit)
+            : service
+                .editPage(page.sourceFile, page.sourcePageNumber, edit)
+                .pipe(Effect.as(undefined as PDFDocumentCheckpoint | undefined))
         )
       );
       if (disposed) return;
+      if (checkpoint)
+        props.onCheckpoint?.(
+          page.sourceFile,
+          checkpoint,
+          edit.kind === "form"
+            ? "fill field"
+            : edit.kind === "replace"
+              ? "replace text"
+              : crossDraft()
+                ? "mark checkbox"
+                : mode() === "forms"
+                  ? "fill blank"
+                  : "add text"
+        );
       clearSelection();
       setAdvance(next);
       props.onChange(page.sourceFile, edit.kind === "form" ? undefined : page.sourcePageNumber);
@@ -347,6 +377,25 @@ export default function EditorContentPanel(props: Props) {
         fontSize: fontSize(),
         rotation: textRotation(),
       });
+  }
+  function placeSuggestion(suggestion: PDFFormSuggestion) {
+    if (busy() || loading() || dirty()) return;
+    clearSelection();
+    const cross = suggestion.kind === "checkbox";
+    const bounds = suggestion.bounds;
+    const size = Math.floor(Math.max(6, Math.min(cross ? 18 : 14, bounds.height * 0.7)));
+    setFormPlacement(cross ? "cross" : "text");
+    setTextRotation(0);
+    setFontSize(size);
+    setText(cross ? "X" : "");
+    setWidth(Math.max(1, cross ? size * 1.2 : bounds.width - 6));
+    setPosition({
+      x: bounds.x + (cross ? Math.max(0, (bounds.width - size * 0.67) / 2) : 3),
+      y: bounds.y + Math.max(0, (bounds.height - size) / 2),
+    });
+    setMessage("");
+    queueMicrotask(() => reveal(draftBox()));
+    focusInput();
   }
   const style = (box: PageBox) =>
     boxStyle(box, content()?.width ?? 1, content()?.height ?? 1, props.rotation ?? 0);
@@ -500,7 +549,7 @@ export default function EditorContentPanel(props: Props) {
                   setMessage("");
                 }}
               >
-                X mark
+                <EditorIcon name="close" size={14} /> Mark
               </EditorButton>
             </fieldset>
           </Show>
@@ -625,6 +674,29 @@ export default function EditorContentPanel(props: Props) {
                 )}
               </For>
             </Show>
+            <Show when={mode() === "forms" && formTool() !== "fields"}>
+              <For each={content()?.suggestions ?? []}>
+                {(suggestion) => (
+                  <button
+                    type="button"
+                    class="editor-content-hit is-suggestion"
+                    style={style(suggestion.bounds)}
+                    aria-label={
+                      suggestion.kind === "checkbox"
+                        ? "Mark suggested checkbox"
+                        : "Fill suggested blank"
+                    }
+                    title={
+                      suggestion.kind === "checkbox"
+                        ? "Mark printed checkbox"
+                        : "Fill suggested blank"
+                    }
+                    disabled={busy() || loading() || dirty()}
+                    onClick={() => placeSuggestion(suggestion)}
+                  />
+                )}
+              </For>
+            </Show>
             <Show when={position()}>
               <>
                 <button
@@ -728,7 +800,7 @@ export default function EditorContentPanel(props: Props) {
                     ? "Edit text"
                     : mode() === "forms"
                       ? crossDraft()
-                        ? "X mark"
+                        ? "Checkbox mark"
                         : "Fill form"
                       : "Add text"}
               </h3>

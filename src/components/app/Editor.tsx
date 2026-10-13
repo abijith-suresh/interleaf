@@ -2,6 +2,7 @@ import { Effect, Exit, Fiber } from "effect";
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { ROTATION_STEP, TOAST_DISMISS_TIMEOUT_MS } from "../../constants";
+import { EditorHistory, type EditorHistoryEntry } from "../../controllers/editor-history";
 import { planUploadGroups } from "../../controllers/editor-import";
 import {
   areAllPagesSelected,
@@ -13,6 +14,7 @@ import {
   toggleSelection,
 } from "../../controllers/editor-page-state";
 import { groupWorkspaceFiles, type WorkspaceFile } from "../../controllers/editor-workspace";
+import type { PDFDocumentCheckpoint } from "../../services/pdf-checkpoint";
 import { makePDFRuntime, PDFProcessing, type PDFProcessingShape } from "../../services/pdf-runtime";
 import { QpdfProcessingError } from "../../services/qpdf-processing";
 import type { PageState } from "../../types/interfaces";
@@ -22,6 +24,7 @@ import { getSupportedFileKind } from "../../utils/file-types";
 import { promptForPassword } from "../../utils/password-prompt";
 import { showToast as dispatchToast, TOAST_EVENT_NAME, type ToastDetail } from "../../utils/toast";
 import EditorFilesDialog from "./EditorFilesDialog";
+import EditorHistoryControls from "./EditorHistoryControls";
 import EditorPageGrid from "./EditorPageGrid";
 import EditorPageViewer from "./EditorPageViewer";
 import EditorSelectionBar from "./EditorSelectionBar";
@@ -36,6 +39,9 @@ interface DragOverTarget {
 }
 
 type EditorOperation =
+  | "undoing"
+  | "redoing"
+  | "removing"
   | "duplicating"
   | "idle"
   | "uploading"
@@ -54,6 +60,12 @@ interface Toast {
 interface LoadedWorkspaceFile {
   file: File;
   pageCount: number;
+}
+
+interface WorkspaceHistoryState {
+  pages: PageState[];
+  selectedIndices: Set<number>;
+  activePageId: string | null;
 }
 
 const deletionActionCopy: Record<DeletionAction, { label: string; ariaLabel: string }> = {
@@ -85,6 +97,8 @@ export default function Editor() {
   let preloadTimer: number | null = null;
 
   onMount(() => {
+    window.addEventListener("keydown", handleHistoryKey);
+    onCleanup(() => window.removeEventListener("keydown", handleHistoryKey));
     const preload = () => {
       preloadIdleCallback = null;
       preloadTimer = null;
@@ -113,6 +127,10 @@ export default function Editor() {
   const [operation, setOperation] = createSignal<EditorOperation>("idle");
   const [statusMessage, setStatusMessage] = createSignal("Your files never leave your device.");
   const [toasts, setToasts] = createSignal<Toast[]>([]);
+  const history = new EditorHistory<WorkspaceHistoryState>();
+  const [historyVersion, setHistoryVersion] = createSignal(0);
+  const [contentBusy, setContentBusy] = createSignal(false);
+  const [contentDraft, setContentDraft] = createSignal(false);
 
   const activePageCount = () => pages.filter((p) => !p.markedForDeletion).length;
   const markedPageCount = () => pages.length - activePageCount();
@@ -123,7 +141,150 @@ export default function Editor() {
   };
   const selectedActivePageCount = () =>
     Array.from(selectedIndices()).filter((index) => !pages[index]?.markedForDeletion).length;
-  const isBusy = () => operation() !== "idle";
+  const isBusy = () => operation() !== "idle" || contentBusy();
+  function captureWorkspace(): WorkspaceHistoryState {
+    return {
+      pages: pages.map((page) => ({ ...page })),
+      selectedIndices: new Set(selectedIndices()),
+      activePageId: activePageId(),
+    };
+  }
+  function recordHistory(
+    label: string,
+    state = captureWorkspace(),
+    documents: EditorHistoryEntry<WorkspaceHistoryState>["documents"] = []
+  ) {
+    history.record({ label, state, documents });
+    setHistoryVersion((value) => value + 1);
+  }
+  const historyActions = () => {
+    historyVersion();
+    return {
+      undoLabel: history.getUndo()?.label,
+      redoLabel: history.getRedo()?.label,
+      busy: isBusy() || contentDraft() || dragSourceIndex() !== null,
+      onUndo: () => {
+        void travelHistory(false);
+      },
+      onRedo: () => {
+        void travelHistory(true);
+      },
+    };
+  };
+  async function travelHistory(redo: boolean) {
+    if (disposed || isBusy() || contentDraft() || dragSourceIndex() !== null) return;
+    const entry = redo ? history.getRedo() : history.getUndo();
+    if (!entry) return;
+    const restoreHistoryFocus =
+      document.activeElement instanceof HTMLElement &&
+      !!document.activeElement.closest(".editor-history-controls");
+    const current = captureWorkspace();
+    const currentFiles = new Set(current.pages.map((page) => page.sourceFile));
+    const targetFiles = new Set(entry.state.pages.map((page) => page.sourceFile));
+    const inverse = new Map<File, PDFDocumentCheckpoint>();
+    const restored: { file: File; previous?: PDFDocumentCheckpoint }[] = [];
+    setOperation(redo ? "redoing" : "undoing");
+    setStatusMessage(redo ? "Redoing change…" : "Undoing change…");
+    try {
+      await runPDF(
+        PDFProcessing.use((service) =>
+          Effect.gen(function* () {
+            for (const file of currentFiles) {
+              if (!targetFiles.has(file)) inverse.set(file, yield* service.snapshotDocument(file));
+            }
+            for (const document of entry.documents) {
+              const previous = yield* service.restoreDocument(document.file, document.checkpoint);
+              restored.push({ file: document.file, previous });
+              if (previous) inverse.set(document.file, previous);
+            }
+          })
+        )
+      );
+      if (disposed) return;
+      setPages(entry.state.pages.map((page) => ({ ...page })));
+      setSelectedIndices(new Set(entry.state.selectedIndices));
+      setActivePageId(entry.state.activePageId);
+      setDragSourceIndex(null);
+      setDragOverTarget(null);
+      setPhase(entry.state.pages.length ? "edit" : "upload");
+      if (!entry.state.pages.length) {
+        setCanvasOpen(false);
+        setFilesOpen(false);
+      }
+      const inverseEntry = {
+        label: entry.label,
+        state: current,
+        documents: [...inverse].map(([file, checkpoint]) => ({ file, checkpoint })),
+      };
+      if (redo) history.commitRedo(inverseEntry);
+      else history.commitUndo(inverseEntry);
+      setHistoryVersion((value) => value + 1);
+      setStatusMessage(`${redo ? "Redid" : "Undid"} ${entry.label}.`);
+      // Archived history retains bytes, not native document handles.
+      await runPDF(
+        PDFProcessing.use((service) =>
+          Effect.forEach(
+            [...currentFiles].filter((file) => !targetFiles.has(file)),
+            (file) => service.releaseFile(file).pipe(Effect.ignoreCause),
+            { discard: true }
+          )
+        )
+      );
+    } catch (error) {
+      // Restore only the native documents already changed by this attempted action.
+      await pdfRuntime
+        .runPromise(
+          PDFProcessing.use((service) =>
+            Effect.forEach(
+              [...restored].reverse(),
+              ({ file, previous }) =>
+                previous
+                  ? service.restoreDocument(file, previous).pipe(Effect.ignoreCause)
+                  : service.releaseFile(file).pipe(Effect.ignoreCause),
+              { discard: true }
+            )
+          )
+        )
+        .catch(() => undefined);
+      if (!disposed)
+        dispatchToast(
+          error instanceof Error ? error.message : "Could not restore this change.",
+          "error"
+        );
+    } finally {
+      if (!disposed) setOperation("idle");
+      if (!disposed && restoreHistoryFocus)
+        queueMicrotask(() => {
+          const groups = [...editorRoot.querySelectorAll<HTMLElement>(".editor-history-controls")];
+          const group = groups.find((item) => !item.closest('[inert], [aria-hidden="true"]'));
+          const same = group?.querySelector<HTMLButtonElement>(
+            `button[aria-label^="${redo ? "Redo" : "Undo"}"]:not(:disabled)`
+          );
+          (same ?? group?.querySelector<HTMLButtonElement>("button:not(:disabled)"))?.focus({
+            preventScroll: true,
+          });
+        });
+    }
+  }
+  function handleHistoryKey(event: KeyboardEvent) {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.defaultPrevented) return;
+    if (editorRoot?.querySelector("dialog[open], [role=menu]")) return;
+    const target = event.target;
+    if (
+      target instanceof HTMLElement &&
+      (target.closest("input, textarea, select, [contenteditable=true]") ||
+        target.closest("[role=menu], .editor-tools-sheet"))
+    )
+      return;
+    const key = event.key.toLowerCase();
+    const redo = (key === "z" && event.shiftKey) || (key === "y" && event.ctrlKey);
+    if (key !== "z" && !redo) return;
+    const actions = historyActions();
+    if (actions.busy || !(redo ? actions.redoLabel : actions.undoLabel)) return;
+    event.preventDefault();
+    if (redo) actions.onRedo();
+    else actions.onUndo();
+  }
   const workspacePageIds = createMemo(() => pages.map((page) => page.id));
   const allPagesSelected = () => areAllPagesSelected(pages.length, selectedIndices());
   const selectedDeletionAction = () => getDeletionAction(pages, selectedIndices());
@@ -195,6 +356,7 @@ export default function Editor() {
 
   onCleanup(() => {
     disposed = true;
+    history.clear();
     if (preloadIdleCallback !== null) window.cancelIdleCallback(preloadIdleCallback);
     if (preloadTimer !== null) window.clearTimeout(preloadTimer);
     if (typeof document !== "undefined") {
@@ -277,6 +439,7 @@ export default function Editor() {
   }
 
   function commitWorkspaceFiles(files: LoadedWorkspaceFile[], replace: boolean): void {
+    const before = captureWorkspace();
     const nextPages = files.flatMap(({ file, pageCount }) => createPageStates(file, pageCount));
     if (replace) {
       setPages(nextPages);
@@ -284,6 +447,7 @@ export default function Editor() {
       setActivePageId(nextPages[0]?.id ?? null);
       setCanvasOpen(false);
       setPhase("edit");
+      if (history.undoCount || history.redoCount) recordHistory("add files", before);
       return;
     }
 
@@ -293,6 +457,7 @@ export default function Editor() {
       })
     );
     if (!activePageId()) setActivePageId(nextPages[0]?.id ?? null);
+    recordHistory("add files", before);
   }
 
   function describeLoadedFiles(mode: "upload" | "add", pdfCount: number, imageCount: number) {
@@ -454,6 +619,7 @@ export default function Editor() {
     if (isBusy()) return;
     const page = pages[index];
     if (!page) return;
+    const before = captureWorkspace();
     setOperation("duplicating");
     setStatusMessage("Duplicating page…");
     try {
@@ -493,6 +659,7 @@ export default function Editor() {
       );
       setSelectedIndices(canvasOpen() ? new Set<number>() : new Set([index + 1]));
       setActivePageId(copy.id);
+      recordHistory("duplicate page", before);
       setStatusMessage(`Duplicated page ${index + 1}.`);
     } catch (error) {
       dispatchToast(
@@ -556,11 +723,33 @@ export default function Editor() {
 
     const workspaceFile = workspaceFiles().find((candidate) => candidate.file === file);
     if (!workspaceFile) return;
+    const before = captureWorkspace();
     const removedPageCount = workspaceFile.pageCount;
     const removedFileName = file.name;
     const removedSources = new Set(
       workspaceFile.pageIndices.map((index) => pages[index].sourceFile)
     );
+    setOperation("removing");
+    let documents: { file: File; checkpoint: PDFDocumentCheckpoint }[];
+    try {
+      documents = await runPDF(
+        PDFProcessing.use((service) =>
+          Effect.forEach([...removedSources], (source) =>
+            service
+              .snapshotDocument(source)
+              .pipe(Effect.map((checkpoint) => ({ file: source, checkpoint })))
+          )
+        )
+      );
+    } catch (error) {
+      setOperation("idle");
+      dispatchToast(
+        error instanceof Error ? error.message : "Could not remove this file.",
+        "error"
+      );
+      return;
+    }
+    if (disposed) return;
 
     const selection = selectedIndices();
     const nextSelection = new Set<number>();
@@ -577,6 +766,7 @@ export default function Editor() {
     if (!remainingPages.some((page) => page.id === activePageId())) {
       setActivePageId(remainingPages[0]?.id ?? null);
     }
+    recordHistory("remove file", before, documents);
 
     if (remainingPages.length === 0) {
       setPhase("upload");
@@ -597,6 +787,7 @@ export default function Editor() {
       // Cleanup is best effort; the runtime also releases all remaining files
       // when the editor is disposed.
     }
+    if (!disposed) setOperation("idle");
   }
 
   function handleSelectAll(): void {
@@ -614,6 +805,8 @@ export default function Editor() {
   function handlePageRotate(index: number, e: MouseEvent): void {
     e.stopPropagation();
     if (isBusy()) return;
+    if (!pages[index]) return;
+    recordHistory("rotate page");
     setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360);
     setStatusMessage(`Rotated page ${index + 1}.`);
   }
@@ -621,8 +814,10 @@ export default function Editor() {
   function handlePageDelete(index: number, e: MouseEvent): void {
     e.stopPropagation();
     if (isBusy()) return;
+    if (!pages[index]) return;
 
     const markedForDeletion = pages[index]?.markedForDeletion ?? false;
+    recordHistory(markedForDeletion ? "restore page" : "delete page");
     setPages(index, "markedForDeletion", !markedForDeletion);
     setStatusMessage(
       markedForDeletion ? `Restored page ${index + 1}.` : `Marked page ${index + 1} for deletion.`
@@ -631,6 +826,7 @@ export default function Editor() {
 
   function handleRotateSelected(): void {
     if (isBusy() || selectedIndices().size === 0) return;
+    recordHistory("rotate pages");
     for (const index of selectedIndices()) {
       setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360);
     }
@@ -645,6 +841,7 @@ export default function Editor() {
     if (isBusy() || selectedIndices().size === 0) return;
     const action = selectedDeletionAction();
     const markForDeletion = action === "mark";
+    recordHistory(markForDeletion ? "delete pages" : "restore pages");
 
     for (const index of selectedIndices()) {
       setPages(index, "markedForDeletion", markForDeletion);
@@ -786,6 +983,7 @@ export default function Editor() {
 
   function movePage(from: number, to: number): void {
     if (from === to || from < 0 || to < 0 || from >= pages.length || to >= pages.length) return;
+    recordHistory("reorder pages");
 
     setPages(
       produce((currentPages) => {
@@ -973,6 +1171,13 @@ export default function Editor() {
           </div>
           <h1 class="sr-only">Interleaf PDF editor</h1>
           <div class="editor-header-right">
+            <Show
+              when={
+                phase() === "upload" && (historyActions().undoLabel || historyActions().redoLabel)
+              }
+            >
+              <EditorHistoryControls {...historyActions()} />
+            </Show>
             <a href={base} class="editor-back" aria-label="Return to Interleaf home">
               <EditorIcon name="back" />
               <span class="editor-back-wide">Back</span>
@@ -1017,6 +1222,7 @@ export default function Editor() {
                 <div class="editor-canvas-tools">
                   <span class="editor-canvas-count">{formatPageCount(pages.length)}</span>
                   <div class="editor-canvas-actions">
+                    <EditorHistoryControls {...historyActions()} />
                     <EditorButton
                       variant="plain"
                       type="button"
@@ -1131,6 +1337,12 @@ export default function Editor() {
                       setPages(index, "contentRevision", (page.contentRevision ?? 0) + 1);
                   }
                 }}
+                onCheckpoint={(file, checkpoint, label) =>
+                  recordHistory(label, captureWorkspace(), [{ file, checkpoint }])
+                }
+                onEditBusy={setContentBusy}
+                onDraftChange={setContentDraft}
+                history={historyActions()}
                 tool={workspaceTool()}
                 onChooseTool={(tool) => {
                   if (tool !== "pages") setWorkspaceTool(tool);

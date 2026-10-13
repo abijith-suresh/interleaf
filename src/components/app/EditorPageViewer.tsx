@@ -1,8 +1,10 @@
 import { Effect, Fiber } from "effect";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import type { PDFDocumentCheckpoint } from "../../services/pdf-checkpoint";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
 import EditorContentPanel from "./EditorContentPanel";
+import EditorHistoryControls, { type EditorHistoryActions } from "./EditorHistoryControls";
 import EditorPageCanvas from "./EditorPageCanvas";
 import EditorToolRail, { type EditorWorkspaceTool } from "./EditorToolRail";
 import { boxStyle, type PageBox } from "./pdf-page-geometry";
@@ -33,6 +35,10 @@ interface Props {
   downloadAvailable?: boolean;
   exportPageCount?: number;
   onContentChange?: (file: File, pageNumber?: number) => void;
+  history?: EditorHistoryActions;
+  onCheckpoint?: (file: File, checkpoint: PDFDocumentCheckpoint, label: string) => void;
+  onEditBusy?: (busy: boolean) => void;
+  onDraftChange?: (draft: boolean) => void;
 }
 
 export default function EditorPageViewer(props: Props) {
@@ -50,6 +56,7 @@ export default function EditorPageViewer(props: Props) {
     props.onContentChange ? "width" : "page"
   );
   const [draft, setDraft] = createSignal(false);
+  createEffect(() => props.onDraftChange?.(draft()));
   const [selection, setSelection] = createSignal(false);
   const [zoom, setZoom] = createSignal(1);
   const [displayRotation, setDisplayRotation] = createSignal(0);
@@ -62,6 +69,7 @@ export default function EditorPageViewer(props: Props) {
     pinchZoom = 1;
   let pinchAnchor = { x: 0.5, y: 0.5 };
   const [editBusy, setEditBusy] = createSignal(false);
+  createEffect(() => props.onEditBusy?.(editBusy()));
   const [filmstripWindowStart, setFilmstripWindowStart] = createSignal(0);
 
   let pane!: HTMLElement;
@@ -588,6 +596,11 @@ export default function EditorPageViewer(props: Props) {
             </span>
           </h2>
         </div>
+        <Show when={props.history}>
+          {(history) => (
+            <EditorHistoryControls {...history()} busy={history().busy || editBusy() || draft()} />
+          )}
+        </Show>
         <Show when={props.onAddFiles}>
           <EditorButton
             variant="plain"
@@ -687,6 +700,7 @@ export default function EditorPageViewer(props: Props) {
             onComposerHeight={setComposerHeight}
             onFocusBounds={focusBounds}
             onChange={(file, pageNumber) => props.onContentChange?.(file, pageNumber)}
+            onCheckpoint={props.onCheckpoint}
             onBusy={setEditBusy}
             onDraft={setDraft}
             onSelection={selectContent}

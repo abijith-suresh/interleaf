@@ -25,7 +25,9 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Export selected or unmarked pages as PNG images in a ZIP archive
 - Render page thumbnails locally for inspection before export
 - Fill existing text, checkbox, radio, and single-choice PDF form fields
-- Fill flat or scanned forms with manually placed text and X marks
+- Fill flat or scanned forms with manually placed text and checkbox marks
+- Use suggested blank boxes and underlines on supported vector PDFs
+- Undo and redo saved edits, page changes, and added or removed files
 - Add one line of text at a chosen position, drag its draft, and rotate it
 - Replace supported original text runs within their original width
 
@@ -33,11 +35,15 @@ Use **Pages** to organize pages and **Document** to read them. On mobile, open *
 **Add text**, **Edit text**, or **Fill forms**; desktop shows these tools in the sidebar.
 Tap the page to place text, highlighted text to replace it, or a form field to fill it.
 Drag a new text draft to move it, and use its rotation control to change its orientation.
-**Fill forms** uses embedded fields when available. Choose **Text** or **X mark** to fill
-visible blanks on flat or scanned pages. Tap to place an answer, adjust it, and save it.
-The editor does not automatically detect boxes or create reusable interactive fields.
+**Fill forms** uses embedded fields when available. On supported vector pages, tap a suggested
+blank or checkbox to start a draft. Choose **Text** or **Mark** to place an answer anywhere;
+**Mark** crosses a printed checkbox with an X. Adjust the draft and save it. Scanned pages
+use manual placement. Suggestions do not create reusable interactive fields.
 Use **Save & next** to move through supported fields. Drafts preview before applying; cancel them to discard
-the draft. Download your PDF directly from the editor.
+the draft. Use **Undo** and **Redo** in the header to correct saved changes.
+Ctrl or Cmd+Z undoes a workspace change; Ctrl or Cmd+Shift+Z redoes it. Inside a text input,
+undo stays with the draft. History lasts while this workspace is open and retains up to 32 changes.
+Download your PDF directly from the editor.
 
 The document editor downloads all exportable pages. In **Pages**, select pages to extract a subset.
 

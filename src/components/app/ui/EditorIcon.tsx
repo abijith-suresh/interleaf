@@ -10,6 +10,7 @@ import { default as ListChecks } from "lucide-solid/icons/list-checks";
 import { default as Minus } from "lucide-solid/icons/minus";
 import { default as Move } from "lucide-solid/icons/move";
 import { default as Plus } from "lucide-solid/icons/plus";
+import { default as Redo2 } from "lucide-solid/icons/redo-2";
 import { default as RotateCw } from "lucide-solid/icons/rotate-cw";
 import { default as SlidersHorizontal } from "lucide-solid/icons/sliders-horizontal";
 import { default as SquareCheck } from "lucide-solid/icons/square-check";
@@ -39,6 +40,8 @@ const editorIcons = {
   copy: Copy,
   delete: Trash,
   restore: Undo2,
+  undo: Undo2,
+  redo: Redo2,
   files: FileStack,
   back: ArrowLeft,
   select: SquareCheck,

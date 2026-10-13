@@ -14,6 +14,9 @@ const pdfServiceMocks = vi.hoisted(() => ({
   renderPage: vi.fn(),
   getPageContent: vi.fn(),
   editPage: vi.fn(),
+  editPageUndoable: vi.fn(),
+  snapshotDocument: vi.fn(),
+  restoreDocument: vi.fn(),
   releaseFile: vi.fn(),
   reset: vi.fn(),
   dispose: vi.fn(),
@@ -51,6 +54,9 @@ vi.mock("@/services/pdf-service", () => ({
     renderPage = pdfServiceMocks.renderPage;
     getPageContent = pdfServiceMocks.getPageContent;
     editPage = pdfServiceMocks.editPage;
+    editPageUndoable = pdfServiceMocks.editPageUndoable;
+    snapshotDocument = pdfServiceMocks.snapshotDocument;
+    restoreDocument = pdfServiceMocks.restoreDocument;
     releaseFile = pdfServiceMocks.releaseFile;
     reset = pdfServiceMocks.reset;
     dispose = pdfServiceMocks.dispose;
@@ -134,6 +140,15 @@ describe("Editor", () => {
       Effect.succeed({ width: 100, height: 200, text: [], fields: [] })
     );
     pdfServiceMocks.editPage.mockReturnValue(Effect.void);
+    pdfServiceMocks.snapshotDocument.mockReturnValue(
+      Effect.succeed({ bytes: new Uint8Array([1, 2]) })
+    );
+    pdfServiceMocks.restoreDocument.mockReturnValue(
+      Effect.succeed({ bytes: new Uint8Array([3, 4]) })
+    );
+    pdfServiceMocks.editPageUndoable.mockImplementation((file, page, edit) =>
+      pdfServiceMocks.editPage(file, page, edit).pipe(Effect.as({ bytes: new Uint8Array([1, 2]) }))
+    );
     pdfServiceMocks.releaseFile.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.reset.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.dispose.mockReturnValue(Effect.void);
@@ -483,6 +498,7 @@ describe("Editor", () => {
       "brief (copy).pdf",
     ]);
 
+    await waitFor(() => expect(screen.getByTestId("editor-add-pdf-button")).toBeEnabled());
     fireEvent.click(screen.getByTestId("editor-files-close-button"));
     fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
@@ -678,6 +694,8 @@ describe("Editor", () => {
       expect(getPages().map((tile) => tile.getAttribute("aria-pressed"))).toEqual(pressed);
       expect(pdfServiceMocks.releaseFile).toHaveBeenCalledExactlyOnceWith(removed);
 
+      await waitFor(() => expect(screen.getByTestId("editor-add-pdf-button")).toBeEnabled());
+      fireEvent.click(screen.getByTestId("editor-files-close-button"));
       fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
       await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
       const [pages, options] = pdfOperationsMocks.buildPDF.mock.calls[0];
@@ -709,6 +727,7 @@ describe("Editor", () => {
       expect.objectContaining({ name: "only.pdf" })
     );
 
+    await waitFor(() => expect(screen.getByLabelText("Choose PDF or image files")).toBeEnabled());
     selectFile("upload", makeFile("fresh.pdf"));
     await findPages();
     expect(screen.getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
@@ -1139,6 +1158,265 @@ describe("Editor", () => {
     await waitFor(() => {
       expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "false");
     });
+  });
+
+  it("undoes and redoes page rotation, deletion, and keyboard reorder", async () => {
+    await openPDF();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 2 90 degrees" }));
+    fireEvent.click(screen.getByRole("button", { name: "Undo rotate page" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo rotate page" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Redo rotate page" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo rotate page" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Mark page 2 for deletion" }));
+    expect(getPages()[1]).toHaveAttribute("data-marked-for-deletion", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Undo delete page" }));
+    await waitFor(() => expect(getPages()[1]).toHaveAttribute("data-marked-for-deletion", "false"));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo delete page" })).toBeEnabled()
+    );
+    fireEvent.keyDown(getPages()[2], { altKey: true, key: "ArrowLeft" });
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Undo reorder pages" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo reorder pages" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Redo reorder pages" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo reorder pages" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const output = pdfOperationsMocks.buildPDF.mock.calls[0][0] as PageState[];
+    expect(output.map((page) => page.sourcePageNumber)).toEqual([1, 3, 2]);
+    expect(output.map((page) => page.rotation)).toEqual([0, 0, 90]);
+    expect(output.every((page) => !page.markedForDeletion)).toBe(true);
+  });
+
+  it("undoes a duplicate and restores the same independent copy on redo", async () => {
+    const file = makeFile();
+    await openPDF(file);
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expect(getPages()).toHaveLength(4));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo duplicate page" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Undo duplicate page" }));
+    await waitFor(() => expect(getPages()).toHaveLength(3));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo duplicate page" })).toBeEnabled()
+    );
+    expect(pdfServiceMocks.snapshotDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "doc (copy).pdf" })
+    );
+    const copiedFile = pdfServiceMocks.snapshotDocument.mock.calls[0][0];
+    fireEvent.click(screen.getByRole("button", { name: "Redo duplicate page" }));
+    await waitFor(() => expect(getPages()).toHaveLength(4));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo duplicate page" })).toBeEnabled()
+    );
+    expect(pdfServiceMocks.restoreDocument).toHaveBeenCalledWith(copiedFile, {
+      bytes: new Uint8Array([1, 2]),
+    });
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledOnce();
+  });
+
+  it("undoes added sources and restores their archived documents on redo", async () => {
+    await openPDF();
+    const added = makeFile("appendix.pdf");
+    selectFile("add", added);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo add files" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Undo add files" }));
+    await waitFor(() => expect(getPages()).toHaveLength(3));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo add files" })).toBeEnabled()
+    );
+    expect(pdfServiceMocks.snapshotDocument).toHaveBeenCalledWith(added);
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(added);
+    fireEvent.click(screen.getByRole("button", { name: "Redo add files" }));
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    expect(pdfServiceMocks.restoreDocument).toHaveBeenCalledWith(added, {
+      bytes: new Uint8Array([1, 2]),
+    });
+  });
+
+  it("keeps last-source removal undoable from the empty uploader", async () => {
+    const file = makeFile("only.pdf");
+    await openPDF(file);
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    fireEvent.click(await screen.findByTestId("editor-file-remove"));
+    await waitFor(() => expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo remove file" })).toBeEnabled()
+    );
+    expect(pdfServiceMocks.snapshotDocument).toHaveBeenCalledWith(file);
+    fireEvent.click(screen.getByRole("button", { name: "Undo remove file" }));
+    await waitFor(() => expect(getPages()).toHaveLength(3));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo remove file" })).toBeEnabled()
+    );
+    expect(pdfServiceMocks.restoreDocument).toHaveBeenCalledWith(file, {
+      bytes: new Uint8Array([1, 2]),
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Redo remove file" }));
+    await waitFor(() => expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Undo remove file" })).toBeInTheDocument();
+  });
+
+  it("records saved text and retains a failed restore for retry", async () => {
+    const file = makeFile();
+    await openPDF(file);
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Place text on page" }), {
+      key: "Enter",
+    });
+    const input = screen.getByLabelText("Text");
+    fireEvent.input(input, { target: { value: "Saved answer" } });
+    expect(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+        name: "Undo",
+      })
+    ).toBeDisabled();
+    fireEvent.submit(input.closest("form") as HTMLFormElement);
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+          name: "Undo add text",
+        })
+      ).toBeEnabled()
+    );
+    pdfServiceMocks.restoreDocument.mockReturnValueOnce(
+      Effect.fail(
+        new PDFProcessingError({
+          operation: "restore",
+          message: "Cannot restore",
+          cause: undefined,
+        })
+      )
+    );
+    fireEvent.click(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+        name: "Undo add text",
+      })
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+          name: "Undo add text",
+        })
+      ).toBeEnabled()
+    );
+    expect(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+        name: "Redo",
+      })
+    ).toBeDisabled();
+    expectLastToast("Cannot restore");
+    fireEvent.click(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+        name: "Undo add text",
+      })
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+          name: "Redo add text",
+        })
+      ).toBeEnabled()
+    );
+    expect(pdfServiceMocks.restoreDocument).toHaveBeenLastCalledWith(file, {
+      bytes: new Uint8Array([1, 2]),
+    });
+    fireEvent.click(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+        name: "Redo add text",
+      })
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+          name: "Undo add text",
+        })
+      ).toBeEnabled()
+    );
+    expect(pdfServiceMocks.restoreDocument).toHaveBeenLastCalledWith(file, {
+      bytes: new Uint8Array([3, 4]),
+    });
+  });
+
+  it("leaves the workspace intact when archiving a removed source fails", async () => {
+    const file = makeFile();
+    await openPDF(file);
+    pdfServiceMocks.snapshotDocument.mockReturnValueOnce(
+      Effect.fail(
+        new PDFProcessingError({
+          operation: "snapshot",
+          message: "Archive failed",
+          cause: undefined,
+        })
+      )
+    );
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    fireEvent.click(await screen.findByTestId("editor-file-remove"));
+    await waitFor(() => expect(screen.getByTestId("editor-add-pdf-button")).toBeEnabled());
+    expect(getPages()).toHaveLength(3);
+    expect(pdfServiceMocks.releaseFile).not.toHaveBeenCalled();
+    expectLastToast("Archive failed");
+    fireEvent.click(screen.getByTestId("editor-files-close-button"));
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+  });
+
+  it("does not consume history for a rejected text edit", async () => {
+    await openPDF();
+    pdfServiceMocks.editPage.mockReturnValueOnce(
+      Effect.fail(
+        new PDFProcessingError({ operation: "edit", message: "Text overflows", cause: undefined })
+      )
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Place text on page" }), {
+      key: "Enter",
+    });
+    fireEvent.input(screen.getByLabelText("Text"), { target: { value: "Too wide" } });
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Page content" })).getByRole("button", {
+        name: "Add text",
+      })
+    );
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel edit" }));
+    expect(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", { name: "Undo" })
+    ).toBeDisabled();
+    expect(pdfServiceMocks.restoreDocument).not.toHaveBeenCalled();
+  });
+
+  it("preserves input undo while workspace shortcuts undo and redo organization", async () => {
+    await openPDF();
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 1 90 degrees" }));
+    const input = screen.getByLabelText("Choose additional PDF or image files");
+    expect(fireEvent.keyDown(input, { key: "z", ctrlKey: true })).toBe(true);
+    expect(screen.getByRole("button", { name: "Undo rotate page" })).toBeEnabled();
+    fireEvent.keyDown(screen.getByTestId("editor-page-grid"), { key: "z", ctrlKey: true });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo rotate page" })).toBeEnabled()
+    );
+    fireEvent.keyDown(screen.getByTestId("editor-page-grid"), {
+      key: "z",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo rotate page" })).toBeEnabled()
+    );
   });
 
   it("labels exports by active selected pages", async () => {

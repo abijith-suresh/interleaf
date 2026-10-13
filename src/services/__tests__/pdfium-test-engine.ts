@@ -43,6 +43,15 @@ export function engineClient(engine: PDFiumEngine): Pick<PDFiumClient, "request"
         case "edit":
           result = engine.edit(i.id, i.page, i.edit);
           break;
+        case "editUndoable":
+          result = engine.editUndoable(i.id, i.page, i.edit);
+          break;
+        case "snapshot":
+          result = engine.snapshot(i.id);
+          break;
+        case "restore":
+          result = engine.restore(i.id, i.bytes);
+          break;
         case "build":
           result = engine.build(i.pages);
           break;

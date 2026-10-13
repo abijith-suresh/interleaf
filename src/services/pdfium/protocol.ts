@@ -34,6 +34,13 @@ export interface PDFPageContent {
   fields: PDFFormField[];
   width: number;
   height: number;
+  suggestions?: PDFFormSuggestion[];
+}
+
+export interface PDFFormSuggestion {
+  id: string;
+  kind: "text" | "checkbox";
+  bounds: PDFBounds;
 }
 
 export type PDFContentEdit =
@@ -77,6 +84,15 @@ export interface PDFiumCommands {
   };
   content: { input: { id: number; page: number }; output: PDFPageContent };
   edit: { input: { id: number; page: number; edit: PDFContentEdit }; output: void };
+  editUndoable: {
+    input: { id: number; page: number; edit: PDFContentEdit };
+    output: Uint8Array<ArrayBuffer>;
+  };
+  snapshot: { input: { id: number }; output: Uint8Array<ArrayBuffer> };
+  restore: {
+    input: { id: number; bytes: Uint8Array<ArrayBuffer> };
+    output: Uint8Array<ArrayBuffer>;
+  };
   build: { input: { pages: PDFiumPageRef[] }; output: Uint8Array };
   images: { input: { images: PDFiumImage[] }; output: Uint8Array };
 }

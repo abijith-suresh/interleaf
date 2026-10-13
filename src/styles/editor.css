@@ -106,18 +106,20 @@ body:has([data-page="editor"]) {
   color: #fcfbf8;
 }
 
-.password-modal-button-primary:hover {
-  border-color: #c93730;
-  background: #c93730;
-}
-
-.password-modal-button-secondary:hover {
-  background: #edeae3;
-}
-
 .password-modal :is(button, input):focus-visible {
-  outline: 2px solid #ef4b40;
+  outline: 2px solid #242421;
   outline-offset: 3px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .password-modal-button-primary:hover {
+    border-color: #c93730;
+    background: #c93730;
+  }
+
+  .password-modal-button-secondary:hover {
+    background: #edeae3;
+  }
 }
 
 .editor-app {
@@ -202,22 +204,24 @@ body:has([data-page="editor"]) {
   padding: 8px;
 }
 
-.editor-button:hover:not(:disabled):not([aria-disabled="true"]) {
-  background: var(--editor-hover);
-}
-
-.editor-button-primary:hover:not(:disabled) {
-  border-color: var(--editor-action-hover);
-  background: var(--editor-action-hover);
-}
-
-.editor-button-danger:hover:not(:disabled) {
-  background: var(--editor-danger-bg);
-}
-
 .editor-button:focus-visible {
-  outline: 2px solid var(--editor-accent);
+  outline: 2px solid var(--editor-ink);
   outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .editor-button:hover:not(:disabled):not([aria-disabled="true"]) {
+    background: var(--editor-hover);
+  }
+
+  .editor-button-primary:hover:not(:disabled) {
+    border-color: var(--editor-action-hover);
+    background: var(--editor-action-hover);
+  }
+
+  .editor-button-danger:hover:not(:disabled) {
+    background: var(--editor-danger-bg);
+  }
 }
 
 .editor-button:disabled,
@@ -288,6 +292,23 @@ body:has([data-page="editor"]) {
   gap: 0.75rem;
 }
 
+.editor-history-controls {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.editor-history-controls .editor-button {
+  width: 2.75rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.4rem;
+}
+
 .editor-brand {
   display: inline-flex;
   min-height: 2.75rem;
@@ -321,8 +342,10 @@ body:has([data-page="editor"]) {
   touch-action: manipulation;
 }
 
-.editor-back:hover {
-  color: var(--editor-ink);
+@media (hover: hover) and (pointer: fine) {
+  .editor-back:hover {
+    color: var(--editor-ink);
+  }
 }
 
 .editor-back-compact {
@@ -402,13 +425,26 @@ body:has([data-page="editor"]) {
     transform 160ms var(--ease-out);
 }
 
-.editor-dropzone:hover:not(:disabled),
-.editor-dropzone.is-drag-over,
-.editor-dropzone:focus-visible:not(:disabled) {
+.editor-dropzone.is-drag-over {
   border-color: var(--editor-accent);
   background: #fffefa;
   box-shadow: 0 1rem 2.5rem rgb(36 36 33 / 8%);
   transform: translateY(-2px);
+}
+
+.editor-dropzone:focus-visible:not(:disabled) {
+  border-color: var(--editor-line-strong);
+  background: #fffefa;
+  box-shadow: 0 1rem 2.5rem rgb(36 36 33 / 8%);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .editor-dropzone:hover:not(:disabled) {
+    border-color: var(--editor-accent);
+    background: #fffefa;
+    box-shadow: 0 1rem 2.5rem rgb(36 36 33 / 8%);
+    transform: translateY(-2px);
+  }
 }
 
 .editor-dropzone.is-busy {
@@ -472,10 +508,12 @@ body:has([data-page="editor"]) {
     color 160ms var(--ease-out);
 }
 
-.editor-add-pdf:hover:not(:disabled) {
-  border-color: var(--editor-accent);
-  background: var(--editor-hover);
-  color: var(--editor-ink);
+@media (hover: hover) and (pointer: fine) {
+  .editor-add-pdf:hover:not(:disabled) {
+    border-color: var(--editor-accent);
+    background: var(--editor-hover);
+    color: var(--editor-ink);
+  }
 }
 
 .editor-add-pdf:disabled {
@@ -518,11 +556,18 @@ body:has([data-page="editor"]) {
     color 160ms var(--ease-out);
 }
 
-.editor-file-item:hover:not(:disabled),
 .editor-file-item:focus-visible {
   border-color: var(--editor-line);
   background: var(--editor-hover);
   color: var(--editor-ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .editor-file-item:hover:not(:disabled) {
+    border-color: var(--editor-line);
+    background: var(--editor-hover);
+    color: var(--editor-ink);
+  }
 }
 
 .editor-file-remove {
@@ -543,9 +588,11 @@ body:has([data-page="editor"]) {
     opacity 160ms var(--ease-out);
 }
 
-.editor-file-remove:hover:not(:disabled) {
-  background: var(--editor-danger-bg);
-  color: var(--editor-danger-ink);
+@media (hover: hover) and (pointer: fine) {
+  .editor-file-remove:hover:not(:disabled) {
+    background: var(--editor-danger-bg);
+    color: var(--editor-danger-ink);
+  }
 }
 
 .editor-file-remove:disabled {
@@ -678,10 +725,12 @@ body:has([data-page="editor"]) {
   touch-action: manipulation;
 }
 
-.editor-files-close:hover {
-  border-color: var(--editor-line-strong);
-  background: var(--editor-hover);
-  color: var(--editor-ink);
+@media (hover: hover) and (pointer: fine) {
+  .editor-files-close:hover {
+    border-color: var(--editor-line-strong);
+    background: var(--editor-hover);
+    color: var(--editor-ink);
+  }
 }
 
 .editor-files-dialog-body {
@@ -714,6 +763,10 @@ body:has([data-page="editor"]) {
     calc(0.75rem + env(safe-area-inset-left));
   border-bottom: 1px solid var(--editor-line);
   background: var(--editor-paper);
+}
+
+.editor-review-header .editor-history-controls {
+  margin-left: auto;
 }
 
 .editor-review-heading {
@@ -761,11 +814,13 @@ body:has([data-page="editor"]) {
     color 160ms var(--ease-out);
 }
 
-.editor-review-close:hover:not(:disabled),
-.editor-review-nav:hover:not(:disabled) {
-  border-color: var(--editor-line-strong);
-  background: var(--editor-hover);
-  color: var(--editor-ink);
+@media (hover: hover) and (pointer: fine) {
+  .editor-review-close:hover:not(:disabled),
+  .editor-review-nav:hover:not(:disabled) {
+    border-color: var(--editor-line-strong);
+    background: var(--editor-hover);
+    color: var(--editor-ink);
+  }
 }
 
 .editor-review-close:disabled,
@@ -829,15 +884,19 @@ body:has([data-page="editor"]) {
     color 160ms var(--ease-out);
 }
 
-.editor-review-filmstrip-item:hover,
 .editor-review-filmstrip-item.is-active {
-  border-color: var(--editor-accent);
-  background: var(--editor-paper);
+  border-color: var(--editor-line-strong);
+  background: var(--editor-page);
   color: var(--editor-ink);
+  box-shadow: inset 0 -2px var(--editor-ink);
 }
 
-.editor-review-filmstrip-item.is-active {
-  box-shadow: 0 0 0 1px var(--editor-accent);
+@media (hover: hover) and (pointer: fine) {
+  .editor-review-filmstrip-item:hover {
+    border-color: var(--editor-line-strong);
+    background: var(--editor-hover);
+    color: var(--editor-ink);
+  }
 }
 
 .editor-review-canvas {
@@ -884,9 +943,11 @@ body:has([data-page="editor"]) {
   touch-action: manipulation;
 }
 
-.editor-review-retry:hover {
-  border-color: var(--editor-ink);
-  background: var(--editor-hover);
+@media (hover: hover) and (pointer: fine) {
+  .editor-review-retry:hover {
+    border-color: var(--editor-ink);
+    background: var(--editor-hover);
+  }
 }
 
 .editor-review-bottom {
@@ -946,9 +1007,11 @@ body:has([data-page="editor"]) {
     opacity 160ms var(--ease-out);
 }
 
-.editor-page:hover {
-  border-color: var(--editor-line-strong);
-  box-shadow: var(--editor-shadow);
+@media (hover: hover) and (pointer: fine) {
+  .editor-page:hover {
+    border-color: var(--editor-line-strong);
+    box-shadow: var(--editor-shadow);
+  }
 }
 
 .editor-page-hitarea {
@@ -1093,13 +1156,15 @@ body:has([data-page="editor"]) {
     border-color 160ms var(--ease-out);
 }
 
-.editor-page-canvas-retry:hover {
-  border-color: var(--editor-ink);
-  background: var(--editor-hover);
-}
+@media (hover: hover) and (pointer: fine) {
+  .editor-page-canvas-retry:hover {
+    border-color: var(--editor-ink);
+    background: var(--editor-hover);
+  }
 
-.editor-page:hover .canvas-container {
-  border-color: var(--editor-line-strong);
+  .editor-page:hover .canvas-container {
+    border-color: var(--editor-line-strong);
+  }
 }
 
 .editor-review-pane .editor-review-filmstrip-item .canvas-container {
@@ -1178,14 +1243,16 @@ body:has([data-page="editor"]) {
     color 160ms var(--ease-out);
 }
 
-.btn-page-rotate:hover:not(:disabled) {
-  background: var(--editor-hover);
-  color: var(--editor-ink);
-}
+@media (hover: hover) and (pointer: fine) {
+  .btn-page-rotate:hover:not(:disabled) {
+    background: var(--editor-hover);
+    color: var(--editor-ink);
+  }
 
-.btn-page-delete:not(.is-marked):hover:not(:disabled) {
-  background: var(--editor-danger-bg);
-  color: var(--editor-danger-ink);
+  .btn-page-delete:not(.is-marked):hover:not(:disabled) {
+    background: var(--editor-danger-bg);
+    color: var(--editor-danger-ink);
+  }
 }
 
 .btn-page-rotate:disabled,
@@ -1299,8 +1366,10 @@ body:has([data-page="editor"]) {
   background: var(--editor-paper);
 }
 
-.editor-selection-quick-actions button:not(.editor-button-danger):hover:not(:disabled) {
-  background: var(--editor-surface);
+@media (hover: hover) and (pointer: fine) {
+  .editor-selection-quick-actions button:not(.editor-button-danger):hover:not(:disabled) {
+    background: var(--editor-surface);
+  }
 }
 
 .editor-review-deleted-notice {
@@ -1368,9 +1437,11 @@ body:has([data-page="editor"]) {
   touch-action: manipulation;
 }
 
-.editor-menu-item:hover:not([aria-disabled="true"]) {
-  background: var(--editor-hover);
-  color: var(--editor-ink);
+@media (hover: hover) and (pointer: fine) {
+  .editor-menu-item:hover:not([aria-disabled="true"]) {
+    background: var(--editor-hover);
+    color: var(--editor-ink);
+  }
 }
 
 .editor-menu-item[aria-disabled="true"] {
@@ -1382,9 +1453,11 @@ body:has([data-page="editor"]) {
   color: var(--editor-danger-ink);
 }
 
-.editor-menu-item-danger:hover:not([aria-disabled="true"]) {
-  background: var(--editor-danger-bg);
-  color: var(--editor-danger-ink);
+@media (hover: hover) and (pointer: fine) {
+  .editor-menu-item-danger:hover:not([aria-disabled="true"]) {
+    background: var(--editor-danger-bg);
+    color: var(--editor-danger-ink);
+  }
 }
 
 .editor-menu-item-copy {
@@ -1418,10 +1491,12 @@ body:has([data-page="editor"]) {
     color 160ms var(--ease-out);
 }
 
-.editor-toolbar-action:hover:not(:disabled):not([aria-disabled="true"]) {
-  border-color: var(--editor-line-strong);
-  background: var(--editor-hover);
-  color: var(--editor-ink);
+@media (hover: hover) and (pointer: fine) {
+  .editor-toolbar-action:hover:not(:disabled):not([aria-disabled="true"]) {
+    border-color: var(--editor-line-strong);
+    background: var(--editor-hover);
+    color: var(--editor-ink);
+  }
 }
 
 .editor-download-action {
@@ -1467,9 +1542,14 @@ body:has([data-page="editor"]) {
   transition: background-color 160ms var(--ease-out);
 }
 
-.editor-download-options-trigger:hover:not(:disabled):not([aria-disabled="true"]),
 .editor-download-options-trigger[aria-expanded="true"] {
   background: var(--editor-action-hover);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .editor-download-options-trigger:hover:not(:disabled):not([aria-disabled="true"]) {
+    background: var(--editor-action-hover);
+  }
 }
 
 .editor-download-options-trigger:disabled,
@@ -1493,8 +1573,10 @@ body:has([data-page="editor"]) {
   padding-block: 0.65rem;
 }
 
-.editor-download-action:hover:not(:disabled):not([aria-disabled="true"]) {
-  background: var(--editor-action-hover);
+@media (hover: hover) and (pointer: fine) {
+  .editor-download-action:hover:not(:disabled):not([aria-disabled="true"]) {
+    background: var(--editor-action-hover);
+  }
 }
 
 .editor-download-action:active:not(:disabled) {
@@ -1514,7 +1596,7 @@ body:has([data-page="editor"]) {
 }
 
 .editor-app :is(a, button, summary):focus-visible {
-  outline: 2px solid var(--editor-accent);
+  outline: 2px solid var(--editor-ink);
   outline-offset: 3px;
 }
 
@@ -1734,14 +1816,17 @@ body:has([data-page="editor"]) {
   text-align: left;
   cursor: pointer;
 }
-.editor-tool-rail-item:hover:not(:disabled) {
-  color: var(--editor-ink);
-  background: var(--editor-hover);
+@media (hover: hover) and (pointer: fine) {
+  .editor-tool-rail-item:hover:not(:disabled) {
+    color: var(--editor-ink);
+    background: var(--editor-hover);
+  }
 }
 .editor-tool-rail-item[aria-pressed="true"] {
-  color: var(--editor-action);
-  background: var(--editor-accent-soft);
+  color: var(--editor-ink);
+  background: var(--editor-page);
   font-weight: 600;
+  box-shadow: inset 2px 0 var(--editor-ink);
 }
 .editor-tool-rail-item:disabled {
   opacity: 0.4;
@@ -1962,9 +2047,10 @@ body:has([data-page="editor"]) {
   font-size: 11px;
 }
 .editor-workspace-views button[aria-current="page"] {
-  color: var(--editor-action);
-  background: var(--editor-accent-soft);
+  color: var(--editor-ink);
+  background: var(--editor-page);
   font-weight: 600;
+  box-shadow: inset 0 -2px var(--editor-ink);
 }
 .editor-tools-sheet {
   position: fixed;
@@ -2018,11 +2104,14 @@ body:has([data-page="editor"]) {
   border-radius: 8px;
   text-align: left;
 }
-.editor-tools-sheet-list button:hover {
-  background: var(--editor-hover);
+@media (hover: hover) and (pointer: fine) {
+  .editor-tools-sheet-list button:hover {
+    background: var(--editor-hover);
+  }
 }
 .editor-tools-sheet-list button[aria-pressed="true"] {
-  background: var(--editor-accent-soft);
+  background: var(--editor-page);
+  box-shadow: inset 2px 0 var(--editor-ink);
 }
 .editor-tools-sheet-list span {
   display: grid;
@@ -2220,15 +2309,43 @@ body:has([data-page="editor"]) {
   cursor: text;
   touch-action: pan-x pan-y;
 }
+.editor-content-hit.is-suggestion {
+  border: 1px dashed var(--editor-muted);
+  background: rgb(36 36 33 / 3%);
+}
+@media (hover: hover) and (pointer: fine) {
+  .editor-content-hit.is-suggestion:hover:not(:disabled) {
+    border-color: var(--editor-ink);
+    background: rgb(36 36 33 / 8%);
+  }
+}
+@media (max-width: 700px), (pointer: coarse) and (max-height: 500px) {
+  .editor-review-header:has(.editor-history-controls) .editor-review-add-files {
+    display: none;
+  }
+  .editor-review-header:has(.editor-history-controls) .editor-review-heading h2 {
+    white-space: nowrap;
+  }
+}
+@media (max-width: 380px) {
+  .editor-review-header:has(.editor-history-controls) .editor-review-position {
+    display: none;
+  }
+}
 .editor-content-hit.is-field {
   border-color: rgb(32 107 155 / 55%);
   background: rgb(32 107 155 / 8%);
   cursor: pointer;
 }
-.editor-content-hit:hover,
 .editor-content-hit.is-selected {
   border: 2px solid var(--editor-accent);
   background: rgb(235 65 54 / 12%);
+}
+@media (hover: hover) and (pointer: fine) {
+  .editor-content-hit:hover {
+    border: 2px solid var(--editor-accent);
+    background: rgb(235 65 54 / 12%);
+  }
 }
 .editor-content-hit.is-readonly {
   opacity: 0.4;
@@ -2275,9 +2392,11 @@ body:has([data-page="editor"]) {
   background: transparent;
   cursor: pointer;
 }
-.page-action-buttons .btn-page-duplicate:hover {
-  background: var(--editor-hover);
-  color: var(--editor-ink);
+@media (hover: hover) and (pointer: fine) {
+  .page-action-buttons .btn-page-duplicate:hover {
+    background: var(--editor-hover);
+    color: var(--editor-ink);
+  }
 }
 @media (max-width: 1000px) and (min-width: 701px) {
   .editor-tool-rail {
@@ -2596,13 +2715,17 @@ body:has([data-page="editor"]) {
 .editor-form-tools .editor-button {
   min-height: 44px;
   padding: 6px 9px;
+  border: 1px solid var(--editor-line);
+  background: var(--editor-paper);
+  color: var(--editor-body);
   font-size: 12px;
   white-space: nowrap;
 }
 
 .editor-form-tools .editor-button[aria-pressed="true"] {
-  background: var(--editor-accent-soft);
-  color: var(--editor-action);
+  background: var(--editor-page);
+  color: var(--editor-ink);
+  box-shadow: inset 0 -2px var(--editor-ink);
 }
 
 @media (max-width: 700px), (pointer: coarse) and (max-height: 500px) {

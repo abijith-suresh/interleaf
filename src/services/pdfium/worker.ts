@@ -42,6 +42,24 @@ self.onmessage = (event: MessageEvent<PDFiumRequest>) => {
         case "edit":
           value = pdf.edit(request.input.id, request.input.page, request.input.edit);
           break;
+        case "editUndoable": {
+          const bytes = pdf.editUndoable(request.input.id, request.input.page, request.input.edit);
+          value = bytes;
+          transfers = [bytes.buffer];
+          break;
+        }
+        case "snapshot": {
+          const bytes = pdf.snapshot(request.input.id);
+          value = bytes;
+          transfers = [bytes.buffer];
+          break;
+        }
+        case "restore": {
+          const bytes = pdf.restore(request.input.id, request.input.bytes);
+          value = bytes;
+          transfers = [bytes.buffer];
+          break;
+        }
         case "build": {
           const bytes = pdf.build(request.input.pages);
           value = bytes;

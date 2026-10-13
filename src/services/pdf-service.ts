@@ -5,6 +5,7 @@ import {
   type PDFProcessingError,
 } from "../types/interfaces";
 import { type DocumentKey, makeDocumentStore } from "./document-store";
+import type { PDFDocumentCheckpoint } from "./pdf-checkpoint";
 import { processingError } from "./pdf-errors";
 import { PDFReadCache } from "./pdfium/cache";
 import { PDFiumClient, PDFiumClientError } from "./pdfium/client";
@@ -18,6 +19,7 @@ type PageContent = PDFiumCommands["content"]["output"];
 export class PDFService {
   private activeFile: File | null = null;
   private passwords = new Map<File, string>();
+  private readonly loadOverrides = new Map<File, PDFDocumentCheckpoint>();
   private readonly infoCache = new PDFReadCache<PageInfo>(64 * 1024, 512);
   private readonly contentCache = new PDFReadCache<PageContent>(2 * 1024 * 1024, 24);
   private readonly renderCache = new PDFReadCache<RenderedPage>(24 * 1024 * 1024, 48);
@@ -51,12 +53,13 @@ export class PDFService {
 
   private invalidate(doc: LoadedPDF): void {
     doc.revision++;
+    this.infoCache.invalidate(doc.id);
     this.contentCache.invalidate(doc.id);
     this.renderCache.invalidate(doc.id);
   }
 
   private info(doc: LoadedPDF, page: number): Promise<PageInfo> {
-    const key = `${doc.id}:${page}`;
+    const key = `${doc.id}:${page}:${doc.revision}`;
     const cached = this.infoCache.get(key);
     if (cached) return Promise.resolve(cached);
     const pending = this.measuring.get(key);
@@ -85,12 +88,15 @@ export class PDFService {
   }
 
   private loadRecord(key: DocumentKey): Effect.Effect<LoadedPDF, PDFError> {
-    const password = key.variant.startsWith("password:")
-      ? key.variant.slice(9)
-      : this.passwords.get(key.file);
+    const checkpoint = this.loadOverrides.get(key.file);
+    const password = checkpoint
+      ? undefined
+      : key.variant.startsWith("password:")
+        ? key.variant.slice(9)
+        : this.passwords.get(key.file);
     return Effect.tryPromise({
       try: async (signal) => {
-        const buffer = await key.file.arrayBuffer();
+        const buffer = checkpoint ? checkpoint.bytes.slice().buffer : await key.file.arrayBuffer();
         if (signal.aborted) throw new Error("PDF loading was cancelled.");
         const result = await this.client.request(
           "open",
@@ -225,7 +231,7 @@ export class PDFService {
         if (!signal.aborted && doc.revision === revision)
           this.renderCache.set(key, rendered, rendered.pixels.byteLength);
       }
-      if (signal.aborted) return;
+      if (signal.aborted || doc.revision !== revision) return;
       canvas.width = rendered.width;
       canvas.height = rendered.height;
       const context = canvas.getContext("2d");
@@ -270,6 +276,86 @@ export class PDFService {
     );
   }
 
+  snapshotDocument(file: File): Effect.Effect<PDFDocumentCheckpoint, PDFError> {
+    return this.withDocument(file, "snapshot-document", async (doc) => {
+      const password = this.passwords.get(file);
+      return { bytes: await this.client.request("snapshot", { id: doc.id }), password };
+    });
+  }
+
+  editPageUndoable(
+    file: File,
+    pageNumber: number,
+    edit: PDFContentEdit
+  ): Effect.Effect<PDFDocumentCheckpoint, PDFError> {
+    return Effect.uninterruptible(
+      this.withDocument(file, "edit-page", async (doc) => {
+        const password = this.passwords.get(file);
+        this.invalidate(doc);
+        try {
+          const bytes = await this.client.request("editUndoable", {
+            id: doc.id,
+            page: pageNumber,
+            edit,
+          });
+          return { bytes, password };
+        } finally {
+          this.invalidate(doc);
+        }
+      })
+    );
+  }
+
+  restoreDocument(
+    file: File,
+    checkpoint: PDFDocumentCheckpoint
+  ): Effect.Effect<PDFDocumentCheckpoint | undefined, PDFError> {
+    return Effect.uninterruptible(
+      this.documents.track(
+        file,
+        "restore-document"
+      )(
+        Effect.suspend(() => {
+          const resident = this.documents.peek(file);
+          if (Option.isSome(resident)) {
+            return this.command(file, "restore-document", async () => {
+              const doc = resident.value;
+              const password = this.passwords.get(file);
+              this.invalidate(doc);
+              try {
+                // Worker transfers cannot detach the checkpoint retained by history.
+                const bytes = checkpoint.bytes.slice();
+                const previous = await this.client.request("restore", { id: doc.id, bytes }, [
+                  bytes.buffer,
+                ]);
+                this.restorePassword(file, checkpoint);
+                return { bytes: previous, password };
+              } finally {
+                this.invalidate(doc);
+              }
+            });
+          }
+          this.loadOverrides.set(file, checkpoint);
+          return this.documents.acquire({ file, variant: "checkpoint" }).pipe(
+            Effect.tap(() =>
+              Effect.sync(() => {
+                this.restorePassword(file, checkpoint);
+                this.activeFile = file;
+              })
+            ),
+            Effect.as(undefined),
+            Effect.ensuring(Effect.sync(() => this.loadOverrides.delete(file)))
+          );
+        })
+      )
+    );
+  }
+
+  private restorePassword(file: File, checkpoint: PDFDocumentCheckpoint): void {
+    if (checkpoint.password === undefined) this.passwords.delete(file);
+    else this.passwords.set(file, checkpoint.password);
+  }
+
   buildPages(
     pages: readonly { sourceFile: File; sourcePageNumber: number; rotation: number }[]
   ): Effect.Effect<Uint8Array, PDFError> {
@@ -304,7 +390,15 @@ export class PDFService {
       Effect.suspend(() => {
         if (this.activeFile === file) this.activeFile = null;
         this.passwords.delete(file);
-        return this.documents.releaseFile(file);
+        return this.documents.releaseFile(file).pipe(
+          Effect.ensuring(
+            Effect.sync(() => {
+              if (this.activeFile === file) this.activeFile = null;
+              this.passwords.delete(file);
+              this.loadOverrides.delete(file);
+            })
+          )
+        );
       })
     );
   }
@@ -317,12 +411,35 @@ export class PDFService {
         this.infoCache.clear();
         this.contentCache.clear();
         this.renderCache.clear();
-        return this.documents.reset;
+        return this.documents.reset.pipe(
+          Effect.ensuring(
+            Effect.sync(() => {
+              this.activeFile = null;
+              this.passwords.clear();
+              this.loadOverrides.clear();
+              this.infoCache.clear();
+              this.contentCache.clear();
+              this.renderCache.clear();
+            })
+          )
+        );
       })
     );
   }
 
   dispose(): Effect.Effect<void> {
-    return this.documents.dispose().pipe(Effect.ensuring(Effect.sync(() => this.client.dispose())));
+    return this.documents.dispose().pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          this.activeFile = null;
+          this.passwords.clear();
+          this.loadOverrides.clear();
+          this.infoCache.clear();
+          this.contentCache.clear();
+          this.renderCache.clear();
+          this.client.dispose();
+        })
+      )
+    );
   }
 }

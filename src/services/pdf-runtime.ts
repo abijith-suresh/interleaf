@@ -7,6 +7,7 @@ import type {
   PDFOperationResult,
 } from "../types/interfaces";
 import { PDFProcessingError } from "../types/interfaces";
+import type { PDFDocumentCheckpoint } from "./pdf-checkpoint";
 import { PDFCompressionService } from "./pdf-compression-service";
 import { collectFirstError } from "./pdf-errors";
 import type { PDFImageExportOptions } from "./pdf-image-export-service";
@@ -50,6 +51,16 @@ export interface PDFProcessingShape {
     pageNumber: number,
     edit: PDFContentEdit
   ) => Effect.Effect<void, PDFError>;
+  readonly snapshotDocument: (file: File) => Effect.Effect<PDFDocumentCheckpoint, PDFError>;
+  readonly editPageUndoable: (
+    file: File,
+    pageNumber: number,
+    edit: PDFContentEdit
+  ) => Effect.Effect<PDFDocumentCheckpoint, PDFError>;
+  readonly restoreDocument: (
+    file: File,
+    checkpoint: PDFDocumentCheckpoint
+  ) => Effect.Effect<PDFDocumentCheckpoint | undefined, PDFError>;
   readonly buildPDF: (
     pages: readonly PageState[],
     options?: PDFBuildOptions
@@ -164,6 +175,10 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
             pdfService.getPageSize(file, pageNumber, rotation),
           getPageContent: (file, pageNumber) => pdfService.getPageContent(file, pageNumber),
           editPage: (file, pageNumber, edit) => pdfService.editPage(file, pageNumber, edit),
+          snapshotDocument: (file) => pdfService.snapshotDocument(file),
+          editPageUndoable: (file, pageNumber, edit) =>
+            pdfService.editPageUndoable(file, pageNumber, edit),
+          restoreDocument: (file, checkpoint) => pdfService.restoreDocument(file, checkpoint),
           buildPDF: (pages: readonly PageState[], options?: PDFBuildOptions) =>
             Effect.flatMap(getOperationsService, (service) => service.buildPDF(pages, options)),
           imagesToPDF: (files: readonly File[], options?: PDFImagesToPDFOptions) =>

@@ -221,6 +221,65 @@ describe("Direct page editing", () => {
     expect(screen.getByRole("button", { name: "Fill blank on page" })).toBeEnabled();
     unmount();
   });
+  it("fits suggested vector blanks and allows manual placement outside suggestions", async () => {
+    const { unmount, changed } = setup({
+      ...content,
+      suggestions: [
+        { id: "blank", kind: "text", bounds: { x: 40, y: 80, width: 100, height: 24 } },
+        { id: "checkbox", kind: "checkbox", bounds: { x: 180, y: 80, width: 16, height: 16 } },
+      ],
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Place text on page" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Fill forms" }));
+    const target = screen.getByRole("button", { name: "Fill suggested blank" });
+    target.focus();
+    expect(target).toHaveFocus();
+    fireEvent.click(target);
+    const input = screen.getByLabelText("Text");
+    const draft = screen.getByRole("button", { name: "Move draft text" });
+    expect(Number.parseFloat(draft.style.left)).toBeCloseTo(43 / 3);
+    expect(Number.parseFloat(draft.style.width)).toBeCloseTo(94 / 3);
+    expect(screen.getByLabelText("Text size")).toHaveValue(14);
+    fireEvent.input(input, { target: { value: "Alice" } });
+    fireEvent.click(screen.getByRole("button", { name: "Fill text" }));
+    await waitFor(() => expect(changed).toHaveBeenCalledOnce());
+    expect(screen.getByRole("button", { name: "Fill blank on page" })).toBeEnabled();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Fill blank on page" }), { key: "Enter" });
+    expect(screen.getByLabelText("Text")).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel edit" }));
+    unmount();
+  });
+
+  it("opens a suggested printed checkbox as a cancellable X draft", async () => {
+    const { unmount, changed } = setup({
+      ...content,
+      suggestions: [
+        { id: "checkbox", kind: "checkbox", bounds: { x: 180, y: 80, width: 16, height: 16 } },
+      ],
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Place text on page" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Fill forms" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark suggested checkbox" }));
+    expect(document.querySelector(".editor-content-preview text")).toHaveTextContent("X");
+    const size = screen.getByLabelText("Text size") as HTMLInputElement;
+    expect(size.valueAsNumber).toBeGreaterThanOrEqual(6);
+    expect(size.valueAsNumber).toBeLessThanOrEqual(16);
+    expect(size.validity.valid).toBe(true);
+    expect(screen.getByRole("button", { name: "Add X mark" })).toBeEnabled();
+    expect(changed).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel edit" }));
+    expect(screen.queryByLabelText("Text")).not.toBeInTheDocument();
+    expect(changed).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Mark suggested checkbox" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add X mark" }));
+    await waitFor(() => expect(changed).toHaveBeenCalledOnce());
+    unmount();
+  });
+
   it("starts form answers upright at a normal size after a rotated text edit", async () => {
     const { unmount } = setup();
     const input = await placeText();
