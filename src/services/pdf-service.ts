@@ -356,27 +356,32 @@ export class PDFService {
         });
       });
 
-      return load.pipe(
-        Effect.onExit((exit) => {
-          if (Exit.isSuccess(exit)) return Effect.void;
-          const cleanup = cleanupPartial();
-          if (exit.cause.reasons.some(Cause.isInterruptReason)) {
-            // Interrupted loads finish their partial cleanup in the fiber exit so
-            // release/reset can report a failed loading-task destruction.
-            return Effect.uninterruptible(cleanup);
-          }
-          return Effect.uninterruptible(
-            cleanup.pipe(
-              Effect.catch((error) =>
-                Effect.sync(() => {
-                  cleanupError = error;
-                })
+      // Keep cleanup error handling masked so a pending interruption cannot
+      // replace the combined load and finalizer cause with interruption alone.
+      return Effect.uninterruptibleMask((restore) =>
+        restore(load).pipe(
+          Effect.onExit((exit) => {
+            if (Exit.isSuccess(exit)) return Effect.void;
+            const cleanup = cleanupPartial();
+            if (exit.cause.reasons.some(Cause.isInterruptReason)) {
+              // Interrupted loads finish their partial cleanup in the fiber exit so
+              // release/reset can report a failed loading-task destruction.
+              return Effect.uninterruptible(cleanup);
+            }
+            return Effect.uninterruptible(
+              cleanup.pipe(
+                Effect.catch((error) =>
+                  Effect.sync(() => {
+                    cleanupError = error;
+                  })
+                )
               )
-            )
-          );
-        }),
-        Effect.catch((error) =>
-          Effect.suspend(() => (cleanupError ? Effect.fail(cleanupError) : Effect.fail(error)))
+            );
+          }),
+          Effect.catchCause((cause) => {
+            const error = cleanupError;
+            return Effect.failCause(error ? Cause.map(cause, () => error) : cause);
+          })
         )
       );
     });
