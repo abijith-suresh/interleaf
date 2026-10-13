@@ -761,8 +761,7 @@ body:has([data-page="editor"]) {
 }
 
 .editor-review-pane .editor-review-close svg,
-.editor-review-pane .editor-review-nav svg,
-.editor-canvas-actions .editor-review-button svg {
+.editor-review-pane .editor-review-nav svg {
   width: 1rem;
   height: 1rem;
   flex-shrink: 0;
@@ -1241,13 +1240,6 @@ body:has([data-page="editor"]) {
   gap: 0.4rem;
 }
 
-.editor-review-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-}
-
 .editor-files-button {
   display: inline-flex;
   min-width: 2.75rem;
@@ -1624,7 +1616,6 @@ body:has([data-page="editor"]) {
   }
 
   .editor-add-pdf-label,
-  .editor-review-button-label,
   .editor-files-button-label {
     display: none;
   }
@@ -1786,12 +1777,7 @@ body:has([data-page="editor"]) {
   opacity: 0.4;
   cursor: default;
 }
-.editor-tool-rail-separator {
-  width: 100%;
-  margin: 18px 0 8px;
-  border: 0;
-  border-top: 1px solid var(--editor-line);
-}
+
 .editor-app.has-workspace-tools .editor-header {
   margin-left: 176px;
 }
@@ -1888,7 +1874,7 @@ body:has([data-page="editor"]) {
   min-height: 0;
   overflow: hidden;
 }
-.editor-review-body.has-tools {
+.editor-review-body.has-selection {
   padding-right: 320px;
 }
 .editor-review-stage {
@@ -1900,7 +1886,7 @@ body:has([data-page="editor"]) {
 .editor-review-page {
   position: relative;
   flex: 0 0 auto;
-  margin: auto;
+  margin: 0 auto;
   background: white;
   box-shadow: 0 8px 30px rgb(36 36 33 / 12%);
 }
@@ -2001,64 +1987,57 @@ body:has([data-page="editor"]) {
 .editor-content-panel button:hover:not(:disabled) {
   border-color: var(--editor-line-strong);
 }
-.editor-content-toolbar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: flex;
-  gap: 4px;
-  margin: 0;
-  padding: 8px;
-  border: 0;
-  background: var(--editor-paper);
-  pointer-events: auto;
-}
-.editor-content-toolbar button[aria-pressed="true"] {
-  color: var(--editor-accent);
-  background: var(--editor-accent-soft);
-}
-.editor-content-toolbar button span {
-  margin-right: 4px;
-}
+
 .editor-content-guidance {
   position: absolute;
-  top: 0;
-  right: 0;
-  width: 320px;
-  padding: 22px 20px;
+  top: 8px;
+  left: 24px;
+  padding: 6px 10px;
+  border-radius: 5px;
   background: var(--editor-paper);
-  pointer-events: auto;
-}
-.editor-content-guidance h3 {
-  margin: 0 0 8px;
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.035em;
+  color: var(--editor-muted);
+  pointer-events: none;
 }
 .editor-content-guidance p {
-  margin: 0 0 16px;
-  color: var(--editor-muted);
+  margin: 0;
   font-size: 12px;
   line-height: 1.5;
 }
-.editor-content-guidance button {
-  margin: 0 4px 8px 0;
-  font-size: 12px;
+.editor-review-body:not(.has-selection) .editor-review-stage {
+  padding-top: 44px;
 }
-.editor-content-guidance .editor-content-start {
-  width: 100%;
-  color: white;
-  background: var(--editor-accent);
-  border-color: var(--editor-accent);
-  margin-bottom: 12px;
+.editor-review-add-files {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--editor-line);
+  border-radius: 5px;
+  color: var(--editor-ink);
+  background: transparent;
+  cursor: pointer;
 }
-.editor-content-panel:not(.is-reading)::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 0 auto;
-  width: 320px;
-  background: var(--editor-paper);
-  border-left: 1px solid var(--editor-line);
+.editor-review-add-files svg {
+  width: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.editor-review-add-files:disabled {
+  opacity: 0.4;
+}
+.editor-review-download {
+  display: grid;
+  align-content: center;
+  gap: 1px;
+}
+.editor-review-download small {
+  font-size: 11px;
+  font-weight: 400;
+}
+.editor-review-pane.is-editing .editor-review-close {
+  display: none;
 }
 .editor-content-composer {
   position: absolute;
@@ -2090,12 +2069,7 @@ body:has([data-page="editor"]) {
   padding: 0;
   font-size: 24px;
 }
-.editor-content-eyebrow {
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.12em;
-  color: var(--editor-muted);
-}
+
 .editor-content-composer label {
   position: relative;
   display: grid;
@@ -2167,25 +2141,7 @@ body:has([data-page="editor"]) {
   color: var(--editor-accent);
   border-color: var(--editor-accent);
 }
-.editor-content-picker {
-  position: absolute;
-  top: 220px;
-  right: 0;
-  bottom: 0;
-  display: grid;
-  align-content: start;
-  gap: 4px;
-  width: 320px;
-  padding: 0 20px 20px;
-  overflow: auto;
-  pointer-events: auto;
-}
-.editor-content-picker button {
-  display: flex;
-  text-align: left;
-  overflow-wrap: anywhere;
-  font-size: 12px;
-}
+
 .editor-content-message {
   position: absolute;
   top: 12px;
@@ -2352,8 +2308,7 @@ body:has([data-page="editor"]) {
     border: 0;
     border-top: 1px solid var(--editor-line);
   }
-  .editor-tool-rail-brand,
-  .editor-tool-rail-separator {
+  .editor-tool-rail-brand {
     display: none;
   }
   .editor-tool-rail-tools {
@@ -2362,9 +2317,6 @@ body:has([data-page="editor"]) {
     gap: 0;
     padding: 4px 6px;
   }
-  .editor-tool-rail-tools > .editor-tool-rail-item:last-child:nth-child(7) {
-    display: none;
-  }
   .editor-tool-rail-item {
     flex-direction: column;
     align-items: center;
@@ -2372,7 +2324,7 @@ body:has([data-page="editor"]) {
     gap: 3px;
     min-height: 56px;
     padding: 5px 2px;
-    font-size: 10px;
+    font-size: 12px;
   }
   .editor-tool-rail-item svg {
     width: 18px;
@@ -2427,7 +2379,7 @@ body:has([data-page="editor"]) {
   .editor-review-page-actions button {
     font-size: 11px;
   }
-  .editor-review-body.has-tools {
+  .editor-review-body.has-selection {
     padding-right: 0;
   }
   .editor-review-stage {
@@ -2435,75 +2387,42 @@ body:has([data-page="editor"]) {
     scrollbar-gutter: auto;
   }
   .editor-review-bottom {
-    gap: 5px;
+    gap: 4px;
     padding: 4px 8px;
     min-height: 52px;
   }
-  .editor-review-pages-toggle {
-    display: none;
-  }
+
   .editor-review-page-jump select {
-    min-width: 64px;
-    max-width: 76px;
-    font-size: 11px;
+    min-width: 60px;
+    max-width: 60px;
+    font-size: 12px;
+  }
+  .editor-review-pane.has-filmstrip .editor-review-bottom {
+    flex-wrap: wrap;
   }
   .editor-review-pane.has-filmstrip .editor-review-filmstrip {
-    display: none;
+    display: flex;
+    order: 1;
+    width: 100%;
+    flex: 1 0 100%;
   }
   .editor-review-zoom {
     margin-left: auto;
   }
-  .editor-content-panel:not(.is-reading)::before {
-    display: none;
+
+  .editor-review-pane.is-editing .editor-review-close {
+    display: flex;
   }
   .editor-content-guidance {
-    top: 6px;
-    right: 8px;
-    left: 8px;
-    width: auto;
-    padding: 6px 12px;
-    border: 1px solid var(--editor-line);
-    border-radius: 6px;
-    background: var(--editor-paper);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0 8px;
-    font-size: 11px;
-  }
-  .editor-content-guidance h3 {
-    display: none;
+    top: 8px;
+    left: 12px;
+    padding: 4px 8px;
   }
   .editor-content-guidance p {
-    width: 100%;
-    margin: 5px 0;
     font-size: 11px;
   }
-  .editor-content-guidance button {
-    min-height: 36px;
-    margin: 0;
-    padding: 5px 8px;
-    font-size: 11px;
-  }
-  .editor-content-guidance .editor-content-start {
-    width: auto;
-    margin: 0;
-  }
-  .editor-review-body.has-tools:not(.has-selection) .editor-review-stage {
-    padding-top: 96px;
-  }
-  .editor-content-picker {
-    top: 0;
-    bottom: 0;
-    right: 0;
-    width: 100%;
-    background: var(--editor-paper);
-    display: none;
-    padding: 16px;
-  }
-  .editor-content-picker.is-open {
-    display: grid;
-    z-index: 5;
+  .editor-review-body.has-selection {
+    padding-right: 0;
   }
   .editor-content-composer {
     top: auto;
@@ -2567,31 +2486,50 @@ body:has([data-page="editor"]) {
     min-height: 20px;
   }
 }
-.editor-content-picker header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 500;
-}
-.editor-content-picker header button {
-  min-width: 44px;
-  border: 0;
-  padding: 0;
-  font-size: 22px;
-}
-.editor-content-picker:not(.is-open) header button {
-  display: none;
-}
+
 .editor-content-input-label {
   padding-right: 44px;
 }
 .editor-content-format-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   margin: 10px 0;
+}
+.editor-content-format-bar .editor-content-more {
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: 0;
+}
+.editor-content-more summary {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid var(--editor-line);
+  border-radius: 5px;
+  cursor: pointer;
+  list-style: none;
+}
+.editor-content-more summary::-webkit-details-marker {
+  display: none;
+}
+.editor-content-more svg {
+  width: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.editor-content-more[open] {
+  display: contents;
+}
+.editor-content-more[open] summary {
+  margin-left: auto;
+}
+.editor-content-more .editor-content-position {
+  width: 100%;
 }
 .editor-content-format-bar button {
   white-space: nowrap;
@@ -2616,4 +2554,17 @@ body:has([data-page="editor"]) {
   transform: none;
   padding: 6px 10px;
   font-size: 11px;
+}
+
+.editor-review-pages-toggle svg {
+  display: block;
+  width: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+}
+@media (max-width: 380px) {
+  .editor-review-zoom button[aria-label="Fit page"] {
+    display: none;
+  }
 }

@@ -33,6 +33,7 @@ interface Props {
   onDownload?: () => void;
   downloadBusy?: boolean;
   downloadAvailable?: boolean;
+  exportPageCount?: number;
   onContentChange?: (file: File, pageNumber?: number) => void;
 }
 
@@ -45,18 +46,20 @@ export default function EditorPageViewer(props: Props) {
   createEffect(() => {
     if (props.tool) setWorkspaceTool(props.tool);
   });
-  const [activeTool, setActiveTool] = createSignal(false);
   const [showPages, setShowPages] = createSignal(false);
   const [composerHeight, setComposerHeight] = createSignal(160);
-  const [fit, setFit] = createSignal<"width" | "page">(props.onContentChange ? "width" : "page");
+  const [pageFit, setPageFit] = createSignal<"width" | "page">(
+    props.onContentChange ? "width" : "page"
+  );
   const [draft, setDraft] = createSignal(false);
   const [selection, setSelection] = createSignal(false);
   const [zoom, setZoom] = createSignal(1);
   const [displayRotation, setDisplayRotation] = createSignal(0);
   let pageDimensions: { width: number; height: number } | undefined;
+  let previousView: { zoom: number; left: number; top: number } | undefined;
   const [frameSize, setFrameSize] = createSignal({ width: 0, height: 0 });
   const [viewport, setViewport] = createSignal<{ height: number; top: number }>();
-  let frame!: HTMLDivElement;
+  let frame!: HTMLElement;
   let pinchDistance = 0,
     pinchZoom = 1;
   let pinchAnchor = { x: 0.5, y: 0.5 };
@@ -154,7 +157,7 @@ export default function EditorPageViewer(props: Props) {
     const fitScale =
       stage.clientWidth === 0 || stage.clientHeight === 0
         ? VIEWER_MAX_SCALE
-        : fit() === "width"
+        : pageFit() === "width"
           ? Math.max(stage.clientWidth - VIEWER_GUTTER * 2, 1) / pageWidth
           : Math.min(
               Math.max(stage.clientWidth - VIEWER_GUTTER * 2, 1) / pageWidth,
@@ -351,7 +354,7 @@ export default function EditorPageViewer(props: Props) {
       props.onActivePageChange(page.id);
     }
     void rotation;
-    fit();
+    pageFit();
     if (mounted) requestRender();
   });
 
@@ -389,6 +392,8 @@ export default function EditorPageViewer(props: Props) {
   });
 
   function focusBounds(bounds: PageBox, width: number, height: number) {
+    if (stage && !previousView)
+      previousView = { zoom: zoom(), left: stage.scrollLeft, top: stage.scrollTop };
     if (window.innerWidth > 700 || !frame) return;
     const style = boxStyle(bounds, width, height, displayRotation());
     const w = (Number.parseFloat(style.width) / 100) * frame.clientWidth,
@@ -400,6 +405,24 @@ export default function EditorPageViewer(props: Props) {
       24 / Math.min(w, h)
     );
     if (factor > 1.05) setZoom(Math.min(4, zoom() * factor));
+  }
+
+  function selectContent(next: boolean) {
+    if (disposed) return;
+    if (next && !previousView)
+      previousView = { zoom: zoom(), left: stage.scrollLeft, top: stage.scrollTop };
+    setSelection(next);
+    if (!next && previousView) {
+      const view = previousView;
+      previousView = undefined;
+      setZoom(view.zoom);
+      requestAnimationFrame(() => {
+        if (!disposed && !selection()) {
+          stage.scrollTo?.({ top: view.top, left: view.left, behavior: "instant" });
+          frame.focus({ preventScroll: true });
+        }
+      });
+    }
   }
 
   function startPinch(event: TouchEvent): void {
@@ -461,7 +484,7 @@ export default function EditorPageViewer(props: Props) {
       window.visualViewport?.removeEventListener("resize", updateViewport);
       window.visualViewport?.removeEventListener("scroll", updateViewport);
     });
-    queueMicrotask(() => closeButton?.focus());
+    queueMicrotask(() => pane?.focus());
     requestRender();
 
     if (typeof ResizeObserver !== "undefined") {
@@ -512,6 +535,7 @@ export default function EditorPageViewer(props: Props) {
           : undefined
       }
       role="dialog"
+      tabIndex={-1}
       aria-modal="true"
       aria-labelledby="editor-review-title"
       onKeyDown={handleKeyDown}
@@ -527,7 +551,6 @@ export default function EditorPageViewer(props: Props) {
               props.onChooseTool?.(tool);
             }
           }}
-          onAddFiles={props.onAddFiles}
         />
       </Show>
       <header class="editor-review-header">
@@ -536,7 +559,7 @@ export default function EditorPageViewer(props: Props) {
           type="button"
           data-testid="editor-page-viewer-close-button"
           class="editor-review-close"
-          aria-label="Close page review"
+          aria-label="Back to pages"
           disabled={editBusy() || draft() || props.downloadBusy}
           onClick={props.onClose}
         >
@@ -561,6 +584,20 @@ export default function EditorPageViewer(props: Props) {
             </span>
           </h2>
         </div>
+        <Show when={props.onAddFiles}>
+          <button
+            type="button"
+            class="editor-review-add-files"
+            aria-label="Add PDFs or images"
+            title="Add files"
+            disabled={editBusy() || draft() || props.downloadBusy}
+            onClick={props.onAddFiles}
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M10 4v12M4 10h12" />
+            </svg>
+          </button>
+        </Show>
         <Show when={props.onDownload}>
           <button
             type="button"
@@ -570,7 +607,12 @@ export default function EditorPageViewer(props: Props) {
             }
             onClick={props.onDownload}
           >
-            {props.downloadBusy ? "Preparing…" : "Download PDF"}
+            <span>{props.downloadBusy ? "Preparing…" : "Download PDF"}</span>
+            <Show when={props.exportPageCount !== undefined}>
+              <small>
+                All {props.exportPageCount} {props.exportPageCount === 1 ? "page" : "pages"}
+              </small>
+            </Show>
           </button>
         </Show>
       </header>
@@ -617,7 +659,7 @@ export default function EditorPageViewer(props: Props) {
       </Show>
       <div
         class="editor-review-body"
-        classList={{ "has-tools": activeTool(), "has-selection": selection() }}
+        classList={{ "has-selection": selection() }}
         style={{ "--composer-height": `${composerHeight()}px` }}
       >
         <div
@@ -626,9 +668,11 @@ export default function EditorPageViewer(props: Props) {
           data-render-state={renderState()}
           aria-busy={renderState() === "loading"}
         >
-          <div
+          <section
             ref={frame}
             class="editor-review-page"
+            aria-label={`Page ${currentWorkspaceIndex() + 1}`}
+            tabIndex={-1}
             style={{
               width: `${frameSize().width * zoom()}px`,
               height: `${frameSize().height * zoom()}px`,
@@ -642,7 +686,7 @@ export default function EditorPageViewer(props: Props) {
             >
               Page preview.
             </canvas>
-          </div>
+          </section>
           <Show when={renderState() === "loading"}>
             <p class="editor-review-state" role="status" aria-live="polite">
               Loading page…
@@ -667,21 +711,14 @@ export default function EditorPageViewer(props: Props) {
           <EditorContentPanel
             page={currentPage() as PageState}
             runtime={props.runtime}
-            initialMode="read"
             mode={workspaceTool()}
-            hideTools={true}
             locked={props.downloadBusy}
-            onModeChange={(mode) => {
-              setActiveTool(mode !== "read");
-              setWorkspaceTool(mode);
-              props.onChooseTool?.(mode);
-            }}
             onComposerHeight={setComposerHeight}
             onFocusBounds={focusBounds}
             onChange={(file, pageNumber) => props.onContentChange?.(file, pageNumber)}
             onBusy={setEditBusy}
             onDraft={setDraft}
-            onSelection={setSelection}
+            onSelection={selectContent}
             overlayRoot={frame}
             rotation={displayRotation()}
           />
@@ -696,7 +733,9 @@ export default function EditorPageViewer(props: Props) {
           onClick={() => setShowPages(!showPages())}
           disabled={draft() || editBusy()}
         >
-          Pages
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M3 3h5v6H3zM12 3h5v6h-5zM3 12h5v5H3zM12 12h5v5h-5z" />
+          </svg>
         </button>
         <button
           type="button"
@@ -719,9 +758,9 @@ export default function EditorPageViewer(props: Props) {
             onChange={(event) => selectPage(event.currentTarget.value)}
           >
             <For each={navigationPages()}>
-              {(page, index) => (
+              {(page) => (
                 <option value={page.id}>
-                  {index() + 1} / {navigationPages().length}
+                  {props.pages.findIndex((candidate) => candidate.id === page.id) + 1}
                 </option>
               )}
             </For>
@@ -730,7 +769,7 @@ export default function EditorPageViewer(props: Props) {
         <nav
           ref={filmstrip}
           class="editor-review-filmstrip"
-          aria-label="Pages in review"
+          aria-label="Page thumbnails"
           onScroll={updateFilmstripWindow}
         >
           <span
@@ -751,7 +790,7 @@ export default function EditorPageViewer(props: Props) {
                   class="editor-review-filmstrip-item"
                   classList={{ "is-active": currentPage()?.id === page.id }}
                   aria-current={currentPage()?.id === page.id ? "page" : undefined}
-                  aria-label={`Review page ${workspaceIndex() + 1}`}
+                  aria-label={`Go to page ${workspaceIndex() + 1}`}
                   tabIndex={currentPage()?.id === page.id ? 0 : -1}
                   title={`Page ${workspaceIndex() + 1}`}
                   onClick={() => selectPage(page.id)}
@@ -801,12 +840,12 @@ export default function EditorPageViewer(props: Props) {
             type="button"
             aria-label="Fit page"
             onClick={() => {
-              setFit(fit() === "page" ? "width" : "page");
+              setPageFit(pageFit() === "page" ? "width" : "page");
               setZoom(1);
               stage.scrollTo?.({ top: 0, left: 0 });
             }}
           >
-            {fit() === "page" ? "Width" : "Fit"}
+            {pageFit() === "page" ? "Width" : "Fit"}
           </button>
           <button
             type="button"

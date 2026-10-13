@@ -33,11 +33,8 @@ interface Props {
   runtime: PDFRuntime;
   overlayRoot?: HTMLElement;
   rotation?: number;
-  initialMode?: Mode;
-  mode?: Mode;
-  hideTools?: boolean;
+  mode: Mode;
   locked?: boolean;
-  onModeChange?: (mode: Mode) => void;
   onFocusBounds?: (bounds: PageBox, width: number, height: number) => void;
   onComposerHeight?: (height: number) => void;
   onChange: (file: File, pageNumber?: number) => void;
@@ -47,7 +44,7 @@ interface Props {
 }
 
 export default function EditorContentPanel(props: Props) {
-  const [mode, setMode] = createSignal<Mode>(props.initialMode ?? "add");
+  const mode = () => props.mode;
   const [content, setContent] = createSignal<PDFPageContent>();
   const [run, setRun] = createSignal<PDFTextRun>();
   const [field, setField] = createSignal<PDFFormField>();
@@ -63,7 +60,6 @@ export default function EditorContentPanel(props: Props) {
   const [message, setMessage] = createSignal("");
   const [error, setError] = createSignal(false);
   const [loading, setLoading] = createSignal(true);
-  const [list, setList] = createSignal(false);
   const [advance, setAdvance] = createSignal<number>();
   let generation = 0,
     disposed = false;
@@ -73,14 +69,11 @@ export default function EditorContentPanel(props: Props) {
   const dirty = () => selected() && text() !== (fieldValue(field()) ?? run()?.text ?? "");
   createEffect(() => {
     if (props.mode) {
-      setMode(props.mode);
       clearSelection();
-      setList(false);
     }
   });
   createEffect(() => props.onDraft?.(dirty()));
   createEffect(() => props.onSelection?.(selected()));
-  createEffect(() => props.onModeChange?.(mode()));
   const fields = createMemo(
     () =>
       content()
@@ -94,17 +87,15 @@ export default function EditorContentPanel(props: Props) {
   const helper = () =>
     loading()
       ? "Reading page…"
-      : mode() === "read"
-        ? "Choose a tool to start editing."
-        : mode() === "replace"
-          ? content()?.text.some((item) => item.editable)
-            ? "Tap highlighted text to change it."
-            : "No editable text here. Use Add text to write on this page."
-          : mode() === "forms" && fields().length
-            ? `Tap a field to fill it. ${fields().length} fields on this page.`
-            : mode() === "forms"
-              ? "No interactive fields. Tap the page to add text."
-              : "Tap the page where you want to write.";
+      : mode() === "replace"
+        ? content()?.text.some((item) => item.editable)
+          ? "Select text on the page."
+          : "No editable text on this page."
+        : mode() === "forms"
+          ? fields().length
+            ? "Tap a field."
+            : "No fields. Tap to add text."
+          : "Tap to add text.";
 
   function clearSelection() {
     setRun(undefined);
@@ -207,7 +198,6 @@ export default function EditorContentPanel(props: Props) {
     void props.page.id;
     setContent(undefined);
     clearSelection();
-    setList(false);
     setMessage("");
   });
   onCleanup(() => {
@@ -351,8 +341,13 @@ export default function EditorContentPanel(props: Props) {
 
   function measureComposer(element: HTMLFormElement) {
     composerObserver?.disconnect();
-    const measure = () =>
+    const measure = () => {
       props.onComposerHeight?.(Math.ceil(element.getBoundingClientRect().height));
+      requestAnimationFrame(() => {
+        if (!disposed && selected())
+          reveal(field()?.bounds ?? run()?.bounds ?? (position() ? draftBox() : undefined));
+      });
+    };
     measure();
     if (typeof ResizeObserver !== "undefined") {
       composerObserver = new ResizeObserver(measure);
@@ -436,120 +431,10 @@ export default function EditorContentPanel(props: Props) {
       }}
       data-tool={mode()}
     >
-      <Show when={!props.hideTools}>
-        <fieldset class="editor-content-toolbar" aria-label="Content tools">
-          <For
-            each={[
-              { id: "read" as const, label: "Read", icon: "↖" },
-              { id: "add" as const, label: "Add text", icon: "T+" },
-              { id: "replace" as const, label: "Edit text", icon: "T↔" },
-              { id: "forms" as const, label: "Fill forms", icon: "▤" },
-            ]}
-          >
-            {(tool) => (
-              <button
-                type="button"
-                aria-pressed={mode() === tool.id}
-                disabled={busy() || loading() || dirty()}
-                onClick={() => {
-                  setMode(tool.id);
-                  clearSelection();
-                  setList(false);
-                  setMessage("");
-                }}
-              >
-                <span aria-hidden="true">{tool.icon}</span>
-                {tool.label}
-              </button>
-            )}
-          </For>
-        </fieldset>
-      </Show>
       <Show when={!selected() && mode() !== "read"}>
-        <div class="editor-content-guidance">
-          <h3>
-            {mode() === "forms"
-              ? "Fill this page"
-              : mode() === "replace"
-                ? "Replace original text"
-                : "Write on this page"}
-          </h3>
+        <div class="editor-content-guidance" role="status" aria-live="polite">
           <p>{helper()}</p>
-          <Show when={mode() === "forms" && fields().length}>
-            <button
-              type="button"
-              class="editor-content-start"
-              disabled={busy() || loading()}
-              onClick={() =>
-                selectField(
-                  fields().find((item) => !fieldValue(item) || fieldValue(item) === "Off") ??
-                    fields()[0]
-                )
-              }
-            >
-              Start filling
-            </button>
-          </Show>
-          <Show when={mode() === "forms" && fields().length}>
-            <button
-              type="button"
-              onClick={() => {
-                setMode("add");
-                clearSelection();
-              }}
-            >
-              Write elsewhere
-            </button>
-          </Show>
-          <Show when={!loading()}>
-            <Show
-              when={mode() === "replace" || (mode() === "forms" && fields().length)}
-              fallback={
-                <button type="button" onClick={() => place()}>
-                  Place text
-                </button>
-              }
-            >
-              <button type="button" aria-expanded={list()} onClick={() => setList(!list())}>
-                {list() ? "Hide list" : "Choose from list"}
-              </button>
-            </Show>
-          </Show>
         </div>
-      </Show>
-      <Show when={(list() || mode() === "forms") && !selected()}>
-        <section
-          class="editor-content-picker"
-          aria-label="Page items"
-          classList={{ "is-open": list() }}
-        >
-          <header>
-            <span>{mode() === "forms" ? "Fields on this page" : "Text on this page"}</span>
-            <button type="button" aria-label="Close list" onClick={() => setList(false)}>
-              ×
-            </button>
-          </header>
-          <For each={mode() === "forms" ? content()?.fields : content()?.text}>
-            {(item) => (
-              <button
-                type="button"
-                disabled={
-                  busy() || loading() || ("editable" in item ? !item.editable : item.readOnly)
-                }
-                title={
-                  "editable" in item
-                    ? item.reason
-                    : item.readOnly
-                      ? "Read-only or unsupported field."
-                      : item.name
-                }
-                onClick={() => ("editable" in item ? selectRun(item) : selectField(item))}
-              >
-                {"editable" in item ? item.text || "Empty text" : fieldLabel(item)}
-              </button>
-            )}
-          </For>
-        </section>
       </Show>
       <Show when={props.overlayRoot && content()}>
         <Portal mount={props.overlayRoot}>
@@ -760,15 +645,8 @@ export default function EditorContentPanel(props: Props) {
         >
           <header>
             <div>
-              <span class="editor-content-eyebrow">
-                {field() ? "FORM FIELD" : run() ? "ORIGINAL TEXT" : "NEW TEXT"}
-              </span>
               <h3>
-                {field()
-                  ? fieldLabel(field() as PDFFormField)
-                  : run()
-                    ? "Replace this line"
-                    : "Write on this page"}
+                {field() ? fieldLabel(field() as PDFFormField) : run() ? "Edit text" : "Add text"}
               </h3>
             </div>
             <button
@@ -893,16 +771,12 @@ export default function EditorContentPanel(props: Props) {
                   onInput={(event) => setFontSize(event.currentTarget.valueAsNumber)}
                 />
               </label>
-            </div>
-          </Show>
-          <Show when={!field()}>
-            <p class="editor-content-note">
-              Helvetica fallback · One line of basic Latin text.
-              {run() ? " Keep it within the highlighted width." : ""}
-            </p>
-            <Show when={position()}>
-              <details>
-                <summary>Size and position</summary>
+              <details class="editor-content-more">
+                <summary aria-label="More text options" title="More text options">
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M3 5h14M3 15h14M7 2v6M13 12v6" />
+                  </svg>
+                </summary>
                 <div class="editor-content-position">
                   <label>
                     Rotation
@@ -913,17 +787,6 @@ export default function EditorContentPanel(props: Props) {
                       step="1"
                       value={textRotation()}
                       onInput={(event) => setTextRotation(event.currentTarget.valueAsNumber)}
-                    />
-                  </label>
-                  <label>
-                    Font size
-                    <input
-                      type="number"
-                      step="any"
-                      min="6"
-                      max="144"
-                      value={fontSize()}
-                      onInput={(e) => setFontSize(e.currentTarget.valueAsNumber)}
                     />
                   </label>
                   <label>
@@ -969,7 +832,12 @@ export default function EditorContentPanel(props: Props) {
                   </label>
                 </div>
               </details>
-            </Show>
+            </div>
+          </Show>
+          <Show when={!field()}>
+            <p class="editor-content-note">
+              Helvetica · Basic Latin only.{run() ? " Keep the original width." : ""}
+            </p>
           </Show>
           <Show when={error()}>
             <p class="editor-content-error" role="alert">

@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import type { PDFRuntime } from "../../../services/pdf-runtime";
 import type { PDFPageContent } from "../../../services/pdfium/protocol";
 import type { PageState } from "../../../types/interfaces";
 import EditorContentPanel from "../EditorContentPanel";
+import EditorToolRail, { type EditorWorkspaceTool } from "../EditorToolRail";
 
 const page: PageState = {
   id: "page",
@@ -51,15 +53,30 @@ function setup(data = content) {
     height: 400,
     toJSON: () => ({}),
   });
+  const [mode, setMode] = createSignal<Exclude<EditorWorkspaceTool, "pages">>("add");
+  const [locked, setLocked] = createSignal(false);
   const result = render(() => (
-    <EditorContentPanel
-      page={page}
-      runtime={{ runPromise } as unknown as PDFRuntime}
-      overlayRoot={root}
-      onChange={changed}
-      onBusy={busy}
-      onDraft={draft}
-    />
+    <>
+      <EditorToolRail
+        activeTool={mode()}
+        busy={locked()}
+        onChooseTool={(tool) => {
+          if (tool !== "pages") setMode(tool);
+        }}
+      />
+      <EditorContentPanel
+        mode={mode()}
+        page={page}
+        runtime={{ runPromise } as unknown as PDFRuntime}
+        overlayRoot={root}
+        onChange={changed}
+        onBusy={busy}
+        onDraft={(value) => {
+          draft(value);
+          setLocked(value);
+        }}
+      />
+    </>
   ));
   return {
     runPromise,
@@ -74,12 +91,43 @@ function setup(data = content) {
   };
 }
 async function placeText() {
-  await screen.findByRole("button", { name: "Place text" });
-  fireEvent.click(screen.getByRole("button", { name: "Place text" }));
+  const surface = await screen.findByRole("button", { name: "Place text on page" });
+  await waitFor(() => expect(surface).toBeEnabled());
+  fireEvent.keyDown(surface, { key: "Enter" });
   return screen.findByLabelText("Text");
 }
 
 describe("Direct page editing", () => {
+  it("inserts at the pointer position and exposes no legacy placement controls", async () => {
+    const { unmount } = setup();
+    const surface = await screen.findByRole("button", { name: "Place text on page" });
+    await waitFor(() => expect(surface).toBeEnabled());
+    expect(screen.queryByRole("button", { name: "Place text" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Choose from list" })).not.toBeInTheDocument();
+    fireEvent.click(surface);
+    expect(screen.queryByLabelText("Text")).not.toBeInTheDocument();
+    for (const type of ["pointerdown", "pointerup"]) {
+      surface.dispatchEvent(
+        Object.assign(new Event(type, { bubbles: true }), {
+          clientX: 90,
+          clientY: 120,
+          pointerId: 1,
+          isPrimary: true,
+        })
+      );
+    }
+    const draft = screen.getByRole("button", { name: "Move draft text" });
+    expect(Number.parseFloat(draft.style.left)).toBeCloseTo(30);
+    expect(Number.parseFloat(draft.style.top)).toBeCloseTo(30);
+    const input = screen.getByLabelText("Text");
+    await waitFor(() => expect(input).toHaveFocus());
+    fireEvent.input(input, { target: { value: "Cancel this" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel edit" }));
+    expect(screen.queryByLabelText("Text")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fill forms" })).toBeEnabled();
+    unmount();
+  });
   it("rotates a text draft and nudges its placement without changing the text", async () => {
     const { unmount } = setup();
     const input = await placeText();
@@ -103,21 +151,26 @@ describe("Direct page editing", () => {
     const { changed, busy, unmount } = setup();
     expect(screen.queryByLabelText("Text")).not.toBeInTheDocument();
     const input = await placeText();
-    expect(screen.getByText(/Helvetica fallback/)).toBeInTheDocument();
+    expect(screen.getByText(/Helvetica/)).toBeInTheDocument();
     fireEvent.input(input, { target: { value: "Added" } });
     expect(document.querySelector(".editor-content-preview")).toHaveTextContent("Added");
     fireEvent.submit(input.closest("form")!);
     await waitFor(() => expect(changed).toHaveBeenCalledWith(page.sourceFile, 1));
     expect(busy.mock.calls).toEqual([[true], [false]]);
-    expect(screen.getByRole("status")).toHaveTextContent("Applied to this page");
+    expect(screen.getByText("Applied to this page.")).toHaveAttribute("role", "status");
     unmount();
   });
-  it("selects original text on the document and offers an accessible list", async () => {
+  it("selects original text through keyboard accessible page targets", async () => {
     const { unmount } = setup();
-    await screen.findByRole("button", { name: "Place text" });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Place text on page" })).toBeEnabled()
+    );
     fireEvent.click(screen.getByRole("button", { name: "Edit text" }));
-    fireEvent.click(screen.getByRole("button", { name: "Choose from list" }));
-    expect(screen.getByRole("button", { name: "Slanted" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Choose from list" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Slanted" })).not.toBeInTheDocument();
+    const target = screen.getByRole("button", { name: "Edit Original phrase" });
+    target.focus();
+    expect(target).toHaveFocus();
     fireEvent.click(screen.getByRole("button", { name: "Edit Original phrase" }));
     expect(screen.getByLabelText("Text")).toHaveValue("Original phrase");
     expect(screen.getByRole("button", { name: "Replace text" })).toBeDisabled();
@@ -143,16 +196,21 @@ describe("Direct page editing", () => {
   });
   it("fills a flat form with positioned text instead of an empty field panel", async () => {
     const { unmount } = setup();
-    await screen.findByRole("button", { name: "Place text" });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Place text on page" })).toBeEnabled()
+    );
     fireEvent.click(screen.getByRole("button", { name: "Fill forms" }));
-    expect(screen.getByText(/No interactive fields. Tap the page/)).toBeInTheDocument();
-    await placeText();
+    expect(screen.getByText(/No fields. Tap to add text./)).toBeInTheDocument();
+    const surface = screen.getByRole("button", { name: "Place text on page" });
+    fireEvent.keyDown(surface, { key: "Enter" });
     expect(screen.getByLabelText("Text")).toBeEnabled();
     unmount();
   });
   it("ignores scroll and pinch gestures, and preserves text when repositioned", async () => {
     const { unmount } = setup();
-    await screen.findByRole("button", { name: "Place text" });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Place text on page" })).toBeEnabled()
+    );
     const surface = screen.getByRole("button", { name: "Place text on page" });
     const pointer = (type: string, x: number, id = 1, primary = true) =>
       surface.dispatchEvent(
@@ -194,7 +252,9 @@ describe("Direct page editing", () => {
       bounds: { x: 20, y: 60 + index * 30, width: 100, height: 20 },
     }));
     const { changed, unmount } = setup({ ...content, fields });
-    await screen.findByRole("button", { name: "Place text" });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Place text on page" })).toBeEnabled()
+    );
     fireEvent.click(screen.getByRole("button", { name: "Fill forms" }));
     fireEvent.click(screen.getByRole("button", { name: "Fill Name" }));
     fireEvent.input(screen.getByLabelText("Name"), { target: { value: "Alice" } });
@@ -220,7 +280,9 @@ describe("Direct page editing", () => {
       bounds: { x: 20, y: 60, width: 100, height: 40 },
     };
     const { unmount } = setup({ ...content, fields: [field] });
-    await screen.findByRole("button", { name: "Place text" });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Place text on page" })).toBeEnabled()
+    );
     fireEvent.click(screen.getByRole("button", { name: "Fill forms" }));
     fireEvent.click(screen.getByRole("button", { name: "Fill Address" }));
     const input = screen.getByLabelText("Address");
@@ -232,6 +294,20 @@ describe("Direct page editing", () => {
   });
   it("keeps unselected radio options unchecked and skips unchanged fields", async () => {
     const fields = [
+      {
+        index: 2,
+        fieldId: 8,
+        name: "Before",
+        type: 6,
+        value: "",
+        checked: false,
+        exportValue: "Yes",
+        options: [],
+        selectedOption: -1,
+        flags: 0,
+        readOnly: false,
+        bounds: { x: 20, y: 30, width: 100, height: 20 },
+      },
       {
         index: 0,
         fieldId: 9,
@@ -262,10 +338,12 @@ describe("Direct page editing", () => {
       },
     ];
     const { runPromise, changed, unmount } = setup({ ...content, fields });
-    await screen.findByRole("button", { name: "Place text" });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Place text on page" })).toBeEnabled()
+    );
     fireEvent.click(screen.getByRole("button", { name: "Fill forms" }));
-    fireEvent.click(screen.getByRole("button", { name: "Choose from list" }));
-    fireEvent.click(screen.getByRole("button", { name: "Choice · B" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fill Before" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save & next" }));
     expect(screen.getByRole("radio")).not.toBeChecked();
     expect(screen.getByRole("button", { name: "Save field" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Save & next" }));

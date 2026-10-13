@@ -1,4 +1,4 @@
-import { For, Show } from "solid-js";
+import { For } from "solid-js";
 
 export type EditorWorkspaceTool = "pages" | "read" | "add" | "replace" | "forms";
 
@@ -6,7 +6,6 @@ interface Props {
   activeTool: EditorWorkspaceTool;
   busy?: boolean;
   onChooseTool: (tool: EditorWorkspaceTool) => void;
-  onAddFiles?: () => void;
 }
 
 const tools: { id: EditorWorkspaceTool; label: string; path: string }[] = [
@@ -68,30 +67,6 @@ export default function EditorToolRail(props: Props) {
             </button>
           )}
         </For>
-        <Show when={props.onAddFiles}>
-          <hr class="editor-tool-rail-separator" />
-          <button
-            type="button"
-            class="editor-tool-rail-item"
-            disabled={props.busy}
-            onClick={() => props.onAddFiles?.()}
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M14 3H5v18h14V8z M14 3v5h5 M12 11v7 M8.5 14.5h7" />
-            </svg>
-            <span>Add files</span>
-          </button>
-        </Show>
       </div>
     </nav>
   );

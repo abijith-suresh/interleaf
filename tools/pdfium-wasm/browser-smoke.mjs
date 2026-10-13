@@ -58,6 +58,16 @@ async function chooseTool(name, touch = false) {
   await tools.getByRole("button", { name, exact: true })[touch ? "tap" : "click"]();
   await page.getByRole("dialog").waitFor();
 }
+async function backToPages(touch = false) {
+  const back = page.getByRole("button", { name: "Back to pages", exact: true });
+  const target = (await back.isVisible())
+    ? back
+    : page
+        .getByRole("navigation", { name: "Workspace tools", exact: true })
+        .getByRole("button", { name: "Pages", exact: true });
+  await target[touch ? "tap" : "click"]();
+  await page.getByTestId("editor-page-grid").waitFor();
+}
 async function resetFitWidth(touch = false) {
   const fit = page.getByRole("button", { name: "Fit page", exact: true });
   // The Fit action alternates between fitting the complete page and fitting its width.
@@ -74,11 +84,8 @@ async function resetFitWidth(touch = false) {
     true
   );
 }
-async function downloadFrom(testId, name) {
-  const [download] = await Promise.all([
-    page.waitForEvent("download"),
-    page.getByTestId(testId).click(),
-  ]);
+async function downloadFrom(testId, name, trigger = page.getByTestId(testId)) {
+  const [download] = await Promise.all([page.waitForEvent("download"), trigger.click()]);
   const path = join(directory, name);
   await download.saveAs(path);
   return new Uint8Array(await readFile(path));
@@ -128,6 +135,21 @@ async function assertVisibleInViewport(locator, label) {
     `${label} must remain reachable within ${viewport.width}x${viewport.height}: ${JSON.stringify(box)}`
   );
 }
+async function assertDraftWithinStage() {
+  const draft = await page
+    .getByRole("button", { name: "Move draft text", exact: true })
+    .boundingBox();
+  const stage = await page.locator(".editor-review-stage").boundingBox();
+  const composer = await page.locator(".editor-content-composer").boundingBox();
+  assert.ok(draft && stage && composer);
+  assert.ok(
+    draft.x >= stage.x - 1 &&
+      draft.y >= stage.y - 1 &&
+      draft.x + draft.width <= stage.x + stage.width + 1 &&
+      draft.y + draft.height <= Math.min(stage.y + stage.height, composer.y) + 1,
+    `Draft must remain visible above the composer: ${JSON.stringify({ draft, stage, composer })}`
+  );
+}
 async function pinchWithoutPlacing(context) {
   if (browserName !== "chromium") return;
   const paper = page.locator(".editor-review-page");
@@ -166,6 +188,7 @@ try {
   const formPath = join(directory, "forms.pdf");
   await writeFile(formPath, formBytes());
   await openFiles([formPath]);
+  assert.equal(await page.getByRole("button", { name: /Review|Edit PDF/ }).count(), 0);
   await page.getByTestId("editor-download-options-button").click();
   assert.equal(
     await page.getByTestId("editor-compress-button").getAttribute("aria-disabled"),
@@ -175,6 +198,12 @@ try {
   assert.equal(engine.open(compressed).count, 1);
 
   await chooseTool("Add text");
+  assert.equal(await page.getByRole("button", { name: "Place text", exact: true }).count(), 0);
+  assert.equal(
+    await page.getByRole("button", { name: "Choose from list", exact: true }).count(),
+    0
+  );
+  assert.equal(await page.locator(".editor-content-toolbar").count(), 0);
   await placeText();
   await applyText("Added line", "Add text");
   await placeText(0.35, 0.4);
@@ -196,7 +225,7 @@ try {
   await page.getByRole("button", { name: "Save field", exact: true }).click();
   await waitForSaved();
   await page.screenshot({ path: join(directory, "editing.png"), fullPage: true });
-  await page.getByRole("button", { name: "Close page review", exact: true }).click();
+  await backToPages();
   await page.getByTestId("editor-download-options-button").click();
   assert.equal(
     await page.getByTestId("editor-compress-button").getAttribute("aria-disabled"),
@@ -227,13 +256,25 @@ try {
   await chooseTool("Read");
   await page.getByRole("button", { name: "Duplicate", exact: true }).click();
   await page.getByRole("heading", { name: "Page 2", exact: true }).waitFor();
+  await backToPages();
+  await page.getByRole("button", { name: "Page 2", exact: true }).click();
   await chooseTool("Fill forms");
   await page.getByRole("button", { name: "Fill Name", exact: true }).click();
   await page.getByLabel("Name", { exact: true }).fill("Copy only");
   await page.getByRole("button", { name: "Save field", exact: true }).click();
   await waitForSaved();
-  await page.getByRole("button", { name: "Close page review", exact: true }).click();
-  const duplicated = engine.open(await downloadFrom("editor-download-button", "duplicated.pdf"));
+  const duplicated = engine.open(
+    await downloadFrom(
+      "editor-download-button",
+      "duplicated.pdf",
+      page.getByRole("dialog").getByRole("button", { name: /^Download PDF/ })
+    )
+  );
+  await backToPages();
+  assert.equal(await page.getByTestId("editor-selection-title").innerText(), "1 selected");
+  const extractedCopy = engine.open(await downloadFrom("editor-download-button", "copy.pdf"));
+  assert.equal(extractedCopy.count, 1);
+  assert.equal(engine.content(extractedCopy.id, 1).fields[0].value, "Copy only");
   assert.equal(duplicated.count, 2);
   const originalFields = engine.content(duplicated.id, 1).fields;
   const copiedFields = engine.content(duplicated.id, 2).fields;
@@ -310,9 +351,7 @@ try {
   observe(mobileContext, page);
   await openFiles([blankPath]);
   await chooseTool("Fill forms", true);
-  await page
-    .getByText("No interactive fields. Tap the page to add text.", { exact: true })
-    .waitFor();
+  await page.getByText("No fields. Tap to add text.", { exact: true }).waitFor();
   const fittedWidth = await page
     .locator(".editor-review-page")
     .evaluate((element) => element.clientWidth);
@@ -354,7 +393,7 @@ try {
   await page.getByRole("alert").filter({ hasText: "basic Latin" }).waitFor();
   assert.equal(await page.getByLabel("Text", { exact: true }).inputValue(), "Café");
   assert.equal(
-    await page.getByRole("button", { name: "Close page review", exact: true }).isDisabled(),
+    await page.getByRole("button", { name: "Back to pages", exact: true }).isDisabled(),
     true
   );
   await page
@@ -363,7 +402,7 @@ try {
     .tap();
   await page.getByRole("status").filter({ hasText: "Draft cancelled" }).waitFor();
   assert.equal(
-    await page.getByRole("button", { name: "Close page review", exact: true }).isEnabled(),
+    await page.getByRole("button", { name: "Back to pages", exact: true }).isEnabled(),
     true
   );
   await placeText(0.2, 0.35, true);
@@ -380,6 +419,7 @@ try {
     page.locator(".editor-content-composer").getByRole("button", { name: "Add text", exact: true }),
     "Apply action with emulated keyboard height"
   );
+  await assertDraftWithinStage();
   await page.screenshot({ path: join(directory, "mobile-short-viewport.png"), fullPage: true });
   await page.setViewportSize({ width: 844, height: 390 });
   await page.waitForTimeout(200);
@@ -421,7 +461,7 @@ try {
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     true
   );
-  await page.getByRole("button", { name: "Close page review", exact: true }).tap();
+  await backToPages(true);
   const mobilePDF = engine.open(await downloadFrom("editor-download-button", "mobile.pdf"));
   assert.equal(mobilePDF.count, 2);
   assert.deepEqual(
@@ -431,6 +471,34 @@ try {
   assert.deepEqual(engine.content(mobilePDF.id, 2).text, []);
 
   await openFiles([formPath]);
+  await chooseTool("Edit text", true);
+  const beforeEdit = await page.locator(".editor-review-stage").evaluate((stage) => ({
+    width: stage.querySelector(".editor-review-page").clientWidth,
+    left: stage.scrollLeft,
+    top: stage.scrollTop,
+  }));
+  await page.getByRole("button", { name: "Edit Original phrase", exact: true }).tap();
+  await page.getByLabel("Text", { exact: true }).waitFor();
+  assert.equal(
+    await page
+      .getByLabel("Text", { exact: true })
+      .evaluate((input) => document.activeElement === input),
+    true
+  );
+  await page.waitForFunction(
+    (width) => document.querySelector(".editor-review-page").clientWidth > width * 1.05,
+    beforeEdit.width
+  );
+  await page.getByRole("button", { name: "Cancel", exact: true }).tap();
+  await page.waitForFunction((view) => {
+    const stage = document.querySelector(".editor-review-stage");
+    const frame = stage.querySelector(".editor-review-page");
+    return (
+      Math.abs(frame.clientWidth - view.width) <= 1 &&
+      Math.abs(stage.scrollLeft - view.left) <= 1 &&
+      Math.abs(stage.scrollTop - view.top) <= 1
+    );
+  }, beforeEdit);
   await chooseTool("Fill forms", true);
   await page.getByRole("button", { name: "Check Agree", exact: true }).tap();
   await page.getByRole("button", { name: "Uncheck Agree", exact: true }).waitFor();
@@ -439,7 +507,7 @@ try {
   await page.screenshot({ path: join(directory, "mobile-forms.png"), fullPage: true });
   await page.getByRole("button", { name: "Save field", exact: true }).tap();
   await waitForSaved();
-  await page.getByRole("button", { name: "Close page review", exact: true }).tap();
+  await backToPages(true);
   const mobileForm = engine.open(await downloadFrom("editor-download-button", "mobile-form.pdf"));
   assert.equal(engine.content(mobileForm.id, 1).fields[0].value, "Phone");
   assert.equal(engine.content(mobileForm.id, 1).fields[1].checked, true);

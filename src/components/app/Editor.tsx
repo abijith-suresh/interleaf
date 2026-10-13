@@ -74,7 +74,6 @@ export default function Editor() {
   let addPdfInput!: HTMLInputElement;
   let editorRoot!: HTMLDivElement;
   let filesButton!: HTMLButtonElement;
-  let reviewButton!: HTMLButtonElement;
   let nextToastId = 0;
   let activeOperationFiber: Fiber.Fiber<unknown, unknown> | null = null;
   const toastTimers = new Map<number, number>();
@@ -107,7 +106,7 @@ export default function Editor() {
   const [filesOpen, setFilesOpen] = createSignal(false);
   const [workspaceTool, setWorkspaceTool] =
     createSignal<Exclude<EditorWorkspaceTool, "pages">>("read");
-  const [reviewOpen, setReviewOpen] = createSignal(false);
+  const [canvasOpen, setCanvasOpen] = createSignal(false);
   const [activePageId, setActivePageId] = createSignal<string | null>(null);
   const [operation, setOperation] = createSignal<EditorOperation>("idle");
   const [statusMessage, setStatusMessage] = createSignal("Your files never leave your device.");
@@ -123,12 +122,7 @@ export default function Editor() {
   const selectedActivePageCount = () =>
     Array.from(selectedIndices()).filter((index) => !pages[index]?.markedForDeletion).length;
   const isBusy = () => operation() !== "idle";
-  const reviewPageIds = createMemo(() => {
-    const selection = selectedIndices();
-    return pages
-      .filter((_, index) => selection.size === 0 || selection.has(index))
-      .map((page) => page.id);
-  });
+  const workspacePageIds = createMemo(() => pages.map((page) => page.id));
   const allPagesSelected = () => areAllPagesSelected(pages.length, selectedIndices());
   const selectedDeletionAction = () => getDeletionAction(pages, selectedIndices());
   const deletionCopy = () => deletionActionCopy[selectedDeletionAction()];
@@ -286,7 +280,7 @@ export default function Editor() {
       setPages(nextPages);
       setSelectedIndices(new Set<number>());
       setActivePageId(nextPages[0]?.id ?? null);
-      setReviewOpen(false);
+      setCanvasOpen(false);
       setPhase("edit");
       return;
     }
@@ -436,23 +430,22 @@ export default function Editor() {
     queueMicrotask(() => filesButton?.focus());
   }
 
-  function openPageReview(): void {
+  function openCanvas(): void {
     if (isBusy()) return;
-    const ids = reviewPageIds();
+    const ids = workspacePageIds();
     if (ids.length === 0) return;
 
     const activeId = activePageId();
     if (!activeId || !ids.includes(activeId)) setActivePageId(ids[0]);
-    setReviewOpen(true);
+    setCanvasOpen(true);
   }
 
   function chooseWorkspaceTool(tool: EditorWorkspaceTool) {
     if (isBusy()) return;
-    if (tool === "pages") closePageReview();
+    if (tool === "pages") closeCanvas();
     else {
-      if (!reviewOpen()) setSelectedIndices(new Set<number>());
       setWorkspaceTool(tool);
-      openPageReview();
+      openCanvas();
     }
   }
   async function duplicatePage(index: number) {
@@ -496,7 +489,7 @@ export default function Editor() {
           draft.splice(index + 1, 0, copy);
         })
       );
-      setSelectedIndices(reviewOpen() ? new Set<number>() : new Set([index + 1]));
+      setSelectedIndices(canvasOpen() ? new Set<number>() : new Set([index + 1]));
       setActivePageId(copy.id);
       setStatusMessage(`Duplicated page ${index + 1}.`);
     } catch (error) {
@@ -509,14 +502,13 @@ export default function Editor() {
     }
   }
 
-  function closePageReview(): void {
-    setReviewOpen(false);
+  function closeCanvas(): void {
+    setCanvasOpen(false);
     queueMicrotask(() => {
-      if (reviewButton && !reviewButton.disabled) {
-        reviewButton.focus();
-      } else {
-        editorRoot?.focus();
-      }
+      const pagesTool = editorRoot?.querySelector<HTMLButtonElement>(
+        '.editor-tool-rail-item[aria-pressed="true"]'
+      );
+      (pagesTool ?? editorRoot)?.focus();
     });
   }
 
@@ -586,7 +578,7 @@ export default function Editor() {
 
     if (remainingPages.length === 0) {
       setPhase("upload");
-      setReviewOpen(false);
+      setCanvasOpen(false);
       setFilesOpen(false);
       setStatusMessage(`Removed ${removedFileName}. The workspace is empty.`);
     } else {
@@ -662,11 +654,13 @@ export default function Editor() {
     );
   }
 
-  async function handleDownload(): Promise<void> {
+  async function handleDownload(scope: "selection" | "workspace" = "selection"): Promise<void> {
     if (disposed || isBusy()) return;
     const selection = selectedIndices();
     const selectedPageIndices =
-      selection.size > 0 ? Array.from(selection).sort((a, b) => a - b) : undefined;
+      scope === "selection" && selection.size > 0
+        ? Array.from(selection).sort((a, b) => a - b)
+        : undefined;
     const totalPages = selectedPageIndices ? selectedActivePageCount() : activePageCount();
 
     setOperation("building");
@@ -803,14 +797,23 @@ export default function Editor() {
 
   function handlePageKeyDown(index: number, e: KeyboardEvent): void {
     if (isBusy() || !e.altKey) return;
-
+    let target: number | undefined;
     if (e.key === "ArrowLeft" && index > 0) {
       e.preventDefault();
-      movePage(index, index - 1);
+      target = index - 1;
     } else if (e.key === "ArrowRight" && index < pages.length - 1) {
       e.preventDefault();
-      movePage(index, index + 1);
+      target = index + 1;
     }
+    if (target === undefined) return;
+    movePage(index, target);
+    queueMicrotask(() =>
+      editorRoot
+        ?.querySelector<HTMLButtonElement>(
+          `[data-testid="editor-page-tile"][data-page-index="${target}"]`
+        )
+        ?.focus()
+    );
   }
 
   function handleDragOver(e: DragEvent): void {
@@ -989,12 +992,11 @@ export default function Editor() {
           }
         >
           <div class="editor-workspace">
-            <Show when={!reviewOpen()}>
+            <Show when={!canvasOpen()}>
               <EditorToolRail
                 activeTool="pages"
                 busy={isBusy()}
                 onChooseTool={chooseWorkspaceTool}
-                onAddFiles={requestAddFiles}
               />
             </Show>
             <section class="editor-workspace-main" aria-labelledby="editor-pages-title">
@@ -1015,23 +1017,6 @@ export default function Editor() {
                 <div class="editor-canvas-tools">
                   <span class="editor-canvas-count">{formatPageCount(pages.length)}</span>
                   <div class="editor-canvas-actions">
-                    <button
-                      ref={reviewButton}
-                      type="button"
-                      data-testid="editor-review-button"
-                      class="editor-toolbar-action editor-review-button"
-                      aria-label="Review pages"
-                      aria-controls="editor-page-review"
-                      aria-expanded={reviewOpen()}
-                      title="Review pages"
-                      onClick={openPageReview}
-                      disabled={isBusy()}
-                    >
-                      <svg viewBox="0 0 20 20" aria-hidden="true">
-                        <path d="M4 7V4h3M13 4h3v3M16 13v3h-3M7 16H4v-3" />
-                      </svg>
-                      <span class="editor-review-button-label">Edit PDF</span>
-                    </button>
                     <button
                       type="button"
                       data-testid="editor-add-pdf-button"
@@ -1114,7 +1099,7 @@ export default function Editor() {
                 onClearSelection={clearSelection}
                 onRotate={handleRotateSelected}
                 onDelete={handleDeleteSelected}
-                onDownload={handleDownload}
+                onDownload={() => handleDownload()}
                 onExportImages={handleExportImages}
                 onCompress={handleCompress}
                 compressionAvailable={getUnmodifiedSourceFile() !== null}
@@ -1132,10 +1117,10 @@ export default function Editor() {
                 <span data-testid="editor-status-message">{statusMessage()}</span>
               </div>
             </section>
-            <Show when={reviewOpen()}>
+            <Show when={canvasOpen()}>
               <EditorPageViewer
                 pages={pages}
-                navigationPageIds={reviewPageIds()}
+                navigationPageIds={workspacePageIds()}
                 activePageId={activePageId()}
                 runtime={pdfRuntime}
                 onActivePageChange={(pageId) => setActivePageId(pageId)}
@@ -1165,12 +1150,11 @@ export default function Editor() {
                   const index = pages.findIndex((page) => page.id === id);
                   if (index >= 0) void duplicatePage(index);
                 }}
-                onDownload={handleDownload}
+                onDownload={() => handleDownload("workspace")}
                 downloadBusy={isBusy()}
-                downloadAvailable={
-                  (selectedIndices().size > 0 ? selectedActivePageCount() : activePageCount()) > 0
-                }
-                onClose={closePageReview}
+                downloadAvailable={activePageCount() > 0}
+                exportPageCount={activePageCount()}
+                onClose={closeCanvas}
               />
             </Show>
             <EditorFilesDialog

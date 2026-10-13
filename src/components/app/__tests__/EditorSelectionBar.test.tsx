@@ -39,44 +39,57 @@ describe("EditorSelectionBar", () => {
     expect(props.onDelete).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
+  it("disables immediate selection actions during an operation", () => {
+    const props = makeProps({ busy: true, selectedCount: 1 });
+    render(() => <EditorSelectionBar {...props} />);
+    const rotate = screen.getByRole("button", { name: "Rotate selection 90 degrees" });
+    const mark = screen.getByRole("button", { name: "Mark selected pages for deletion" });
+    expect(rotate).toBeDisabled();
+    expect(mark).toBeDisabled();
+    fireEvent.click(rotate);
+    fireEvent.click(mark);
+    expect(props.onRotate).not.toHaveBeenCalled();
+    expect(props.onDelete).not.toHaveBeenCalled();
+  });
   it("disables selection actions and ignores clicks until pages are selected", () => {
     const props = makeProps();
     render(() => <EditorSelectionBar {...props} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit pages" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select pages" }));
 
-    for (const name of [
-      "No pages selected to clear",
-      "Select pages to rotate",
-      "Select pages to mark or restore",
-    ]) {
-      const item = screen.getByRole("menuitem", { name });
-      expect(item).toHaveAttribute("aria-disabled", "true");
-      fireEvent.click(item);
-    }
+    const clear = screen.getByRole("menuitem", { name: "No pages selected to clear" });
+    expect(clear).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(clear);
+    expect(
+      screen.queryByRole("button", { name: "Rotate selection 90 degrees" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Mark selected pages for deletion" })
+    ).not.toBeInTheDocument();
     expect(props.onClearSelection).not.toHaveBeenCalled();
     expect(props.onRotate).not.toHaveBeenCalled();
     expect(props.onDelete).not.toHaveBeenCalled();
-    expect(screen.getByRole("menu", { name: "Page editing options" })).toBeVisible();
+    expect(screen.getByRole("menu", { name: "Page selection options" })).toBeVisible();
   });
 
-  it("supports arrow, Home, End, and Escape keys in the edit menu", async () => {
+  it("supports arrow, Home, End, and Escape keys in the selection menu", async () => {
     render(() => (
       <EditorSelectionBar {...makeProps({ selectedCount: 1, selectedActiveCount: 1 })} />
     ));
-    const trigger = screen.getByRole("button", { name: "Edit pages" });
+    const trigger = screen.getByRole("button", { name: "Select pages" });
 
     fireEvent.keyDown(trigger, { key: "ArrowDown" });
     const selectAll = screen.getByRole("menuitem", { name: "Select all pages" });
     const clear = screen.getByRole("menuitem", { name: "Clear page selection" });
-    const remove = screen.getByRole("menuitem", { name: "Mark selected pages for deletion" });
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
+    expect(screen.queryByRole("menuitem", { name: /Rotate|Mark|Restore/ })).not.toBeInTheDocument();
     await waitFor(() => expect(selectAll).toHaveFocus());
 
     fireEvent.keyDown(selectAll, { key: "ArrowDown" });
     expect(clear).toHaveFocus();
     fireEvent.keyDown(clear, { key: "End" });
-    expect(remove).toHaveFocus();
-    fireEvent.keyDown(remove, { key: "Home" });
+    expect(clear).toHaveFocus();
+    fireEvent.keyDown(clear, { key: "Home" });
     expect(selectAll).toHaveFocus();
     fireEvent.keyDown(selectAll, { key: "Escape" });
     await waitFor(() => expect(trigger).toHaveFocus());
@@ -84,15 +97,13 @@ describe("EditorSelectionBar", () => {
 
     fireEvent.keyDown(trigger, { key: "ArrowUp" });
     await waitFor(() =>
-      expect(
-        screen.getByRole("menuitem", { name: "Mark selected pages for deletion" })
-      ).toHaveFocus()
+      expect(screen.getByRole("menuitem", { name: "Clear page selection" })).toHaveFocus()
     );
   });
 
-  it.each([false, true])("closes the edit menu with Tab, shiftKey=%s", async (shiftKey) => {
+  it.each([false, true])("closes the selection menu with Tab, shiftKey=%s", async (shiftKey) => {
     render(() => <EditorSelectionBar {...makeProps()} />);
-    const trigger = screen.getByRole("button", { name: "Edit pages" });
+    const trigger = screen.getByRole("button", { name: "Select pages" });
     fireEvent.click(trigger);
     const selectAll = screen.getByRole("menuitem", { name: "Select all pages" });
     await waitFor(() => expect(selectAll).toHaveFocus());
@@ -108,12 +119,12 @@ describe("EditorSelectionBar", () => {
 
   it("keeps menus mutually exclusive and closes them on an outside pointer", () => {
     render(() => <EditorSelectionBar {...makeProps()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit pages" }));
-    expect(screen.getByRole("menu", { name: "Page editing options" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Select pages" }));
+    expect(screen.getByRole("menu", { name: "Page selection options" })).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "More download options" }));
     expect(screen.getByRole("menu", { name: "Download options" })).toBeVisible();
-    expect(screen.queryByRole("menu", { name: "Page editing options" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menu", { name: "Page selection options" })).not.toBeInTheDocument();
 
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
@@ -143,7 +154,7 @@ describe("EditorSelectionBar", () => {
     expect(props.onCompress).not.toHaveBeenCalled();
   });
 
-  it.each(["Edit pages", "More download options"])(
+  it.each(["Select pages", "More download options"])(
     "downloads a PDF and closes the menu opened by %s",
     (trigger) => {
       const props = makeProps();

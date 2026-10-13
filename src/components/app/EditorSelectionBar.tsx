@@ -69,10 +69,6 @@ export default function EditorSelectionBar(props: Props) {
   const selectAllLabel = () => (props.allPagesSelected ? "All pages selected" : "Select all pages");
   const clearSelectionLabel = () =>
     hasSelection() ? "Clear page selection" : "No pages selected to clear";
-  const rotateLabel = () =>
-    hasSelection() ? "Rotate selected pages 90 degrees" : "Select pages to rotate";
-  const deletionMenuLabel = () =>
-    hasSelection() ? props.deletionAriaLabel : "Select pages to mark or restore";
   const compressionDisabled = () =>
     props.busy || props.selectedActiveCount === 0 || !props.compressionAvailable;
   const compressionLabel = () =>
@@ -246,18 +242,18 @@ export default function EditorSelectionBar(props: Props) {
           data-testid="editor-edit-menu-button"
           class="editor-toolbar-action editor-menu-trigger"
           aria-haspopup="menu"
-          aria-label="Edit pages"
+          aria-label="Select pages"
           aria-controls="editor-edit-menu"
           aria-expanded={openMenu() === "edit"}
           aria-disabled={props.busy}
-          title={props.busy ? props.busyLabel : "Open page editing options"}
+          title={props.busy ? props.busyLabel : "Select pages"}
           onClick={() => toggleMenu("edit")}
           onKeyDown={(event) => handleTriggerKeyDown("edit", event)}
         >
           <svg class="editor-menu-trigger-icon" viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M12.9 4.1a1.55 1.55 0 0 1 3 3L7 16H4v-3zM11.5 5.5l3 3" />
+            <path d="M3 3h5v5H3zM3 12h5v5H3zM11 5.5h6M11 14.5h6" />
           </svg>
-          <span class="editor-menu-trigger-label">Edit pages</span>
+          <span class="editor-menu-trigger-label">Select pages</span>
           <svg class="editor-menu-trigger-chevron" viewBox="0 0 20 20" aria-hidden="true">
             <path d="m5 7 5 5 5-5" />
           </svg>
@@ -270,7 +266,7 @@ export default function EditorSelectionBar(props: Props) {
             data-testid="editor-edit-menu"
             class="editor-menu-panel"
             role="menu"
-            aria-label="Page editing options"
+            aria-label="Page selection options"
             onKeyDown={(event) => handleMenuKeyDown("edit", event)}
           >
             <button
@@ -306,42 +302,6 @@ export default function EditorSelectionBar(props: Props) {
                 <span>Clear selection</span>
                 <Show when={!hasSelection()}>
                   <span class="editor-menu-item-hint">No pages selected</span>
-                </Show>
-              </span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              tabindex="-1"
-              data-testid="editor-rotate-button"
-              aria-disabled={props.busy || !hasSelection()}
-              aria-label={rotateLabel()}
-              title={rotateLabel()}
-              class="editor-menu-item"
-              onClick={() => runMenuAction(props.onRotate, props.busy || !hasSelection())}
-            >
-              <span class="editor-menu-item-copy">
-                <span>Rotate selected pages</span>
-                <Show when={!hasSelection()}>
-                  <span class="editor-menu-item-hint">Select pages to rotate</span>
-                </Show>
-              </span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              tabindex="-1"
-              data-testid="editor-delete-button"
-              aria-disabled={props.busy || !hasSelection()}
-              aria-label={deletionMenuLabel()}
-              title={deletionMenuLabel()}
-              class="editor-menu-item editor-menu-item-danger"
-              onClick={() => runMenuAction(props.onDelete, props.busy || !hasSelection())}
-            >
-              <span class="editor-menu-item-copy">
-                <span>{props.deletionLabel}</span>
-                <Show when={!hasSelection()}>
-                  <span class="editor-menu-item-hint">Select pages to mark or restore</span>
                 </Show>
               </span>
             </button>

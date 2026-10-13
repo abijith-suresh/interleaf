@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { Deferred, Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type PageState, PDFPasswordRequiredError, PDFProcessingError } from "@/types/interfaces";
@@ -104,8 +104,8 @@ function expectLastToast(text: string) {
 }
 
 async function openEditMenu() {
-  fireEvent.click(screen.getByRole("button", { name: "Edit pages" }));
-  expect(await screen.findByRole("menu", { name: "Page editing options" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Select pages" }));
+  expect(await screen.findByRole("menu", { name: "Page selection options" })).toBeVisible();
 }
 
 async function openDownloadMenu() {
@@ -235,10 +235,46 @@ describe("Editor", () => {
     expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
   });
 
+  it("preserves page selection through tools and downloads the correct scope", async () => {
+    const tiles = await openPDF();
+    expect(screen.queryByRole("button", { name: /Review|Edit PDF/ })).not.toBeInTheDocument();
+    fireEvent.click(tiles[1]);
+    for (const tool of ["Read", "Add text", "Edit text", "Fill forms", "Read"]) {
+      fireEvent.click(screen.getByRole("button", { name: tool }));
+      expect(await screen.findByTestId("editor-page-viewer")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: tool })).toHaveAttribute("aria-pressed", "true");
+    }
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
+    expect(screen.getAllByRole("button", { name: /^Go to page/ })).toHaveLength(3);
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: /^Download PDF/ })
+    );
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenNthCalledWith(
+      1,
+      expect.any(Array),
+      expect.objectContaining({ selectedIndices: undefined })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Back to pages" }));
+    expect(getPages().map((tile) => tile.getAttribute("aria-pressed"))).toEqual([
+      "false",
+      "true",
+      "false",
+    ]);
+    expect(screen.getByTestId("editor-selection-title")).toHaveTextContent("1 selected");
+    fireEvent.click(screen.getByRole("button", { name: "Download a PDF with 1 exportable page" }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(2));
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Array),
+      expect.objectContaining({ selectedIndices: [1] })
+    );
+  });
+
   it("opens a multi-page review without requiring a single selected page", async () => {
     await openPDF();
 
-    fireEvent.click(screen.getByRole("button", { name: /Review/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Read" }));
 
     await waitFor(() => expect(screen.getByTestId("editor-page-viewer")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
@@ -249,16 +285,16 @@ describe("Editor", () => {
       expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2")
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Close page review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to pages" }));
     await waitFor(() => expect(screen.queryByTestId("editor-page-viewer")).not.toBeInTheDocument());
   });
 
   it.each([
-    { label: "Add text", mode: "add", guidance: "Tap the page where you want to write." },
+    { label: "Add text", mode: "add", guidance: "Tap to add text." },
     {
       label: "Fill forms",
       mode: "forms",
-      guidance: "No interactive fields. Tap the page to add text.",
+      guidance: "No fields. Tap to add text.",
     },
   ])("opens $label directly from the workspace tool rail", async ({ label, mode, guidance }) => {
     const file = makeFile();
@@ -310,7 +346,9 @@ describe("Editor", () => {
     const original = makeFile("working.pdf");
     await openPDF(original);
     fireEvent.click(screen.getByRole("button", { name: "Add text" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Place text" }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Place text on page" }), {
+      key: "Enter",
+    });
     const originalInput = screen.getByRole("textbox", { name: "Text" });
     fireEvent.input(originalInput, { target: { value: "Original edit" } });
     fireEvent.submit(originalInput.closest("form") as HTMLFormElement);
@@ -320,7 +358,7 @@ describe("Editor", () => {
       1,
       expect.objectContaining({ kind: "add", text: "Original edit" })
     );
-    fireEvent.click(screen.getByRole("button", { name: "Close page review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to pages" }));
     fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
     await waitFor(() => expect(getPages()).toHaveLength(4));
     expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledExactlyOnceWith(
@@ -329,7 +367,9 @@ describe("Editor", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Add text" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Place text" }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Place text on page" }), {
+      key: "Enter",
+    });
     const copyInput = screen.getByRole("textbox", { name: "Text" });
     fireEvent.input(copyInput, { target: { value: "Copy only" } });
     fireEvent.submit(copyInput.closest("form") as HTMLFormElement);
@@ -343,7 +383,7 @@ describe("Editor", () => {
       expect.objectContaining({ kind: "add", text: "Copy only" })
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Close page review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to pages" }));
     fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
     const output = pdfOperationsMocks.buildPDF.mock.calls[1][0] as PageState[];
@@ -765,24 +805,17 @@ describe("Editor", () => {
   it("updates selection actions and compression eligibility when a page is selected", async () => {
     const tiles = await openPDF();
     await openEditMenu();
-    for (const name of [
-      "No pages selected to clear",
-      "Select pages to rotate",
-      "Select pages to mark or restore",
-    ]) {
-      expect(screen.getByRole("menuitem", { name })).toHaveAttribute("aria-disabled", "true");
-    }
+    expect(screen.getByRole("menuitem", { name: "No pages selected to clear" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
     await openDownloadMenu();
     expect(screen.getByRole("menuitem", { name: "Compress the original PDF" })).toBeEnabled();
     fireEvent.click(tiles[0]);
     await openEditMenu();
-    for (const name of [
-      "Clear page selection",
-      "Rotate selected pages 90 degrees",
-      "Mark selected pages for deletion",
-    ]) {
-      expect(screen.getByRole("menuitem", { name })).toBeEnabled();
-    }
+    expect(screen.getByRole("menuitem", { name: "Clear page selection" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Rotate selection 90 degrees" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Mark selected pages for deletion" })).toBeEnabled();
     await openDownloadMenu();
     expect(screen.getByTestId("editor-compress-button")).toHaveAttribute("aria-disabled", "true");
   });
@@ -890,8 +923,7 @@ describe("Editor", () => {
       ])
     );
 
-    await openEditMenu();
-    fireEvent.click(screen.getByTestId("editor-rotate-button"));
+    fireEvent.click(screen.getByRole("button", { name: "Rotate selection 90 degrees" }));
     const status = await screen.findByTestId("editor-status-message");
     await waitFor(() => expect(status).toHaveTextContent("Rotated 3 selected pages."));
     fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
@@ -910,9 +942,16 @@ describe("Editor", () => {
     fireEvent.click(screen.getByTestId("editor-select-all-button"));
     await waitFor(() => expect(tiles[0].getAttribute("aria-pressed")).toBe("true"));
 
-    await openEditMenu();
-    expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
-    fireEvent.click(screen.getByTestId("editor-delete-button"));
+    expect(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    ).toHaveAccessibleName("Mark selected pages for deletion");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    );
 
     await waitFor(() =>
       expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual(["true", "true", "true"])
@@ -927,24 +966,55 @@ describe("Editor", () => {
     expect(screen.getByTestId("editor-export-images-button")).toHaveTextContent(
       "Export PNG images"
     );
-    await openEditMenu();
-    expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Restore");
-    expect(screen.getByTestId("editor-delete-button")).toHaveAttribute(
-      "aria-label",
-      "Restore selected pages"
+    expect(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    ).toHaveAccessibleName("Restore selected pages");
+    expect(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    ).toHaveAttribute("aria-label", "Restore selected pages");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
     );
 
-    fireEvent.click(screen.getByTestId("editor-delete-button"));
-
-    await openEditMenu();
     await waitFor(() => {
       expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual([
         "false",
         "false",
         "false",
       ]);
-      expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
+      expect(
+        screen.getByRole("button", {
+          name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+        })
+      ).toHaveAccessibleName("Mark selected pages for deletion");
     });
+  });
+
+  it("keeps focus on the moved page for repeated keyboard reordering", async () => {
+    const tiles = await openPDF();
+    tiles[0].focus();
+    fireEvent.keyDown(document.activeElement as HTMLElement, { altKey: true, key: "ArrowRight" });
+    await waitFor(() => expect(getPages()[1]).toHaveFocus());
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Moved page 1 to position 2."
+    );
+    fireEvent.keyDown(document.activeElement as HTMLElement, { altKey: true, key: "ArrowLeft" });
+    await waitFor(() => expect(getPages()[0]).toHaveFocus());
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Moved page 2 to position 1."
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    expect(
+      pdfOperationsMocks.buildPDF.mock.calls[0][0].map((page: PageState) => page.sourcePageNumber)
+    ).toEqual([1, 2, 3]);
   });
 
   it("reorders a page with the keyboard alternative", async () => {
@@ -1083,18 +1153,28 @@ describe("Editor", () => {
       );
     });
 
-    await openEditMenu();
-    expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
-    fireEvent.click(screen.getByTestId("editor-delete-button"));
+    expect(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    ).toHaveAccessibleName("Mark selected pages for deletion");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    );
 
-    await openEditMenu();
     await waitFor(() => {
       expect(tiles[0]).toHaveAttribute("data-marked-for-deletion", "true");
       expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "true");
       expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(
         "2 selected · 0 exportable"
       );
-      expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Restore");
+      expect(
+        screen.getByRole("button", {
+          name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+        })
+      ).toHaveAccessibleName("Restore selected pages");
     });
   });
 

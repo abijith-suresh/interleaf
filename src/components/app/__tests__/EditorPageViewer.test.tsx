@@ -10,6 +10,8 @@ const pdfServiceMocks = vi.hoisted(() => ({
   getPageRotation: vi.fn(),
   getPageSize: vi.fn(),
   renderPage: vi.fn(),
+  getPageContent: vi.fn(),
+  editPage: vi.fn(),
   reset: vi.fn(),
 }));
 
@@ -19,6 +21,8 @@ vi.mock("@/services/pdf-service", () => ({
     getPageRotation = pdfServiceMocks.getPageRotation;
     getPageSize = pdfServiceMocks.getPageSize;
     renderPage = pdfServiceMocks.renderPage;
+    getPageContent = pdfServiceMocks.getPageContent;
+    editPage = pdfServiceMocks.editPage;
     reset = pdfServiceMocks.reset;
     dispose = () => Effect.void;
   },
@@ -84,13 +88,13 @@ describe("EditorPageViewer", () => {
     expect(screen.getByRole("heading", { name: /Page \d/ })).toHaveTextContent("Page 1");
     expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
-    expect(await screen.findAllByRole("button", { name: /Review page/ })).toHaveLength(3);
+    expect(await screen.findAllByRole("button", { name: /Go to page/ })).toHaveLength(3);
 
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));
     await waitFor(() =>
       expect(screen.getByRole("heading", { name: "Page 2" })).toBeInTheDocument()
     );
-    expect(screen.getByRole("button", { name: "Review page 2" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Go to page 2" })).toHaveAttribute(
       "aria-current",
       "page"
     );
@@ -99,7 +103,7 @@ describe("EditorPageViewer", () => {
     await waitFor(() =>
       expect(screen.getByRole("heading", { name: "Page 1" })).toBeInTheDocument()
     );
-    fireEvent.click(screen.getByRole("button", { name: "Review page 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Go to page 3" }));
     expect(screen.getByRole("heading", { name: "Page 3" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
   });
@@ -161,7 +165,7 @@ describe("EditorPageViewer", () => {
     );
     expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Previous page" })).toBeEnabled();
-    expect(await screen.findAllByRole("button", { name: /Review page/ })).toHaveLength(2);
+    expect(await screen.findAllByRole("button", { name: /Go to page/ })).toHaveLength(2);
 
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -259,6 +263,88 @@ describe("EditorPageViewer", () => {
     }
   });
 
+  it.each(["Cancel edit", "Replace text"])(
+    "restores the page view after closing a focused text composer with %s",
+    async (action) => {
+      vi.stubGlobal("innerWidth", 390);
+      vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (
+        this: HTMLElement
+      ) {
+        return this.classList.contains("editor-review-stage")
+          ? 300
+          : Number.parseFloat(this.style.width) || 0;
+      });
+      vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (
+        this: HTMLElement
+      ) {
+        return this.classList.contains("editor-review-stage")
+          ? 500
+          : Number.parseFloat(this.style.height) || 0;
+      });
+      pdfServiceMocks.getPageContent.mockReturnValue(
+        Effect.succeed({
+          width: 100,
+          height: 200,
+          fields: [],
+          text: [
+            {
+              index: 0,
+              text: "Original",
+              fontSize: 12,
+              editable: true,
+              bounds: { x: 10, y: 20, width: 20, height: 6 },
+            },
+          ],
+        })
+      );
+      pdfServiceMocks.editPage.mockReturnValue(Effect.void);
+      const onClose = vi.fn();
+      render(() => (
+        <EditorPageViewer
+          pages={makePages()}
+          navigationPageIds={["page-1"]}
+          activePageId="page-1"
+          runtime={runtime}
+          onActivePageChange={vi.fn()}
+          onClose={onClose}
+          tool="replace"
+          onContentChange={vi.fn()}
+        />
+      ));
+      const target = await screen.findByRole("button", { name: "Edit Original" });
+      const frame = document.querySelector(".editor-review-page") as HTMLElement;
+      const stage = document.querySelector(".editor-review-stage") as HTMLElement;
+      await waitFor(() => expect(Number.parseFloat(frame.style.width)).toBeGreaterThan(0));
+      const previousWidth = frame.style.width;
+      stage.scrollLeft = 20;
+      stage.scrollTop = 40;
+      stage.scrollTo = vi.fn((options?: ScrollToOptions | number) => {
+        if (typeof options === "object") {
+          stage.scrollLeft = options.left ?? 0;
+          stage.scrollTop = options.top ?? 0;
+        }
+      });
+      fireEvent.click(target);
+      const input = screen.getByLabelText("Text");
+      await waitFor(() => expect(input).toHaveFocus());
+      expect(Number.parseFloat(frame.style.width)).toBeGreaterThan(
+        Number.parseFloat(previousWidth)
+      );
+      fireEvent.input(input, { target: { value: "Changed" } });
+      stage.scrollLeft = 70;
+      stage.scrollTop = 120;
+      fireEvent.click(screen.getByRole("button", { name: action }));
+      await waitFor(() => expect(screen.queryByLabelText("Text")).not.toBeInTheDocument());
+      await waitFor(() => expect(frame.style.width).toBe(previousWidth));
+      await waitFor(() => expect([stage.scrollLeft, stage.scrollTop]).toEqual([20, 40]));
+      expect(screen.getByRole("button", { name: "Edit Original" })).toBeEnabled();
+      expect(pdfServiceMocks.editPage).toHaveBeenCalledTimes(action === "Replace text" ? 1 : 0);
+      await waitFor(() => expect(frame).toHaveFocus());
+      fireEvent.keyDown(frame, { key: "Escape" });
+      expect(onClose).toHaveBeenCalledOnce();
+    }
+  );
+
   it("contains keyboard focus while the review dialog is open", async () => {
     const pages = makePages();
     let background!: HTMLElement;
@@ -286,7 +372,7 @@ describe("EditorPageViewer", () => {
     expect(background).toHaveAttribute("inert");
 
     const next = screen.getByRole("button", { name: "Zoom in" });
-    const close = screen.getByRole("button", { name: "Close page review" });
+    const close = screen.getByRole("button", { name: "Back to pages" });
     next.focus();
     fireEvent.keyDown(viewer, { key: "Tab" });
     expect(close).toHaveFocus();
