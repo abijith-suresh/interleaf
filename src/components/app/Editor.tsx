@@ -27,6 +27,8 @@ import EditorPageViewer from "./EditorPageViewer";
 import EditorSelectionBar from "./EditorSelectionBar";
 import EditorToolRail, { type EditorWorkspaceTool } from "./EditorToolRail";
 import EditorUploader from "./EditorUploader";
+import EditorButton from "./ui/EditorButton";
+import EditorIcon from "./ui/EditorIcon";
 
 interface DragOverTarget {
   index: number;
@@ -972,9 +974,7 @@ export default function Editor() {
           <h1 class="sr-only">Interleaf PDF editor</h1>
           <div class="editor-header-right">
             <a href={base} class="editor-back" aria-label="Return to Interleaf home">
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M8 4 3 10l5 6M4 10h13" />
-              </svg>
+              <EditorIcon name="back" />
               <span class="editor-back-wide">Back</span>
               <span class="editor-back-compact">Exit</span>
             </a>
@@ -1017,7 +1017,8 @@ export default function Editor() {
                 <div class="editor-canvas-tools">
                   <span class="editor-canvas-count">{formatPageCount(pages.length)}</span>
                   <div class="editor-canvas-actions">
-                    <button
+                    <EditorButton
+                      variant="plain"
                       type="button"
                       data-testid="editor-add-pdf-button"
                       aria-label="Add PDFs or images"
@@ -1025,12 +1026,11 @@ export default function Editor() {
                       disabled={isBusy()}
                       class="editor-add-pdf"
                     >
-                      <svg viewBox="0 0 20 20" aria-hidden="true">
-                        <path d="M10 4v12M4 10h12" />
-                      </svg>
+                      <EditorIcon name="plus" />
                       <span class="editor-add-pdf-label">Add files</span>
-                    </button>
-                    <button
+                    </EditorButton>
+                    <EditorButton
+                      variant="plain"
                       ref={filesButton}
                       type="button"
                       data-testid="editor-files-button"
@@ -1042,12 +1042,10 @@ export default function Editor() {
                       onClick={() => setFilesOpen(true)}
                       disabled={isBusy()}
                     >
-                      <svg viewBox="0 0 20 20" aria-hidden="true">
-                        <path d="M5 2.5h6l4 4v11H5zM11 2.5v4h4" />
-                      </svg>
+                      <EditorIcon name="files" />
                       <span class="editor-files-button-label">Files</span>
                       <span class="editor-files-button-count">{workspaceFiles().length}</span>
-                    </button>
+                    </EditorButton>
                   </div>
                 </div>
               </div>

@@ -25,6 +25,7 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Export selected or unmarked pages as PNG images in a ZIP archive
 - Render page thumbnails locally for inspection before export
 - Fill existing text, checkbox, radio, and single-choice PDF form fields
+- Fill flat or scanned forms with manually placed text and X marks
 - Add one line of text at a chosen position, drag its draft, and rotate it
 - Replace supported original text runs within their original width
 
@@ -32,8 +33,9 @@ Use **Pages** to organize pages and **Document** to read them. On mobile, open *
 **Add text**, **Edit text**, or **Fill forms**; desktop shows these tools in the sidebar.
 Tap the page to place text, highlighted text to replace it, or a form field to fill it.
 Drag a new text draft to move it, and use its rotation control to change its orientation.
-**Fill forms** uses interactive fields embedded in the PDF. It does not detect boxes on scanned
-or flat pages. Use **Add text** to fill visible blanks on those pages.
+**Fill forms** uses embedded fields when available. Choose **Text** or **X mark** to fill
+visible blanks on flat or scanned pages. Tap to place an answer, adjust it, and save it.
+The editor does not automatically detect boxes or create reusable interactive fields.
 Use **Save & next** to move through supported fields. Drafts preview before applying; cancel them to discard
 the draft. Download your PDF directly from the editor.
 

@@ -58,12 +58,21 @@ describe("PDFService worker lifecycle", () => {
 
   it("closes a native document if its open response arrives after reset", async () => {
     const open = Promise.withResolvers<PDFiumCommands["open"]["output"]>();
-    request.mockImplementationOnce(() => open.promise);
+    const opened = Promise.withResolvers<void>();
+    const closed = Promise.withResolvers<void>();
+    request.mockImplementation((command: string) => {
+      if (command === "open") {
+        opened.resolve();
+        return open.promise;
+      }
+      if (command === "close") closed.resolve();
+      return Promise.resolve();
+    });
     const loading = Effect.runFork(service.loadPDF(file));
-    await tick();
+    await opened.promise;
     await Effect.runPromise(service.reset());
     open.resolve({ id: 123, count: 1 });
-    await tick();
+    await closed.promise;
     expect(request).toHaveBeenCalledWith("close", { id: 123 });
     expect(service.getPageCount()).toBe(0);
     await Effect.runPromise(Fiber.await(loading));

@@ -15,8 +15,11 @@ import {
   type PageBox,
   rotatedDraftBox,
 } from "./pdf-page-geometry";
+import EditorButton from "./ui/EditorButton";
+import EditorIcon from "./ui/EditorIcon";
 
 type Mode = "read" | "add" | "replace" | "forms";
+type FormTool = "fields" | "text" | "cross";
 function fieldValue(field?: PDFFormField) {
   if (!field) return undefined;
   return [2, 3].includes(field.type)
@@ -35,7 +38,6 @@ interface Props {
   rotation?: number;
   mode: Mode;
   locked?: boolean;
-  onChooseTool?: (mode: Mode) => void;
   onFocusBounds?: (bounds: PageBox, width: number, height: number) => void;
   onComposerHeight?: (height: number) => void;
   onChange: (file: File, pageNumber?: number) => void;
@@ -50,6 +52,7 @@ export default function EditorContentPanel(props: Props) {
   const [run, setRun] = createSignal<PDFTextRun>();
   const [field, setField] = createSignal<PDFFormField>();
   const [position, setPosition] = createSignal<{ x: number; y: number }>();
+  const [formPlacement, setFormPlacement] = createSignal<FormTool>();
   const [text, setText] = createSignal("");
   const [fontSize, setFontSize] = createSignal(14);
   const [textRotation, setTextRotation] = createSignal(0);
@@ -65,12 +68,18 @@ export default function EditorContentPanel(props: Props) {
   let generation = 0,
     disposed = false;
   let input: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | undefined;
+  let saveButton: HTMLButtonElement | undefined;
   let pointer: { x: number; y: number; id: number } | undefined;
   const selected = () => !!(run() || field() || position());
   const dirty = () => selected() && text() !== (fieldValue(field()) ?? run()?.text ?? "");
   createEffect(() => {
     if (props.mode) {
       clearSelection();
+      setFormPlacement(undefined);
+      if (props.mode === "forms") {
+        setTextRotation(0);
+        setFontSize(14);
+      }
       setMessage("");
     }
   });
@@ -85,7 +94,9 @@ export default function EditorContentPanel(props: Props) {
             (a.bounds?.y ?? 0) - (b.bounds?.y ?? 0) || (a.bounds?.x ?? 0) - (b.bounds?.x ?? 0)
         ) ?? []
   );
-  const canPlace = () => mode() === "add";
+  const formTool = () => formPlacement() ?? (fields().length ? "fields" : "text");
+  const canPlace = () => mode() === "add" || (mode() === "forms" && formTool() !== "fields");
+  const crossDraft = () => mode() === "forms" && formTool() === "cross" && !!position();
   const helper = () =>
     loading()
       ? "Reading page…"
@@ -94,11 +105,11 @@ export default function EditorContentPanel(props: Props) {
           ? "Select highlighted text."
           : "No editable text on this page."
         : mode() === "forms"
-          ? fields().length
+          ? formTool() === "fields"
             ? `${fields().length} interactive ${fields().length === 1 ? "field" : "fields"}`
-            : content()?.fields.length
-              ? "No supported fillable fields."
-              : "No interactive fields."
+            : formTool() === "cross"
+              ? "Tap a box to mark."
+              : "Tap a blank to fill."
           : "Tap the page to place text.";
   const toolLabel = () =>
     mode() === "forms" ? "Fill forms" : mode() === "replace" ? "Edit text" : "Add text";
@@ -113,6 +124,10 @@ export default function EditorContentPanel(props: Props) {
   function focusInput() {
     queueMicrotask(() => {
       if (!disposed) {
+        if (crossDraft()) {
+          saveButton?.focus();
+          return;
+        }
         input?.focus();
         if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)
           input.select();
@@ -203,6 +218,7 @@ export default function EditorContentPanel(props: Props) {
   createEffect(() => {
     void props.page.id;
     setContent(undefined);
+    setFormPlacement(undefined);
     clearSelection();
     setMessage("");
   });
@@ -282,8 +298,9 @@ export default function EditorContentPanel(props: Props) {
             props.rotation ?? 0
           )
         : { x: c.width * 0.15, y: c.height * 0.2 };
-    const existingText = position() ? text() : "";
-    const existingWidth = position() ? width() : 200;
+    const cross = mode() === "forms" && formTool() === "cross";
+    const existingText = position() ? text() : cross ? "X" : "";
+    const existingWidth = position() ? width() : cross ? fontSize() * 1.5 : 200;
     clearSelection();
     setText(existingText);
     setPosition({
@@ -438,13 +455,54 @@ export default function EditorContentPanel(props: Props) {
       data-tool={mode()}
     >
       <Show when={!selected() && mode() !== "read"}>
-        <div class="editor-content-tool-context">
-          <strong>{toolLabel()}</strong>
-          <p>{helper()}</p>
-          <Show when={!loading() && mode() === "forms" && !fields().length && props.onChooseTool}>
-            <button type="button" disabled={busy()} onClick={() => props.onChooseTool?.("add")}>
-              Add text instead
-            </button>
+        <div class="editor-content-tool-context" classList={{ "is-forms": mode() === "forms" }}>
+          <div class="editor-content-tool-copy">
+            <strong>{toolLabel()}</strong>
+            <p>{helper()}</p>
+          </div>
+          <Show when={!loading() && mode() === "forms"}>
+            <fieldset class="editor-form-tools" aria-label="Form filling mode">
+              <Show when={fields().length}>
+                <EditorButton
+                  variant="plain"
+                  aria-label="Fill existing fields"
+                  aria-pressed={formTool() === "fields"}
+                  disabled={busy()}
+                  onClick={() => {
+                    setFormPlacement("fields");
+                    setMessage("");
+                  }}
+                >
+                  Fields
+                </EditorButton>
+              </Show>
+              <EditorButton
+                variant="plain"
+                aria-label="Place form text"
+                aria-pressed={formTool() === "text"}
+                disabled={busy()}
+                onClick={() => {
+                  setFormPlacement("text");
+                  setTextRotation(0);
+                  setMessage("");
+                }}
+              >
+                Text
+              </EditorButton>
+              <EditorButton
+                variant="plain"
+                aria-label="Place X mark"
+                aria-pressed={formTool() === "cross"}
+                disabled={busy()}
+                onClick={() => {
+                  setFormPlacement("cross");
+                  setTextRotation(0);
+                  setMessage("");
+                }}
+              >
+                X mark
+              </EditorButton>
+            </fieldset>
           </Show>
         </div>
       </Show>
@@ -454,7 +512,7 @@ export default function EditorContentPanel(props: Props) {
             class="editor-content-overlay"
             classList={{ "is-placement": canPlace() && !busy() && !loading() }}
           >
-            <Show when={mode() === "forms" || mode() === "replace"}>
+            <Show when={(mode() === "forms" && formTool() === "fields") || mode() === "replace"}>
               <button
                 class="editor-content-target-surface"
                 type="button"
@@ -489,7 +547,13 @@ export default function EditorContentPanel(props: Props) {
               <button
                 type="button"
                 class="editor-content-placement"
-                aria-label="Place text on page"
+                aria-label={
+                  mode() === "forms"
+                    ? formTool() === "cross"
+                      ? "Place X mark on page"
+                      : "Fill blank on page"
+                    : "Place text on page"
+                }
                 disabled={busy() || loading()}
                 onPointerDown={(e) => {
                   if (!e.isPrimary || (pointer && pointer.id !== e.pointerId)) {
@@ -534,7 +598,7 @@ export default function EditorContentPanel(props: Props) {
                 )}
               </For>
             </Show>
-            <Show when={mode() === "forms"}>
+            <Show when={mode() === "forms" && formTool() === "fields"}>
               <For each={content()?.fields.filter((item) => item.bounds)}>
                 {(item) => (
                   <button
@@ -597,7 +661,7 @@ export default function EditorContentPanel(props: Props) {
                 >
                   {" "}
                   <span class="editor-content-draft-handle" aria-hidden="true">
-                    ✥
+                    <EditorIcon name="move" size={14} />
                   </span>
                 </button>
                 <svg
@@ -658,120 +722,133 @@ export default function EditorContentPanel(props: Props) {
           <header>
             <div>
               <h3>
-                {field() ? fieldLabel(field() as PDFFormField) : run() ? "Edit text" : "Add text"}
+                {field()
+                  ? fieldLabel(field() as PDFFormField)
+                  : run()
+                    ? "Edit text"
+                    : mode() === "forms"
+                      ? crossDraft()
+                        ? "X mark"
+                        : "Fill form"
+                      : "Add text"}
               </h3>
             </div>
-            <button
-              type="button"
+            <EditorButton
+              variant="plain"
+              icon="close"
+              iconOnly
               aria-label="Cancel edit"
               disabled={busy()}
               onClick={() => {
                 clearSelection();
                 setMessage("Draft cancelled.");
               }}
-            >
-              ×
-            </button>
+            />
           </header>
-          <Show
-            when={!field() || ![2, 3].includes(field()?.type ?? 0)}
-            fallback={
+          <Show when={!crossDraft()}>
+            <Show
+              when={!field() || ![2, 3].includes(field()?.type ?? 0)}
+              fallback={
+                <label>
+                  <input
+                    ref={(element) => {
+                      input = element;
+                    }}
+                    type={field()?.type === 3 ? "radio" : "checkbox"}
+                    checked={text() !== "Off"}
+                    onChange={(e) =>
+                      setText(e.currentTarget.checked ? (field()?.exportValue ?? "Yes") : "Off")
+                    }
+                  />
+                  {field() ? fieldLabel(field() as PDFFormField) : ""}
+                </label>
+              }
+            >
               <label>
-                <input
-                  ref={(element) => {
-                    input = element;
-                  }}
-                  type={field()?.type === 3 ? "radio" : "checkbox"}
-                  checked={text() !== "Off"}
-                  onChange={(e) =>
-                    setText(e.currentTarget.checked ? (field()?.exportValue ?? "Yes") : "Off")
-                  }
-                />
-                {field() ? fieldLabel(field() as PDFFormField) : ""}
-              </label>
-            }
-          >
-            <label>
-              <span class="editor-content-input-label">
-                {field() ? fieldLabel(field() as PDFFormField) : "Text"}
-              </span>
-              <Show when={field()}>
-                <span class="editor-content-field-progress">
-                  {fields().findIndex((item) => item.index === field()?.index) + 1} /{" "}
-                  {fields().length}
+                <span class="editor-content-input-label">
+                  {field() ? fieldLabel(field() as PDFFormField) : "Text"}
                 </span>
-              </Show>
-              <Show
-                when={
-                  field() &&
-                  [4, 5].includes(field()?.type ?? 0) &&
-                  !((field()?.flags ?? 0) & (1 << 18))
-                }
-                fallback={
-                  <Show
-                    when={field()?.type === 6 && (field()?.flags ?? 0) & (1 << 12)}
-                    fallback={
-                      <input
+                <Show when={field()}>
+                  <span class="editor-content-field-progress">
+                    {fields().findIndex((item) => item.index === field()?.index) + 1} /{" "}
+                    {fields().length}
+                  </span>
+                </Show>
+                <Show
+                  when={
+                    field() &&
+                    [4, 5].includes(field()?.type ?? 0) &&
+                    !((field()?.flags ?? 0) & (1 << 18))
+                  }
+                  fallback={
+                    <Show
+                      when={field()?.type === 6 && (field()?.flags ?? 0) & (1 << 12)}
+                      fallback={
+                        <input
+                          ref={(element) => {
+                            input = element;
+                          }}
+                          aria-label={field() ? field()?.name || "Field value" : "Text"}
+                          type={
+                            field()?.flags && (field()?.flags ?? 0) & (1 << 13)
+                              ? "password"
+                              : "text"
+                          }
+                          value={text()}
+                          maxLength={field() ? undefined : 1000}
+                          autocomplete="off"
+                          autocorrect="off"
+                          spellcheck={false}
+                          disabled={busy()}
+                          onInput={(e) => setText(e.currentTarget.value)}
+                        />
+                      }
+                    >
+                      <textarea
                         ref={(element) => {
                           input = element;
                         }}
-                        aria-label={field() ? field()?.name || "Field value" : "Text"}
-                        type={
-                          field()?.flags && (field()?.flags ?? 0) & (1 << 13) ? "password" : "text"
-                        }
+                        aria-label={field()?.name || "Field value"}
+                        rows={3}
                         value={text()}
-                        maxLength={field() ? undefined : 1000}
                         autocomplete="off"
                         autocorrect="off"
                         spellcheck={false}
                         disabled={busy()}
-                        onInput={(e) => setText(e.currentTarget.value)}
+                        onInput={(event) => setText(event.currentTarget.value)}
                       />
-                    }
-                  >
-                    <textarea
-                      ref={(element) => {
-                        input = element;
-                      }}
-                      aria-label={field()?.name || "Field value"}
-                      rows={3}
-                      value={text()}
-                      autocomplete="off"
-                      autocorrect="off"
-                      spellcheck={false}
-                      disabled={busy()}
-                      onInput={(event) => setText(event.currentTarget.value)}
-                    />
-                  </Show>
-                }
-              >
-                <select
-                  ref={(element) => {
-                    input = element;
-                  }}
-                  aria-label={field()?.name || "Field value"}
-                  value={text()}
-                  disabled={busy()}
-                  onChange={(e) => setText(e.currentTarget.value)}
+                    </Show>
+                  }
                 >
-                  <option value="">Choose an option</option>
-                  <For each={field()?.options}>
-                    {(option) => <option value={option}>{option}</option>}
-                  </For>
-                </select>
-              </Show>
-            </label>
+                  <select
+                    ref={(element) => {
+                      input = element;
+                    }}
+                    aria-label={field()?.name || "Field value"}
+                    value={text()}
+                    disabled={busy()}
+                    onChange={(e) => setText(e.currentTarget.value)}
+                  >
+                    <option value="">Choose an option</option>
+                    <For each={field()?.options}>
+                      {(option) => <option value={option}>{option}</option>}
+                    </For>
+                  </select>
+                </Show>
+              </label>
+            </Show>
           </Show>
           <Show when={position()}>
             <div class="editor-content-format-bar">
-              <button
-                type="button"
+              <EditorButton
+                variant="secondary"
+                icon="rotate"
                 disabled={busy()}
                 aria-label="Rotate draft text 90 degrees"
                 onClick={() => setTextRotation((value) => ((value + 270) % 360) - 180)}
               >
-                ↻ {textRotation()}°
-              </button>
+                {textRotation()}°
+              </EditorButton>
               <label>
                 Size{" "}
                 <input
@@ -785,9 +862,7 @@ export default function EditorContentPanel(props: Props) {
               </label>
               <details class="editor-content-more">
                 <summary aria-label="More text options" title="More text options">
-                  <svg viewBox="0 0 20 20" aria-hidden="true">
-                    <path d="M3 5h14M3 15h14M7 2v6M13 12v6" />
-                  </svg>
+                  <EditorIcon name="tools" />
                 </summary>
                 <div class="editor-content-position">
                   <label>
@@ -857,8 +932,7 @@ export default function EditorContentPanel(props: Props) {
             </p>
           </Show>
           <div class="editor-content-actions">
-            <button
-              type="button"
+            <EditorButton
               disabled={busy()}
               onClick={() => {
                 clearSelection();
@@ -866,23 +940,26 @@ export default function EditorContentPanel(props: Props) {
               }}
             >
               Cancel
-            </button>
+            </EditorButton>
             <Show
               when={
                 field() &&
                 fields().findIndex((item) => item.index === field()?.index) < fields().length - 1
               }
             >
-              <button
-                type="button"
+              <EditorButton
                 class="editor-content-next"
                 disabled={busy() || loading()}
                 onClick={() => save(true)}
               >
                 Save & next
-              </button>
+              </EditorButton>
             </Show>
-            <button
+            <EditorButton
+              ref={(element) => {
+                saveButton = element;
+              }}
+              variant="primary"
               class="editor-content-apply"
               type="submit"
               disabled={
@@ -892,8 +969,18 @@ export default function EditorContentPanel(props: Props) {
                 (!!(field() || run()) && !dirty())
               }
             >
-              {busy() ? "Applying…" : field() ? "Save field" : run() ? "Replace text" : "Add text"}
-            </button>
+              {busy()
+                ? "Applying…"
+                : field()
+                  ? "Save field"
+                  : run()
+                    ? "Replace text"
+                    : mode() === "forms"
+                      ? crossDraft()
+                        ? "Add X mark"
+                        : "Fill text"
+                      : "Add text"}
+            </EditorButton>
           </div>
         </form>
       </Show>

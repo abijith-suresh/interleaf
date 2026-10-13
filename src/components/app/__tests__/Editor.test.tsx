@@ -302,7 +302,7 @@ describe("Editor", () => {
     {
       label: "Fill forms",
       mode: "forms",
-      guidance: "No interactive fields.",
+      guidance: "Tap a blank to fill.",
     },
   ])("opens $label directly from the workspace tool rail", async ({ label, mode, guidance }) => {
     const file = makeFile();

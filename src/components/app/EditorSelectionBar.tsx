@@ -1,4 +1,6 @@
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import EditorButton from "./ui/EditorButton";
+import EditorIcon from "./ui/EditorIcon";
 
 interface Props {
   busy: boolean;
@@ -201,42 +203,32 @@ export default function EditorSelectionBar(props: Props) {
 
       <Show when={hasSelection()}>
         <fieldset class="editor-selection-quick-actions" aria-label="Selected page actions">
-          <button
+          <EditorButton
+            variant="plain"
             type="button"
             aria-label="Rotate selection 90 degrees"
             title="Rotate selected pages 90 degrees"
             disabled={props.busy}
             onClick={props.onRotate}
           >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M4 7a6 6 0 1 1-1 5M4 3v4h4" />
-            </svg>
-          </button>
-          <button
+            <EditorIcon name="rotate" />
+          </EditorButton>
+          <EditorButton
+            variant={props.deletionLabel === "Restore" ? "secondary" : "danger"}
             type="button"
             aria-label={props.deletionAriaLabel}
             title={props.deletionAriaLabel}
             disabled={props.busy}
             onClick={props.onDelete}
           >
-            <Show
-              when={props.deletionLabel === "Restore"}
-              fallback={
-                <svg viewBox="0 0 20 20" aria-hidden="true">
-                  <path d="M3 5h14M8 3h4M5 5l1 12h8l1-12M8 8v6M12 8v6" />
-                </svg>
-              }
-            >
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M4 7a6 6 0 1 1-1 5M4 3v4h4M8 11l2 2 4-4" />
-              </svg>
-            </Show>
-          </button>
+            <EditorIcon name={props.deletionLabel === "Restore" ? "restore" : "delete"} />
+          </EditorButton>
         </fieldset>
       </Show>
 
       <div class="editor-menu-group editor-edit-menu-group">
-        <button
+        <EditorButton
+          variant="plain"
           ref={editMenuTrigger}
           type="button"
           data-testid="editor-edit-menu-button"
@@ -250,14 +242,10 @@ export default function EditorSelectionBar(props: Props) {
           onClick={() => toggleMenu("edit")}
           onKeyDown={(event) => handleTriggerKeyDown("edit", event)}
         >
-          <svg class="editor-menu-trigger-icon" viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M3 3h5v5H3zM3 12h5v5H3zM11 5.5h6M11 14.5h6" />
-          </svg>
+          <EditorIcon name="select" class="editor-menu-trigger-icon" />
           <span class="editor-menu-trigger-label">Select pages</span>
-          <svg class="editor-menu-trigger-chevron" viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m5 7 5 5 5-5" />
-          </svg>
-        </button>
+          <EditorIcon name="chevron-down" class="editor-menu-trigger-chevron" />
+        </EditorButton>
 
         <Show when={openMenu() === "edit"}>
           <div
@@ -269,7 +257,8 @@ export default function EditorSelectionBar(props: Props) {
             aria-label="Page selection options"
             onKeyDown={(event) => handleMenuKeyDown("edit", event)}
           >
-            <button
+            <EditorButton
+              variant="plain"
               type="button"
               role="menuitem"
               tabindex="-1"
@@ -286,8 +275,9 @@ export default function EditorSelectionBar(props: Props) {
                   <span class="editor-menu-item-hint">All pages already selected</span>
                 </Show>
               </span>
-            </button>
-            <button
+            </EditorButton>
+            <EditorButton
+              variant="plain"
               type="button"
               role="menuitem"
               tabindex="-1"
@@ -304,13 +294,14 @@ export default function EditorSelectionBar(props: Props) {
                   <span class="editor-menu-item-hint">No pages selected</span>
                 </Show>
               </span>
-            </button>
+            </EditorButton>
           </div>
         </Show>
       </div>
 
       <div class="editor-download-group">
-        <button
+        <EditorButton
+          variant="primary"
           type="button"
           data-testid="editor-download-button"
           disabled={props.selectedActiveCount === 0}
@@ -324,8 +315,9 @@ export default function EditorSelectionBar(props: Props) {
           class="editor-download-action"
         >
           Download PDF
-        </button>
-        <button
+        </EditorButton>
+        <EditorButton
+          variant="plain"
           ref={downloadMenuTrigger}
           type="button"
           data-testid="editor-download-options-button"
@@ -339,10 +331,8 @@ export default function EditorSelectionBar(props: Props) {
           onClick={() => toggleMenu("download")}
           onKeyDown={(event) => handleTriggerKeyDown("download", event)}
         >
-          <svg class="editor-menu-trigger-chevron" viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m5 7 5 5 5-5" />
-          </svg>
-        </button>
+          <EditorIcon name="chevron-down" class="editor-menu-trigger-chevron" />
+        </EditorButton>
 
         <Show when={openMenu() === "download"}>
           <div
@@ -354,7 +344,8 @@ export default function EditorSelectionBar(props: Props) {
             aria-label="Download options"
             onKeyDown={(event) => handleMenuKeyDown("download", event)}
           >
-            <button
+            <EditorButton
+              variant="plain"
               type="button"
               role="menuitem"
               tabindex="-1"
@@ -371,8 +362,9 @@ export default function EditorSelectionBar(props: Props) {
                   <span class="editor-menu-item-hint">{imageExportReason()}</span>
                 </Show>
               </span>
-            </button>
-            <button
+            </EditorButton>
+            <EditorButton
+              variant="plain"
               type="button"
               role="menuitem"
               tabindex="-1"
@@ -389,7 +381,7 @@ export default function EditorSelectionBar(props: Props) {
                   <span class="editor-menu-item-hint">{compressionReason()}</span>
                 </Show>
               </span>
-            </button>
+            </EditorButton>
           </div>
         </Show>
       </div>

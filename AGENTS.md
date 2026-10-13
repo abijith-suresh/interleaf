@@ -32,6 +32,7 @@ The active product supports:
 - adding one or more PDFs and PNG or JPEG images to an existing workspace, with images converted to PDF pages in the browser
 - removing a source file and its pages from the workspace
 - filling supported existing PDF text, checkbox, radio, and single-choice form fields in the browser
+- filling flat or scanned forms by manually placing basic Latin text and X marks on the page, then downloading the completed PDF
 - adding one line of basic Latin text to PDF pages in the browser with an explicit Helvetica font fallback and draggable draft placement and rotation
 - replacing supported original PDF text runs within their original width, with explicit Helvetica font fallback and overflow rejection
 

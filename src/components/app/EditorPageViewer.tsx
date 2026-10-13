@@ -6,6 +6,8 @@ import EditorContentPanel from "./EditorContentPanel";
 import EditorPageCanvas from "./EditorPageCanvas";
 import EditorToolRail, { type EditorWorkspaceTool } from "./EditorToolRail";
 import { boxStyle, type PageBox } from "./pdf-page-geometry";
+import EditorButton from "./ui/EditorButton";
+import EditorIcon from "./ui/EditorIcon";
 
 const VIEWER_MAX_PIXELS = 16_000_000;
 const VIEWER_MOBILE_MAX_PIXELS = 4_000_000;
@@ -557,7 +559,8 @@ export default function EditorPageViewer(props: Props) {
         />
       </Show>
       <header class="editor-review-header">
-        <button
+        <EditorButton
+          variant="plain"
           ref={closeButton}
           type="button"
           data-testid="editor-page-viewer-close-button"
@@ -566,11 +569,9 @@ export default function EditorPageViewer(props: Props) {
           disabled={editBusy() || draft() || props.downloadBusy}
           onClick={props.onClose}
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m12 4-6 6 6 6" />
-          </svg>
+          <EditorIcon name="back" />
           <span>Pages</span>
-        </button>
+        </EditorButton>
         <div class="editor-review-heading">
           <span class="editor-review-source" title={currentPage()?.sourceFile.name}>
             {currentPage()?.sourceFile.name}
@@ -588,7 +589,8 @@ export default function EditorPageViewer(props: Props) {
           </h2>
         </div>
         <Show when={props.onAddFiles}>
-          <button
+          <EditorButton
+            variant="plain"
             type="button"
             class="editor-review-add-files"
             aria-label="Add PDFs or images"
@@ -596,13 +598,12 @@ export default function EditorPageViewer(props: Props) {
             disabled={editBusy() || draft() || props.downloadBusy}
             onClick={props.onAddFiles}
           >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M10 4v12M4 10h12" />
-            </svg>
-          </button>
+            <EditorIcon name="plus" />
+          </EditorButton>
         </Show>
         <Show when={props.onDownload}>
-          <button
+          <EditorButton
+            variant="primary"
             type="button"
             class="editor-review-download"
             disabled={
@@ -616,7 +617,7 @@ export default function EditorPageViewer(props: Props) {
                 All {props.exportPageCount} {props.exportPageCount === 1 ? "page" : "pages"}
               </small>
             </Show>
-          </button>
+          </EditorButton>
         </Show>
       </header>
 
@@ -664,14 +665,15 @@ export default function EditorPageViewer(props: Props) {
           <Show when={renderState() === "error"}>
             <div class="editor-review-state editor-review-error" role="alert">
               <span>Preview unavailable.</span>
-              <button
+              <EditorButton
+                variant="plain"
                 type="button"
                 data-testid="editor-page-viewer-retry"
                 class="editor-review-retry"
                 onClick={retryRender}
               >
                 Retry
-              </button>
+              </EditorButton>
             </div>
           </Show>
         </div>
@@ -682,10 +684,6 @@ export default function EditorPageViewer(props: Props) {
             runtime={props.runtime}
             mode={workspaceTool()}
             locked={props.downloadBusy}
-            onChooseTool={(tool) => {
-              setWorkspaceTool(tool);
-              props.onChooseTool?.(tool);
-            }}
             onComposerHeight={setComposerHeight}
             onFocusBounds={focusBounds}
             onChange={(file, pageNumber) => props.onContentChange?.(file, pageNumber)}
@@ -698,7 +696,8 @@ export default function EditorPageViewer(props: Props) {
         </Show>
       </div>
       <footer class="editor-review-bottom">
-        <button
+        <EditorButton
+          variant="plain"
           type="button"
           class="editor-review-pages-toggle"
           aria-label="Show page thumbnails"
@@ -706,11 +705,10 @@ export default function EditorPageViewer(props: Props) {
           onClick={() => setShowPages(!showPages())}
           disabled={draft() || editBusy()}
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M3 3h5v6H3zM12 3h5v6h-5zM3 12h5v5H3zM12 12h5v5h-5z" />
-          </svg>
-        </button>
-        <button
+          <EditorIcon name="pages" />
+        </EditorButton>
+        <EditorButton
+          variant="plain"
           type="button"
           data-testid="editor-page-viewer-previous"
           class="editor-review-nav"
@@ -718,10 +716,8 @@ export default function EditorPageViewer(props: Props) {
           disabled={editBusy() || draft() || currentNavigationIndex() <= 0}
           onClick={() => moveBy(-1)}
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m12.5 4-6 6 6 6" />
-          </svg>
-        </button>
+          <EditorIcon name="previous" />
+        </EditorButton>
         <label class="editor-review-page-jump">
           <span class="sr-only">Go to page</span>
           <select
@@ -786,7 +782,8 @@ export default function EditorPageViewer(props: Props) {
             aria-hidden="true"
           />
         </nav>
-        <button
+        <EditorButton
+          variant="plain"
           type="button"
           data-testid="editor-page-viewer-next"
           class="editor-review-nav"
@@ -796,20 +793,20 @@ export default function EditorPageViewer(props: Props) {
           }
           onClick={() => moveBy(1)}
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m7.5 4 6 6-6 6" />
-          </svg>
-        </button>
+          <EditorIcon name="next" />
+        </EditorButton>
         <fieldset class="editor-review-zoom" aria-label="Page zoom">
-          <button
+          <EditorButton
+            variant="plain"
             type="button"
             aria-label="Zoom out"
             disabled={zoom() <= 1}
             onClick={() => setZoom(Math.max(1, zoom() / 1.4))}
           >
-            −
-          </button>
-          <button
+            <EditorIcon name="minus" />
+          </EditorButton>
+          <EditorButton
+            variant="plain"
             type="button"
             aria-label="Fit page"
             onClick={() => {
@@ -819,15 +816,16 @@ export default function EditorPageViewer(props: Props) {
             }}
           >
             {pageFit() === "page" ? "Width" : "Fit"}
-          </button>
-          <button
+          </EditorButton>
+          <EditorButton
+            variant="plain"
             type="button"
             aria-label="Zoom in"
             disabled={zoom() >= 4}
             onClick={() => setZoom(Math.min(4, zoom() * 1.4))}
           >
-            +
-          </button>
+            <EditorIcon name="plus" />
+          </EditorButton>
         </fieldset>
       </footer>
     </aside>

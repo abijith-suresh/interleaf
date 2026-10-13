@@ -71,7 +71,6 @@ function setup(data = content) {
         overlayRoot={root}
         onChange={changed}
         onBusy={busy}
-        onChooseTool={setMode}
         onDraft={(value) => {
           draft(value);
           setLocked(value);
@@ -195,33 +194,95 @@ describe("Direct page editing", () => {
     expect(draft).toHaveBeenLastCalledWith(false);
     unmount();
   });
-  it("keeps flat forms in Fill forms until Add text is explicitly chosen", async () => {
+  it("fills a flat form without changing tools or creating a draft before placement", async () => {
     const { unmount, changed } = setup();
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Place text on page" })).toBeEnabled()
     );
     fireEvent.click(screen.getByRole("button", { name: "Fill forms" }));
-    const cue = screen.getByText("No interactive fields.");
+    const cue = screen.getByText("Tap a blank to fill.");
     expect(cue.closest(".editor-content-tool-context")).toBeInTheDocument();
     expect(cue.closest('[role="status"]')).toBeNull();
-    expect(document.querySelector(".editor-content-guidance")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Place text on page" })).not.toBeInTheDocument();
-    fireEvent.keyDown(screen.getByRole("button", { name: "Select field on page" }), {
-      key: "Enter",
-    });
+    expect(screen.queryByRole("button", { name: "Add text instead" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Text")).not.toBeInTheDocument();
-    expect(changed).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Add text instead" }));
+    expect(screen.getByRole("button", { name: "Place form text" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    fireEvent.keyDown(screen.getByRole("button", { name: "Fill blank on page" }), { key: "Enter" });
+    const input = await screen.findByLabelText("Text");
+    fireEvent.input(input, { target: { value: "Alice" } });
+    fireEvent.click(screen.getByRole("button", { name: "Fill text" }));
+    await waitFor(() => expect(changed).toHaveBeenCalledWith(page.sourceFile, 1));
     expect(screen.getByRole("region", { name: "Page content" })).toHaveAttribute(
       "data-tool",
-      "add"
+      "forms"
     );
-    expect(screen.getByText("Tap the page to place text.")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Text")).not.toBeInTheDocument();
-    expect(await placeText()).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Fill blank on page" })).toBeEnabled();
     unmount();
   });
-  it("counts only supported native fields and does not place text in read-only forms", async () => {
+  it("starts form answers upright at a normal size after a rotated text edit", async () => {
+    const { unmount } = setup();
+    const input = await placeText();
+    fireEvent.input(input, { target: { value: "Rotated note" } });
+    fireEvent.click(screen.getByRole("button", { name: "Rotate draft text 90 degrees" }));
+    fireEvent.input(screen.getByLabelText("Text size"), { target: { value: "48" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fill forms" }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "Fill blank on page" }), { key: "Enter" });
+    expect(screen.getByLabelText("Text size")).toHaveValue(14);
+    expect(screen.getByRole("button", { name: "Rotate draft text 90 degrees" })).toHaveTextContent(
+      "0°"
+    );
+    expect(document.querySelector(".editor-content-preview text")).toHaveAttribute(
+      "transform",
+      expect.stringContaining("rotate(0")
+    );
+    unmount();
+  });
+  it("creates an X draft without a text keyboard and cancellation leaves the PDF untouched", async () => {
+    const { unmount, runPromise, changed, draft } = setup();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Place text on page" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Fill forms" }));
+    fireEvent.click(screen.getByRole("button", { name: "Place X mark" }));
+    const surface = screen.getByRole("button", { name: "Place X mark on page" });
+    const pointer = (type: string, x: number, id = 1, primary = true) =>
+      surface.dispatchEvent(
+        Object.assign(new Event(type, { bubbles: true }), {
+          clientX: x,
+          clientY: 60,
+          pointerId: id,
+          isPrimary: primary,
+        })
+      );
+    pointer("pointerdown", 30);
+    pointer("pointerup", 60);
+    pointer("pointerdown", 30);
+    pointer("pointerdown", 30, 2, false);
+    pointer("pointerup", 30);
+    expect(screen.queryByRole("button", { name: "Add X mark" })).not.toBeInTheDocument();
+    fireEvent.keyDown(surface, { key: "Enter" });
+    expect(screen.queryByLabelText("Text")).not.toBeInTheDocument();
+    expect(document.querySelector(".editor-content-preview text")).toHaveTextContent("X");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add X mark" })).toHaveFocus());
+    expect(draft).toHaveBeenLastCalledWith(true);
+    expect(changed).not.toHaveBeenCalled();
+    expect(runPromise).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel edit" }));
+    expect(screen.queryByRole("button", { name: "Add X mark" })).not.toBeInTheDocument();
+    expect(changed).not.toHaveBeenCalled();
+    expect(runPromise).toHaveBeenCalledTimes(1);
+    expect(draft).toHaveBeenLastCalledWith(false);
+    fireEvent.keyDown(screen.getByRole("button", { name: "Place X mark on page" }), {
+      key: "Enter",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add X mark" }));
+    await waitFor(() => expect(changed).toHaveBeenCalledWith(page.sourceFile, 1));
+    unmount();
+  });
+  it("does not offer native editing for read-only fields while allowing manual form answers", async () => {
     const { unmount, changed } = setup({
       ...content,
       fields: [
@@ -245,15 +306,14 @@ describe("Direct page editing", () => {
       expect(screen.getByRole("button", { name: "Place text on page" })).toBeEnabled()
     );
     fireEvent.click(screen.getByRole("button", { name: "Fill forms" }));
-    expect(screen.getByText("No supported fillable fields.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Fill Locked name" })).toBeDisabled();
-    fireEvent.keyDown(screen.getByRole("button", { name: "Select field on page" }), {
-      key: "Enter",
-    });
+    expect(screen.queryByRole("button", { name: "Fill existing fields" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Fill Locked name" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Place form text" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
     expect(screen.queryByLabelText("Text")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Place text on page" })).not.toBeInTheDocument();
     expect(changed).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Add text instead" })).toBeEnabled();
     unmount();
   });
   it("ignores scroll and pinch gestures, and preserves text when repositioned", async () => {
@@ -308,6 +368,11 @@ describe("Direct page editing", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fill forms" }));
     expect(screen.getByText("2 interactive fields")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add text instead" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Place form text" }));
+    expect(screen.getByRole("button", { name: "Fill blank on page" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Fill Name" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fill existing fields" }));
+    expect(screen.queryByRole("button", { name: "Fill blank on page" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Fill Name" }));
     fireEvent.input(screen.getByLabelText("Name"), { target: { value: "Alice" } });
     fireEvent.click(screen.getByRole("button", { name: "Save & next" }));

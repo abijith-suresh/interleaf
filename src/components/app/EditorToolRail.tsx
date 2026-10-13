@@ -1,4 +1,6 @@
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import EditorButton from "./ui/EditorButton";
+import EditorIcon from "./ui/EditorIcon";
 
 export type EditorWorkspaceTool = "pages" | "read" | "add" | "replace" | "forms";
 
@@ -13,47 +15,29 @@ const tools = [
     id: "add" as const,
     label: "Add text",
     description: "Place new text anywhere on the page.",
-    path: "M3 5h12 M9 5v14 M6 19h6 M18 13v7 M14.5 16.5h7",
+    icon: "add" as const,
   },
   {
     id: "replace" as const,
     label: "Edit text",
     description: "Replace supported original text.",
-    path: "M3 5h12 M9 5v14 M6 19h5 M13 17l5-5 3 3-5 5-4 1z M17 13l3 3",
+    icon: "edit" as const,
   },
   {
     id: "forms" as const,
     label: "Fill forms",
-    description: "Fill the fields built into the PDF.",
-    path: "M5 3h14v18H5z M8 7h8 M8 11h2v2H8z M13 12h3 M8 16h2v2H8z M13 17h3",
+    description: "Fill fields or place text on blanks.",
+    icon: "forms" as const,
   },
 ];
 const views = [
   {
     id: "pages" as const,
     label: "Pages",
-    path: "M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z",
+    icon: "pages" as const,
   },
-  { id: "read" as const, label: "Document", path: "M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h7" },
+  { id: "read" as const, label: "Document", icon: "document" as const },
 ];
-
-function ToolIcon(props: { path: string }) {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.5"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <path d={props.path} />
-    </svg>
-  );
-}
 
 export default function EditorToolRail(props: Props) {
   const [compact, setCompact] = createSignal(
@@ -108,7 +92,8 @@ export default function EditorToolRail(props: Props) {
         <nav class="editor-workspace-views" aria-label="Workspace views">
           <For each={views}>
             {(view) => (
-              <button
+              <EditorButton
+                variant="plain"
                 type="button"
                 class="editor-tool-rail-item"
                 aria-current={
@@ -117,16 +102,17 @@ export default function EditorToolRail(props: Props) {
                 disabled={props.busy}
                 onClick={() => choose(view.id)}
               >
-                <ToolIcon path={view.path} />
+                <EditorIcon name={view.icon} />
                 <span>{view.label}</span>
-              </button>
+              </EditorButton>
             )}
           </For>
         </nav>
         <Show
           when={!compact()}
           fallback={
-            <button
+            <EditorButton
+              variant="plain"
               ref={trigger}
               type="button"
               class="editor-tool-rail-item editor-tools-trigger"
@@ -138,28 +124,29 @@ export default function EditorToolRail(props: Props) {
                 sheet.showModal();
               }}
             >
-              <ToolIcon path="M3 6h18 M3 12h18 M3 18h18 M8 3v6 M16 9v6 M10 15v6" />
+              <EditorIcon name="tools" />
               <span>Tools</span>
               <Show when={activeLabel()}>
                 <small>{activeLabel()}</small>
               </Show>
-            </button>
+            </EditorButton>
           }
         >
           <fieldset class="editor-workspace-actions" aria-label="PDF tools">
             <legend>Tools</legend>
             <For each={tools}>
               {(tool) => (
-                <button
+                <EditorButton
+                  variant="plain"
                   type="button"
                   class="editor-tool-rail-item"
                   aria-pressed={props.activeTool === tool.id}
                   disabled={props.busy}
                   onClick={() => choose(tool.id)}
                 >
-                  <ToolIcon path={tool.path} />
+                  <EditorIcon name={tool.icon} />
                   <span>{tool.label}</span>
-                </button>
+                </EditorButton>
               )}
             </For>
           </fieldset>
@@ -187,14 +174,15 @@ export default function EditorToolRail(props: Props) {
         >
           <header>
             <h2>Tools</h2>
-            <button type="button" aria-label="Close tools" onClick={close}>
-              ×
-            </button>
+            <EditorButton variant="plain" type="button" aria-label="Close tools" onClick={close}>
+              <EditorIcon name="close" />
+            </EditorButton>
           </header>
           <div class="editor-tools-sheet-list">
             <For each={tools}>
               {(tool) => (
-                <button
+                <EditorButton
+                  variant="plain"
                   type="button"
                   aria-label={tool.label}
                   aria-describedby={`pdf-tool-${tool.id}-description`}
@@ -202,12 +190,12 @@ export default function EditorToolRail(props: Props) {
                   disabled={props.busy}
                   onClick={() => choose(tool.id)}
                 >
-                  <ToolIcon path={tool.path} />
+                  <EditorIcon name={tool.icon} />
                   <span>
                     <strong>{tool.label}</strong>
                     <small id={`pdf-tool-${tool.id}-description`}>{tool.description}</small>
                   </span>
-                </button>
+                </EditorButton>
               )}
             </For>
           </div>

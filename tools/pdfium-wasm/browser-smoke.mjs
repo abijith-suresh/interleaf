@@ -7,6 +7,7 @@ import { init } from "@embedpdf/pdfium";
 import { unzipSync } from "fflate";
 import {
   createJpegFile,
+  createPdfBytes,
   createPdfFile,
   createPngFile,
   formBytes,
@@ -198,14 +199,26 @@ async function waitForSaved() {
   await page.locator(".editor-content-composer").waitFor({ state: "hidden" });
   await page.getByRole("status").filter({ hasText: "Applied to this page" }).waitFor();
 }
-async function placeText(x = 0.17, y = 0.88, touch = false) {
-  const placement = page.getByRole("button", { name: "Place text on page", exact: true });
+async function placeText(x = 0.17, y = 0.88, touch = false, placementLabel = "Place text on page") {
+  const placement = page.getByRole("button", { name: placementLabel, exact: true });
   const box = await placement.boundingBox();
   assert.ok(box && box.width > 0 && box.height > 0);
   await placement[touch ? "tap" : "click"]({
     position: { x: box.width * x, y: box.height * y },
   });
-  await page.getByLabel("Text", { exact: true }).waitFor();
+  if (placementLabel === "Place X mark on page") {
+    await page.getByRole("button", { name: "Add X mark", exact: true }).waitFor();
+    assert.equal(await page.getByRole("textbox").count(), 0, "X marks do not open a text input");
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.tagName === "INPUT"),
+      false,
+      "X marks must not focus a text input or summon the mobile keyboard"
+    );
+  } else await page.getByLabel("Text", { exact: true }).waitFor();
+}
+async function saveXMark(touch = false) {
+  await page.getByRole("button", { name: "Add X mark", exact: true })[touch ? "tap" : "click"]();
+  await waitForSaved();
 }
 async function assertVisibleInViewport(locator, label) {
   await locator.scrollIntoViewIfNeeded();
@@ -318,6 +331,23 @@ try {
   await page.getByLabel("Color", { exact: true }).selectOption("Blue");
   await page.getByRole("button", { name: "Save field", exact: true }).click();
   await waitForSaved();
+  await page.getByRole("button", { name: "Place form text", exact: true }).click();
+  await placeText(0.3, 0.75, false, "Fill blank on page");
+  assert.match(
+    await page.locator(".editor-content-preview text").getAttribute("transform"),
+    /^rotate\(0 /,
+    "Entering form filling starts horizontal despite a prior Add text rotation"
+  );
+  await applyText("Manual answer", "Fill text");
+  await page.getByRole("button", { name: "Place X mark", exact: true }).click();
+  await placeText(0.8, 0.7, false, "Place X mark on page");
+  await saveXMark();
+  await placeText(0.8, 0.8, false, "Place X mark on page");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Fill existing fields", exact: true }).click();
+  await page.getByRole("button", { name: "Fill Name", exact: true }).click();
+  assert.equal(await page.getByLabel("Name", { exact: true }).inputValue(), "Alice");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.screenshot({ path: join(directory, "editing.png"), fullPage: true });
   await backToPages();
   await page.getByTestId("editor-download-options-button").click();
@@ -334,7 +364,7 @@ try {
   const content = engine.content(edited.id, 1);
   assert.deepEqual(
     content.text.map((run) => run.text),
-    ["New phrase", "Added line", "Turned"]
+    ["New phrase", "Added line", "Turned", "Manual answer", "X"]
   );
   assert.equal(content.fields[0].value, "Alice");
   assert.equal(content.fields[1].checked, true);
@@ -384,7 +414,7 @@ try {
   assert.notEqual(originalFields[0].name, copiedFields[0].name);
   assert.deepEqual(
     engine.content(duplicated.id, 2).text.map((run) => run.text),
-    ["New phrase", "Added line", "Turned"]
+    ["New phrase", "Added line", "Turned", "Manual answer", "X"]
   );
 
   const sharedPath = join(directory, "shared.pdf");
@@ -446,25 +476,45 @@ try {
   });
   page = await mobileContext.newPage();
   observe(mobileContext, page);
-  await openFiles([blankPath]);
+  const flatCommands = [
+    "BT /F1 20 Tf 40 740 Td (Registration form) Tj ET",
+    "BT /F1 12 Tf 40 690 Td (Name) Tj ET",
+    "170 660 350 30 re S",
+    "BT /F1 12 Tf 65 620 Td (I agree) Tj ET",
+    "40 615 16 16 re S",
+  ].join("\n");
+  const flatPath = join(directory, "flat-form.pdf");
+  await writeFile(
+    flatPath,
+    createPdfBytes([
+      "<< /Type /Catalog /Pages 2 0 R >>",
+      "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+      `<< /Length ${flatCommands.length} >>\nstream\n${flatCommands}\nendstream`,
+    ])
+  );
+  await openFiles([flatPath]);
   await chooseTool("Fill forms", true);
-  await page.getByText("No interactive fields.", { exact: true }).waitFor();
+  await page.getByText("Tap a blank to fill.", { exact: true }).waitFor();
   await assertMobileToolPicker();
   assert.equal(
-    await page.getByRole("button", { name: "Place text on page", exact: true }).count(),
-    0,
-    "Fill forms must not silently place text on a flat document"
+    await page.getByRole("region", { name: "Page content" }).getAttribute("data-tool"),
+    "forms",
+    "Flat form filling stays inside the Fill forms tool"
   );
-  await page.getByRole("button", { name: "Select field on page", exact: true }).focus();
-  await page.keyboard.press("Enter");
-  assert.equal(await page.locator(".editor-content-composer").count(), 0);
-  const context = page.locator(".editor-content-tool-context");
   assert.equal(
-    await context.getAttribute("role"),
+    await page.getByRole("button", { name: "Fill existing fields", exact: true }).count(),
+    0
+  );
+  assert.equal(await page.locator(".editor-content-composer").count(), 0);
+  const toolContext = page.locator(".editor-content-tool-context");
+  assert.equal(
+    await toolContext.getAttribute("role"),
     null,
     "Static instructions must not be live status"
   );
-  const instructionBounds = await context.boundingBox();
+  const instructionBounds = await toolContext.boundingBox();
   const stageBounds = await page.locator(".editor-review-stage").boundingBox();
   assert.ok(instructionBounds && stageBounds);
   assert.ok(
@@ -474,16 +524,57 @@ try {
     "Tool instructions must attach to the full width of the document stage"
   );
   assert.equal(await page.locator(".editor-content-guidance").count(), 0);
-  await page.getByRole("button", { name: "Add text instead", exact: true }).tap();
-  assert.equal(
-    await page.getByRole("region", { name: "Page content" }).getAttribute("data-tool"),
-    "add"
+  await placeText(0.3, 0.135, true, "Fill blank on page");
+  await applyText("Completed on phone", "Fill text");
+  await page.getByRole("button", { name: "Place X mark", exact: true }).tap();
+  await placeText(0.071, 0.196, true, "Place X mark on page");
+  await assertDraftWithinStage();
+  await saveXMark(true);
+  await page.getByRole("button", { name: "Place form text", exact: true }).tap();
+  await placeText(0.3, 0.4, true, "Fill blank on page");
+  await page.getByLabel("Text", { exact: true }).fill("Cancelled answer");
+  await page.getByRole("button", { name: "Cancel", exact: true }).tap();
+  await page.getByRole("button", { name: "Place form text", exact: true }).tap();
+  await page.screenshot({ path: join(directory, "mobile-flat-form.png"), fullPage: true });
+  await backToPages(true);
+  const completedFlat = engine.open(
+    await downloadFrom("editor-download-button", "completed-flat-form.pdf")
   );
-  assert.equal(
-    await page.locator(".editor-content-composer").count(),
-    0,
-    "Switching to Add text requires a separate placement"
+  const flatContent = engine.content(completedFlat.id, 1);
+  assert.deepEqual(
+    flatContent.text.map((run) => run.text),
+    ["Registration form", "Name", "I agree", "Completed on phone", "X"]
   );
+  assert.deepEqual(
+    flatContent.fields,
+    [],
+    "Filling a flat form adds page content, not interactive fields"
+  );
+
+  const scanPath = join(directory, "image-only-form.pdf");
+  await writeFile(
+    scanPath,
+    engine.images([
+      { kind: "jpeg", bytes: new Uint8Array(await readFile(jpegPath)), orientation: 6 },
+    ])
+  );
+  await openFiles([scanPath]);
+  await chooseTool("Fill forms", true);
+  await page.getByText("Tap a blank to fill.", { exact: true }).waitFor();
+  await placeText(0.15, 0.3, true, "Fill blank on page");
+  await applyText("Scan answer", "Fill text");
+  await backToPages(true);
+  const completedScan = engine.open(
+    await downloadFrom("editor-download-button", "completed-image-form.pdf")
+  );
+  assert.deepEqual(
+    engine.content(completedScan.id, 1).text.map((run) => run.text),
+    ["Scan answer"]
+  );
+  assert.deepEqual(engine.content(completedScan.id, 1).fields, []);
+
+  await openFiles([blankPath]);
+  await chooseTool("Add text", true);
   await page.getByText("Tap the page to place text.", { exact: true }).waitFor();
   const fittedWidth = await page
     .locator(".editor-review-page")
@@ -656,7 +747,7 @@ try {
     []
   );
   process.stdout.write(
-    `PASS ${browserName}: universal workspace, direct text placement/rotation/replacement, independent page duplicates, native forms and guided navigation, PNG ZIP, mixed files, file removal, add files, password export, compression, mobile zoom/flat-form/draft recovery/short viewport/landscape, and privacy. Artifacts: ${directory}\n`
+    `PASS ${browserName}: universal workspace, direct text placement/rotation/replacement, independent page duplicates, native forms and guided navigation, PNG ZIP, mixed files, file removal, add files, password export, compression, mobile zoom/flat and image form completion/cancelled drafts/native field isolation/short viewport/landscape, and privacy. Artifacts: ${directory}\n`
   );
 } catch (error) {
   await page.screenshot({ path: join(directory, "failure.png"), fullPage: true });
