@@ -45,5 +45,9 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 
+# Playwright
+test-results/
+playwright-report/
+
 # Deploy
 .vercel

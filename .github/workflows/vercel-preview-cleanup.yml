@@ -1,0 +1,22 @@
+name: Clean up Vercel preview deployments
+
+on:
+  pull_request_target:
+    types:
+      - closed
+
+permissions:
+  pull-requests: read
+
+concurrency:
+  group: vercel-preview-cleanup-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    uses: abijith-suresh/workflows/.github/workflows/vercel-preview-cleanup.yml@9c9e55ab629eafe5b5edbae9857b1d66fb384f8c # 0.8.1
+    with:
+      vercel_project: interleaf
+      vercel_scope: abijiths-projects-1
+    secrets:
+      vercel_token: ${{ secrets.VERCEL_TOKEN }}

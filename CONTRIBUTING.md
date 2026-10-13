@@ -60,9 +60,11 @@ bun run format
 
 CI runs on every PR to `main`:
 
-- **quality**: full verify pass (type-check, lint, format:check, test, build)
+- **ci**: shared Astro pipeline — type-check, lint, format:check, test, build, and Playwright browser tests
+- **gate**: aggregates `ci`, `dependency-review`, and `qpdf`; this is the required branch-protection check
 - **pr-title**: enforces Conventional Commit format on PR titles
 - **dependency-review**: audits dependency changes
+- **qpdf**: builds and smoke-tests the qpdf WASM module when its files change
 
 ## Versioning And Releases
 
@@ -96,14 +98,24 @@ bun run test:watch   # Watch mode
 
 Cover services, controllers, utilities, and editor components. Use Vitest with the `jsdom` environment.
 
+Browser tests live in `tests/e2e` and use Playwright against a preview build:
+
+```sh
+bunx playwright install --with-deps chromium firefox webkit   # once per machine
+bun run test:e2e:build             # builds, then runs the browser tests
+```
+
+Run `bun run test:e2e` to reuse an existing build.
+
+CI runs the suite in Chromium, Firefox, and WebKit.
+
 ### Browser regression checks
 
 After PDF engine changes, build the app and run the browser smoke check against a local server.
-The Playwright runner installs separately from the application dependencies.
+The engine smoke check uses the same Playwright installation.
 
 ```sh
-npm install --prefix /tmp/interleaf-browser-runner --no-package-lock playwright@1.55.0
-/tmp/interleaf-browser-runner/node_modules/.bin/playwright install chromium
+bunx playwright install chromium
 bun run build
 python3 -m http.server 4873 --bind 127.0.0.1 --directory dist
 ```
@@ -111,7 +123,7 @@ python3 -m http.server 4873 --bind 127.0.0.1 --directory dist
 In a second terminal:
 
 ```sh
-bun tools/pdfium-wasm/browser-smoke.mjs http://127.0.0.1:4873 /tmp/interleaf-browser-runner
+bun tools/pdfium-wasm/browser-smoke.mjs http://127.0.0.1:4873
 ```
 
 The runner checks editing, form values, exports, mixed inputs, source removal, passwords,
@@ -121,6 +133,7 @@ height; they do not open an operating system keyboard.
 
 Set `INTERLEAF_BROWSER=firefox` or `INTERLEAF_BROWSER=webkit` to use an installed Playwright
 browser. `INTERLEAF_BROWSER_EXECUTABLE` can select a compatible local browser executable.
+
 
 ### Styling
 
