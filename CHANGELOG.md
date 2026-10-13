@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.0.12](https://github.com/abijith-suresh/interleaf/compare/0.0.11...0.0.12) (2026-10-13)
+
+
+### Bug Fixes
+
+* center hero secondary column and cap about title width ([#297](https://github.com/abijith-suresh/interleaf/issues/297)) ([e2e473d](https://github.com/abijith-suresh/interleaf/commit/e2e473ddd2cf7a7bc228abedd670bba4f3d5c1b9))
+* **marketing:** align FAQ intro and animate disclosure items ([#298](https://github.com/abijith-suresh/interleaf/issues/298)) ([04c7a12](https://github.com/abijith-suresh/interleaf/commit/04c7a1281269f3feb6861adddd4724d2e12a7bf2))
+* unify feature section rows ([#300](https://github.com/abijith-suresh/interleaf/issues/300)) ([aa66082](https://github.com/abijith-suresh/interleaf/commit/aa660826c628372bf76afb3ea099229099b26004))
+
 ## [0.0.11](https://github.com/abijith-suresh/interleaf/compare/0.0.10...0.0.11) (2026-10-07)
 
 
