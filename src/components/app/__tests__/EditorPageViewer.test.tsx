@@ -66,6 +66,31 @@ describe("EditorPageViewer", () => {
     vi.restoreAllMocks();
   });
 
+  it("keeps page management in Pages while Document exposes reading controls", async () => {
+    render(() => (
+      <EditorPageViewer
+        pages={makePages()}
+        navigationPageIds={["page-1", "page-2", "page-3"]}
+        activePageId="page-1"
+        runtime={runtime}
+        onActivePageChange={vi.fn()}
+        onClose={vi.fn()}
+        tool="read"
+        onContentChange={vi.fn()}
+      />
+    ));
+    expect(screen.getByRole("button", { name: "Document" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(
+      screen.queryByRole("button", { name: /Rotate page|Duplicate|Delete|Mark.*deletion/ })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Tap the page to place text.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zoom in" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+  });
+
   it("fits the entire page inside the stage after accounting for its actual padding", async () => {
     const pages = makePages();
     render(() => (

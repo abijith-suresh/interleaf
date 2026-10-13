@@ -26,9 +26,6 @@ interface Props {
   tool?: Exclude<EditorWorkspaceTool, "pages">;
   onChooseTool?: (tool: EditorWorkspaceTool) => void;
   onAddFiles?: () => void;
-  onRotatePage?: (pageId: string) => void;
-  onDeletePage?: (pageId: string) => void;
-  onDuplicatePage?: (pageId: string) => void;
   onDownload?: () => void;
   downloadBusy?: boolean;
   downloadAvailable?: boolean;
@@ -629,43 +626,9 @@ export default function EditorPageViewer(props: Props) {
         </p>
       </Show>
 
-      <Show when={workspaceTool() === "read" && props.onRotatePage}>
-        <div class="editor-review-page-actions" role="toolbar" aria-label="Current page actions">
-          <button
-            type="button"
-            disabled={props.downloadBusy || !props.onRotatePage}
-            onClick={() => {
-              const page = currentPage();
-              if (page) props.onRotatePage?.(page.id);
-            }}
-          >
-            Rotate 90°
-          </button>
-          <button
-            type="button"
-            disabled={props.downloadBusy || !props.onDuplicatePage}
-            onClick={() => {
-              const page = currentPage();
-              if (page) props.onDuplicatePage?.(page.id);
-            }}
-          >
-            Duplicate
-          </button>
-          <button
-            type="button"
-            disabled={props.downloadBusy || !props.onDeletePage}
-            onClick={() => {
-              const page = currentPage();
-              if (page) props.onDeletePage?.(page.id);
-            }}
-          >
-            {currentPage()?.markedForDeletion ? "Restore" : "Mark for deletion"}
-          </button>
-        </div>
-      </Show>
       <div
         class="editor-review-body"
-        classList={{ "has-selection": selection() }}
+        classList={{ "has-selection": selection(), "has-tool": workspaceTool() !== "read" }}
         style={{ "--composer-height": `${composerHeight()}px` }}
       >
         <div
@@ -719,6 +682,10 @@ export default function EditorPageViewer(props: Props) {
             runtime={props.runtime}
             mode={workspaceTool()}
             locked={props.downloadBusy}
+            onChooseTool={(tool) => {
+              setWorkspaceTool(tool);
+              props.onChooseTool?.(tool);
+            }}
             onComposerHeight={setComposerHeight}
             onFocusBounds={focusBounds}
             onChange={(file, pageNumber) => props.onContentChange?.(file, pageNumber)}

@@ -35,6 +35,7 @@ interface Props {
   rotation?: number;
   mode: Mode;
   locked?: boolean;
+  onChooseTool?: (mode: Mode) => void;
   onFocusBounds?: (bounds: PageBox, width: number, height: number) => void;
   onComposerHeight?: (height: number) => void;
   onChange: (file: File, pageNumber?: number) => void;
@@ -70,6 +71,7 @@ export default function EditorContentPanel(props: Props) {
   createEffect(() => {
     if (props.mode) {
       clearSelection();
+      setMessage("");
     }
   });
   createEffect(() => props.onDraft?.(dirty()));
@@ -83,19 +85,23 @@ export default function EditorContentPanel(props: Props) {
             (a.bounds?.y ?? 0) - (b.bounds?.y ?? 0) || (a.bounds?.x ?? 0) - (b.bounds?.x ?? 0)
         ) ?? []
   );
-  const canPlace = () => mode() === "add" || (mode() === "forms" && !fields().length);
+  const canPlace = () => mode() === "add";
   const helper = () =>
     loading()
       ? "Reading page…"
       : mode() === "replace"
         ? content()?.text.some((item) => item.editable)
-          ? "Select text on the page."
+          ? "Select highlighted text."
           : "No editable text on this page."
         : mode() === "forms"
           ? fields().length
-            ? "Tap a field."
-            : "No fields. Tap to add text."
-          : "Tap to add text.";
+            ? `${fields().length} interactive ${fields().length === 1 ? "field" : "fields"}`
+            : content()?.fields.length
+              ? "No supported fillable fields."
+              : "No interactive fields."
+          : "Tap the page to place text.";
+  const toolLabel = () =>
+    mode() === "forms" ? "Fill forms" : mode() === "replace" ? "Edit text" : "Add text";
 
   function clearSelection() {
     setRun(undefined);
@@ -432,8 +438,14 @@ export default function EditorContentPanel(props: Props) {
       data-tool={mode()}
     >
       <Show when={!selected() && mode() !== "read"}>
-        <div class="editor-content-guidance" role="status" aria-live="polite">
+        <div class="editor-content-tool-context">
+          <strong>{toolLabel()}</strong>
           <p>{helper()}</p>
+          <Show when={!loading() && mode() === "forms" && !fields().length && props.onChooseTool}>
+            <button type="button" disabled={busy()} onClick={() => props.onChooseTool?.("add")}>
+              Add text instead
+            </button>
+          </Show>
         </div>
       </Show>
       <Show when={props.overlayRoot && content()}>

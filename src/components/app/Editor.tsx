@@ -506,7 +506,7 @@ export default function Editor() {
     setCanvasOpen(false);
     queueMicrotask(() => {
       const pagesTool = editorRoot?.querySelector<HTMLButtonElement>(
-        '.editor-tool-rail-item[aria-pressed="true"]'
+        '.editor-tool-rail-item[aria-current="page"]'
       );
       (pagesTool ?? editorRoot)?.focus();
     });
@@ -1138,18 +1138,6 @@ export default function Editor() {
                   if (tool !== "pages") setWorkspaceTool(tool);
                 }}
                 onAddFiles={requestAddFiles}
-                onRotatePage={(id) => {
-                  const index = pages.findIndex((page) => page.id === id);
-                  if (index >= 0) handlePageRotate(index, new MouseEvent("click"));
-                }}
-                onDeletePage={(id) => {
-                  const index = pages.findIndex((page) => page.id === id);
-                  if (index >= 0) handlePageDelete(index, new MouseEvent("click"));
-                }}
-                onDuplicatePage={(id) => {
-                  const index = pages.findIndex((page) => page.id === id);
-                  if (index >= 0) void duplicatePage(index);
-                }}
                 onDownload={() => handleDownload("workspace")}
                 downloadBusy={isBusy()}
                 downloadAvailable={activePageCount() > 0}

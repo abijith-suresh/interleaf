@@ -54,19 +54,104 @@ async function openFiles(files) {
   await page.locator("[data-testid=editor-page-canvas][data-render-state=ready]").first().waitFor();
 }
 async function chooseTool(name, touch = false) {
-  const tools = page.getByRole("navigation", { name: "Workspace tools", exact: true });
-  await tools.getByRole("button", { name, exact: true })[touch ? "tap" : "click"]();
-  await page.getByRole("dialog").waitFor();
+  const rail = page.locator(".editor-tool-rail");
+  if (name === "Document") {
+    await rail.getByRole("button", { name, exact: true })[touch ? "tap" : "click"]();
+  } else {
+    const direct = rail.getByRole("button", { name, exact: true });
+    if (await direct.isVisible()) {
+      await direct[touch ? "tap" : "click"]();
+    } else {
+      await rail.getByRole("button", { name: /^Tools/ })[touch ? "tap" : "click"]();
+      const picker = page.getByRole("dialog", { name: "PDF tools", exact: true });
+      await picker.getByRole("button", { name: new RegExp(`^${name}`) })[touch ? "tap" : "click"]();
+      await picker.waitFor({ state: "hidden" });
+    }
+  }
+  await page.getByTestId("editor-page-viewer").waitFor();
 }
 async function backToPages(touch = false) {
   const back = page.getByRole("button", { name: "Back to pages", exact: true });
   const target = (await back.isVisible())
     ? back
     : page
-        .getByRole("navigation", { name: "Workspace tools", exact: true })
+        .getByRole("navigation", { name: "Workspace views", exact: true })
         .getByRole("button", { name: "Pages", exact: true });
   await target[touch ? "tap" : "click"]();
   await page.getByTestId("editor-page-grid").waitFor();
+}
+async function assertMobileToolPicker() {
+  const rail = page.locator(".editor-tool-rail");
+  assert.deepEqual(await rail.locator("button:visible > span").allTextContents(), [
+    "Pages",
+    "Document",
+    "Tools",
+  ]);
+  const trigger = rail.getByRole("button", { name: /^Tools/ });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const picker = page.getByRole("dialog", { name: "PDF tools", exact: true });
+  assert.equal(
+    await picker.evaluate(
+      (dialog) => dialog instanceof HTMLDialogElement && dialog.matches(":modal")
+    ),
+    true
+  );
+  assert.equal(await trigger.getAttribute("aria-expanded"), "true");
+  assert.deepEqual(await picker.locator("button strong").allTextContents(), [
+    "Add text",
+    "Edit text",
+    "Fill forms",
+  ]);
+  const first = picker.getByRole("button", { name: "Close tools", exact: true });
+  const last = picker.getByRole("button", { name: /^Fill forms/ });
+  const assertModalFocus = async (key) => {
+    // Browser chrome can retain the previous DOM focus or expose body at a native modal boundary.
+    if (await page.evaluate(() => document.activeElement === document.body))
+      await page.keyboard.press(key);
+    assert.equal(
+      await picker.evaluate((dialog) => dialog.contains(document.activeElement)),
+      true,
+      "Native modal must keep background document controls out of keyboard navigation"
+    );
+  };
+  await last.focus();
+  await page.keyboard.press("Tab");
+  await assertModalFocus("Tab");
+  await first.focus();
+  await page.keyboard.press("Shift+Tab");
+  await assertModalFocus("Shift+Tab");
+  await last.focus();
+  await page.keyboard.press("Shift+Tab");
+  assert.equal(
+    await picker
+      .getByRole("button", { name: "Edit text", exact: true })
+      .evaluate((button) => document.activeElement === button),
+    true
+  );
+  await page.keyboard.press("Tab");
+  assert.equal(await last.evaluate((button) => document.activeElement === button), true);
+  await page.keyboard.press("Escape");
+  await picker.waitFor({ state: "hidden" });
+  assert.equal(
+    await page.getByTestId("editor-page-viewer").isVisible(),
+    true,
+    "Escape closes Tools while preserving Document"
+  );
+  assert.equal(await trigger.evaluate((button) => document.activeElement === button), true);
+  await trigger.tap();
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.waitForTimeout(200);
+  assert.equal(await picker.isVisible(), true, "Tools stays modal across compact orientations");
+  await page.keyboard.press("Escape");
+  await picker.waitFor({ state: "hidden" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(200);
+  assert.deepEqual(await rail.locator("button:visible > span").allTextContents(), [
+    "Pages",
+    "Document",
+    "Tools",
+  ]);
 }
 async function resetFitWidth(touch = false) {
   const fit = page.getByRole("button", { name: "Fit page", exact: true });
@@ -197,6 +282,14 @@ try {
   const compressed = await downloadFrom("editor-compress-button", "compressed.pdf");
   assert.equal(engine.open(compressed).count, 1);
 
+  await chooseTool("Document");
+  assert.equal(
+    await page.getByRole("navigation", { name: "Workspace views" }).getByRole("button").count(),
+    2
+  );
+  assert.equal(await page.getByRole("group", { name: "PDF tools" }).getByRole("button").count(), 3);
+  assert.equal(await page.getByRole("button", { name: /^(Rotate|Duplicate|Delete)$/ }).count(), 0);
+  assert.equal(await page.locator(".editor-content-tool-context").count(), 0);
   await chooseTool("Add text");
   assert.equal(await page.getByRole("button", { name: "Place text", exact: true }).count(), 0);
   assert.equal(
@@ -213,6 +306,7 @@ try {
   await page.getByRole("button", { name: "Edit Original phrase", exact: true }).click();
   await applyText("New phrase", "Replace text");
   await chooseTool("Fill forms");
+  await page.getByText("3 interactive fields", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Check Agree", exact: true }).click();
   await page.getByRole("button", { name: "Uncheck Agree", exact: true }).waitFor();
   await page.getByRole("button", { name: "Fill Name", exact: true }).click();
@@ -253,11 +347,14 @@ try {
   );
   assert.equal(turned.editable, false, "Original rotated-text replacement stays unsupported");
 
-  await chooseTool("Read");
-  await page.getByRole("button", { name: "Duplicate", exact: true }).click();
-  await page.getByRole("heading", { name: "Page 2", exact: true }).waitFor();
   await backToPages();
-  await page.getByRole("button", { name: "Page 2", exact: true }).click();
+  await page.getByRole("button", { name: "Duplicate page 1", exact: true }).click();
+  await page.getByRole("button", { name: "Page 2", exact: true }).waitFor();
+  await chooseTool("Document");
+  await page
+    .getByRole("combobox", { name: "Go to page", exact: true })
+    .selectOption({ label: "2" });
+  await page.getByRole("heading", { name: "Page 2", exact: true }).waitFor();
   await chooseTool("Fill forms");
   await page.getByRole("button", { name: "Fill Name", exact: true }).click();
   await page.getByLabel("Name", { exact: true }).fill("Copy only");
@@ -351,7 +448,43 @@ try {
   observe(mobileContext, page);
   await openFiles([blankPath]);
   await chooseTool("Fill forms", true);
-  await page.getByText("No fields. Tap to add text.", { exact: true }).waitFor();
+  await page.getByText("No interactive fields.", { exact: true }).waitFor();
+  await assertMobileToolPicker();
+  assert.equal(
+    await page.getByRole("button", { name: "Place text on page", exact: true }).count(),
+    0,
+    "Fill forms must not silently place text on a flat document"
+  );
+  await page.getByRole("button", { name: "Select field on page", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  assert.equal(await page.locator(".editor-content-composer").count(), 0);
+  const context = page.locator(".editor-content-tool-context");
+  assert.equal(
+    await context.getAttribute("role"),
+    null,
+    "Static instructions must not be live status"
+  );
+  const instructionBounds = await context.boundingBox();
+  const stageBounds = await page.locator(".editor-review-stage").boundingBox();
+  assert.ok(instructionBounds && stageBounds);
+  assert.ok(
+    Math.abs(instructionBounds.x - stageBounds.x) <= 1 &&
+      Math.abs(instructionBounds.width - stageBounds.width) <= 1 &&
+      Math.abs(instructionBounds.y - stageBounds.y) <= 1,
+    "Tool instructions must attach to the full width of the document stage"
+  );
+  assert.equal(await page.locator(".editor-content-guidance").count(), 0);
+  await page.getByRole("button", { name: "Add text instead", exact: true }).tap();
+  assert.equal(
+    await page.getByRole("region", { name: "Page content" }).getAttribute("data-tool"),
+    "add"
+  );
+  assert.equal(
+    await page.locator(".editor-content-composer").count(),
+    0,
+    "Switching to Add text requires a separate placement"
+  );
+  await page.getByText("Tap the page to place text.", { exact: true }).waitFor();
   const fittedWidth = await page
     .locator(".editor-review-page")
     .evaluate((element) => element.clientWidth);

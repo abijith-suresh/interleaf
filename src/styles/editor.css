@@ -1988,23 +1988,130 @@ body:has([data-page="editor"]) {
   border-color: var(--editor-line-strong);
 }
 
-.editor-content-guidance {
+.editor-content-tool-context {
   position: absolute;
-  top: 8px;
-  left: 24px;
-  padding: 6px 10px;
-  border-radius: 5px;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--editor-line);
   background: var(--editor-paper);
   color: var(--editor-muted);
-  pointer-events: none;
+  pointer-events: auto;
 }
-.editor-content-guidance p {
+.editor-content-tool-context strong {
+  color: var(--editor-ink);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.editor-content-tool-context p {
   margin: 0;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.4;
 }
-.editor-review-body:not(.has-selection) .editor-review-stage {
-  padding-top: 44px;
+.editor-content-tool-context button {
+  margin-left: auto;
+  min-height: 44px;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+.editor-workspace-views {
+  display: grid;
+  gap: 5px;
+}
+.editor-workspace-actions {
+  display: grid;
+  gap: 5px;
+  margin: 16px 0 0;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--editor-line);
+}
+.editor-workspace-actions legend {
+  padding: 0 8px;
+  color: var(--editor-muted);
+  font-size: 11px;
+}
+.editor-workspace-views button[aria-current="page"] {
+  color: var(--editor-accent);
+  background: var(--editor-accent-soft);
+  font-weight: 600;
+}
+.editor-tools-sheet {
+  position: fixed;
+  inset: auto 0 0;
+  width: 100%;
+  max-width: 700px;
+  max-height: 85dvh;
+  margin: 0 auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  border: 1px solid var(--editor-line);
+  border-radius: 16px 16px 0 0;
+  background: var(--editor-paper);
+  color: var(--editor-ink);
+  overscroll-behavior: contain;
+}
+.editor-tools-sheet::backdrop {
+  background: rgb(20 20 18 / 35%);
+}
+.editor-tools-sheet header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.editor-tools-sheet h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.editor-tools-sheet button {
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.editor-tools-sheet header button {
+  width: 44px;
+  font-size: 24px;
+}
+.editor-tools-sheet-list {
+  display: grid;
+  gap: 4px;
+}
+.editor-tools-sheet-list button {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 8px;
+  text-align: left;
+}
+.editor-tools-sheet-list button:hover {
+  background: var(--editor-hover);
+}
+.editor-tools-sheet-list button[aria-pressed="true"] {
+  background: var(--editor-accent-soft);
+}
+.editor-tools-sheet-list span {
+  display: grid;
+  gap: 4px;
+}
+.editor-tools-sheet-list strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.editor-tools-sheet-list small {
+  font-size: 12px;
+  color: var(--editor-muted);
+}
+.editor-review-body.has-tool:not(.has-selection) .editor-review-stage {
+  padding-top: 56px;
 }
 .editor-review-add-files {
   display: grid;
@@ -2294,7 +2401,7 @@ body:has([data-page="editor"]) {
     padding-left: 84px;
   }
 }
-@media (max-width: 700px) {
+@media (max-width: 700px), (pointer: coarse) and (max-height: 500px) {
   .editor-selection-bar.has-selection {
     flex-wrap: wrap;
   }
@@ -2313,7 +2420,7 @@ body:has([data-page="editor"]) {
   }
   .editor-tool-rail-tools {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(92px, 0.5fr);
     gap: 0;
     padding: 4px 6px;
   }
@@ -2413,13 +2520,31 @@ body:has([data-page="editor"]) {
   .editor-review-pane.is-editing .editor-review-close {
     display: flex;
   }
-  .editor-content-guidance {
-    top: 8px;
-    left: 12px;
-    padding: 4px 8px;
+  .editor-content-tool-context {
+    padding: 0 12px;
+    gap: 8px;
+    flex-wrap: nowrap;
   }
-  .editor-content-guidance p {
+  .editor-content-tool-context p {
     font-size: 11px;
+    flex: 1;
+    min-width: 0;
+  }
+  .editor-workspace-views {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .editor-tools-trigger {
+    border-left: 1px solid var(--editor-line);
+    border-radius: 0;
+    gap: 1px;
+    height: 56px;
+    padding-block: 4px;
+    line-height: 16px;
+  }
+  .editor-tools-trigger small {
+    font-size: 10px;
+    line-height: 10px;
   }
   .editor-review-body.has-selection {
     padding-right: 0;

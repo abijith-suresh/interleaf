@@ -28,11 +28,13 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Add one line of text at a chosen position, drag its draft, and rotate it
 - Replace supported original text runs within their original width
 
-Choose **Pages**, **Read**, **Add text**, **Edit text**, or **Fill forms** from the workspace tools.
+Use **Pages** to organize pages and **Document** to read them. On mobile, open **Tools** for
+**Add text**, **Edit text**, or **Fill forms**; desktop shows these tools in the sidebar.
 Tap the page to place text, highlighted text to replace it, or a form field to fill it.
 Drag a new text draft to move it, and use its rotation control to change its orientation.
-Use **Save & next** to move through supported fields. Pages without interactive fields can be
-filled by placing text in visible blanks. Drafts preview before applying; cancel them to discard
+**Fill forms** uses interactive fields embedded in the PDF. It does not detect boxes on scanned
+or flat pages. Use **Add text** to fill visible blanks on those pages.
+Use **Save & next** to move through supported fields. Drafts preview before applying; cancel them to discard
 the draft. Download your PDF directly from the editor.
 
 The document editor downloads all exportable pages. In **Pages**, select pages to extract a subset.

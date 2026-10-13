@@ -239,11 +239,19 @@ describe("Editor", () => {
     const tiles = await openPDF();
     expect(screen.queryByRole("button", { name: /Review|Edit PDF/ })).not.toBeInTheDocument();
     fireEvent.click(tiles[1]);
-    for (const tool of ["Read", "Add text", "Edit text", "Fill forms", "Read"]) {
+    for (const tool of ["Document", "Add text", "Edit text", "Fill forms", "Document"]) {
       fireEvent.click(screen.getByRole("button", { name: tool }));
       expect(await screen.findByTestId("editor-page-viewer")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: tool })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: "Document" })).toHaveAttribute(
+        "aria-current",
+        "page"
+      );
+      if (tool !== "Document")
+        expect(screen.getByRole("button", { name: tool })).toHaveAttribute("aria-pressed", "true");
     }
+    expect(
+      screen.queryByRole("button", { name: /^(Rotate|Duplicate|Delete)$/ })
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
     expect(screen.getAllByRole("button", { name: /^Go to page/ })).toHaveLength(3);
     fireEvent.click(
@@ -274,7 +282,7 @@ describe("Editor", () => {
   it("opens a multi-page review without requiring a single selected page", async () => {
     await openPDF();
 
-    fireEvent.click(screen.getByRole("button", { name: "Read" }));
+    fireEvent.click(screen.getByRole("button", { name: "Document" }));
 
     await waitFor(() => expect(screen.getByTestId("editor-page-viewer")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
@@ -290,11 +298,11 @@ describe("Editor", () => {
   });
 
   it.each([
-    { label: "Add text", mode: "add", guidance: "Tap to add text." },
+    { label: "Add text", mode: "add", guidance: "Tap the page to place text." },
     {
       label: "Fill forms",
       mode: "forms",
-      guidance: "No fields. Tap to add text.",
+      guidance: "No interactive fields.",
     },
   ])("opens $label directly from the workspace tool rail", async ({ label, mode, guidance }) => {
     const file = makeFile();
