@@ -48,19 +48,21 @@ const links = [
               stroke-width="1.5"></path>
           </svg>
         </summary>
-        <div class="mobile-nav-panel">
-          {
-            links.map((link) => (
-              <a
-                href={link.href}
-                class:list={["mobile-nav-link", currentPage === link.key && "is-current"]}
-                aria-current={currentPage === link.key ? "page" : undefined}
-              >
-                {link.label}
-              </a>
-            ))
-          }
-          <a href={`${base}app`} class="mobile-nav-cta press-feedback">Open editor</a>
+        <div class="mobile-nav-panel-clip">
+          <div class="mobile-nav-panel">
+            {
+              links.map((link) => (
+                <a
+                  href={link.href}
+                  class:list={["mobile-nav-link", currentPage === link.key && "is-current"]}
+                  aria-current={currentPage === link.key ? "page" : undefined}
+                >
+                  {link.label}
+                </a>
+              ))
+            }
+            <a href={`${base}app`} class="mobile-nav-cta press-feedback">Open editor</a>
+          </div>
         </div>
       </details>
 

@@ -1,5 +1,6 @@
 ---
 import MarketingLayout from "./MarketingLayout.astro";
+import MarketingHero from "./MarketingHero.astro";
 
 interface LinkPart {
   href: string;
@@ -28,14 +29,12 @@ const { title, description, heading, headingId, intro, sections } = Astro.props;
 ---
 
 <MarketingLayout title={title} description={description}>
-  <section class="legal-intro" aria-labelledby={headingId}>
-    <div class="marketing-container">
-      <div class="legal-intro-copy">
-        <h1 id={headingId}>{heading}</h1>
-        <p>{intro}</p>
-      </div>
+  <MarketingHero titleId={headingId}>
+    <h1 slot="primary" id={headingId} class="marketing-hero-title">{heading}</h1>
+    <div slot="secondary" class="legal-hero-copy">
+      <p>{intro}</p>
     </div>
-  </section>
+  </MarketingHero>
 
   <section class="legal-content" aria-label={`${heading} contents`}>
     <div class="legal-layout marketing-container">
@@ -93,35 +92,20 @@ const { title, description, heading, headingId, intro, sections } = Astro.props;
     outline-offset: 4px;
   }
 
-  .legal-intro {
-    border-bottom: 1px solid var(--marketing-rule);
-    padding-block: clamp(4.5rem, 10vw, 7.5rem) clamp(3rem, 6vw, 5rem);
+  .legal-hero-copy {
+    max-width: 26rem;
   }
 
-  .legal-intro-copy {
-    max-width: 48rem;
-  }
-
-  h1 {
+  .legal-hero-copy p {
     margin: 0;
-    color: var(--marketing-ink);
-    font-size: clamp(3.25rem, 8vw, 6.25rem);
-    font-weight: 500;
-    letter-spacing: -0.09em;
-    line-height: 0.94;
-    text-wrap: balance;
-  }
-
-  .legal-intro p {
-    max-width: 30rem;
-    margin: 1.75rem 0 0;
     color: var(--marketing-muted);
     font-size: clamp(1rem, 1.7vw, 1.15rem);
     line-height: 1.55;
+    text-wrap: pretty;
   }
 
   .legal-content {
-    padding-block: clamp(3rem, 7vw, 5.5rem) clamp(5rem, 10vw, 8rem);
+    padding-block: clamp(3.75rem, 8vw, 6.5rem);
   }
 
   .legal-layout {
@@ -197,13 +181,20 @@ const { title, description, heading, headingId, intro, sections } = Astro.props;
 
   .legal-article {
     min-width: 0;
-    border-top: 1px solid var(--marketing-rule-strong);
   }
 
   .legal-block {
-    padding: 1.75rem 0 2rem;
+    display: grid;
+    grid-template-columns: 1rem minmax(14rem, 0.8fr) minmax(0, 1.2fr);
+    align-items: start;
+    gap: 1.5rem;
+    padding-block: 1.6rem;
     border-bottom: 1px solid var(--marketing-rule);
     scroll-margin-top: 1.5rem;
+  }
+
+  .legal-block:first-child {
+    border-top: 1px solid var(--marketing-ink);
   }
 
   .legal-number {
@@ -214,7 +205,7 @@ const { title, description, heading, headingId, intro, sections } = Astro.props;
   }
 
   h2 {
-    margin: 0.35rem 0 0;
+    margin: 0;
     color: var(--marketing-ink);
     font-size: clamp(1.15rem, 1.9vw, 1.4rem);
     font-weight: 600;
@@ -225,7 +216,7 @@ const { title, description, heading, headingId, intro, sections } = Astro.props;
 
   .legal-block p {
     max-width: 41rem;
-    margin: 0.75rem 0 0;
+    margin: 0;
     color: var(--marketing-muted);
     font-size: 0.98rem;
     line-height: 1.7;
@@ -242,7 +233,7 @@ const { title, description, heading, headingId, intro, sections } = Astro.props;
     color: var(--marketing-accent);
   }
 
-  @media (max-width: 48rem) {
+  @media (max-width: 56rem) {
     .legal-layout {
       grid-template-columns: 1fr;
       gap: 2.25rem;
@@ -258,13 +249,14 @@ const { title, description, heading, headingId, intro, sections } = Astro.props;
     }
   }
 
-  @media (max-width: 520px) {
-    .legal-intro {
-      padding-top: 4rem;
+  @media (max-width: 48rem) {
+    .legal-block {
+      grid-template-columns: 1rem minmax(0, 1fr);
+      gap: 0.5rem 1rem;
     }
 
-    .legal-block {
-      padding: 1.5rem 0 1.75rem;
+    .legal-block p {
+      grid-column: 2;
     }
   }
 
