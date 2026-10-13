@@ -1,0 +1,7 @@
+Interleaf uses @embedpdf/pdfium 2.15.1 (MIT) and its PDFium WASM binary.
+PDFium and bundled third-party licenses: LICENSE.pdfium.
+EmbedPDF wrapper license: LICENSE.embedpdf.
+Package source: https://github.com/embedpdf/embed-pdf-viewer/tree/v2/packages/pdfium
+Pinned PDFium fork source: https://github.com/embedpdf/runtime/tree/73a041a5c1aaffa09ebb64f1981ff501cb91a41c
+Official PDFium upstream: https://pdfium.googlesource.com/pdfium/
+The version and integrity hash are pinned in package.json and bun.lock.

@@ -29,12 +29,48 @@ jobs:
     permissions:
       contents: read
 
+  pdfium-browser:
+    name: pdfium-browser
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.1
+
+      - name: Install and build application
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: Install Chromium runner
+        run: bunx playwright install --with-deps chromium
+
+      - name: Serve application and run browser regression checks
+        run: |
+          python3 -m http.server 4873 --bind 127.0.0.1 --directory dist >/tmp/interleaf-http.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4873/app/ >/dev/null; then break; fi
+            sleep 1
+          done
+          bun tools/pdfium-wasm/browser-smoke.mjs http://127.0.0.1:4873
+
   gate:
     name: gate
     runs-on: ubuntu-24.04
     if: ${{ !cancelled() }}
-    needs: [ci, dependency-review, qpdf]
+    needs: [ci, dependency-review, qpdf, pdfium-browser]
     permissions: {}
+
 
     steps:
       - name: Require checks to pass
@@ -43,11 +79,14 @@ jobs:
           CI_RESULT: ${{ needs.ci.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           QPDF_RESULT: ${{ needs.qpdf.result }}
+          PDFIUM_BROWSER_RESULT: ${{ needs.pdfium-browser.result }}
         run: |
           set -euo pipefail
-          if [[ "$CI_RESULT" != success || "$DEPENDENCY_REVIEW_RESULT" != success || "$QPDF_RESULT" != success ]]; then
+          if [[ "$CI_RESULT" != success || "$DEPENDENCY_REVIEW_RESULT" != success || "$QPDF_RESULT" != success || "$PDFIUM_BROWSER_RESULT" != success ]]; then
             echo "ci: $CI_RESULT" >&2
             echo "dependency-review: $DEPENDENCY_REVIEW_RESULT" >&2
             echo "qpdf: $QPDF_RESULT" >&2
+            echo "pdfium-browser: $PDFIUM_BROWSER_RESULT" >&2
+
             exit 1
           fi

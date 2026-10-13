@@ -21,14 +21,22 @@ The active product supports:
 - reordering pages with drag and drop
 - rotating pages in 90-degree steps, individually or by selection
 - marking pages for deletion before export
+- duplicating a supported page as an independently editable copy in the workspace
 - unlocking password-protected PDFs with an in-browser prompt
 - locally rendered page thumbnails for inspection before export
 - reviewing pages one at a time with previous/next navigation and a compact filmstrip
+- zooming and panning page previews, with direct placement of text and selection of supported text or form fields
 - losslessly compressing an untouched, single uploaded PDF in the browser
 - exporting selected or active PDF pages as PNG images in a local ZIP archive
 - opening one or more PDFs and PNG or JPEG images together at initial upload, with images converted to PDF pages in the browser
 - adding one or more PDFs and PNG or JPEG images to an existing workspace, with images converted to PDF pages in the browser
 - removing a source file and its pages from the workspace
+- filling supported existing PDF text, checkbox, radio, and single-choice form fields in the browser
+- filling flat or scanned forms by manually placing basic Latin text and X marks on the page, then downloading the completed PDF
+- suggesting supported blank vector boxes and underlines as text or checkbox placement targets, with manual placement available on every page
+- undoing and redoing saved text and form edits, page organization changes, and added or removed sources within the current browser session
+- adding one line of basic Latin text to PDF pages in the browser with an explicit Helvetica font fallback and draggable draft placement and rotation
+- replacing supported original PDF text runs within their original width, with explicit Helvetica font fallback and overflow rejection
 
 These are the only current public product promises.
 

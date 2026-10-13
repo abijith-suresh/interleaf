@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import EditorIcon from "./ui/EditorIcon";
 
 interface Props {
   busy: boolean;
@@ -67,9 +68,7 @@ export default function EditorUploader(props: Props) {
           }}
         >
           <span class="editor-dropzone-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v2h14v-2" />
-            </svg>
+            <EditorIcon name="plus" size={20} />
           </span>
           <span class="editor-dropzone-copy">
             <strong>{props.busy ? "Preparing PDF…" : "Choose PDFs and images"}</strong>

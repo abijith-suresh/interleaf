@@ -3,7 +3,11 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { PDFProcessingError } from "../../types/interfaces";
 
 const pdfServiceMock = vi.hoisted(() => ({
+  preload: vi.fn(),
   loadPDF: vi.fn(),
+  snapshotDocument: vi.fn(),
+  editPageUndoable: vi.fn(),
+  restoreDocument: vi.fn(),
   getPageCount: vi.fn(),
   getPassword: vi.fn(),
   releaseFile: vi.fn(),
@@ -78,7 +82,11 @@ let runtime: PDFRuntime;
 
 beforeEach(() => {
   vi.resetAllMocks();
+  pdfServiceMock.preload.mockReturnValue(Effect.void);
   pdfServiceMock.loadPDF.mockReturnValue(Effect.succeed(undefined));
+  pdfServiceMock.snapshotDocument.mockReturnValue(Effect.succeed({ bytes: new Uint8Array([1]) }));
+  pdfServiceMock.editPageUndoable.mockReturnValue(Effect.succeed({ bytes: new Uint8Array([2]) }));
+  pdfServiceMock.restoreDocument.mockReturnValue(Effect.succeed({ bytes: new Uint8Array([3]) }));
   pdfServiceMock.getPageCount.mockReturnValue(0);
   pdfServiceMock.getPassword.mockReturnValue(undefined);
   pdfServiceMock.releaseFile.mockReturnValue(Effect.succeed(undefined));
@@ -250,4 +258,32 @@ it("passes the unlocked source PDF to compression and closes qpdf on disposal", 
 
   await runtime.dispose();
   expect(qpdfProcessingMock.close).toHaveBeenCalledTimes(1);
+});
+
+it("can warm the PDF engine without opening a document or initializing export services", async () => {
+  await runtime.runPromise(PDFProcessing.use((service) => service.preload));
+  expect(pdfServiceMock.preload).toHaveBeenCalledOnce();
+  expect(pdfServiceMock.loadPDF).not.toHaveBeenCalled();
+  expect(PDFOperationsService).not.toHaveBeenCalled();
+});
+
+it("delegates checkpoint operations without loading export support", async () => {
+  const file = new File(["plain"], "form.pdf");
+  const edit = { kind: "form" as const, index: 0, value: "Alice" };
+  const checkpoint = await runtime.runPromise(
+    PDFProcessing.use((service) => service.snapshotDocument(file))
+  );
+  const previous = await runtime.runPromise(
+    PDFProcessing.use((service) => service.editPageUndoable(file, 1, edit))
+  );
+  const inverse = await runtime.runPromise(
+    PDFProcessing.use((service) => service.restoreDocument(file, checkpoint))
+  );
+  expect(checkpoint.bytes).toEqual(new Uint8Array([1]));
+  expect(previous.bytes).toEqual(new Uint8Array([2]));
+  expect(inverse?.bytes).toEqual(new Uint8Array([3]));
+  expect(pdfServiceMock.snapshotDocument).toHaveBeenCalledExactlyOnceWith(file);
+  expect(pdfServiceMock.editPageUndoable).toHaveBeenCalledExactlyOnceWith(file, 1, edit);
+  expect(pdfServiceMock.restoreDocument).toHaveBeenCalledExactlyOnceWith(file, checkpoint);
+  expect(PDFOperationsService).not.toHaveBeenCalled();
 });

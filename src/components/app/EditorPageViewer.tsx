@@ -1,13 +1,20 @@
 import { Effect, Fiber } from "effect";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import type { PDFDocumentCheckpoint } from "../../services/pdf-checkpoint";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
+import EditorContentPanel from "./EditorContentPanel";
+import EditorHistoryControls, { type EditorHistoryActions } from "./EditorHistoryControls";
 import EditorPageCanvas from "./EditorPageCanvas";
+import EditorToolRail, { type EditorWorkspaceTool } from "./EditorToolRail";
+import { boxStyle, type PageBox } from "./pdf-page-geometry";
+import EditorButton from "./ui/EditorButton";
+import EditorIcon from "./ui/EditorIcon";
 
 const VIEWER_MAX_PIXELS = 16_000_000;
+const VIEWER_MOBILE_MAX_PIXELS = 4_000_000;
 const VIEWER_MAX_SCALE = 1.5;
 const VIEWER_MAX_DEVICE_PIXEL_RATIO = 2;
-const VIEWER_GUTTER = 32;
 const FILMSTRIP_WINDOW_SIZE = 12;
 const FILMSTRIP_OVERSCAN = 3;
 const FILMSTRIP_ITEM_EXTENT = 64;
@@ -20,10 +27,49 @@ interface Props {
   runtime: PDFRuntime;
   onActivePageChange: (pageId: string) => void;
   onClose: () => void;
+  tool?: Exclude<EditorWorkspaceTool, "pages">;
+  onChooseTool?: (tool: EditorWorkspaceTool) => void;
+  onAddFiles?: () => void;
+  onDownload?: () => void;
+  downloadBusy?: boolean;
+  downloadAvailable?: boolean;
+  exportPageCount?: number;
+  onContentChange?: (file: File, pageNumber?: number) => void;
+  history?: EditorHistoryActions;
+  onCheckpoint?: (file: File, checkpoint: PDFDocumentCheckpoint, label: string) => void;
+  onEditBusy?: (busy: boolean) => void;
+  onDraftChange?: (draft: boolean) => void;
 }
 
 export default function EditorPageViewer(props: Props) {
   const [renderState, setRenderState] = createSignal<"loading" | "ready" | "error">("loading");
+  const editing = () => !!props.onContentChange;
+  const [workspaceTool, setWorkspaceTool] = createSignal<Exclude<EditorWorkspaceTool, "pages">>(
+    props.tool ?? "read"
+  );
+  createEffect(() => {
+    if (props.tool) setWorkspaceTool(props.tool);
+  });
+  const [showPages, setShowPages] = createSignal(false);
+  const [composerHeight, setComposerHeight] = createSignal(160);
+  const [pageFit, setPageFit] = createSignal<"width" | "page">(
+    props.onContentChange ? "width" : "page"
+  );
+  const [draft, setDraft] = createSignal(false);
+  createEffect(() => props.onDraftChange?.(draft()));
+  const [selection, setSelection] = createSignal(false);
+  const [zoom, setZoom] = createSignal(1);
+  const [displayRotation, setDisplayRotation] = createSignal(0);
+  let pageDimensions: { width: number; height: number } | undefined;
+  let previousView: { zoom: number; left: number; top: number } | undefined;
+  const [frameSize, setFrameSize] = createSignal({ width: 0, height: 0 });
+  const [viewport, setViewport] = createSignal<{ height: number; top: number }>();
+  let frame!: HTMLElement;
+  let pinchDistance = 0,
+    pinchZoom = 1;
+  let pinchAnchor = { x: 0.5, y: 0.5 };
+  const [editBusy, setEditBusy] = createSignal(false);
+  createEffect(() => props.onEditBusy?.(editBusy()));
   const [filmstripWindowStart, setFilmstripWindowStart] = createSignal(0);
 
   let pane!: HTMLElement;
@@ -107,19 +153,34 @@ export default function EditorPageViewer(props: Props) {
       Math.max(window.devicePixelRatio || 1, 1),
       VIEWER_MAX_DEVICE_PIXEL_RATIO
     );
-    const pixelSafeRenderScale = Math.sqrt(VIEWER_MAX_PIXELS / (pageWidth * pageHeight));
+    const compact = window.innerWidth <= 700 || window.matchMedia?.("(pointer: coarse)")?.matches;
+    const pixelBudget = compact ? VIEWER_MOBILE_MAX_PIXELS : VIEWER_MAX_PIXELS;
+    // Leave room for PDFium's integer pixel rounding at the native allocation limit.
+    const pixelSafeRenderScale = Math.min(
+      Math.sqrt(pixelBudget / (pageWidth * pageHeight)) * 0.999,
+      32767 / Math.max(pageWidth, pageHeight)
+    );
+    const stageStyle = getComputedStyle(stage);
+    const horizontalPadding =
+      (Number.parseFloat(stageStyle.paddingLeft) || 0) +
+      (Number.parseFloat(stageStyle.paddingRight) || 0);
+    const verticalPadding =
+      (Number.parseFloat(stageStyle.paddingTop) || 0) +
+      (Number.parseFloat(stageStyle.paddingBottom) || 0);
     const fitScale =
       stage.clientWidth === 0 || stage.clientHeight === 0
         ? VIEWER_MAX_SCALE
-        : Math.min(
-            Math.max(stage.clientWidth - VIEWER_GUTTER * 2, 1) / pageWidth,
-            Math.max(stage.clientHeight - VIEWER_GUTTER * 2, 1) / pageHeight
-          );
-    const cssScale = Math.min(VIEWER_MAX_SCALE, fitScale, pixelSafeRenderScale / devicePixelRatio);
+        : pageFit() === "width"
+          ? Math.max(stage.clientWidth - horizontalPadding, 1) / pageWidth
+          : Math.min(
+              Math.max(stage.clientWidth - horizontalPadding, 1) / pageWidth,
+              Math.max(stage.clientHeight - verticalPadding, 1) / pageHeight
+            );
+    const cssScale = Math.min(VIEWER_MAX_SCALE, fitScale) * zoom();
 
     return {
       cssScale,
-      renderScale: cssScale * devicePixelRatio,
+      renderScale: Math.min(cssScale * devicePixelRatio, pixelSafeRenderScale),
     };
   }
 
@@ -138,8 +199,6 @@ export default function EditorPageViewer(props: Props) {
         }
 
         setRenderState("loading");
-        canvas.width = 0;
-        canvas.height = 0;
 
         let fiber: Fiber.Fiber<unknown, unknown>;
         try {
@@ -151,14 +210,18 @@ export default function EditorPageViewer(props: Props) {
                   page.sourcePageNumber
                 );
                 const rotation = (sourceRotation + page.rotation) % 360;
+                setDisplayRotation(rotation);
                 const pageSize = yield* service.getPageSize(
                   page.sourceFile,
                   page.sourcePageNumber,
                   rotation
                 );
+                pageDimensions = pageSize;
                 const { cssScale, renderScale } = getViewerScale(pageSize.width, pageSize.height);
-                canvas.style.width = `${pageSize.width * cssScale}px`;
-                canvas.style.height = `${pageSize.height * cssScale}px`;
+                setFrameSize({
+                  width: (pageSize.width * cssScale) / zoom(),
+                  height: (pageSize.height * cssScale) / zoom(),
+                });
                 yield* service.renderPage(
                   page.sourceFile,
                   page.sourcePageNumber,
@@ -201,6 +264,13 @@ export default function EditorPageViewer(props: Props) {
 
   function requestResizeRender(): void {
     if (disposed || !mounted) return;
+    if (pageDimensions) {
+      const { cssScale } = getViewerScale(pageDimensions.width, pageDimensions.height);
+      setFrameSize({
+        width: (pageDimensions.width * cssScale) / zoom(),
+        height: (pageDimensions.height * cssScale) / zoom(),
+      });
+    }
     if (resizeTimer !== null) window.clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(() => {
       resizeTimer = null;
@@ -209,6 +279,7 @@ export default function EditorPageViewer(props: Props) {
   }
 
   function selectPage(pageId: string): void {
+    if (editBusy() || draft()) return;
     if (navigationPages().some((page) => page.id === pageId)) {
       props.onActivePageChange(pageId);
     }
@@ -227,6 +298,10 @@ export default function EditorPageViewer(props: Props) {
 
   function handleKeyDown(event: KeyboardEvent): void {
     if (event.key === "Escape") {
+      if (editBusy() || draft()) {
+        event.preventDefault();
+        return;
+      }
       event.preventDefault();
       props.onClose();
       return;
@@ -235,9 +310,26 @@ export default function EditorPageViewer(props: Props) {
     if (event.key === "Tab") {
       const focusable = Array.from(
         pane.querySelectorAll<HTMLElement>(
-          "button:not(:disabled), [href], [tabindex]:not([tabindex='-1'])"
+          "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex='-1'])"
         )
-      );
+      ).filter((element) => {
+        if (element.closest("[inert], [hidden]")) return false;
+        for (
+          let ancestor: HTMLElement | null = element;
+          ancestor && ancestor !== pane;
+          ancestor = ancestor.parentElement
+        ) {
+          const style = getComputedStyle(ancestor);
+          if (style.display === "none" || style.visibility === "hidden") return false;
+          if (
+            ancestor instanceof HTMLDetailsElement &&
+            !ancestor.open &&
+            !ancestor.querySelector("summary")?.contains(element)
+          )
+            return false;
+        }
+        return true;
+      });
       const first = focusable[0];
       const last = focusable.at(-1);
 
@@ -256,6 +348,11 @@ export default function EditorPageViewer(props: Props) {
       return;
     }
 
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.closest("input, textarea, select, [contenteditable]")
+    )
+      return;
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
       moveBy(event.key === "ArrowLeft" ? -1 : 1);
@@ -265,12 +362,18 @@ export default function EditorPageViewer(props: Props) {
   createEffect(() => {
     const page = currentPage();
     const rotation = page?.rotation;
+    void page?.contentRevision;
     if (page && page.id !== props.activePageId) {
       props.onActivePageChange(page.id);
     }
     void rotation;
-    navigationPages();
+    pageFit();
     if (mounted) requestRender();
+  });
+
+  createEffect(() => {
+    zoom();
+    if (mounted) requestResizeRender();
   });
 
   createEffect(() => {
@@ -301,16 +404,100 @@ export default function EditorPageViewer(props: Props) {
     });
   });
 
+  function focusBounds(bounds: PageBox, width: number, height: number) {
+    if (stage && !previousView)
+      previousView = { zoom: zoom(), left: stage.scrollLeft, top: stage.scrollTop };
+    if (window.innerWidth > 700 || !frame) return;
+    const style = boxStyle(bounds, width, height, displayRotation());
+    const w = (Number.parseFloat(style.width) / 100) * frame.clientWidth,
+      h = (Number.parseFloat(style.height) / 100) * frame.clientHeight;
+    if (w <= 0 || h <= 0) return;
+    const factor = Math.min(
+      (stage.clientWidth - 40) / w,
+      (stage.clientHeight - 40) / h,
+      24 / Math.min(w, h)
+    );
+    if (factor > 1.05) setZoom(Math.min(4, zoom() * factor));
+  }
+
+  function selectContent(next: boolean) {
+    if (disposed) return;
+    if (next && !previousView)
+      previousView = { zoom: zoom(), left: stage.scrollLeft, top: stage.scrollTop };
+    setSelection(next);
+    if (!next && previousView) {
+      const view = previousView;
+      previousView = undefined;
+      setZoom(view.zoom);
+      requestAnimationFrame(() => {
+        if (!disposed && !selection()) {
+          stage.scrollTo?.({ top: view.top, left: view.left, behavior: "instant" });
+          frame.focus({ preventScroll: true });
+        }
+      });
+    }
+  }
+
+  function startPinch(event: TouchEvent): void {
+    if (event.touches.length !== 2) return;
+    event.preventDefault();
+    const [first, second] = Array.from(event.touches);
+    pinchDistance = Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+    pinchZoom = zoom();
+    const rect = frame.getBoundingClientRect();
+    pinchAnchor = {
+      x: ((first.clientX + second.clientX) / 2 - rect.left) / rect.width,
+      y: ((first.clientY + second.clientY) / 2 - rect.top) / rect.height,
+    };
+  }
+  function movePinch(event: TouchEvent): void {
+    if (event.touches.length !== 2 || !pinchDistance) return;
+    event.preventDefault();
+    const [first, second] = Array.from(event.touches);
+    const distance = Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+    setZoom(Math.max(1, Math.min(4, (pinchZoom * distance) / pinchDistance)));
+    const rect = stage.getBoundingClientRect();
+    stage.scrollLeft =
+      frame.offsetLeft +
+      frame.clientWidth * pinchAnchor.x -
+      ((first.clientX + second.clientX) / 2 - rect.left);
+    stage.scrollTop =
+      frame.offsetTop +
+      frame.clientHeight * pinchAnchor.y -
+      ((first.clientY + second.clientY) / 2 - rect.top);
+  }
+  function endPinch(): void {
+    pinchDistance = 0;
+  }
+
   onMount(() => {
     mounted = true;
+    // Overlay controls are portaled into the page. Native listeners follow the physical
+    // DOM path, whereas Solid delegated events follow the portal's ownership tree.
+    stage.addEventListener("touchstart", startPinch, { passive: false });
+    stage.addEventListener("touchmove", movePinch, { passive: false });
+    stage.addEventListener("touchend", endPinch);
+    stage.addEventListener("touchcancel", endPinch);
     reviewBackgrounds = Array.from(
       (pane.closest(".editor-app") ?? pane.parentElement)?.querySelectorAll<HTMLElement>(
-        ".editor-header, .editor-workspace-main"
+        ".editor-header, .editor-workspace-main, .editor-tool-rail"
       ) ?? []
     );
+    reviewBackgrounds = reviewBackgrounds.filter((background) => !pane.contains(background));
     for (const background of reviewBackgrounds) background.setAttribute("inert", "");
     window.addEventListener("resize", requestResizeRender);
-    queueMicrotask(() => closeButton?.focus());
+    const updateViewport = () => {
+      const v = window.visualViewport;
+      if (v) setViewport({ height: v.height, top: v.offsetTop });
+    };
+    updateViewport();
+    window.visualViewport?.addEventListener("resize", updateViewport);
+    window.visualViewport?.addEventListener("scroll", updateViewport);
+    onCleanup(() => {
+      window.visualViewport?.removeEventListener("resize", updateViewport);
+      window.visualViewport?.removeEventListener("scroll", updateViewport);
+    });
+    queueMicrotask(() => pane?.focus());
     requestRender();
 
     if (typeof ResizeObserver !== "undefined") {
@@ -321,6 +508,10 @@ export default function EditorPageViewer(props: Props) {
 
   onCleanup(() => {
     disposed = true;
+    stage.removeEventListener("touchstart", startPinch);
+    stage.removeEventListener("touchmove", movePinch);
+    stage.removeEventListener("touchend", endPinch);
+    stage.removeEventListener("touchcancel", endPinch);
     renderQueued = false;
     if (resizeTimer !== null) {
       window.clearTimeout(resizeTimer);
@@ -346,85 +537,222 @@ export default function EditorPageViewer(props: Props) {
       id="editor-page-review"
       data-testid="editor-page-viewer"
       class="editor-review-pane"
+      classList={{
+        "is-editing": editing(),
+        "has-composer": selection(),
+        "has-filmstrip": showPages(),
+      }}
+      style={
+        viewport()
+          ? { height: `${viewport()?.height}px`, top: `${viewport()?.top}px`, bottom: "auto" }
+          : undefined
+      }
       role="dialog"
+      tabIndex={-1}
       aria-modal="true"
       aria-labelledby="editor-review-title"
       onKeyDown={handleKeyDown}
     >
+      <Show when={props.onContentChange}>
+        <EditorToolRail
+          activeTool={workspaceTool()}
+          busy={draft() || editBusy() || props.downloadBusy}
+          onChooseTool={(tool) => {
+            if (tool === "pages") props.onClose();
+            else {
+              setWorkspaceTool(tool);
+              props.onChooseTool?.(tool);
+            }
+          }}
+        />
+      </Show>
       <header class="editor-review-header">
-        <div class="editor-review-heading">
-          <h2 id="editor-review-title" data-testid="editor-viewer-title">
-            Page {currentWorkspaceIndex() + 1}
-          </h2>
-          <span class="editor-review-position" aria-live="polite">
-            {currentNavigationIndex() + 1} of {navigationPages().length}
-          </span>
-        </div>
-        <button
+        <EditorButton
+          variant="plain"
           ref={closeButton}
           type="button"
           data-testid="editor-page-viewer-close-button"
           class="editor-review-close"
-          aria-label="Close page review"
+          aria-label="Back to pages"
+          disabled={editBusy() || draft() || props.downloadBusy}
           onClick={props.onClose}
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m5 5 10 10M15 5 5 15" />
-          </svg>
-        </button>
+          <EditorIcon name="back" />
+          <span>Pages</span>
+        </EditorButton>
+        <div class="editor-review-heading">
+          <span class="editor-review-source" title={currentPage()?.sourceFile.name}>
+            {currentPage()?.sourceFile.name}
+          </span>
+          <h2
+            id="editor-review-title"
+            data-testid="editor-viewer-title"
+            aria-label={`Page ${currentWorkspaceIndex() + 1}`}
+          >
+            Page {currentWorkspaceIndex() + 1}
+            <span class="editor-review-position">
+              {" "}
+              · {currentNavigationIndex() + 1} of {navigationPages().length}
+            </span>
+          </h2>
+        </div>
+        <Show when={props.history}>
+          {(history) => (
+            <EditorHistoryControls {...history()} busy={history().busy || editBusy() || draft()} />
+          )}
+        </Show>
+        <Show when={props.onAddFiles}>
+          <EditorButton
+            variant="plain"
+            type="button"
+            class="editor-review-add-files"
+            aria-label="Add PDFs or images"
+            title="Add files"
+            disabled={editBusy() || draft() || props.downloadBusy}
+            onClick={props.onAddFiles}
+          >
+            <EditorIcon name="plus" />
+          </EditorButton>
+        </Show>
+        <Show when={props.onDownload}>
+          <EditorButton
+            variant="primary"
+            type="button"
+            class="editor-review-download"
+            disabled={
+              editBusy() || draft() || props.downloadBusy || props.downloadAvailable === false
+            }
+            onClick={props.onDownload}
+          >
+            <span>{props.downloadBusy ? "Preparing…" : "Download PDF"}</span>
+            <Show when={props.exportPageCount !== undefined}>
+              <small>
+                All {props.exportPageCount} {props.exportPageCount === 1 ? "page" : "pages"}
+              </small>
+            </Show>
+          </EditorButton>
+        </Show>
       </header>
 
+      <Show when={currentPage()?.markedForDeletion}>
+        <p class="editor-review-deleted-notice" role="status">
+          This page is marked for deletion and excluded from downloads.
+        </p>
+      </Show>
+
       <div
-        ref={stage}
-        class="editor-review-stage"
-        data-render-state={renderState()}
-        aria-busy={renderState() === "loading"}
+        class="editor-review-body"
+        classList={{ "has-selection": selection(), "has-tool": workspaceTool() !== "read" }}
+        style={{ "--composer-height": `${composerHeight()}px` }}
       >
-        <canvas
-          ref={canvas}
-          class="editor-review-canvas"
-          role="img"
-          aria-label={`Preview of page ${currentWorkspaceIndex() + 1}`}
+        <div
+          ref={stage}
+          class="editor-review-stage"
+          data-render-state={renderState()}
+          aria-busy={renderState() === "loading"}
         >
-          Page preview.
-        </canvas>
-        <Show when={renderState() === "loading"}>
-          <p class="editor-review-state" role="status" aria-live="polite">
-            Loading page…
-          </p>
-        </Show>
-        <Show when={renderState() === "error"}>
-          <div class="editor-review-state editor-review-error" role="alert">
-            <span>Preview unavailable.</span>
-            <button
-              type="button"
-              data-testid="editor-page-viewer-retry"
-              class="editor-review-retry"
-              onClick={retryRender}
+          <section
+            ref={frame}
+            class="editor-review-page"
+            aria-label={`Page ${currentWorkspaceIndex() + 1}`}
+            tabIndex={-1}
+            style={{
+              width: `${frameSize().width * zoom()}px`,
+              height: `${frameSize().height * zoom()}px`,
+            }}
+          >
+            <canvas
+              ref={canvas}
+              class="editor-review-canvas"
+              role="img"
+              aria-label={`Preview of page ${currentWorkspaceIndex() + 1}`}
             >
-              Retry
-            </button>
-          </div>
+              Page preview.
+            </canvas>
+          </section>
+          <Show when={renderState() === "loading"}>
+            <p class="editor-review-state" role="status" aria-live="polite">
+              Loading page…
+            </p>
+          </Show>
+          <Show when={renderState() === "error"}>
+            <div class="editor-review-state editor-review-error" role="alert">
+              <span>Preview unavailable.</span>
+              <EditorButton
+                variant="plain"
+                type="button"
+                data-testid="editor-page-viewer-retry"
+                class="editor-review-retry"
+                onClick={retryRender}
+              >
+                Retry
+              </EditorButton>
+            </div>
+          </Show>
+        </div>
+
+        <Show when={editing() && currentPage() && props.onContentChange}>
+          <EditorContentPanel
+            page={currentPage() as PageState}
+            runtime={props.runtime}
+            mode={workspaceTool()}
+            locked={props.downloadBusy}
+            onComposerHeight={setComposerHeight}
+            onFocusBounds={focusBounds}
+            onChange={(file, pageNumber) => props.onContentChange?.(file, pageNumber)}
+            onCheckpoint={props.onCheckpoint}
+            onBusy={setEditBusy}
+            onDraft={setDraft}
+            onSelection={selectContent}
+            overlayRoot={frame}
+            rotation={displayRotation()}
+          />
         </Show>
       </div>
-
       <footer class="editor-review-bottom">
-        <button
+        <EditorButton
+          variant="plain"
+          type="button"
+          class="editor-review-pages-toggle"
+          aria-label="Show page thumbnails"
+          aria-expanded={showPages()}
+          onClick={() => setShowPages(!showPages())}
+          disabled={draft() || editBusy()}
+        >
+          <EditorIcon name="pages" />
+        </EditorButton>
+        <EditorButton
+          variant="plain"
           type="button"
           data-testid="editor-page-viewer-previous"
           class="editor-review-nav"
           aria-label="Previous page"
-          disabled={currentNavigationIndex() <= 0}
+          disabled={editBusy() || draft() || currentNavigationIndex() <= 0}
           onClick={() => moveBy(-1)}
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m12.5 4-6 6 6 6" />
-          </svg>
-        </button>
+          <EditorIcon name="previous" />
+        </EditorButton>
+        <label class="editor-review-page-jump">
+          <span class="sr-only">Go to page</span>
+          <select
+            aria-label="Go to page"
+            value={currentPage()?.id ?? ""}
+            disabled={draft() || editBusy() || props.downloadBusy}
+            onChange={(event) => selectPage(event.currentTarget.value)}
+          >
+            <For each={navigationPages()}>
+              {(page) => (
+                <option value={page.id}>
+                  {props.pages.findIndex((candidate) => candidate.id === page.id) + 1}
+                </option>
+              )}
+            </For>
+          </select>
+        </label>
         <nav
           ref={filmstrip}
           class="editor-review-filmstrip"
-          aria-label="Pages in review"
+          aria-label="Page thumbnails"
           onScroll={updateFilmstripWindow}
         >
           <span
@@ -445,7 +773,7 @@ export default function EditorPageViewer(props: Props) {
                   class="editor-review-filmstrip-item"
                   classList={{ "is-active": currentPage()?.id === page.id }}
                   aria-current={currentPage()?.id === page.id ? "page" : undefined}
-                  aria-label={`Review page ${workspaceIndex() + 1}`}
+                  aria-label={`Go to page ${workspaceIndex() + 1}`}
                   tabIndex={currentPage()?.id === page.id ? 0 : -1}
                   title={`Page ${workspaceIndex() + 1}`}
                   onClick={() => selectPage(page.id)}
@@ -468,18 +796,51 @@ export default function EditorPageViewer(props: Props) {
             aria-hidden="true"
           />
         </nav>
-        <button
+        <EditorButton
+          variant="plain"
           type="button"
           data-testid="editor-page-viewer-next"
           class="editor-review-nav"
           aria-label="Next page"
-          disabled={currentNavigationIndex() >= navigationPages().length - 1}
+          disabled={
+            editBusy() || draft() || currentNavigationIndex() >= navigationPages().length - 1
+          }
           onClick={() => moveBy(1)}
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m7.5 4 6 6-6 6" />
-          </svg>
-        </button>
+          <EditorIcon name="next" />
+        </EditorButton>
+        <fieldset class="editor-review-zoom" aria-label="Page zoom">
+          <EditorButton
+            variant="plain"
+            type="button"
+            aria-label="Zoom out"
+            disabled={zoom() <= 1}
+            onClick={() => setZoom(Math.max(1, zoom() / 1.4))}
+          >
+            <EditorIcon name="minus" />
+          </EditorButton>
+          <EditorButton
+            variant="plain"
+            type="button"
+            aria-label="Fit page"
+            onClick={() => {
+              setPageFit(pageFit() === "page" ? "width" : "page");
+              setZoom(1);
+              stage.scrollTo?.({ top: 0, left: 0 });
+            }}
+          >
+            {pageFit() === "page" ? "Width" : "Fit"}
+          </EditorButton>
+          <EditorButton
+            variant="plain"
+            type="button"
+            aria-label="Zoom in"
+            disabled={zoom() >= 4}
+            onClick={() => setZoom(Math.min(4, zoom() * 1.4))}
+          >
+            <EditorIcon name="plus" />
+          </EditorButton>
+        </fieldset>
       </footer>
     </aside>
   );

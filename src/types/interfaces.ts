@@ -36,9 +36,11 @@ export type PDFError = PDFPasswordRequiredError | PDFProcessingError | PDFNoPage
 export interface PageState {
   id: string;
   sourceFile: File;
+  sourceOrigin?: File;
   sourcePageNumber: number;
   rotation: number;
   markedForDeletion: boolean;
+  contentRevision?: number;
 }
 
 export interface PDFOperationResult {

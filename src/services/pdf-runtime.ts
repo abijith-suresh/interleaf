@@ -7,6 +7,7 @@ import type {
   PDFOperationResult,
 } from "../types/interfaces";
 import { PDFProcessingError } from "../types/interfaces";
+import type { PDFDocumentCheckpoint } from "./pdf-checkpoint";
 import { PDFCompressionService } from "./pdf-compression-service";
 import { collectFirstError } from "./pdf-errors";
 import type { PDFImageExportOptions } from "./pdf-image-export-service";
@@ -16,6 +17,7 @@ import type {
   PDFOperationsService,
 } from "./pdf-operations-service";
 import { PDFService } from "./pdf-service";
+import type { PDFContentEdit, PDFPageContent } from "./pdfium/protocol";
 import {
   makeQpdfProcessingLayer,
   QpdfProcessing,
@@ -23,6 +25,7 @@ import {
 } from "./qpdf-processing";
 
 export interface PDFProcessingShape {
+  readonly preload: Effect.Effect<void>;
   readonly loadPDF: (file: File) => Effect.Effect<void, PDFError>;
   readonly loadPDFWithPassword: (file: File, password: string) => Effect.Effect<void, PDFError>;
   readonly getPageCount: Effect.Effect<number>;
@@ -39,6 +42,25 @@ export interface PDFProcessingShape {
     pageNumber: number,
     rotation?: number
   ) => Effect.Effect<{ readonly width: number; readonly height: number }, PDFError>;
+  readonly getPageContent: (
+    file: File,
+    pageNumber: number
+  ) => Effect.Effect<PDFPageContent, PDFError>;
+  readonly editPage: (
+    file: File,
+    pageNumber: number,
+    edit: PDFContentEdit
+  ) => Effect.Effect<void, PDFError>;
+  readonly snapshotDocument: (file: File) => Effect.Effect<PDFDocumentCheckpoint, PDFError>;
+  readonly editPageUndoable: (
+    file: File,
+    pageNumber: number,
+    edit: PDFContentEdit
+  ) => Effect.Effect<PDFDocumentCheckpoint, PDFError>;
+  readonly restoreDocument: (
+    file: File,
+    checkpoint: PDFDocumentCheckpoint
+  ) => Effect.Effect<PDFDocumentCheckpoint | undefined, PDFError>;
   readonly buildPDF: (
     pages: readonly PageState[],
     options?: PDFBuildOptions
@@ -135,6 +157,7 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
         const service: PDFProcessingShape & {
           readonly dispose: () => Effect.Effect<void, PDFProcessingError>;
         } = {
+          preload: Effect.suspend(() => pdfService.preload()),
           loadPDF: (file: File) => pdfService.loadPDF(file),
           loadPDFWithPassword: (file: File, password: string) =>
             pdfService.loadPDFWithPassword(file, password),
@@ -150,6 +173,12 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
             pdfService.getPageRotation(file, pageNumber),
           getPageSize: (file: File, pageNumber: number, rotation?: number) =>
             pdfService.getPageSize(file, pageNumber, rotation),
+          getPageContent: (file, pageNumber) => pdfService.getPageContent(file, pageNumber),
+          editPage: (file, pageNumber, edit) => pdfService.editPage(file, pageNumber, edit),
+          snapshotDocument: (file) => pdfService.snapshotDocument(file),
+          editPageUndoable: (file, pageNumber, edit) =>
+            pdfService.editPageUndoable(file, pageNumber, edit),
+          restoreDocument: (file, checkpoint) => pdfService.restoreDocument(file, checkpoint),
           buildPDF: (pages: readonly PageState[], options?: PDFBuildOptions) =>
             Effect.flatMap(getOperationsService, (service) => service.buildPDF(pages, options)),
           imagesToPDF: (files: readonly File[], options?: PDFImagesToPDFOptions) =>

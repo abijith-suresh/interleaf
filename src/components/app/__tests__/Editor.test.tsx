@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { Deferred, Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PDFPasswordRequiredError, PDFProcessingError } from "@/types/interfaces";
+import { type PageState, PDFPasswordRequiredError, PDFProcessingError } from "@/types/interfaces";
 
 const pdfServiceMocks = vi.hoisted(() => ({
+  preload: vi.fn(),
   loadPDF: vi.fn(),
   loadPDFWithPassword: vi.fn(),
   getPageCount: vi.fn(),
@@ -11,6 +12,11 @@ const pdfServiceMocks = vi.hoisted(() => ({
   getPageRotation: vi.fn(),
   getPageSize: vi.fn(),
   renderPage: vi.fn(),
+  getPageContent: vi.fn(),
+  editPage: vi.fn(),
+  editPageUndoable: vi.fn(),
+  snapshotDocument: vi.fn(),
+  restoreDocument: vi.fn(),
   releaseFile: vi.fn(),
   reset: vi.fn(),
   dispose: vi.fn(),
@@ -38,6 +44,7 @@ const downloadFile = vi.hoisted(() => vi.fn());
 
 vi.mock("@/services/pdf-service", () => ({
   PDFService: class {
+    preload = pdfServiceMocks.preload;
     loadPDF = pdfServiceMocks.loadPDF;
     loadPDFWithPassword = pdfServiceMocks.loadPDFWithPassword;
     getPageCount = pdfServiceMocks.getPageCount;
@@ -45,6 +52,11 @@ vi.mock("@/services/pdf-service", () => ({
     getPageRotation = pdfServiceMocks.getPageRotation;
     getPageSize = pdfServiceMocks.getPageSize;
     renderPage = pdfServiceMocks.renderPage;
+    getPageContent = pdfServiceMocks.getPageContent;
+    editPage = pdfServiceMocks.editPage;
+    editPageUndoable = pdfServiceMocks.editPageUndoable;
+    snapshotDocument = pdfServiceMocks.snapshotDocument;
+    restoreDocument = pdfServiceMocks.restoreDocument;
     releaseFile = pdfServiceMocks.releaseFile;
     reset = pdfServiceMocks.reset;
     dispose = pdfServiceMocks.dispose;
@@ -98,8 +110,8 @@ function expectLastToast(text: string) {
 }
 
 async function openEditMenu() {
-  fireEvent.click(screen.getByRole("button", { name: "Edit pages" }));
-  expect(await screen.findByRole("menu", { name: "Page editing options" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Select pages" }));
+  expect(await screen.findByRole("menu", { name: "Page selection options" })).toBeVisible();
 }
 
 async function openDownloadMenu() {
@@ -116,6 +128,7 @@ async function openPDF(file = makeFile()) {
 describe("Editor", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    pdfServiceMocks.preload.mockReturnValue(Effect.void);
     promptForPassword.mockResolvedValue(null);
     pdfServiceMocks.getPageCount.mockReturnValue(3);
     pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(0));
@@ -123,6 +136,19 @@ describe("Editor", () => {
     pdfServiceMocks.loadPDF.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.loadPDFWithPassword.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.renderPage.mockReturnValue(Effect.succeed(undefined));
+    pdfServiceMocks.getPageContent.mockReturnValue(
+      Effect.succeed({ width: 100, height: 200, text: [], fields: [] })
+    );
+    pdfServiceMocks.editPage.mockReturnValue(Effect.void);
+    pdfServiceMocks.snapshotDocument.mockReturnValue(
+      Effect.succeed({ bytes: new Uint8Array([1, 2]) })
+    );
+    pdfServiceMocks.restoreDocument.mockReturnValue(
+      Effect.succeed({ bytes: new Uint8Array([3, 4]) })
+    );
+    pdfServiceMocks.editPageUndoable.mockImplementation((file, page, edit) =>
+      pdfServiceMocks.editPage(file, page, edit).pipe(Effect.as({ bytes: new Uint8Array([1, 2]) }))
+    );
     pdfServiceMocks.releaseFile.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.reset.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.dispose.mockReturnValue(Effect.void);
@@ -168,6 +194,50 @@ describe("Editor", () => {
     expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
   });
 
+  it("warms the engine during browser idle before a file is opened", async () => {
+    let idleCallback!: IdleRequestCallback;
+    const requestIdleCallback = vi.fn((callback: IdleRequestCallback) => {
+      idleCallback = callback;
+      return 17;
+    });
+    vi.stubGlobal("requestIdleCallback", requestIdleCallback);
+    vi.stubGlobal("cancelIdleCallback", vi.fn());
+    const view = render(() => <Editor />);
+    try {
+      expect(requestIdleCallback).toHaveBeenCalledWith(expect.any(Function), {
+        timeout: 1_000,
+      });
+      expect(pdfServiceMocks.preload).not.toHaveBeenCalled();
+      idleCallback({ didTimeout: false, timeRemaining: () => 10 });
+      await waitFor(() => expect(pdfServiceMocks.preload).toHaveBeenCalledOnce());
+      expect(pdfServiceMocks.loadPDF).not.toHaveBeenCalled();
+    } finally {
+      view.unmount();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("cancels idle warmup when the editor is removed", async () => {
+    let idleCallback!: IdleRequestCallback;
+    const cancelIdleCallback = vi.fn();
+    vi.stubGlobal("requestIdleCallback", (callback: IdleRequestCallback) => {
+      idleCallback = callback;
+      return 17;
+    });
+    vi.stubGlobal("cancelIdleCallback", cancelIdleCallback);
+    const view = render(() => <Editor />);
+    try {
+      view.unmount();
+      expect(cancelIdleCallback).toHaveBeenCalledWith(17);
+      idleCallback({ didTimeout: true, timeRemaining: () => 0 });
+      await Promise.resolve();
+      expect(pdfServiceMocks.preload).not.toHaveBeenCalled();
+    } finally {
+      view.unmount();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("rejects unsupported files with an error toast", async () => {
     render(() => <Editor />);
 
@@ -180,10 +250,54 @@ describe("Editor", () => {
     expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
   });
 
+  it("preserves page selection through tools and downloads the correct scope", async () => {
+    const tiles = await openPDF();
+    expect(screen.queryByRole("button", { name: /Review|Edit PDF/ })).not.toBeInTheDocument();
+    fireEvent.click(tiles[1]);
+    for (const tool of ["Document", "Add text", "Edit text", "Fill forms", "Document"]) {
+      fireEvent.click(screen.getByRole("button", { name: tool }));
+      expect(await screen.findByTestId("editor-page-viewer")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Document" })).toHaveAttribute(
+        "aria-current",
+        "page"
+      );
+      if (tool !== "Document")
+        expect(screen.getByRole("button", { name: tool })).toHaveAttribute("aria-pressed", "true");
+    }
+    expect(
+      screen.queryByRole("button", { name: /^(Rotate|Duplicate|Delete)$/ })
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
+    expect(screen.getAllByRole("button", { name: /^Go to page/ })).toHaveLength(3);
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: /^Download PDF/ })
+    );
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenNthCalledWith(
+      1,
+      expect.any(Array),
+      expect.objectContaining({ selectedIndices: undefined })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Back to pages" }));
+    expect(getPages().map((tile) => tile.getAttribute("aria-pressed"))).toEqual([
+      "false",
+      "true",
+      "false",
+    ]);
+    expect(screen.getByTestId("editor-selection-title")).toHaveTextContent("1 selected");
+    fireEvent.click(screen.getByRole("button", { name: "Download a PDF with 1 exportable page" }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(2));
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Array),
+      expect.objectContaining({ selectedIndices: [1] })
+    );
+  });
+
   it("opens a multi-page review without requiring a single selected page", async () => {
     await openPDF();
 
-    fireEvent.click(screen.getByRole("button", { name: /Review/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Document" }));
 
     await waitFor(() => expect(screen.getByTestId("editor-page-viewer")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
@@ -194,8 +308,202 @@ describe("Editor", () => {
       expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2")
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Close page review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to pages" }));
     await waitFor(() => expect(screen.queryByTestId("editor-page-viewer")).not.toBeInTheDocument());
+  });
+
+  it.each([
+    { label: "Add text", mode: "add", guidance: "Tap the page to place text." },
+    {
+      label: "Fill forms",
+      mode: "forms",
+      guidance: "Tap a blank to fill.",
+    },
+  ])("opens $label directly from the workspace tool rail", async ({ label, mode, guidance }) => {
+    const file = makeFile();
+    const tiles = await openPDF(file);
+    fireEvent.click(tiles[2]);
+    fireEvent.click(screen.getByRole("button", { name: label }));
+
+    expect(await screen.findByTestId("editor-page-viewer")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(guidance)).toBeVisible());
+    expect(screen.getByRole("region", { name: "Page content" })).toHaveAttribute("data-tool", mode);
+    expect(screen.getByRole("button", { name: label })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 3");
+    expect(pdfServiceMocks.getPageContent).toHaveBeenCalledWith(file, 3);
+  });
+
+  it("duplicates a rotated page into an independent source and keeps its file group", async () => {
+    const file = makeFile("report.pdf");
+    await openPDF(file);
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 2 90 degrees" }));
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 2" }));
+    await waitFor(() => expect(getPages()).toHaveLength(4));
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledExactlyOnceWith(
+      [expect.objectContaining({ sourceFile: file, sourcePageNumber: 2, rotation: 90 })],
+      undefined
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "View 1 file" }));
+    expect(
+      await screen.findByRole("button", { name: "Select all 4 pages from report.pdf" })
+    ).toBeVisible();
+    expect(screen.getAllByTestId("editor-file-item")).toHaveLength(1);
+    fireEvent.click(screen.getByTestId("editor-files-close-button"));
+    // Deselect the new copy so export includes its original and its neighbors too.
+    fireEvent.click(getPages()[2]);
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+
+    const output = pdfOperationsMocks.buildPDF.mock.calls[1][0] as PageState[];
+    const copy = output[2];
+    expect(copy.sourceFile).not.toBe(file);
+    expect(copy.sourceFile).toBeInstanceOf(File);
+    expect(new Uint8Array(await copy.sourceFile.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
+    expect(copy.sourceOrigin).toBe(file);
+    expect(output.map((page) => page.sourcePageNumber)).toEqual([1, 2, 1, 3]);
+    expect(output.map((page) => page.rotation)).toEqual([0, 90, 0, 0]);
+  });
+
+  it("duplicates the edited working page and routes later copy edits independently", async () => {
+    const original = makeFile("working.pdf");
+    await openPDF(original);
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Place text on page" }), {
+      key: "Enter",
+    });
+    const originalInput = screen.getByRole("textbox", { name: "Text" });
+    fireEvent.input(originalInput, { target: { value: "Original edit" } });
+    fireEvent.submit(originalInput.closest("form") as HTMLFormElement);
+    await waitFor(() => expect(screen.getByText("Applied to this page.")).toBeVisible());
+    expect(pdfServiceMocks.editPage).toHaveBeenCalledExactlyOnceWith(
+      original,
+      1,
+      expect.objectContaining({ kind: "add", text: "Original edit" })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Back to pages" }));
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expect(getPages()).toHaveLength(4));
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledExactlyOnceWith(
+      [expect.objectContaining({ sourceFile: original, sourcePageNumber: 1, contentRevision: 1 })],
+      undefined
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Place text on page" }), {
+      key: "Enter",
+    });
+    const copyInput = screen.getByRole("textbox", { name: "Text" });
+    fireEvent.input(copyInput, { target: { value: "Copy only" } });
+    fireEvent.submit(copyInput.closest("form") as HTMLFormElement);
+    await waitFor(() => expect(screen.getByText("Applied to this page.")).toBeVisible());
+    expect(pdfServiceMocks.editPage).toHaveBeenCalledTimes(2);
+    const copiedFile = pdfServiceMocks.editPage.mock.calls[1][0] as File;
+    expect(copiedFile).not.toBe(original);
+    expect(pdfServiceMocks.editPage).toHaveBeenLastCalledWith(
+      copiedFile,
+      1,
+      expect.objectContaining({ kind: "add", text: "Copy only" })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to pages" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const output = pdfOperationsMocks.buildPDF.mock.calls[1][0] as PageState[];
+    expect(output[0]).toEqual(
+      expect.objectContaining({ sourceFile: original, contentRevision: 1 })
+    );
+    expect(output[1]).toEqual(
+      expect.objectContaining({
+        sourceFile: copiedFile,
+        sourceOrigin: original,
+        contentRevision: 2,
+      })
+    );
+    expect(pdfServiceMocks.releaseFile).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { description: "a signature field", type: 7, value: "", options: [], selectedOption: -1 },
+    {
+      description: "a choice field with a different stored value and display label",
+      type: 4,
+      value: "g",
+      options: ["Green"],
+      selectedOption: 0,
+    },
+  ])("preserves the original export when $description prevents a safe copy", async (field) => {
+    const file = makeFile("protected-form.pdf");
+    pdfServiceMocks.getPageContent.mockReturnValue(
+      Effect.succeed({
+        width: 100,
+        height: 200,
+        text: [],
+        fields: [
+          {
+            index: 0,
+            fieldId: 1,
+            name: "Important field",
+            type: field.type,
+            value: field.value,
+            options: field.options,
+            selectedOption: field.selectedOption,
+            checked: false,
+            exportValue: "Yes",
+            flags: 0,
+            readOnly: field.type === 7,
+          },
+        ],
+      })
+    );
+    await openPDF(file);
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expectLastToast("This page has form fields that cannot be copied safely."));
+    expect(getPages()).toHaveLength(3);
+    expect(pdfOperationsMocks.buildPDF).not.toHaveBeenCalled();
+    expect(pdfServiceMocks.releaseFile).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const output = pdfOperationsMocks.buildPDF.mock.calls[0][0] as PageState[];
+    expect(output.map((page) => page.sourceFile)).toEqual([file, file, file]);
+    expect(output.map((page) => page.sourcePageNumber)).toEqual([1, 2, 3]);
+  });
+
+  it("removes an original file with all its independent copies and releases each source", async () => {
+    render(() => <Editor />);
+    const removed = makeFile("brief.pdf");
+    const remaining = makeFile("appendix.pdf");
+    selectFiles("upload", [removed, remaining]);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expect(getPages()).toHaveLength(7));
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expect(getPages()).toHaveLength(8));
+
+    fireEvent.click(screen.getByRole("button", { name: "View 2 files" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Remove brief.pdf and its 5 pages from the workspace",
+      })
+    );
+    await waitFor(() => expect(getPages()).toHaveLength(3));
+    await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledTimes(3));
+    const released = pdfServiceMocks.releaseFile.mock.calls.map(([file]) => file as File);
+    expect(new Set(released).size).toBe(3);
+    expect(released).toContain(removed);
+    expect(released).not.toContain(remaining);
+    expect(released.filter((file) => file !== removed).map((file) => file.name)).toEqual([
+      "brief (copy).pdf",
+      "brief (copy).pdf",
+    ]);
+
+    await waitFor(() => expect(screen.getByTestId("editor-add-pdf-button")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("editor-files-close-button"));
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const output = pdfOperationsMocks.buildPDF.mock.calls[2][0] as PageState[];
+    expect(output.map((page) => page.sourceFile)).toEqual([remaining, remaining, remaining]);
   });
 
   it("turns selected images into a PDF and opens it in the workspace", async () => {
@@ -386,6 +694,8 @@ describe("Editor", () => {
       expect(getPages().map((tile) => tile.getAttribute("aria-pressed"))).toEqual(pressed);
       expect(pdfServiceMocks.releaseFile).toHaveBeenCalledExactlyOnceWith(removed);
 
+      await waitFor(() => expect(screen.getByTestId("editor-add-pdf-button")).toBeEnabled());
+      fireEvent.click(screen.getByTestId("editor-files-close-button"));
       fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
       await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
       const [pages, options] = pdfOperationsMocks.buildPDF.mock.calls[0];
@@ -417,6 +727,7 @@ describe("Editor", () => {
       expect.objectContaining({ name: "only.pdf" })
     );
 
+    await waitFor(() => expect(screen.getByLabelText("Choose PDF or image files")).toBeEnabled());
     selectFile("upload", makeFile("fresh.pdf"));
     await findPages();
     expect(screen.getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
@@ -521,24 +832,17 @@ describe("Editor", () => {
   it("updates selection actions and compression eligibility when a page is selected", async () => {
     const tiles = await openPDF();
     await openEditMenu();
-    for (const name of [
-      "No pages selected to clear",
-      "Select pages to rotate",
-      "Select pages to mark or restore",
-    ]) {
-      expect(screen.getByRole("menuitem", { name })).toHaveAttribute("aria-disabled", "true");
-    }
+    expect(screen.getByRole("menuitem", { name: "No pages selected to clear" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
     await openDownloadMenu();
     expect(screen.getByRole("menuitem", { name: "Compress the original PDF" })).toBeEnabled();
     fireEvent.click(tiles[0]);
     await openEditMenu();
-    for (const name of [
-      "Clear page selection",
-      "Rotate selected pages 90 degrees",
-      "Mark selected pages for deletion",
-    ]) {
-      expect(screen.getByRole("menuitem", { name })).toBeEnabled();
-    }
+    expect(screen.getByRole("menuitem", { name: "Clear page selection" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Rotate selection 90 degrees" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Mark selected pages for deletion" })).toBeEnabled();
     await openDownloadMenu();
     expect(screen.getByTestId("editor-compress-button")).toHaveAttribute("aria-disabled", "true");
   });
@@ -646,8 +950,7 @@ describe("Editor", () => {
       ])
     );
 
-    await openEditMenu();
-    fireEvent.click(screen.getByTestId("editor-rotate-button"));
+    fireEvent.click(screen.getByRole("button", { name: "Rotate selection 90 degrees" }));
     const status = await screen.findByTestId("editor-status-message");
     await waitFor(() => expect(status).toHaveTextContent("Rotated 3 selected pages."));
     fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
@@ -666,9 +969,16 @@ describe("Editor", () => {
     fireEvent.click(screen.getByTestId("editor-select-all-button"));
     await waitFor(() => expect(tiles[0].getAttribute("aria-pressed")).toBe("true"));
 
-    await openEditMenu();
-    expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
-    fireEvent.click(screen.getByTestId("editor-delete-button"));
+    expect(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    ).toHaveAccessibleName("Mark selected pages for deletion");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    );
 
     await waitFor(() =>
       expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual(["true", "true", "true"])
@@ -683,24 +993,55 @@ describe("Editor", () => {
     expect(screen.getByTestId("editor-export-images-button")).toHaveTextContent(
       "Export PNG images"
     );
-    await openEditMenu();
-    expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Restore");
-    expect(screen.getByTestId("editor-delete-button")).toHaveAttribute(
-      "aria-label",
-      "Restore selected pages"
+    expect(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    ).toHaveAccessibleName("Restore selected pages");
+    expect(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    ).toHaveAttribute("aria-label", "Restore selected pages");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
     );
 
-    fireEvent.click(screen.getByTestId("editor-delete-button"));
-
-    await openEditMenu();
     await waitFor(() => {
       expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual([
         "false",
         "false",
         "false",
       ]);
-      expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
+      expect(
+        screen.getByRole("button", {
+          name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+        })
+      ).toHaveAccessibleName("Mark selected pages for deletion");
     });
+  });
+
+  it("keeps focus on the moved page for repeated keyboard reordering", async () => {
+    const tiles = await openPDF();
+    tiles[0].focus();
+    fireEvent.keyDown(document.activeElement as HTMLElement, { altKey: true, key: "ArrowRight" });
+    await waitFor(() => expect(getPages()[1]).toHaveFocus());
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Moved page 1 to position 2."
+    );
+    fireEvent.keyDown(document.activeElement as HTMLElement, { altKey: true, key: "ArrowLeft" });
+    await waitFor(() => expect(getPages()[0]).toHaveFocus());
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Moved page 2 to position 1."
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    expect(
+      pdfOperationsMocks.buildPDF.mock.calls[0][0].map((page: PageState) => page.sourcePageNumber)
+    ).toEqual([1, 2, 3]);
   });
 
   it("reorders a page with the keyboard alternative", async () => {
@@ -819,6 +1160,265 @@ describe("Editor", () => {
     });
   });
 
+  it("undoes and redoes page rotation, deletion, and keyboard reorder", async () => {
+    await openPDF();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 2 90 degrees" }));
+    fireEvent.click(screen.getByRole("button", { name: "Undo rotate page" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo rotate page" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Redo rotate page" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo rotate page" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Mark page 2 for deletion" }));
+    expect(getPages()[1]).toHaveAttribute("data-marked-for-deletion", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Undo delete page" }));
+    await waitFor(() => expect(getPages()[1]).toHaveAttribute("data-marked-for-deletion", "false"));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo delete page" })).toBeEnabled()
+    );
+    fireEvent.keyDown(getPages()[2], { altKey: true, key: "ArrowLeft" });
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Undo reorder pages" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo reorder pages" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Redo reorder pages" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo reorder pages" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const output = pdfOperationsMocks.buildPDF.mock.calls[0][0] as PageState[];
+    expect(output.map((page) => page.sourcePageNumber)).toEqual([1, 3, 2]);
+    expect(output.map((page) => page.rotation)).toEqual([0, 0, 90]);
+    expect(output.every((page) => !page.markedForDeletion)).toBe(true);
+  });
+
+  it("undoes a duplicate and restores the same independent copy on redo", async () => {
+    const file = makeFile();
+    await openPDF(file);
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expect(getPages()).toHaveLength(4));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo duplicate page" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Undo duplicate page" }));
+    await waitFor(() => expect(getPages()).toHaveLength(3));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo duplicate page" })).toBeEnabled()
+    );
+    expect(pdfServiceMocks.snapshotDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "doc (copy).pdf" })
+    );
+    const copiedFile = pdfServiceMocks.snapshotDocument.mock.calls[0][0];
+    fireEvent.click(screen.getByRole("button", { name: "Redo duplicate page" }));
+    await waitFor(() => expect(getPages()).toHaveLength(4));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo duplicate page" })).toBeEnabled()
+    );
+    expect(pdfServiceMocks.restoreDocument).toHaveBeenCalledWith(copiedFile, {
+      bytes: new Uint8Array([1, 2]),
+    });
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledOnce();
+  });
+
+  it("undoes added sources and restores their archived documents on redo", async () => {
+    await openPDF();
+    const added = makeFile("appendix.pdf");
+    selectFile("add", added);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo add files" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Undo add files" }));
+    await waitFor(() => expect(getPages()).toHaveLength(3));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo add files" })).toBeEnabled()
+    );
+    expect(pdfServiceMocks.snapshotDocument).toHaveBeenCalledWith(added);
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(added);
+    fireEvent.click(screen.getByRole("button", { name: "Redo add files" }));
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    expect(pdfServiceMocks.restoreDocument).toHaveBeenCalledWith(added, {
+      bytes: new Uint8Array([1, 2]),
+    });
+  });
+
+  it("keeps last-source removal undoable from the empty uploader", async () => {
+    const file = makeFile("only.pdf");
+    await openPDF(file);
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    fireEvent.click(await screen.findByTestId("editor-file-remove"));
+    await waitFor(() => expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo remove file" })).toBeEnabled()
+    );
+    expect(pdfServiceMocks.snapshotDocument).toHaveBeenCalledWith(file);
+    fireEvent.click(screen.getByRole("button", { name: "Undo remove file" }));
+    await waitFor(() => expect(getPages()).toHaveLength(3));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo remove file" })).toBeEnabled()
+    );
+    expect(pdfServiceMocks.restoreDocument).toHaveBeenCalledWith(file, {
+      bytes: new Uint8Array([1, 2]),
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Redo remove file" }));
+    await waitFor(() => expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Undo remove file" })).toBeInTheDocument();
+  });
+
+  it("records saved text and retains a failed restore for retry", async () => {
+    const file = makeFile();
+    await openPDF(file);
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Place text on page" }), {
+      key: "Enter",
+    });
+    const input = screen.getByLabelText("Text");
+    fireEvent.input(input, { target: { value: "Saved answer" } });
+    expect(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+        name: "Undo",
+      })
+    ).toBeDisabled();
+    fireEvent.submit(input.closest("form") as HTMLFormElement);
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+          name: "Undo add text",
+        })
+      ).toBeEnabled()
+    );
+    pdfServiceMocks.restoreDocument.mockReturnValueOnce(
+      Effect.fail(
+        new PDFProcessingError({
+          operation: "restore",
+          message: "Cannot restore",
+          cause: undefined,
+        })
+      )
+    );
+    fireEvent.click(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+        name: "Undo add text",
+      })
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+          name: "Undo add text",
+        })
+      ).toBeEnabled()
+    );
+    expect(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+        name: "Redo",
+      })
+    ).toBeDisabled();
+    expectLastToast("Cannot restore");
+    fireEvent.click(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+        name: "Undo add text",
+      })
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+          name: "Redo add text",
+        })
+      ).toBeEnabled()
+    );
+    expect(pdfServiceMocks.restoreDocument).toHaveBeenLastCalledWith(file, {
+      bytes: new Uint8Array([1, 2]),
+    });
+    fireEvent.click(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+        name: "Redo add text",
+      })
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+          name: "Undo add text",
+        })
+      ).toBeEnabled()
+    );
+    expect(pdfServiceMocks.restoreDocument).toHaveBeenLastCalledWith(file, {
+      bytes: new Uint8Array([3, 4]),
+    });
+  });
+
+  it("leaves the workspace intact when archiving a removed source fails", async () => {
+    const file = makeFile();
+    await openPDF(file);
+    pdfServiceMocks.snapshotDocument.mockReturnValueOnce(
+      Effect.fail(
+        new PDFProcessingError({
+          operation: "snapshot",
+          message: "Archive failed",
+          cause: undefined,
+        })
+      )
+    );
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    fireEvent.click(await screen.findByTestId("editor-file-remove"));
+    await waitFor(() => expect(screen.getByTestId("editor-add-pdf-button")).toBeEnabled());
+    expect(getPages()).toHaveLength(3);
+    expect(pdfServiceMocks.releaseFile).not.toHaveBeenCalled();
+    expectLastToast("Archive failed");
+    fireEvent.click(screen.getByTestId("editor-files-close-button"));
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+  });
+
+  it("does not consume history for a rejected text edit", async () => {
+    await openPDF();
+    pdfServiceMocks.editPage.mockReturnValueOnce(
+      Effect.fail(
+        new PDFProcessingError({ operation: "edit", message: "Text overflows", cause: undefined })
+      )
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Place text on page" }), {
+      key: "Enter",
+    });
+    fireEvent.input(screen.getByLabelText("Text"), { target: { value: "Too wide" } });
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Page content" })).getByRole("button", {
+        name: "Add text",
+      })
+    );
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel edit" }));
+    expect(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", { name: "Undo" })
+    ).toBeDisabled();
+    expect(pdfServiceMocks.restoreDocument).not.toHaveBeenCalled();
+  });
+
+  it("preserves input undo while workspace shortcuts undo and redo organization", async () => {
+    await openPDF();
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 1 90 degrees" }));
+    const input = screen.getByLabelText("Choose additional PDF or image files");
+    expect(fireEvent.keyDown(input, { key: "z", ctrlKey: true })).toBe(true);
+    expect(screen.getByRole("button", { name: "Undo rotate page" })).toBeEnabled();
+    fireEvent.keyDown(screen.getByTestId("editor-page-grid"), { key: "z", ctrlKey: true });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo rotate page" })).toBeEnabled()
+    );
+    fireEvent.keyDown(screen.getByTestId("editor-page-grid"), {
+      key: "z",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo rotate page" })).toBeEnabled()
+    );
+  });
+
   it("labels exports by active selected pages", async () => {
     const tiles = await openPDF();
     const deleteButtons = await screen.findAllByRole("button", {
@@ -839,18 +1439,28 @@ describe("Editor", () => {
       );
     });
 
-    await openEditMenu();
-    expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
-    fireEvent.click(screen.getByTestId("editor-delete-button"));
+    expect(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    ).toHaveAccessibleName("Mark selected pages for deletion");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    );
 
-    await openEditMenu();
     await waitFor(() => {
       expect(tiles[0]).toHaveAttribute("data-marked-for-deletion", "true");
       expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "true");
       expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(
         "2 selected · 0 exportable"
       );
-      expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Restore");
+      expect(
+        screen.getByRole("button", {
+          name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+        })
+      ).toHaveAccessibleName("Restore selected pages");
     });
   });
 
