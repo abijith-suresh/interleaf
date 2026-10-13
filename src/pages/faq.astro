@@ -1,5 +1,6 @@
 ---
 import MarketingLayout from "../components/marketing/MarketingLayout.astro";
+import MarketingHero from "../components/marketing/MarketingHero.astro";
 
 const questions = [
   {
@@ -42,14 +43,12 @@ const questions = [
   description="Short answers about using Interleaf in your browser, including privacy, browser support, file sizes, and offline use."
   currentPage="faq"
 >
-  <section class="page-intro" aria-labelledby="faq-title">
-    <div class="marketing-container">
-      <div class="page-intro-copy">
-        <h1 id="faq-title">Questions, answered.</h1>
-        <p>Short answers about using Interleaf in your browser.</p>
-      </div>
+  <MarketingHero titleId="faq-title">
+    <h1 slot="primary" id="faq-title" class="marketing-hero-title">Questions, answered.</h1>
+    <div slot="secondary" class="faq-hero-copy">
+      <p>Short answers about using Interleaf in your browser.</p>
     </div>
-  </section>
+  </MarketingHero>
 
   <section class="faq-content" aria-label="Frequently asked questions">
     <div class="marketing-container">
@@ -85,73 +84,51 @@ const questions = [
     outline-offset: 4px;
   }
 
-  .page-intro {
-    padding-block: clamp(4.5rem, 10vw, 7.5rem) 0;
+  .faq-hero-copy {
+    max-width: 26rem;
   }
 
-  /* One column: the intro copy shares the answer list's width and centering. */
-  .page-intro-copy {
-    max-width: 54rem;
-    margin-inline: auto;
-  }
-
-  h1 {
+  .faq-hero-copy p {
     margin: 0;
-    color: var(--marketing-ink);
-    font-size: clamp(3.25rem, 8vw, 6.25rem);
-    font-weight: 500;
-    letter-spacing: -0.09em;
-    line-height: 0.94;
-    text-wrap: balance;
-  }
-
-  .page-intro p {
-    max-width: 30rem;
-    margin: 1.75rem 0 0;
     color: var(--marketing-muted);
     font-size: clamp(1rem, 1.7vw, 1.15rem);
     line-height: 1.55;
+    text-wrap: pretty;
   }
 
   .faq-content {
-    padding-block: clamp(3rem, 7vw, 5.5rem) clamp(5rem, 10vw, 8rem);
+    padding-block: clamp(3.75rem, 8vw, 6.5rem);
   }
 
   .faq-list {
-    max-width: 54rem;
+    max-width: 72rem;
     margin-inline: auto;
-    border-top: 1px solid var(--marketing-rule-strong);
+    border-top: 1px solid var(--marketing-ink);
   }
 
   details {
     border-bottom: 1px solid var(--marketing-rule);
   }
 
-  /* Smooth expand/collapse: ::details-content is a grid whose row interpolates
-     0fr -> 1fr. Supported in Chrome/Edge 131+, Safari 18.4+, and Firefox 143+;
-     older browsers fall back to an instant, jank-free toggle. The closed state
-     owns content-visibility: hidden and defers it via a 0s discrete transition
-     delayed to the end of the collapse, so the browser cannot skip (and
-     size-contain) the content mid-collapse; the open state reveals immediately. */
-  details::details-content {
-    display: grid;
-    grid-template-rows: 0fr;
-    opacity: 0;
-    content-visibility: hidden;
-    transition:
-      grid-template-rows 340ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
-      opacity 260ms ease,
-      content-visibility 0s allow-discrete 340ms;
-  }
+  /* Unsupported browsers keep the native instant disclosure behavior. */
+  @supports selector(details::details-content) {
+    .faq-list details::details-content {
+      display: grid;
+      grid-template-rows: 0fr;
+      overflow: clip;
+      content-visibility: hidden;
+      transition:
+        grid-template-rows var(--marketing-disclosure-duration) var(--marketing-disclosure-ease),
+        content-visibility 0s allow-discrete var(--marketing-disclosure-duration);
+    }
 
-  details[open]::details-content {
-    grid-template-rows: 1fr;
-    opacity: 1;
-    content-visibility: visible;
-    transition:
-      grid-template-rows 340ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
-      opacity 260ms ease,
-      content-visibility 0s allow-discrete;
+    .faq-list details[open]::details-content {
+      grid-template-rows: 1fr;
+      content-visibility: visible;
+      transition:
+        grid-template-rows var(--marketing-disclosure-duration) var(--marketing-disclosure-ease),
+        content-visibility 0s allow-discrete;
+    }
   }
 
   summary {
@@ -160,7 +137,7 @@ const questions = [
     align-items: center;
     justify-content: space-between;
     gap: 1.5rem;
-    padding: 1.25rem 1.5rem;
+    padding: 1.6rem 0;
     color: var(--marketing-ink);
     cursor: pointer;
     font-size: clamp(1rem, 1.7vw, 1.15rem);
@@ -191,7 +168,16 @@ const questions = [
     font-size: 1.1rem;
     font-weight: 300;
     line-height: 1;
-    transition: transform 340ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
+  }
+
+  @supports selector(details::details-content) {
+    .summary-mark {
+      transition:
+        transform var(--marketing-disclosure-duration) var(--marketing-disclosure-ease),
+        background-color var(--marketing-disclosure-duration) var(--marketing-disclosure-ease),
+        border-color var(--marketing-disclosure-duration) var(--marketing-disclosure-ease),
+        color var(--marketing-disclosure-duration) var(--marketing-disclosure-ease);
+    }
   }
 
   details[open] .summary-mark {
@@ -205,31 +191,15 @@ const questions = [
     max-width: 43rem;
     min-height: 0;
     overflow: clip;
-    padding: 0 4.5rem 0 1.5rem;
+    padding: 0;
   }
 
   .faq-answer p {
     margin: 0;
-    padding-bottom: 1.5rem;
+    padding-bottom: 1.6rem;
     color: var(--marketing-muted);
     font-size: 0.98rem;
     line-height: 1.65;
-  }
-
-  @media (max-width: 520px) {
-    .page-intro {
-      padding-top: 4rem;
-    }
-
-    summary {
-      min-height: 4rem;
-      padding: 1.1rem 1rem;
-    }
-
-    .faq-answer {
-      padding-right: 1rem;
-      padding-left: 1rem;
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -242,11 +212,13 @@ const questions = [
       transition-duration: 0.01ms;
     }
 
-    details::details-content,
-    details[open]::details-content,
-    details .summary-mark {
-      transition-duration: 0.01ms;
-      transition-delay: 0s;
+    @supports selector(details::details-content) {
+      .faq-list details::details-content,
+      .faq-list details[open]::details-content,
+      .faq-list .summary-mark {
+        transition-duration: 0s;
+        transition-delay: 0s;
+      }
     }
   }
 </style>
