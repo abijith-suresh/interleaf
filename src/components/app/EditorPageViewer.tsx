@@ -11,7 +11,6 @@ const VIEWER_MAX_PIXELS = 16_000_000;
 const VIEWER_MOBILE_MAX_PIXELS = 4_000_000;
 const VIEWER_MAX_SCALE = 1.5;
 const VIEWER_MAX_DEVICE_PIXEL_RATIO = 2;
-const VIEWER_GUTTER = 16;
 const FILMSTRIP_WINDOW_SIZE = 12;
 const FILMSTRIP_OVERSCAN = 3;
 const FILMSTRIP_ITEM_EXTENT = 64;
@@ -154,14 +153,21 @@ export default function EditorPageViewer(props: Props) {
       Math.sqrt(pixelBudget / (pageWidth * pageHeight)) * 0.999,
       32767 / Math.max(pageWidth, pageHeight)
     );
+    const stageStyle = getComputedStyle(stage);
+    const horizontalPadding =
+      (Number.parseFloat(stageStyle.paddingLeft) || 0) +
+      (Number.parseFloat(stageStyle.paddingRight) || 0);
+    const verticalPadding =
+      (Number.parseFloat(stageStyle.paddingTop) || 0) +
+      (Number.parseFloat(stageStyle.paddingBottom) || 0);
     const fitScale =
       stage.clientWidth === 0 || stage.clientHeight === 0
         ? VIEWER_MAX_SCALE
         : pageFit() === "width"
-          ? Math.max(stage.clientWidth - VIEWER_GUTTER * 2, 1) / pageWidth
+          ? Math.max(stage.clientWidth - horizontalPadding, 1) / pageWidth
           : Math.min(
-              Math.max(stage.clientWidth - VIEWER_GUTTER * 2, 1) / pageWidth,
-              Math.max(stage.clientHeight - VIEWER_GUTTER * 2, 1) / pageHeight
+              Math.max(stage.clientWidth - horizontalPadding, 1) / pageWidth,
+              Math.max(stage.clientHeight - verticalPadding, 1) / pageHeight
             );
     const cssScale = Math.min(VIEWER_MAX_SCALE, fitScale) * zoom();
 

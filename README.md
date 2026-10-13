@@ -35,6 +35,8 @@ Use **Save & next** to move through supported fields. Pages without interactive 
 filled by placing text in visible blanks. Drafts preview before applying; cancel them to discard
 the draft. Download your PDF directly from the editor.
 
+The document editor downloads all exportable pages. In **Pages**, select pages to extract a subset.
+
 Added and replacement text uses Helvetica and accepts basic Latin characters. Replacement changes PDF text objects directly. It does
 not reflow paragraphs. Scanned pages, nested text, rotated text, and text with clipping or unsupported
 styling cannot be replaced. Form scripts, XFA, signatures, and multi-select fields are unavailable.

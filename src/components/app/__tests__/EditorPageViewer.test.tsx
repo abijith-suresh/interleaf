@@ -66,6 +66,31 @@ describe("EditorPageViewer", () => {
     vi.restoreAllMocks();
   });
 
+  it("fits the entire page inside the stage after accounting for its actual padding", async () => {
+    const pages = makePages();
+    render(() => (
+      <EditorPageViewer
+        pages={pages}
+        navigationPageIds={pages.map((page) => page.id)}
+        activePageId="page-1"
+        runtime={runtime}
+        onActivePageChange={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    const stage = document.querySelector<HTMLElement>(".editor-review-stage")!;
+    stage.style.padding = "44px 24px 24px";
+    Object.defineProperties(stage, {
+      clientWidth: { value: 180, configurable: true },
+      clientHeight: { value: 200, configurable: true },
+    });
+    fireEvent(window, new Event("resize"));
+    const frame = document.querySelector<HTMLElement>(".editor-review-page")!;
+    await waitFor(() => expect(frame.style.height).toBe("132px"));
+    expect(Number.parseFloat(frame.style.height) + 44 + 24).toBeLessThanOrEqual(stage.clientHeight);
+    expect(Number.parseFloat(frame.style.width) + 24 + 24).toBeLessThanOrEqual(stage.clientWidth);
+  });
+
   it("reviews every page with stable previous and next controls", async () => {
     const pages = makePages();
     const [activePageId, setActivePageId] = createSignal("page-1");
