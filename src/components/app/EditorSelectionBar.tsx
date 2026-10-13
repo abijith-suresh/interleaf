@@ -191,12 +191,53 @@ export default function EditorSelectionBar(props: Props) {
   });
 
   return (
-    <section ref={bar} class="editor-selection-bar" aria-label="Page selection and export">
+    <section
+      ref={bar}
+      class="editor-selection-bar"
+      classList={{ "has-selection": hasSelection() }}
+      aria-label="Page selection and export"
+    >
       <div class="editor-selection-summary">
         <strong id="editor-selection-title" data-testid="editor-selection-title">
           {selectionLabel()}
         </strong>
       </div>
+
+      <Show when={hasSelection()}>
+        <fieldset class="editor-selection-quick-actions" aria-label="Selected page actions">
+          <button
+            type="button"
+            aria-label="Rotate selection 90 degrees"
+            title="Rotate selected pages 90 degrees"
+            disabled={props.busy}
+            onClick={props.onRotate}
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M4 7a6 6 0 1 1-1 5M4 3v4h4" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            aria-label={props.deletionAriaLabel}
+            title={props.deletionAriaLabel}
+            disabled={props.busy}
+            onClick={props.onDelete}
+          >
+            <Show
+              when={props.deletionLabel === "Restore"}
+              fallback={
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M3 5h14M8 3h4M5 5l1 12h8l1-12M8 8v6M12 8v6" />
+                </svg>
+              }
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M4 7a6 6 0 1 1-1 5M4 3v4h4M8 11l2 2 4-4" />
+              </svg>
+            </Show>
+          </button>
+        </fieldset>
+      </Show>
 
       <div class="editor-menu-group editor-edit-menu-group">
         <button

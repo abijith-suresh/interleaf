@@ -500,6 +500,10 @@ export class PDFiumEngine {
           } else {
             size = edit.fontSize;
             maxWidth = edit.width;
+            const rotation = edit.rotation ?? 0;
+            if (!Number.isFinite(rotation) || rotation < -180 || rotation > 180)
+              throw new Error("Text rotation must be between -180 and 180 degrees.");
+            const pageSize = this.unrotatedSize(page);
             if (
               ![edit.x, edit.y, size, maxWidth].every(Number.isFinite) ||
               size < 6 ||
@@ -507,13 +511,18 @@ export class PDFiumEngine {
               edit.x < 0 ||
               edit.y < size ||
               maxWidth <= 0 ||
-              edit.x + maxWidth > this.unrotatedSize(page).width ||
-              edit.y > this.unrotatedSize(page).height
+              edit.x > pageSize.width ||
+              (rotation === 0 && edit.x + maxWidth > pageSize.width) ||
+              edit.y > pageSize.height
             )
               throw new Error(
                 "Keep the text area inside the page. Font size must be 6 to 144 points."
               );
-            matrix = [1, 0, 0, 1, ...this.pagePoint(page, edit.x, edit.y)];
+            const radians = (rotation * Math.PI) / 180;
+            const cosine = Math.cos(radians);
+            const sine = Math.sin(radians);
+            // Positive angles turn clockwise in the preview's top-left coordinate system.
+            matrix = [cosine, -sine, sine, cosine, ...this.pagePoint(page, edit.x, edit.y)];
           }
           const font = this.checked(
             this.api.FPDFText_LoadStandardFont(candidate.handle, "Helvetica"),
@@ -528,14 +537,30 @@ export class PDFiumEngine {
             this.wide(edit.text, (p) =>
               this.checked(this.api.FPDFText_SetText(object, p), "Could not set text.")
             );
-            this.memory(24, (p) => {
-              this.heap.HEAPF32.set(matrix, p / 4);
-              this.checked(this.api.FPDFPageObj_SetMatrix(object, p), "Could not place text.");
-            });
-            this.api.FPDFPageObj_SetFillColor(object, color[0], color[1], color[2], color[3]);
+            const setMatrix = (value: number[]) =>
+              this.memory(24, (p) => {
+                this.heap.HEAPF32.set(value, p / 4);
+                this.checked(this.api.FPDFPageObj_SetMatrix(object, p), "Could not place text.");
+              });
+            // Added text must fit its line allowance before rotation. A vertical projection
+            // otherwise hides overflow. Replacements retain the original object's transform.
+            setMatrix(edit.kind === "add" ? [1, 0, 0, 1, 0, 0] : matrix);
             const bounds = this.bounds(object);
             if (bounds[2] - bounds[0] > maxWidth + 0.05)
               throw new Error("The text is too wide for this area. Shorten it.");
+            if (edit.kind === "add") {
+              setMatrix(matrix);
+              const area = this.normalizedBounds(page, this.bounds(object));
+              const pageSize = this.unrotatedSize(page);
+              if (
+                area.x < -0.05 ||
+                area.y < -0.05 ||
+                area.x + area.width > pageSize.width + 0.05 ||
+                area.y + area.height > pageSize.height + 0.05
+              )
+                throw new Error("Keep the text inside the page. Move it or shorten it.");
+            }
+            this.api.FPDFPageObj_SetFillColor(object, color[0], color[1], color[2], color[3]);
             if (old)
               this.checked(
                 this.api.FPDFPage_RemoveObject(page, old),

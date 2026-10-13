@@ -25,6 +25,7 @@ import EditorFilesDialog from "./EditorFilesDialog";
 import EditorPageGrid from "./EditorPageGrid";
 import EditorPageViewer from "./EditorPageViewer";
 import EditorSelectionBar from "./EditorSelectionBar";
+import EditorToolRail, { type EditorWorkspaceTool } from "./EditorToolRail";
 import EditorUploader from "./EditorUploader";
 
 interface DragOverTarget {
@@ -33,6 +34,7 @@ interface DragOverTarget {
 }
 
 type EditorOperation =
+  | "duplicating"
   | "idle"
   | "uploading"
   | "adding"
@@ -103,6 +105,8 @@ export default function Editor() {
   const [dragSourceIndex, setDragSourceIndex] = createSignal<number | null>(null);
   const [dragOverTarget, setDragOverTarget] = createSignal<DragOverTarget | null>(null);
   const [filesOpen, setFilesOpen] = createSignal(false);
+  const [workspaceTool, setWorkspaceTool] =
+    createSignal<Exclude<EditorWorkspaceTool, "pages">>("read");
   const [reviewOpen, setReviewOpen] = createSignal(false);
   const [activePageId, setActivePageId] = createSignal<string | null>(null);
   const [operation, setOperation] = createSignal<EditorOperation>("idle");
@@ -442,6 +446,69 @@ export default function Editor() {
     setReviewOpen(true);
   }
 
+  function chooseWorkspaceTool(tool: EditorWorkspaceTool) {
+    if (isBusy()) return;
+    if (tool === "pages") closePageReview();
+    else {
+      if (!reviewOpen()) setSelectedIndices(new Set<number>());
+      setWorkspaceTool(tool);
+      openPageReview();
+    }
+  }
+  async function duplicatePage(index: number) {
+    if (isBusy()) return;
+    const page = pages[index];
+    if (!page) return;
+    setOperation("duplicating");
+    setStatusMessage("Duplicating page…");
+    try {
+      const content = await runPDF(
+        PDFProcessing.use((service) =>
+          service.getPageContent(page.sourceFile, page.sourcePageNumber)
+        )
+      );
+      if (
+        content.fields.some(
+          (field) =>
+            ![2, 3, 4, 5, 6].includes(field.type) ||
+            !!(field.flags & ((1 << 21) | (1 << 24))) ||
+            ([4, 5].includes(field.type) &&
+              field.selectedOption >= 0 &&
+              field.value !== field.options[field.selectedOption])
+        )
+      )
+        throw new Error(
+          "This page has form fields that cannot be copied safely. Export this PDF separately to preserve its form data."
+        );
+      const result = await runPDF(
+        PDFProcessing.use((service) => service.buildPDF([{ ...page, markedForDeletion: false }]))
+      );
+      if (disposed) return;
+      const origin = page.sourceOrigin ?? page.sourceFile;
+      const file = new File(
+        [new Uint8Array(result.data)],
+        `${origin.name.replace(/\.pdf$/i, "")} (copy).pdf`,
+        { type: "application/pdf" }
+      );
+      const copy = { ...createPageStates(file, 1)[0], sourceOrigin: origin, contentRevision: 1 };
+      setPages(
+        produce((draft) => {
+          draft.splice(index + 1, 0, copy);
+        })
+      );
+      setSelectedIndices(reviewOpen() ? new Set<number>() : new Set([index + 1]));
+      setActivePageId(copy.id);
+      setStatusMessage(`Duplicated page ${index + 1}.`);
+    } catch (error) {
+      dispatchToast(
+        error instanceof Error ? error.message : "Could not duplicate this page.",
+        "error"
+      );
+    } finally {
+      if (!disposed) setOperation("idle");
+    }
+  }
+
   function closePageReview(): void {
     setReviewOpen(false);
     queueMicrotask(() => {
@@ -497,12 +564,15 @@ export default function Editor() {
     if (!workspaceFile) return;
     const removedPageCount = workspaceFile.pageCount;
     const removedFileName = file.name;
+    const removedSources = new Set(
+      workspaceFile.pageIndices.map((index) => pages[index].sourceFile)
+    );
 
     const selection = selectedIndices();
     const nextSelection = new Set<number>();
     const remainingPages: PageState[] = [];
     pages.forEach((page, oldIndex) => {
-      if (page.sourceFile === file) return;
+      if ((page.sourceOrigin ?? page.sourceFile) === file) return;
       if (selection.has(oldIndex)) nextSelection.add(remainingPages.length);
       remainingPages.push(page);
     });
@@ -524,7 +594,11 @@ export default function Editor() {
     }
 
     try {
-      await runPDF(PDFProcessing.use((service) => service.releaseFile(file)));
+      await runPDF(
+        PDFProcessing.use((service) =>
+          Effect.all([...removedSources].map((source) => service.releaseFile(source)))
+        )
+      );
     } catch {
       // Cleanup is best effort; the runtime also releases all remaining files
       // when the editor is disposed.
@@ -860,7 +934,7 @@ export default function Editor() {
   }
 
   return (
-    <div class="editor-app">
+    <div class="editor-app" classList={{ "has-workspace-tools": phase() === "edit" }}>
       <section
         data-testid="editor-toast-region"
         aria-label="Notifications"
@@ -915,6 +989,14 @@ export default function Editor() {
           }
         >
           <div class="editor-workspace">
+            <Show when={!reviewOpen()}>
+              <EditorToolRail
+                activeTool="pages"
+                busy={isBusy()}
+                onChooseTool={chooseWorkspaceTool}
+                onAddFiles={requestAddFiles}
+              />
+            </Show>
             <section class="editor-workspace-main" aria-labelledby="editor-pages-title">
               <input
                 ref={addPdfInput}
@@ -948,7 +1030,7 @@ export default function Editor() {
                       <svg viewBox="0 0 20 20" aria-hidden="true">
                         <path d="M4 7V4h3M13 4h3v3M16 13v3h-3M7 16H4v-3" />
                       </svg>
-                      <span class="editor-review-button-label">Review</span>
+                      <span class="editor-review-button-label">Edit PDF</span>
                     </button>
                     <button
                       type="button"
@@ -996,6 +1078,15 @@ export default function Editor() {
                 onClearSelection={clearSelection}
                 onPageKeyDown={handlePageKeyDown}
                 onPageRotate={handlePageRotate}
+                onPageDuplicate={(index, event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void duplicatePage(index);
+                }}
+                onPageOpen={(index) => {
+                  setActivePageId(pages[index].id);
+                  chooseWorkspaceTool("read");
+                }}
                 onPageDelete={handlePageDelete}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
@@ -1057,6 +1148,28 @@ export default function Editor() {
                       setPages(index, "contentRevision", (page.contentRevision ?? 0) + 1);
                   }
                 }}
+                tool={workspaceTool()}
+                onChooseTool={(tool) => {
+                  if (tool !== "pages") setWorkspaceTool(tool);
+                }}
+                onAddFiles={requestAddFiles}
+                onRotatePage={(id) => {
+                  const index = pages.findIndex((page) => page.id === id);
+                  if (index >= 0) handlePageRotate(index, new MouseEvent("click"));
+                }}
+                onDeletePage={(id) => {
+                  const index = pages.findIndex((page) => page.id === id);
+                  if (index >= 0) handlePageDelete(index, new MouseEvent("click"));
+                }}
+                onDuplicatePage={(id) => {
+                  const index = pages.findIndex((page) => page.id === id);
+                  if (index >= 0) void duplicatePage(index);
+                }}
+                onDownload={handleDownload}
+                downloadBusy={isBusy()}
+                downloadAvailable={
+                  (selectedIndices().size > 0 ? selectedActivePageCount() : activePageCount()) > 0
+                }
                 onClose={closePageReview}
               />
             </Show>

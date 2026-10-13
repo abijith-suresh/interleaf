@@ -15,6 +15,7 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Remove a source file and its pages from the working set
 - Extract selected pages into a new PDF
 - Reorder pages with drag and drop
+- Duplicate a supported page as an independently editable copy
 - Rotate individual pages or selections in 90-degree steps
 - Mark pages for deletion before export
 - Unlock password-protected PDFs with an in-browser prompt
@@ -24,14 +25,15 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Export selected or unmarked pages as PNG images in a ZIP archive
 - Render page thumbnails locally for inspection before export
 - Fill existing text, checkbox, radio, and single-choice PDF form fields
-- Add one line of text at a chosen position
+- Add one line of text at a chosen position, drag its draft, and rotate it
 - Replace supported original text runs within their original width
 
-Open page review and choose **Edit page**. Tap the page to add text, highlighted text to replace it,
-or a form field to fill it. Use **Save & next** to move through supported fields. Pages without
-interactive fields can be filled by placing text in visible blanks. Drafts preview before applying;
-cancel them to discard the draft. Choose **Done** to review the page, then close page review
-to download your PDF.
+Choose **Pages**, **Read**, **Add text**, **Edit text**, or **Fill forms** from the workspace tools.
+Tap the page to place text, highlighted text to replace it, or a form field to fill it.
+Drag a new text draft to move it, and use its rotation control to change its orientation.
+Use **Save & next** to move through supported fields. Pages without interactive fields can be
+filled by placing text in visible blanks. Drafts preview before applying; cancel them to discard
+the draft. Download your PDF directly from the editor.
 
 Added and replacement text uses Helvetica and accepts basic Latin characters. Replacement changes PDF text objects directly. It does
 not reflow paragraphs. Scanned pages, nested text, rotated text, and text with clipping or unsupported

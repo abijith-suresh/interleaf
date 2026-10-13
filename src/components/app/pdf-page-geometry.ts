@@ -48,3 +48,58 @@ export function originalPoint(
     360 - rotation
   );
 }
+
+/** Resolve nearby small targets by proximity, without overlapping enlarged DOM hit areas. */
+export function closestPageTarget<T extends { bounds?: PageBox }>(
+  targets: readonly T[],
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  rotation: number,
+  cssWidth: number,
+  cssHeight: number,
+  radius = 22
+): T | undefined {
+  let nearest: T | undefined,
+    distance = Number.POSITIVE_INFINITY,
+    center = Number.POSITIVE_INFINITY;
+  for (const item of targets) {
+    if (!item.bounds) continue;
+    const style = boxStyle(item.bounds, width, height, rotation);
+    const left = (Number.parseFloat(style.left) * cssWidth) / 100,
+      top = (Number.parseFloat(style.top) * cssHeight) / 100;
+    const w = (Number.parseFloat(style.width) * cssWidth) / 100,
+      h = (Number.parseFloat(style.height) * cssHeight) / 100;
+    const d = Math.hypot(Math.max(left - x, 0, x - left - w), Math.max(top - y, 0, y - top - h));
+    const c = Math.hypot(x - left - w / 2, y - top - h / 2);
+    if (d <= radius && (d < distance || (d === distance && c < center))) {
+      nearest = item;
+      distance = d;
+      center = c;
+    }
+  }
+  return nearest;
+}
+
+/** Added text rotates about its baseline origin in the page's top-left coordinate space. */
+export function rotatedDraftBox(box: PageBox, angle: number, baseline: number): PageBox {
+  const radians = (angle * Math.PI) / 180,
+    cos = Math.cos(radians),
+    sin = Math.sin(radians);
+  const anchorY = box.y + baseline;
+  const points = [
+    [0, -baseline],
+    [box.width, -baseline],
+    [box.width, box.height - baseline],
+    [0, box.height - baseline],
+  ].map(([x, y]) => ({ x: box.x + x * cos - y * sin, y: anchorY + x * sin + y * cos }));
+  const left = Math.min(...points.map((p) => p.x)),
+    top = Math.min(...points.map((p) => p.y));
+  return {
+    x: left,
+    y: top,
+    width: Math.max(...points.map((p) => p.x)) - left,
+    height: Math.max(...points.map((p) => p.y)) - top,
+  };
+}

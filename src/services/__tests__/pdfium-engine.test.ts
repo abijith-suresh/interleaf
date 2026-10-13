@@ -89,6 +89,140 @@ describe("PDFium WASM", () => {
     ).toThrow("inside the page");
   });
 
+  it.each([0, 90, 180, -90])(
+    "adds searchable text clockwise at %i degrees and preserves it through export",
+    (rotation) => {
+      const doc = native.engine.open(formBytes());
+      native.engine.edit(doc.id, 1, {
+        kind: "add",
+        text: "TEXT",
+        x: 150,
+        y: 200,
+        width: 80,
+        fontSize: 12,
+        rotation,
+      });
+      const reopened = native.engine.open(
+        native.engine.build([{ document: doc.id, page: 1, rotation: 0 }])
+      );
+      const run = native.engine.content(reopened.id, 1).text.find((item) => item.text === "TEXT");
+      expect(run).toBeDefined();
+      expect(run?.editable).toBe(rotation === 0);
+      if (!run?.bounds) throw new Error("Expected bounds for the exported added text.");
+      const area = run.bounds;
+      expect(area.x).toBeGreaterThan(100);
+      expect(area.x + area.width).toBeLessThan(200);
+      expect(area.y).toBeGreaterThan(150);
+      expect(area.y + area.height).toBeLessThan(250);
+      if (Math.abs(rotation) === 90) expect(area.height).toBeGreaterThan(area.width * 2);
+      else expect(area.width).toBeGreaterThan(area.height * 2);
+      if ([0, 90].includes(rotation)) expect(area.x).toBeGreaterThanOrEqual(149.95);
+      else expect(area.x).toBeLessThan(149);
+      if ([90, 180].includes(rotation)) expect(area.y).toBeGreaterThanOrEqual(199.95);
+      else expect(area.y).toBeLessThan(199);
+    }
+  );
+
+  it.each([0, 90, 180, 270])(
+    "keeps arbitrary text angles relative to a nonzero CropBox with source rotation %i",
+    (sourceRotation) => {
+      const doc = native.engine.open(
+        formBytes(false, {
+          rotation: sourceRotation,
+          crop: [50, 70, 250, 370],
+        })
+      );
+      native.engine.edit(doc.id, 1, {
+        kind: "add",
+        text: "TEXT",
+        x: 100,
+        y: 150,
+        width: 80,
+        fontSize: 12,
+        rotation: 37,
+      });
+      const run = native.engine.content(doc.id, 1).text.find((item) => item.text === "TEXT");
+      if (!run?.bounds) throw new Error("Expected bounds for text on the cropped page.");
+      expect(run.bounds.x).toBeCloseTo(100, 0);
+      expect(run.bounds.y).toBeGreaterThan(140);
+      expect(run.bounds.y).toBeLessThan(150);
+      expect(run.bounds.width).toBeGreaterThan(20);
+      expect(run.bounds.height).toBeGreaterThan(20);
+      expect(run.editable).toBe(false);
+    }
+  );
+
+  it("checks line width before turning vertical text and rolls back rejected edits", () => {
+    const doc = native.engine.open(formBytes());
+    const before = native.engine.content(doc.id, 1);
+    expect(() =>
+      native.engine.edit(doc.id, 1, {
+        kind: "add",
+        text: "W".repeat(12),
+        x: 150,
+        y: 200,
+        width: 20,
+        fontSize: 12,
+        rotation: 90,
+      })
+    ).toThrow("too wide");
+    expect(native.engine.content(doc.id, 1)).toEqual(before);
+    native.engine.edit(doc.id, 1, {
+      kind: "add",
+      text: "Vertical line",
+      x: 280,
+      y: 300,
+      width: 100,
+      fontSize: 12,
+      rotation: 90,
+    });
+    expect(native.engine.content(doc.id, 1).text.at(-1)?.text).toBe("Vertical line");
+  });
+
+  it.each([
+    { x: 195, y: 150, rotation: 90 },
+    { x: 5, y: 150, rotation: -90 },
+    { x: 10, y: 150, rotation: 180 },
+    { x: 100, y: 290, rotation: -90 },
+    { x: 100, y: 20, rotation: 90 },
+  ])(
+    "rejects rotated glyphs extending outside the crop and rolls back $rotation° text",
+    (placement) => {
+      const doc = native.engine.open(formBytes(false, { rotation: 90, crop: [50, 70, 250, 370] }));
+      const before = native.engine.content(doc.id, 1);
+      expect(() =>
+        native.engine.edit(doc.id, 1, {
+          kind: "add",
+          text: "TEXT",
+          width: 80,
+          fontSize: 12,
+          ...placement,
+        })
+      ).toThrow("inside the page");
+      expect(native.engine.content(doc.id, 1)).toEqual(before);
+    }
+  );
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -181, 181])(
+    "rejects invalid added-text angle %s without changing the document",
+    (rotation) => {
+      const doc = native.engine.open(formBytes());
+      const before = native.engine.content(doc.id, 1);
+      expect(() =>
+        native.engine.edit(doc.id, 1, {
+          kind: "add",
+          text: "TEXT",
+          x: 150,
+          y: 200,
+          width: 80,
+          fontSize: 12,
+          rotation,
+        })
+      ).toThrow("between -180 and 180");
+      expect(native.engine.content(doc.id, 1)).toEqual(before);
+    }
+  );
+
   it("fills text, checkbox, and choice widgets, persists values, and refuses read-only fields", () => {
     const doc = native.engine.open(formBytes());
     expect(native.engine.content(doc.id, 1).fields.map((f) => f.name)).toEqual([

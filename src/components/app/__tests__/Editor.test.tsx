@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { Deferred, Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PDFPasswordRequiredError, PDFProcessingError } from "@/types/interfaces";
+import { type PageState, PDFPasswordRequiredError, PDFProcessingError } from "@/types/interfaces";
 
 const pdfServiceMocks = vi.hoisted(() => ({
   preload: vi.fn(),
@@ -12,6 +12,8 @@ const pdfServiceMocks = vi.hoisted(() => ({
   getPageRotation: vi.fn(),
   getPageSize: vi.fn(),
   renderPage: vi.fn(),
+  getPageContent: vi.fn(),
+  editPage: vi.fn(),
   releaseFile: vi.fn(),
   reset: vi.fn(),
   dispose: vi.fn(),
@@ -47,6 +49,8 @@ vi.mock("@/services/pdf-service", () => ({
     getPageRotation = pdfServiceMocks.getPageRotation;
     getPageSize = pdfServiceMocks.getPageSize;
     renderPage = pdfServiceMocks.renderPage;
+    getPageContent = pdfServiceMocks.getPageContent;
+    editPage = pdfServiceMocks.editPage;
     releaseFile = pdfServiceMocks.releaseFile;
     reset = pdfServiceMocks.reset;
     dispose = pdfServiceMocks.dispose;
@@ -126,6 +130,10 @@ describe("Editor", () => {
     pdfServiceMocks.loadPDF.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.loadPDFWithPassword.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.renderPage.mockReturnValue(Effect.succeed(undefined));
+    pdfServiceMocks.getPageContent.mockReturnValue(
+      Effect.succeed({ width: 100, height: 200, text: [], fields: [] })
+    );
+    pdfServiceMocks.editPage.mockReturnValue(Effect.void);
     pdfServiceMocks.releaseFile.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.reset.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.dispose.mockReturnValue(Effect.void);
@@ -243,6 +251,195 @@ describe("Editor", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Close page review" }));
     await waitFor(() => expect(screen.queryByTestId("editor-page-viewer")).not.toBeInTheDocument());
+  });
+
+  it.each([
+    { label: "Add text", mode: "add", guidance: "Tap the page where you want to write." },
+    {
+      label: "Fill forms",
+      mode: "forms",
+      guidance: "No interactive fields. Tap the page to add text.",
+    },
+  ])("opens $label directly from the workspace tool rail", async ({ label, mode, guidance }) => {
+    const file = makeFile();
+    const tiles = await openPDF(file);
+    fireEvent.click(tiles[2]);
+    fireEvent.click(screen.getByRole("button", { name: label }));
+
+    expect(await screen.findByTestId("editor-page-viewer")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(guidance)).toBeVisible());
+    expect(screen.getByRole("region", { name: "Page content" })).toHaveAttribute("data-tool", mode);
+    expect(screen.getByRole("button", { name: label })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 3");
+    expect(pdfServiceMocks.getPageContent).toHaveBeenCalledWith(file, 3);
+  });
+
+  it("duplicates a rotated page into an independent source and keeps its file group", async () => {
+    const file = makeFile("report.pdf");
+    await openPDF(file);
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 2 90 degrees" }));
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 2" }));
+    await waitFor(() => expect(getPages()).toHaveLength(4));
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledExactlyOnceWith(
+      [expect.objectContaining({ sourceFile: file, sourcePageNumber: 2, rotation: 90 })],
+      undefined
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "View 1 file" }));
+    expect(
+      await screen.findByRole("button", { name: "Select all 4 pages from report.pdf" })
+    ).toBeVisible();
+    expect(screen.getAllByTestId("editor-file-item")).toHaveLength(1);
+    fireEvent.click(screen.getByTestId("editor-files-close-button"));
+    // Deselect the new copy so export includes its original and its neighbors too.
+    fireEvent.click(getPages()[2]);
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+
+    const output = pdfOperationsMocks.buildPDF.mock.calls[1][0] as PageState[];
+    const copy = output[2];
+    expect(copy.sourceFile).not.toBe(file);
+    expect(copy.sourceFile).toBeInstanceOf(File);
+    expect(new Uint8Array(await copy.sourceFile.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
+    expect(copy.sourceOrigin).toBe(file);
+    expect(output.map((page) => page.sourcePageNumber)).toEqual([1, 2, 1, 3]);
+    expect(output.map((page) => page.rotation)).toEqual([0, 90, 0, 0]);
+  });
+
+  it("duplicates the edited working page and routes later copy edits independently", async () => {
+    const original = makeFile("working.pdf");
+    await openPDF(original);
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Place text" }));
+    const originalInput = screen.getByRole("textbox", { name: "Text" });
+    fireEvent.input(originalInput, { target: { value: "Original edit" } });
+    fireEvent.submit(originalInput.closest("form") as HTMLFormElement);
+    await waitFor(() => expect(screen.getByText("Applied to this page.")).toBeVisible());
+    expect(pdfServiceMocks.editPage).toHaveBeenCalledExactlyOnceWith(
+      original,
+      1,
+      expect.objectContaining({ kind: "add", text: "Original edit" })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Close page review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expect(getPages()).toHaveLength(4));
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledExactlyOnceWith(
+      [expect.objectContaining({ sourceFile: original, sourcePageNumber: 1, contentRevision: 1 })],
+      undefined
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Place text" }));
+    const copyInput = screen.getByRole("textbox", { name: "Text" });
+    fireEvent.input(copyInput, { target: { value: "Copy only" } });
+    fireEvent.submit(copyInput.closest("form") as HTMLFormElement);
+    await waitFor(() => expect(screen.getByText("Applied to this page.")).toBeVisible());
+    expect(pdfServiceMocks.editPage).toHaveBeenCalledTimes(2);
+    const copiedFile = pdfServiceMocks.editPage.mock.calls[1][0] as File;
+    expect(copiedFile).not.toBe(original);
+    expect(pdfServiceMocks.editPage).toHaveBeenLastCalledWith(
+      copiedFile,
+      1,
+      expect.objectContaining({ kind: "add", text: "Copy only" })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Close page review" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const output = pdfOperationsMocks.buildPDF.mock.calls[1][0] as PageState[];
+    expect(output[0]).toEqual(
+      expect.objectContaining({ sourceFile: original, contentRevision: 1 })
+    );
+    expect(output[1]).toEqual(
+      expect.objectContaining({
+        sourceFile: copiedFile,
+        sourceOrigin: original,
+        contentRevision: 2,
+      })
+    );
+    expect(pdfServiceMocks.releaseFile).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { description: "a signature field", type: 7, value: "", options: [], selectedOption: -1 },
+    {
+      description: "a choice field with a different stored value and display label",
+      type: 4,
+      value: "g",
+      options: ["Green"],
+      selectedOption: 0,
+    },
+  ])("preserves the original export when $description prevents a safe copy", async (field) => {
+    const file = makeFile("protected-form.pdf");
+    pdfServiceMocks.getPageContent.mockReturnValue(
+      Effect.succeed({
+        width: 100,
+        height: 200,
+        text: [],
+        fields: [
+          {
+            index: 0,
+            fieldId: 1,
+            name: "Important field",
+            type: field.type,
+            value: field.value,
+            options: field.options,
+            selectedOption: field.selectedOption,
+            checked: false,
+            exportValue: "Yes",
+            flags: 0,
+            readOnly: field.type === 7,
+          },
+        ],
+      })
+    );
+    await openPDF(file);
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expectLastToast("This page has form fields that cannot be copied safely."));
+    expect(getPages()).toHaveLength(3);
+    expect(pdfOperationsMocks.buildPDF).not.toHaveBeenCalled();
+    expect(pdfServiceMocks.releaseFile).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const output = pdfOperationsMocks.buildPDF.mock.calls[0][0] as PageState[];
+    expect(output.map((page) => page.sourceFile)).toEqual([file, file, file]);
+    expect(output.map((page) => page.sourcePageNumber)).toEqual([1, 2, 3]);
+  });
+
+  it("removes an original file with all its independent copies and releases each source", async () => {
+    render(() => <Editor />);
+    const removed = makeFile("brief.pdf");
+    const remaining = makeFile("appendix.pdf");
+    selectFiles("upload", [removed, remaining]);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expect(getPages()).toHaveLength(7));
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expect(getPages()).toHaveLength(8));
+
+    fireEvent.click(screen.getByRole("button", { name: "View 2 files" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Remove brief.pdf and its 5 pages from the workspace",
+      })
+    );
+    await waitFor(() => expect(getPages()).toHaveLength(3));
+    await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledTimes(3));
+    const released = pdfServiceMocks.releaseFile.mock.calls.map(([file]) => file as File);
+    expect(new Set(released).size).toBe(3);
+    expect(released).toContain(removed);
+    expect(released).not.toContain(remaining);
+    expect(released.filter((file) => file !== removed).map((file) => file.name)).toEqual([
+      "brief (copy).pdf",
+      "brief (copy).pdf",
+    ]);
+
+    fireEvent.click(screen.getByTestId("editor-files-close-button"));
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const output = pdfOperationsMocks.buildPDF.mock.calls[2][0] as PageState[];
+    expect(output.map((page) => page.sourceFile)).toEqual([remaining, remaining, remaining]);
   });
 
   it("turns selected images into a PDF and opens it in the workspace", async () => {

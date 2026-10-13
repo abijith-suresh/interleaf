@@ -8,9 +8,15 @@ import type {
   PDFTextRun,
 } from "../../services/pdfium/protocol";
 import type { PageState } from "../../types/interfaces";
-import { boxStyle, originalPoint, type PageBox } from "./pdf-page-geometry";
+import {
+  boxStyle,
+  closestPageTarget,
+  originalPoint,
+  type PageBox,
+  rotatedDraftBox,
+} from "./pdf-page-geometry";
 
-type Mode = "add" | "replace" | "forms";
+type Mode = "read" | "add" | "replace" | "forms";
 function fieldValue(field?: PDFFormField) {
   if (!field) return undefined;
   return [2, 3].includes(field.type)
@@ -27,6 +33,13 @@ interface Props {
   runtime: PDFRuntime;
   overlayRoot?: HTMLElement;
   rotation?: number;
+  initialMode?: Mode;
+  mode?: Mode;
+  hideTools?: boolean;
+  locked?: boolean;
+  onModeChange?: (mode: Mode) => void;
+  onFocusBounds?: (bounds: PageBox, width: number, height: number) => void;
+  onComposerHeight?: (height: number) => void;
   onChange: (file: File, pageNumber?: number) => void;
   onBusy: (busy: boolean) => void;
   onDraft?: (draft: boolean) => void;
@@ -34,15 +47,19 @@ interface Props {
 }
 
 export default function EditorContentPanel(props: Props) {
-  const [mode, setMode] = createSignal<Mode>("add");
+  const [mode, setMode] = createSignal<Mode>(props.initialMode ?? "add");
   const [content, setContent] = createSignal<PDFPageContent>();
   const [run, setRun] = createSignal<PDFTextRun>();
   const [field, setField] = createSignal<PDFFormField>();
   const [position, setPosition] = createSignal<{ x: number; y: number }>();
   const [text, setText] = createSignal("");
   const [fontSize, setFontSize] = createSignal(14);
+  const [textRotation, setTextRotation] = createSignal(0);
   const [width, setWidth] = createSignal(200);
-  const [busy, setBusy] = createSignal(false);
+  const [mutating, setBusy] = createSignal(false);
+  const busy = () => mutating() || !!props.locked;
+  let composerObserver: ResizeObserver | undefined;
+  let dragging: { id: number; x: number; y: number; origin: { x: number; y: number } } | undefined;
   const [message, setMessage] = createSignal("");
   const [error, setError] = createSignal(false);
   const [loading, setLoading] = createSignal(true);
@@ -54,8 +71,16 @@ export default function EditorContentPanel(props: Props) {
   let pointer: { x: number; y: number; id: number } | undefined;
   const selected = () => !!(run() || field() || position());
   const dirty = () => selected() && text() !== (fieldValue(field()) ?? run()?.text ?? "");
+  createEffect(() => {
+    if (props.mode) {
+      setMode(props.mode);
+      clearSelection();
+      setList(false);
+    }
+  });
   createEffect(() => props.onDraft?.(dirty()));
   createEffect(() => props.onSelection?.(selected()));
+  createEffect(() => props.onModeChange?.(mode()));
   const fields = createMemo(
     () =>
       content()
@@ -69,15 +94,17 @@ export default function EditorContentPanel(props: Props) {
   const helper = () =>
     loading()
       ? "Reading page…"
-      : mode() === "replace"
-        ? content()?.text.some((item) => item.editable)
-          ? "Tap highlighted text to change it."
-          : "No editable text here. Use Add text to write on this page."
-        : mode() === "forms" && fields().length
-          ? `Tap a field to fill it. ${fields().length} fields on this page.`
-          : mode() === "forms"
-            ? "No interactive fields. Tap the page to add text."
-            : "Tap the page where you want to write.";
+      : mode() === "read"
+        ? "Choose a tool to start editing."
+        : mode() === "replace"
+          ? content()?.text.some((item) => item.editable)
+            ? "Tap highlighted text to change it."
+            : "No editable text here. Use Add text to write on this page."
+          : mode() === "forms" && fields().length
+            ? `Tap a field to fill it. ${fields().length} fields on this page.`
+            : mode() === "forms"
+              ? "No interactive fields. Tap the page to add text."
+              : "Tap the page where you want to write.";
 
   function clearSelection() {
     setRun(undefined);
@@ -102,7 +129,9 @@ export default function EditorContentPanel(props: Props) {
     setText(fieldValue(item) ?? "");
     setMessage("");
     focusInput();
-    reveal(item.bounds);
+    if (item.bounds && content())
+      props.onFocusBounds?.(item.bounds, content()?.width ?? 1, content()?.height ?? 1);
+    queueMicrotask(() => reveal(item.bounds));
   }
   function reveal(bounds?: PageBox) {
     if (!bounds || !content() || !props.overlayRoot) return;
@@ -119,7 +148,16 @@ export default function EditorContentPanel(props: Props) {
       (Number.parseFloat(s.left) / 100) * props.overlayRoot.clientWidth;
     stage.scrollTo?.({
       top: Math.max(0, y - stage.clientHeight * 0.25),
-      left: Math.max(0, x - stage.clientWidth * 0.25),
+      left: Math.max(
+        0,
+        x -
+          Math.max(
+            16,
+            (stage.clientWidth -
+              (Number.parseFloat(s.width) / 100) * props.overlayRoot.clientWidth) /
+              2
+          )
+      ),
       behavior: "smooth",
     });
   }
@@ -177,6 +215,7 @@ export default function EditorContentPanel(props: Props) {
     generation++;
     props.onDraft?.(false);
     props.onSelection?.(false);
+    composerObserver?.disconnect();
   });
 
   async function apply(edit: PDFContentEdit, next?: number) {
@@ -209,7 +248,7 @@ export default function EditorContentPanel(props: Props) {
           if (item) selectField(item, true);
           setAdvance(undefined);
         }
-        setMessage("Applied to this page. Download PDF to save your changes.");
+        setMessage("Applied to this page.");
       }
     } catch (cause) {
       if (!disposed) {
@@ -228,7 +267,9 @@ export default function EditorContentPanel(props: Props) {
     setText(item.text);
     setMessage("");
     focusInput();
-    reveal(item.bounds);
+    if (item.bounds && content())
+      props.onFocusBounds?.(item.bounds, content()?.width ?? 1, content()?.height ?? 1);
+    queueMicrotask(() => reveal(item.bounds));
   }
   function place(clientX?: number, clientY?: number) {
     const c = content();
@@ -255,7 +296,7 @@ export default function EditorContentPanel(props: Props) {
     });
     setWidth(Math.min(existingWidth, c.width - (position()?.x ?? 0)));
     setMessage("");
-    reveal(draftBox());
+    queueMicrotask(() => reveal(draftBox()));
     focusInput();
   }
   function save(next = false) {
@@ -291,48 +332,164 @@ export default function EditorContentPanel(props: Props) {
         y: (content()?.height ?? 1) - point.y - fontSize(),
         width: Math.min(width(), (content()?.width ?? 1) - point.x),
         fontSize: fontSize(),
+        rotation: textRotation(),
       });
   }
   const style = (box: PageBox) =>
     boxStyle(box, content()?.width ?? 1, content()?.height ?? 1, props.rotation ?? 0);
-  const draftBox = (): PageBox => ({
-    x: position()?.x ?? 0,
-    y: position()?.y ?? 0,
-    width: width(),
-    height: fontSize() * 1.3,
-  });
+  const draftBox = (): PageBox =>
+    rotatedDraftBox(
+      {
+        x: position()?.x ?? 0,
+        y: position()?.y ?? 0,
+        width: width(),
+        height: fontSize() * 1.3,
+      },
+      textRotation(),
+      fontSize()
+    );
+
+  function measureComposer(element: HTMLFormElement) {
+    composerObserver?.disconnect();
+    const measure = () =>
+      props.onComposerHeight?.(Math.ceil(element.getBoundingClientRect().height));
+    measure();
+    if (typeof ResizeObserver !== "undefined") {
+      composerObserver = new ResizeObserver(measure);
+      composerObserver.observe(element);
+    }
+  }
+  function pickTarget(x?: number, y?: number) {
+    if (busy() || loading() || dirty()) return;
+    const c = content(),
+      rect = props.overlayRoot?.getBoundingClientRect();
+    if (!c) return;
+    const targets: readonly (PDFFormField | PDFTextRun)[] = mode() === "forms" ? c.fields : c.text;
+    const target =
+      x !== undefined && y !== undefined && rect
+        ? closestPageTarget(
+            targets,
+            x - rect.left,
+            y - rect.top,
+            c.width,
+            c.height,
+            props.rotation ?? 0,
+            rect.width,
+            rect.height
+          )
+        : targets.find((item) => ("editable" in item ? item.editable : !item.readOnly));
+    if (!target) return;
+    if ("editable" in target) {
+      if (target.editable) selectRun(target);
+      else setMessage(target.reason ?? "This text cannot be replaced.");
+    } else if (target.readOnly) setMessage("This field is read-only or unsupported.");
+    else if ([2, 3].includes(target.type))
+      void apply({
+        kind: "form",
+        index: target.index,
+        value: target.checked && target.type === 2 ? "Off" : target.exportValue,
+      });
+    else selectField(target);
+  }
+  function moveDraft(event: PointerEvent) {
+    const start = dragging;
+    if (!start || start.id !== event.pointerId) return;
+    moveDraftBy(start.origin, event.clientX - start.x, event.clientY - start.y);
+  }
+  function moveDraftBy(origin: { x: number; y: number }, dx: number, dy: number) {
+    const c = content(),
+      rect = props.overlayRoot?.getBoundingClientRect();
+    if (!c || !rect) return;
+    const rotated = (props.rotation ?? 0) % 180 !== 0;
+    const from = originalPoint(0, 0, c.width, c.height, props.rotation ?? 0);
+    const to = originalPoint(
+      (dx / rect.width) * (rotated ? c.height : c.width),
+      (dy / rect.height) * (rotated ? c.width : c.height),
+      c.width,
+      c.height,
+      props.rotation ?? 0
+    );
+    const box = rotatedDraftBox(
+      { x: origin.x, y: origin.y, width: width(), height: fontSize() * 1.3 },
+      textRotation(),
+      fontSize()
+    );
+    const x = Math.max(
+      origin.x - box.x,
+      Math.min(c.width - box.width + origin.x - box.x, origin.x + to.x - from.x)
+    );
+    const y = Math.max(
+      origin.y - box.y,
+      Math.min(c.height - box.height + origin.y - box.y, origin.y + to.y - from.y)
+    );
+    setPosition({ x, y });
+  }
 
   return (
-    <section class="editor-content-panel" aria-label="Page content">
-      <fieldset class="editor-content-toolbar" aria-label="Content tools">
-        <For
-          each={[
-            { id: "add" as const, label: "Add text", icon: "T+" },
-            { id: "replace" as const, label: "Edit text", icon: "T↔" },
-            { id: "forms" as const, label: "Fill forms", icon: "▤" },
-          ]}
-        >
-          {(tool) => (
+    <section
+      class="editor-content-panel"
+      aria-label="Page content"
+      classList={{
+        "has-selection": selected(),
+        "is-reading": mode() === "read",
+        "is-text-tool": !!position(),
+      }}
+      data-tool={mode()}
+    >
+      <Show when={!props.hideTools}>
+        <fieldset class="editor-content-toolbar" aria-label="Content tools">
+          <For
+            each={[
+              { id: "read" as const, label: "Read", icon: "↖" },
+              { id: "add" as const, label: "Add text", icon: "T+" },
+              { id: "replace" as const, label: "Edit text", icon: "T↔" },
+              { id: "forms" as const, label: "Fill forms", icon: "▤" },
+            ]}
+          >
+            {(tool) => (
+              <button
+                type="button"
+                aria-pressed={mode() === tool.id}
+                disabled={busy() || loading() || dirty()}
+                onClick={() => {
+                  setMode(tool.id);
+                  clearSelection();
+                  setList(false);
+                  setMessage("");
+                }}
+              >
+                <span aria-hidden="true">{tool.icon}</span>
+                {tool.label}
+              </button>
+            )}
+          </For>
+        </fieldset>
+      </Show>
+      <Show when={!selected() && mode() !== "read"}>
+        <div class="editor-content-guidance">
+          <h3>
+            {mode() === "forms"
+              ? "Fill this page"
+              : mode() === "replace"
+                ? "Replace original text"
+                : "Write on this page"}
+          </h3>
+          <p>{helper()}</p>
+          <Show when={mode() === "forms" && fields().length}>
             <button
               type="button"
-              aria-pressed={mode() === tool.id}
-              disabled={busy() || loading() || dirty()}
-              onClick={() => {
-                setMode(tool.id);
-                clearSelection();
-                setList(false);
-                setMessage("");
-              }}
+              class="editor-content-start"
+              disabled={busy() || loading()}
+              onClick={() =>
+                selectField(
+                  fields().find((item) => !fieldValue(item) || fieldValue(item) === "Off") ??
+                    fields()[0]
+                )
+              }
             >
-              <span aria-hidden="true">{tool.icon}</span>
-              {tool.label}
+              Start filling
             </button>
-          )}
-        </For>
-      </fieldset>
-      <Show when={!selected()}>
-        <div class="editor-content-guidance">
-          <p>{helper()}</p>
+          </Show>
           <Show when={mode() === "forms" && fields().length}>
             <button
               type="button"
@@ -360,8 +517,18 @@ export default function EditorContentPanel(props: Props) {
           </Show>
         </div>
       </Show>
-      <Show when={list() && !selected()}>
-        <section class="editor-content-picker" aria-label="Page items">
+      <Show when={(list() || mode() === "forms") && !selected()}>
+        <section
+          class="editor-content-picker"
+          aria-label="Page items"
+          classList={{ "is-open": list() }}
+        >
+          <header>
+            <span>{mode() === "forms" ? "Fields on this page" : "Text on this page"}</span>
+            <button type="button" aria-label="Close list" onClick={() => setList(false)}>
+              ×
+            </button>
+          </header>
           <For each={mode() === "forms" ? content()?.fields : content()?.text}>
             {(item) => (
               <button
@@ -390,6 +557,37 @@ export default function EditorContentPanel(props: Props) {
             class="editor-content-overlay"
             classList={{ "is-placement": canPlace() && !busy() && !loading() }}
           >
+            <Show when={mode() === "forms" || mode() === "replace"}>
+              <button
+                class="editor-content-target-surface"
+                type="button"
+                aria-label={mode() === "forms" ? "Select field on page" : "Select text on page"}
+                disabled={busy() || loading() || dirty()}
+                onPointerDown={(event) => {
+                  pointer = event.isPrimary
+                    ? { id: event.pointerId, x: event.clientX, y: event.clientY }
+                    : undefined;
+                }}
+                onPointerUp={(event) => {
+                  const start = pointer;
+                  pointer = undefined;
+                  if (
+                    start?.id === event.pointerId &&
+                    Math.hypot(event.clientX - start.x, event.clientY - start.y) < 8
+                  )
+                    pickTarget(event.clientX, event.clientY);
+                }}
+                onPointerCancel={() => {
+                  pointer = undefined;
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    pickTarget();
+                  }
+                }}
+              />
+            </Show>
             <Show when={canPlace()}>
               <button
                 type="button"
@@ -468,7 +666,43 @@ export default function EditorContentPanel(props: Props) {
             </Show>
             <Show when={position()}>
               <>
-                <div class="editor-content-draft" style={style(draftBox())} />
+                <button
+                  type="button"
+                  class="editor-content-draft"
+                  aria-label="Move draft text"
+                  style={style(draftBox())}
+                  disabled={busy()}
+                  onKeyDown={(event) => {
+                    const origin = position();
+                    if (!origin || busy() || !event.key.startsWith("Arrow")) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const step = event.shiftKey ? 10 : 1;
+                    moveDraftBy(
+                      origin,
+                      event.key === "ArrowRight" ? step : event.key === "ArrowLeft" ? -step : 0,
+                      event.key === "ArrowDown" ? step : event.key === "ArrowUp" ? -step : 0
+                    );
+                  }}
+                  onPointerDown={(event) => {
+                    const origin = position();
+                    if (!origin || !event.isPrimary) return;
+                    dragging = { id: event.pointerId, x: event.clientX, y: event.clientY, origin };
+                    event.currentTarget.setPointerCapture?.(event.pointerId);
+                  }}
+                  onPointerMove={moveDraft}
+                  onPointerUp={() => {
+                    dragging = undefined;
+                  }}
+                  onPointerCancel={() => {
+                    dragging = undefined;
+                  }}
+                >
+                  {" "}
+                  <span class="editor-content-draft-handle" aria-hidden="true">
+                    ✥
+                  </span>
+                </button>
                 <svg
                   class="editor-content-preview"
                   viewBox={`0 0 ${(props.rotation ?? 0) % 180 ? (content()?.height ?? 1) : (content()?.width ?? 1)} ${(props.rotation ?? 0) % 180 ? (content()?.width ?? 1) : (content()?.height ?? 1)}`}
@@ -490,6 +724,7 @@ export default function EditorContentPanel(props: Props) {
                       y={(position()?.y ?? 0) + fontSize()}
                       font-size={String(fontSize())}
                       font-family="Helvetica, Arial, sans-serif"
+                      transform={`rotate(${textRotation()} ${position()?.x ?? 0} ${(position()?.y ?? 0) + fontSize()})`}
                       fill="black"
                     >
                       {text() || "Type here"}
@@ -504,11 +739,16 @@ export default function EditorContentPanel(props: Props) {
       <Show when={selected()}>
         <form
           class="editor-content-composer"
+          ref={measureComposer}
           onSubmit={(e) => {
             e.preventDefault();
             save();
           }}
           onKeyDown={(e) => {
+            if (e.key === "Enter" && field() && e.target instanceof HTMLInputElement) {
+              e.preventDefault();
+              save(true);
+            }
             if (e.key === "Escape") {
               e.stopPropagation();
               if (!busy()) {
@@ -548,18 +788,29 @@ export default function EditorContentPanel(props: Props) {
             fallback={
               <label>
                 <input
+                  ref={(element) => {
+                    input = element;
+                  }}
                   type={field()?.type === 3 ? "radio" : "checkbox"}
                   checked={text() !== "Off"}
                   onChange={(e) =>
                     setText(e.currentTarget.checked ? (field()?.exportValue ?? "Yes") : "Off")
                   }
                 />
-                {field()?.name}
+                {field() ? fieldLabel(field() as PDFFormField) : ""}
               </label>
             }
           >
             <label>
-              {field() ? "Value" : "Text"}
+              <span class="editor-content-input-label">
+                {field() ? fieldLabel(field() as PDFFormField) : "Text"}
+              </span>
+              <Show when={field()}>
+                <span class="editor-content-field-progress">
+                  {fields().findIndex((item) => item.index === field()?.index) + 1} /{" "}
+                  {fields().length}
+                </span>
+              </Show>
               <Show
                 when={
                   field() &&
@@ -621,6 +872,29 @@ export default function EditorContentPanel(props: Props) {
               </Show>
             </label>
           </Show>
+          <Show when={position()}>
+            <div class="editor-content-format-bar">
+              <button
+                type="button"
+                disabled={busy()}
+                aria-label="Rotate draft text 90 degrees"
+                onClick={() => setTextRotation((value) => ((value + 270) % 360) - 180)}
+              >
+                ↻ {textRotation()}°
+              </button>
+              <label>
+                Size{" "}
+                <input
+                  aria-label="Text size"
+                  type="number"
+                  min="6"
+                  max="144"
+                  value={fontSize()}
+                  onInput={(event) => setFontSize(event.currentTarget.valueAsNumber)}
+                />
+              </label>
+            </div>
+          </Show>
           <Show when={!field()}>
             <p class="editor-content-note">
               Helvetica fallback · One line of basic Latin text.
@@ -630,6 +904,17 @@ export default function EditorContentPanel(props: Props) {
               <details>
                 <summary>Size and position</summary>
                 <div class="editor-content-position">
+                  <label>
+                    Rotation
+                    <input
+                      type="number"
+                      min="-180"
+                      max="180"
+                      step="1"
+                      value={textRotation()}
+                      onInput={(event) => setTextRotation(event.currentTarget.valueAsNumber)}
+                    />
+                  </label>
                   <label>
                     Font size
                     <input
@@ -708,7 +993,12 @@ export default function EditorContentPanel(props: Props) {
                 fields().findIndex((item) => item.index === field()?.index) < fields().length - 1
               }
             >
-              <button type="button" disabled={busy() || loading()} onClick={() => save(true)}>
+              <button
+                type="button"
+                class="editor-content-next"
+                disabled={busy() || loading()}
+                onClick={() => save(true)}
+              >
                 Save & next
               </button>
             </Show>

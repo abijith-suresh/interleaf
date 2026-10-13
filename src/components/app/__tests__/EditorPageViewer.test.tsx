@@ -285,7 +285,7 @@ describe("EditorPageViewer", () => {
     expect(viewer).toHaveAttribute("aria-modal", "true");
     expect(background).toHaveAttribute("inert");
 
-    const next = screen.getByRole("button", { name: "Next page" });
+    const next = screen.getByRole("button", { name: "Zoom in" });
     const close = screen.getByRole("button", { name: "Close page review" });
     next.focus();
     fireEvent.keyDown(viewer, { key: "Tab" });

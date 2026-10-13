@@ -80,6 +80,25 @@ async function placeText() {
 }
 
 describe("Direct page editing", () => {
+  it("rotates a text draft and nudges its placement without changing the text", async () => {
+    const { unmount } = setup();
+    const input = await placeText();
+    fireEvent.input(input, { target: { value: "Side note" } });
+    fireEvent.click(screen.getByRole("button", { name: "Rotate draft text 90 degrees" }));
+    expect(screen.getByRole("button", { name: "Rotate draft text 90 degrees" })).toHaveTextContent(
+      "90°"
+    );
+    const draft = screen.getByRole("button", { name: "Move draft text" });
+    const initialLeft = Number.parseFloat(draft.style.left);
+    fireEvent.keyDown(draft, { key: "ArrowRight", shiftKey: true });
+    expect(Number.parseFloat(draft.style.left)).toBeGreaterThan(initialLeft);
+    expect(input).toHaveValue("Side note");
+    expect(document.querySelector(".editor-content-preview text")).toHaveAttribute(
+      "transform",
+      expect.stringContaining("rotate(90")
+    );
+    unmount();
+  });
   it("keeps idle controls compact, previews a draft, and applies only its source page", async () => {
     const { changed, busy, unmount } = setup();
     expect(screen.queryByLabelText("Text")).not.toBeInTheDocument();

@@ -53,6 +53,27 @@ async function openFiles(files) {
   await page.locator("input[type=file]").first().setInputFiles(files);
   await page.locator("[data-testid=editor-page-canvas][data-render-state=ready]").first().waitFor();
 }
+async function chooseTool(name, touch = false) {
+  const tools = page.getByRole("navigation", { name: "Workspace tools", exact: true });
+  await tools.getByRole("button", { name, exact: true })[touch ? "tap" : "click"]();
+  await page.getByRole("dialog").waitFor();
+}
+async function resetFitWidth(touch = false) {
+  const fit = page.getByRole("button", { name: "Fit page", exact: true });
+  // The Fit action alternates between fitting the complete page and fitting its width.
+  if ((await fit.innerText()).trim() === "Fit") {
+    await fit[touch ? "tap" : "click"]();
+    await page.waitForFunction(
+      () => document.querySelector('[aria-label="Fit page"]').textContent.trim() === "Width"
+    );
+  }
+  await fit[touch ? "tap" : "click"]();
+  assert.equal((await fit.innerText()).trim(), "Fit");
+  assert.equal(
+    await page.getByRole("button", { name: "Zoom out", exact: true }).isDisabled(),
+    true
+  );
+}
 async function downloadFrom(testId, name) {
   const [download] = await Promise.all([
     page.waitForEvent("download"),
@@ -138,7 +159,7 @@ async function pinchWithoutPlacing(context) {
     0,
     "Pinching must not insert text"
   );
-  await page.getByRole("button", { name: "Fit page", exact: true }).tap();
+  await resetFitWidth(true);
 }
 
 try {
@@ -153,14 +174,16 @@ try {
   const compressed = await downloadFrom("editor-compress-button", "compressed.pdf");
   assert.equal(engine.open(compressed).count, 1);
 
-  await page.getByRole("button", { name: "Review pages", exact: true }).click();
-  await page.getByRole("button", { name: "Edit page", exact: true }).click();
+  await chooseTool("Add text");
   await placeText();
   await applyText("Added line", "Add text");
-  await page.getByRole("button", { name: "Edit text", exact: true }).click();
+  await placeText(0.35, 0.4);
+  await page.getByRole("button", { name: "Rotate draft text 90 degrees", exact: true }).click();
+  await applyText("Turned", "Add text");
+  await chooseTool("Edit text");
   await page.getByRole("button", { name: "Edit Original phrase", exact: true }).click();
   await applyText("New phrase", "Replace text");
-  await page.getByRole("button", { name: "Fill forms", exact: true }).click();
+  await chooseTool("Fill forms");
   await page.getByRole("button", { name: "Check Agree", exact: true }).click();
   await page.getByRole("button", { name: "Uncheck Agree", exact: true }).waitFor();
   await page.getByRole("button", { name: "Fill Name", exact: true }).click();
@@ -188,11 +211,43 @@ try {
   const content = engine.content(edited.id, 1);
   assert.deepEqual(
     content.text.map((run) => run.text),
-    ["New phrase", "Added line"]
+    ["New phrase", "Added line", "Turned"]
   );
   assert.equal(content.fields[0].value, "Alice");
   assert.equal(content.fields[1].checked, true);
   assert.equal(content.fields[2].value, "Blue");
+  const turned = content.text.find((run) => run.text === "Turned");
+  assert.ok(turned?.bounds);
+  assert.ok(
+    turned.bounds.height > turned.bounds.width * 2,
+    "Exported text must retain 90° rotation"
+  );
+  assert.equal(turned.editable, false, "Original rotated-text replacement stays unsupported");
+
+  await chooseTool("Read");
+  await page.getByRole("button", { name: "Duplicate", exact: true }).click();
+  await page.getByRole("heading", { name: "Page 2", exact: true }).waitFor();
+  await chooseTool("Fill forms");
+  await page.getByRole("button", { name: "Fill Name", exact: true }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Copy only");
+  await page.getByRole("button", { name: "Save field", exact: true }).click();
+  await waitForSaved();
+  await page.getByRole("button", { name: "Close page review", exact: true }).click();
+  const duplicated = engine.open(await downloadFrom("editor-download-button", "duplicated.pdf"));
+  assert.equal(duplicated.count, 2);
+  const originalFields = engine.content(duplicated.id, 1).fields;
+  const copiedFields = engine.content(duplicated.id, 2).fields;
+  assert.equal(
+    originalFields[0].value,
+    "Alice",
+    "Editing a copied field must preserve the original page"
+  );
+  assert.equal(copiedFields[0].value, "Copy only");
+  assert.notEqual(originalFields[0].name, copiedFields[0].name);
+  assert.deepEqual(
+    engine.content(duplicated.id, 2).text.map((run) => run.text),
+    ["New phrase", "Added line", "Turned"]
+  );
 
   const sharedPath = join(directory, "shared.pdf");
   await writeFile(sharedPath, sharedFormBytes());
@@ -254,9 +309,7 @@ try {
   page = await mobileContext.newPage();
   observe(mobileContext, page);
   await openFiles([blankPath]);
-  await page.getByRole("button", { name: "Review pages", exact: true }).click();
-  await page.getByRole("button", { name: "Edit page", exact: true }).click();
-  await page.getByRole("button", { name: "Fill forms", exact: true }).tap();
+  await chooseTool("Fill forms", true);
   await page
     .getByText("No interactive fields. Tap the page to add text.", { exact: true })
     .waitFor();
@@ -282,7 +335,7 @@ try {
     true,
     "Zoomed paper must scroll inside the viewer without widening the screen"
   );
-  await page.getByRole("button", { name: "Fit page", exact: true }).tap();
+  await resetFitWidth(true);
   await page.waitForFunction(
     (width) => Math.abs(document.querySelector(".editor-review-page").clientWidth - width) <= 1,
     fittedWidth
@@ -304,7 +357,10 @@ try {
     await page.getByRole("button", { name: "Close page review", exact: true }).isDisabled(),
     true
   );
-  await page.getByRole("button", { name: "Cancel edit", exact: true }).tap();
+  await page
+    .locator(".editor-content-composer")
+    .getByRole("button", { name: "Cancel", exact: true })
+    .tap();
   await page.getByRole("status").filter({ hasText: "Draft cancelled" }).waitFor();
   assert.equal(
     await page.getByRole("button", { name: "Close page review", exact: true }).isEnabled(),
@@ -357,9 +413,9 @@ try {
   await page.waitForTimeout(200);
   await applyText("Mobile", "Add text");
   await page.getByRole("button", { name: "Next page", exact: true }).tap();
-  await page.getByTestId("editor-viewer-title").filter({ hasText: "Page 2" }).waitFor();
+  await page.getByRole("heading", { name: "Page 2", exact: true }).waitFor();
   await page.getByRole("button", { name: "Previous page", exact: true }).tap();
-  await page.getByTestId("editor-viewer-title").filter({ hasText: "Page 1" }).waitFor();
+  await page.getByRole("heading", { name: "Page 1", exact: true }).waitFor();
   await page.screenshot({ path: join(directory, "mobile.png"), fullPage: true });
   assert.equal(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
@@ -375,9 +431,7 @@ try {
   assert.deepEqual(engine.content(mobilePDF.id, 2).text, []);
 
   await openFiles([formPath]);
-  await page.getByRole("button", { name: "Review pages", exact: true }).tap();
-  await page.getByRole("button", { name: "Edit page", exact: true }).tap();
-  await page.getByRole("button", { name: "Fill forms", exact: true }).tap();
+  await chooseTool("Fill forms", true);
   await page.getByRole("button", { name: "Check Agree", exact: true }).tap();
   await page.getByRole("button", { name: "Uncheck Agree", exact: true }).waitFor();
   await page.getByRole("button", { name: "Fill Name", exact: true }).tap();
@@ -401,7 +455,7 @@ try {
     []
   );
   process.stdout.write(
-    `PASS ${browserName}: direct text placement/replacement, native forms and guided navigation, PNG ZIP, mixed files, file removal, add files, password export, compression, mobile zoom/flat-form/draft recovery/short viewport/landscape, and privacy. Artifacts: ${directory}\n`
+    `PASS ${browserName}: universal workspace, direct text placement/rotation/replacement, independent page duplicates, native forms and guided navigation, PNG ZIP, mixed files, file removal, add files, password export, compression, mobile zoom/flat-form/draft recovery/short viewport/landscape, and privacy. Artifacts: ${directory}\n`
   );
 } catch (error) {
   await page.screenshot({ path: join(directory, "failure.png"), fullPage: true });

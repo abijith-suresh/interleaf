@@ -38,7 +38,15 @@ export interface PDFPageContent {
 
 export type PDFContentEdit =
   | { kind: "replace"; index: number; text: string; expectedText: string }
-  | { kind: "add"; text: string; x: number; y: number; width: number; fontSize: number }
+  | {
+      kind: "add";
+      text: string;
+      x: number;
+      y: number;
+      width: number;
+      fontSize: number;
+      rotation?: number;
+    }
   | { kind: "form"; index: number; value: string };
 
 export interface PDFiumPageRef {

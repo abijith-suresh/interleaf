@@ -4,6 +4,8 @@ import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
 import EditorContentPanel from "./EditorContentPanel";
 import EditorPageCanvas from "./EditorPageCanvas";
+import EditorToolRail, { type EditorWorkspaceTool } from "./EditorToolRail";
+import { boxStyle, type PageBox } from "./pdf-page-geometry";
 
 const VIEWER_MAX_PIXELS = 16_000_000;
 const VIEWER_MOBILE_MAX_PIXELS = 4_000_000;
@@ -22,16 +24,36 @@ interface Props {
   runtime: PDFRuntime;
   onActivePageChange: (pageId: string) => void;
   onClose: () => void;
+  tool?: Exclude<EditorWorkspaceTool, "pages">;
+  onChooseTool?: (tool: EditorWorkspaceTool) => void;
+  onAddFiles?: () => void;
+  onRotatePage?: (pageId: string) => void;
+  onDeletePage?: (pageId: string) => void;
+  onDuplicatePage?: (pageId: string) => void;
+  onDownload?: () => void;
+  downloadBusy?: boolean;
+  downloadAvailable?: boolean;
   onContentChange?: (file: File, pageNumber?: number) => void;
 }
 
 export default function EditorPageViewer(props: Props) {
   const [renderState, setRenderState] = createSignal<"loading" | "ready" | "error">("loading");
-  const [editing, setEditing] = createSignal(false);
+  const editing = () => !!props.onContentChange;
+  const [workspaceTool, setWorkspaceTool] = createSignal<Exclude<EditorWorkspaceTool, "pages">>(
+    props.tool ?? "read"
+  );
+  createEffect(() => {
+    if (props.tool) setWorkspaceTool(props.tool);
+  });
+  const [activeTool, setActiveTool] = createSignal(false);
+  const [showPages, setShowPages] = createSignal(false);
+  const [composerHeight, setComposerHeight] = createSignal(160);
+  const [fit, setFit] = createSignal<"width" | "page">(props.onContentChange ? "width" : "page");
   const [draft, setDraft] = createSignal(false);
   const [selection, setSelection] = createSignal(false);
   const [zoom, setZoom] = createSignal(1);
   const [displayRotation, setDisplayRotation] = createSignal(0);
+  let pageDimensions: { width: number; height: number } | undefined;
   const [frameSize, setFrameSize] = createSignal({ width: 0, height: 0 });
   const [viewport, setViewport] = createSignal<{ height: number; top: number }>();
   let frame!: HTMLDivElement;
@@ -132,12 +154,11 @@ export default function EditorPageViewer(props: Props) {
     const fitScale =
       stage.clientWidth === 0 || stage.clientHeight === 0
         ? VIEWER_MAX_SCALE
-        : compact
+        : fit() === "width"
           ? Math.max(stage.clientWidth - VIEWER_GUTTER * 2, 1) / pageWidth
           : Math.min(
               Math.max(stage.clientWidth - VIEWER_GUTTER * 2, 1) / pageWidth,
-              Math.max(stage.clientHeight - VIEWER_GUTTER * 2 - (editing() ? 100 : 0), 1) /
-                pageHeight
+              Math.max(stage.clientHeight - VIEWER_GUTTER * 2, 1) / pageHeight
             );
     const cssScale = Math.min(VIEWER_MAX_SCALE, fitScale) * zoom();
 
@@ -179,6 +200,7 @@ export default function EditorPageViewer(props: Props) {
                   page.sourcePageNumber,
                   rotation
                 );
+                pageDimensions = pageSize;
                 const { cssScale, renderScale } = getViewerScale(pageSize.width, pageSize.height);
                 setFrameSize({
                   width: (pageSize.width * cssScale) / zoom(),
@@ -226,6 +248,13 @@ export default function EditorPageViewer(props: Props) {
 
   function requestResizeRender(): void {
     if (disposed || !mounted) return;
+    if (pageDimensions) {
+      const { cssScale } = getViewerScale(pageDimensions.width, pageDimensions.height);
+      setFrameSize({
+        width: (pageDimensions.width * cssScale) / zoom(),
+        height: (pageDimensions.height * cssScale) / zoom(),
+      });
+    }
     if (resizeTimer !== null) window.clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(() => {
       resizeTimer = null;
@@ -267,7 +296,24 @@ export default function EditorPageViewer(props: Props) {
         pane.querySelectorAll<HTMLElement>(
           "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex='-1'])"
         )
-      );
+      ).filter((element) => {
+        if (element.closest("[inert], [hidden]")) return false;
+        for (
+          let ancestor: HTMLElement | null = element;
+          ancestor && ancestor !== pane;
+          ancestor = ancestor.parentElement
+        ) {
+          const style = getComputedStyle(ancestor);
+          if (style.display === "none" || style.visibility === "hidden") return false;
+          if (
+            ancestor instanceof HTMLDetailsElement &&
+            !ancestor.open &&
+            !ancestor.querySelector("summary")?.contains(element)
+          )
+            return false;
+        }
+        return true;
+      });
       const first = focusable[0];
       const last = focusable.at(-1);
 
@@ -305,7 +351,7 @@ export default function EditorPageViewer(props: Props) {
       props.onActivePageChange(page.id);
     }
     void rotation;
-    editing();
+    fit();
     if (mounted) requestRender();
   });
 
@@ -341,6 +387,20 @@ export default function EditorPageViewer(props: Props) {
       filmstrip.scrollLeft = nextStart * FILMSTRIP_ITEM_EXTENT;
     });
   });
+
+  function focusBounds(bounds: PageBox, width: number, height: number) {
+    if (window.innerWidth > 700 || !frame) return;
+    const style = boxStyle(bounds, width, height, displayRotation());
+    const w = (Number.parseFloat(style.width) / 100) * frame.clientWidth,
+      h = (Number.parseFloat(style.height) / 100) * frame.clientHeight;
+    if (w <= 0 || h <= 0) return;
+    const factor = Math.min(
+      (stage.clientWidth - 40) / w,
+      (stage.clientHeight - 40) / h,
+      24 / Math.min(w, h)
+    );
+    if (factor > 1.05) setZoom(Math.min(4, zoom() * factor));
+  }
 
   function startPinch(event: TouchEvent): void {
     if (event.touches.length !== 2) return;
@@ -384,9 +444,10 @@ export default function EditorPageViewer(props: Props) {
     stage.addEventListener("touchcancel", endPinch);
     reviewBackgrounds = Array.from(
       (pane.closest(".editor-app") ?? pane.parentElement)?.querySelectorAll<HTMLElement>(
-        ".editor-header, .editor-workspace-main"
+        ".editor-header, .editor-workspace-main, .editor-tool-rail"
       ) ?? []
     );
+    reviewBackgrounds = reviewBackgrounds.filter((background) => !pane.contains(background));
     for (const background of reviewBackgrounds) background.setAttribute("inert", "");
     window.addEventListener("resize", requestResizeRender);
     const updateViewport = () => {
@@ -440,7 +501,11 @@ export default function EditorPageViewer(props: Props) {
       id="editor-page-review"
       data-testid="editor-page-viewer"
       class="editor-review-pane"
-      classList={{ "is-editing": editing() }}
+      classList={{
+        "is-editing": editing(),
+        "has-composer": selection(),
+        "has-filmstrip": showPages(),
+      }}
       style={
         viewport()
           ? { height: `${viewport()?.height}px`, top: `${viewport()?.top}px`, bottom: "auto" }
@@ -451,73 +516,110 @@ export default function EditorPageViewer(props: Props) {
       aria-labelledby="editor-review-title"
       onKeyDown={handleKeyDown}
     >
+      <Show when={props.onContentChange}>
+        <EditorToolRail
+          activeTool={workspaceTool()}
+          busy={draft() || editBusy() || props.downloadBusy}
+          onChooseTool={(tool) => {
+            if (tool === "pages") props.onClose();
+            else {
+              setWorkspaceTool(tool);
+              props.onChooseTool?.(tool);
+            }
+          }}
+          onAddFiles={props.onAddFiles}
+        />
+      </Show>
       <header class="editor-review-header">
-        <div class="editor-review-heading">
-          <h2 id="editor-review-title" data-testid="editor-viewer-title">
-            Page {currentWorkspaceIndex() + 1}
-          </h2>
-          <span class="editor-review-position" aria-live="polite">
-            {currentNavigationIndex() + 1} of {navigationPages().length}
-          </span>
-        </div>
-        <Show when={props.onContentChange}>
-          <button
-            type="button"
-            class="editor-review-edit"
-            aria-pressed={editing()}
-            disabled={editBusy() || draft()}
-            onClick={() => setEditing(!editing())}
-          >
-            {editing() ? "Done" : "Edit page"}
-          </button>
-        </Show>
         <button
           ref={closeButton}
           type="button"
           data-testid="editor-page-viewer-close-button"
           class="editor-review-close"
           aria-label="Close page review"
-          disabled={editBusy() || draft()}
+          disabled={editBusy() || draft() || props.downloadBusy}
           onClick={props.onClose}
         >
           <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m5 5 10 10M15 5 5 15" />
+            <path d="m12 4-6 6 6 6" />
           </svg>
+          <span>Pages</span>
         </button>
+        <div class="editor-review-heading">
+          <span class="editor-review-source" title={currentPage()?.sourceFile.name}>
+            {currentPage()?.sourceFile.name}
+          </span>
+          <h2
+            id="editor-review-title"
+            data-testid="editor-viewer-title"
+            aria-label={`Page ${currentWorkspaceIndex() + 1}`}
+          >
+            Page {currentWorkspaceIndex() + 1}
+            <span class="editor-review-position">
+              {" "}
+              · {currentNavigationIndex() + 1} of {navigationPages().length}
+            </span>
+          </h2>
+        </div>
+        <Show when={props.onDownload}>
+          <button
+            type="button"
+            class="editor-review-download"
+            disabled={
+              editBusy() || draft() || props.downloadBusy || props.downloadAvailable === false
+            }
+            onClick={props.onDownload}
+          >
+            {props.downloadBusy ? "Preparing…" : "Download PDF"}
+          </button>
+        </Show>
       </header>
 
-      <div
-        class="editor-review-body"
-        classList={{ "has-tools": editing(), "has-selection": selection() }}
-      >
-        <fieldset class="editor-review-zoom" aria-label="Page zoom">
+      <Show when={currentPage()?.markedForDeletion}>
+        <p class="editor-review-deleted-notice" role="status">
+          This page is marked for deletion and excluded from downloads.
+        </p>
+      </Show>
+
+      <Show when={workspaceTool() === "read" && props.onRotatePage}>
+        <div class="editor-review-page-actions" role="toolbar" aria-label="Current page actions">
           <button
             type="button"
-            aria-label="Zoom out"
-            disabled={zoom() <= 1}
-            onClick={() => setZoom(Math.max(1, zoom() / 1.4))}
-          >
-            −
-          </button>
-          <button
-            type="button"
-            aria-label="Fit page"
+            disabled={props.downloadBusy || !props.onRotatePage}
             onClick={() => {
-              setZoom(1);
-              stage.scrollTo?.({ top: 0, left: 0 });
+              const page = currentPage();
+              if (page) props.onRotatePage?.(page.id);
             }}
           >
-            Fit
+            Rotate 90°
           </button>
           <button
             type="button"
-            aria-label="Zoom in"
-            disabled={zoom() >= 4}
-            onClick={() => setZoom(Math.min(4, zoom() * 1.4))}
+            disabled={props.downloadBusy || !props.onDuplicatePage}
+            onClick={() => {
+              const page = currentPage();
+              if (page) props.onDuplicatePage?.(page.id);
+            }}
           >
-            +
+            Duplicate
           </button>
-        </fieldset>
+          <button
+            type="button"
+            disabled={props.downloadBusy || !props.onDeletePage}
+            onClick={() => {
+              const page = currentPage();
+              if (page) props.onDeletePage?.(page.id);
+            }}
+          >
+            {currentPage()?.markedForDeletion ? "Restore" : "Mark for deletion"}
+          </button>
+        </div>
+      </Show>
+      <div
+        class="editor-review-body"
+        classList={{ "has-tools": activeTool(), "has-selection": selection() }}
+        style={{ "--composer-height": `${composerHeight()}px` }}
+      >
         <div
           ref={stage}
           class="editor-review-stage"
@@ -565,6 +667,17 @@ export default function EditorPageViewer(props: Props) {
           <EditorContentPanel
             page={currentPage() as PageState}
             runtime={props.runtime}
+            initialMode="read"
+            mode={workspaceTool()}
+            hideTools={true}
+            locked={props.downloadBusy}
+            onModeChange={(mode) => {
+              setActiveTool(mode !== "read");
+              setWorkspaceTool(mode);
+              props.onChooseTool?.(mode);
+            }}
+            onComposerHeight={setComposerHeight}
+            onFocusBounds={focusBounds}
             onChange={(file, pageNumber) => props.onContentChange?.(file, pageNumber)}
             onBusy={setEditBusy}
             onDraft={setDraft}
@@ -577,6 +690,16 @@ export default function EditorPageViewer(props: Props) {
       <footer class="editor-review-bottom">
         <button
           type="button"
+          class="editor-review-pages-toggle"
+          aria-label="Show page thumbnails"
+          aria-expanded={showPages()}
+          onClick={() => setShowPages(!showPages())}
+          disabled={draft() || editBusy()}
+        >
+          Pages
+        </button>
+        <button
+          type="button"
           data-testid="editor-page-viewer-previous"
           class="editor-review-nav"
           aria-label="Previous page"
@@ -587,6 +710,23 @@ export default function EditorPageViewer(props: Props) {
             <path d="m12.5 4-6 6 6 6" />
           </svg>
         </button>
+        <label class="editor-review-page-jump">
+          <span class="sr-only">Go to page</span>
+          <select
+            aria-label="Go to page"
+            value={currentPage()?.id ?? ""}
+            disabled={draft() || editBusy() || props.downloadBusy}
+            onChange={(event) => selectPage(event.currentTarget.value)}
+          >
+            <For each={navigationPages()}>
+              {(page, index) => (
+                <option value={page.id}>
+                  {index() + 1} / {navigationPages().length}
+                </option>
+              )}
+            </For>
+          </select>
+        </label>
         <nav
           ref={filmstrip}
           class="editor-review-filmstrip"
@@ -648,6 +788,35 @@ export default function EditorPageViewer(props: Props) {
             <path d="m7.5 4 6 6-6 6" />
           </svg>
         </button>
+        <fieldset class="editor-review-zoom" aria-label="Page zoom">
+          <button
+            type="button"
+            aria-label="Zoom out"
+            disabled={zoom() <= 1}
+            onClick={() => setZoom(Math.max(1, zoom() / 1.4))}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            aria-label="Fit page"
+            onClick={() => {
+              setFit(fit() === "page" ? "width" : "page");
+              setZoom(1);
+              stage.scrollTo?.({ top: 0, left: 0 });
+            }}
+          >
+            {fit() === "page" ? "Width" : "Fit"}
+          </button>
+          <button
+            type="button"
+            aria-label="Zoom in"
+            disabled={zoom() >= 4}
+            onClick={() => setZoom(Math.min(4, zoom() * 1.4))}
+          >
+            +
+          </button>
+        </fieldset>
       </footer>
     </aside>
   );

@@ -18,6 +18,8 @@ interface Props {
   onClick: () => void;
   onKeyDown: (e: KeyboardEvent) => void;
   onRotate: (e: MouseEvent) => void;
+  onDuplicate?: (event: MouseEvent) => void;
+  onOpen?: () => void;
   onDelete: (e: MouseEvent) => void;
   onDragStart: (e: DragEvent) => void;
   onDragOver: (e: DragEvent) => void;
@@ -174,6 +176,7 @@ export default function EditorPageTile(props: Props) {
           aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
           disabled={props.busy}
           onClick={props.onClick}
+          onDblClick={props.onOpen}
           onKeyDown={props.onKeyDown}
         />
       </div>
@@ -182,6 +185,18 @@ export default function EditorPageTile(props: Props) {
           {props.index + 1}
         </span>
         <span class="page-action-buttons">
+          <button
+            type="button"
+            class="btn-page-duplicate"
+            title="Duplicate page"
+            aria-label={`Duplicate page ${props.index + 1}`}
+            disabled={props.busy}
+            onClick={props.onDuplicate}
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M7 7h9v10H7z M4 13H3V3h10v1" />
+            </svg>
+          </button>
           <button
             type="button"
             data-testid="editor-page-delete-button"

@@ -25,6 +25,20 @@ function makeProps(overrides: Partial<Parameters<typeof EditorSelectionBar>[0]> 
 }
 
 describe("EditorSelectionBar", () => {
+  it("rotates or restores a selection without opening a menu", () => {
+    const props = makeProps({
+      selectedCount: 2,
+      selectedActiveCount: 0,
+      deletionLabel: "Restore",
+      deletionAriaLabel: "Restore selected pages",
+    });
+    render(() => <EditorSelectionBar {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Rotate selection 90 degrees" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restore selected pages" }));
+    expect(props.onRotate).toHaveBeenCalledTimes(1);
+    expect(props.onDelete).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
   it("disables selection actions and ignores clicks until pages are selected", () => {
     const props = makeProps();
     render(() => <EditorSelectionBar {...props} />);
