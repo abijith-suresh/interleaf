@@ -97,6 +97,318 @@ describe("PDFService", () => {
     expect(page.cleanup).toHaveBeenCalledTimes(1);
   });
 
+  it("coalesces concurrent rotation and size reads, then reuses scalar metadata", async () => {
+    const pending = Promise.withResolvers<ReturnType<typeof makePage>>();
+    pdf.getPage.mockReturnValueOnce(pending.promise);
+    page.rotate = 270;
+    const rotation = runFork(service.getPageRotation(file, 1));
+    await vi.waitFor(() => expect(pdf.getPage).toHaveBeenCalledTimes(1));
+    const size = runFork(service.getPageSize(file, 1, -90));
+    await runPromise(Effect.yieldNow);
+    pending.resolve(page);
+    expect(await runPromise(Fiber.join(rotation))).toBe(270);
+    expect(await runPromise(Fiber.join(size))).toEqual({ width: 200, height: 100 });
+    for (const rotation of [0, 90, 180, 270, 360, 450, -90, -180, -450, -720]) {
+      const swap = Math.abs(rotation % 180) === 90;
+      expect(await runPromise(service.getPageSize(file, 1, rotation))).toEqual({
+        width: swap ? 200 : 100,
+        height: swap ? 100 : 200,
+      });
+    }
+    expect(await runPromise(service.getPageRotation(file, 1))).toBe(270);
+    expect(pdf.getPage).toHaveBeenCalledTimes(1);
+    expect(page.getViewport).toHaveBeenCalledExactlyOnceWith({ scale: 1, rotation: 0 });
+    expect(page.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses viewport dimensions including crop offsets and UserUnit independently of intrinsic rotation", async () => {
+    // CropBox [20, 40, 120, 240], UserUnit 2.5, intrinsic rotation 90.
+    page.rotate = 90;
+    page.getViewport.mockImplementation(({ scale, rotation }) => {
+      expect(rotation).toBe(0);
+      return { width: 100 * 2.5 * scale, height: 200 * 2.5 * scale };
+    });
+    expect(await runPromise(service.getPageRotation(file, 1))).toBe(90);
+    expect(await runPromise(service.getPageSize(file, 1))).toEqual({ width: 250, height: 500 });
+    expect(await runPromise(service.getPageSize(file, 1, 90))).toEqual({ width: 500, height: 250 });
+    expect(pdf.getPage).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([45, -45, 90.5, Number.NaN, Infinity, -Infinity])(
+    "rejects invalid rotation %s on cold and cached metadata",
+    async (rotation) => {
+      for (let index = 0; index < 2; index++) {
+        await expect(runPromise(service.getPageSize(file, 1, rotation))).rejects.toMatchObject({
+          operation: "get-page-size",
+          file,
+          message: "PageViewport: Invalid rotation, must be a multiple of 90 degrees.",
+        });
+      }
+      expect(pdf.getPage).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it.each(["acquire", "viewport", "cleanup"] as const)(
+    "evicts a failed %s query and allows retry",
+    async (failure) => {
+      if (failure === "acquire") pdf.getPage.mockRejectedValueOnce(new Error("page failed"));
+      if (failure === "viewport")
+        page.getViewport.mockImplementationOnce(() => {
+          throw new Error("viewport failed");
+        });
+      if (failure === "cleanup")
+        page.cleanup.mockImplementationOnce(() => {
+          throw new Error("cleanup failed");
+        });
+      await expect(runPromise(service.getPageSize(file, 1))).rejects.toMatchObject({
+        operation: "get-page-size",
+        file,
+      });
+      expect(await runPromise(service.getPageSize(file, 1))).toEqual({ width: 100, height: 200 });
+      expect(pdf.getPage).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it("shares a failed acquisition but preserves each caller's operation and permits retry", async () => {
+    const pending = Promise.withResolvers<ReturnType<typeof makePage>>();
+    pdf.getPage.mockReturnValueOnce(pending.promise);
+    const rotation = runFork(service.getPageRotation(file, 1));
+    await vi.waitFor(() => expect(pdf.getPage).toHaveBeenCalledTimes(1));
+    const size = runFork(service.getPageSize(file, 1));
+    await runPromise(Effect.yieldNow);
+    pending.reject(new Error("page failed"));
+    await expect(runPromise(Fiber.join(rotation))).rejects.toMatchObject({
+      operation: "get-page-rotation",
+      file,
+    });
+    await expect(runPromise(Fiber.join(size))).rejects.toMatchObject({
+      operation: "get-page-size",
+      file,
+    });
+    expect(pdf.getPage).toHaveBeenCalledTimes(1);
+    await runPromise(service.getPageSize(file, 1));
+    expect(pdf.getPage).toHaveBeenCalledTimes(2);
+  });
+
+  it("lets a coalesced waiter cancel without cancelling the metadata acquisition", async () => {
+    const pending = Promise.withResolvers<ReturnType<typeof makePage>>();
+    pdf.getPage.mockReturnValueOnce(pending.promise);
+    const owner = runFork(service.getPageRotation(file, 1));
+    await vi.waitFor(() => expect(pdf.getPage).toHaveBeenCalledTimes(1));
+    const waiter = runFork(service.getPageSize(file, 1));
+    await runPromise(Effect.yieldNow);
+    await runPromise(Fiber.interrupt(waiter));
+    expect(page.cleanup).not.toHaveBeenCalled();
+    pending.resolve(page);
+    await runPromise(Fiber.join(owner));
+    await runPromise(service.getPageSize(file, 1));
+    expect(pdf.getPage).toHaveBeenCalledTimes(1);
+    expect(page.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([true, false])(
+    "keeps an active waiter successful when its metadata owner is cancelled, rotation owner=%s",
+    async (rotationOwner) => {
+      const pending = Promise.withResolvers<ReturnType<typeof makePage>>();
+      const replacementPage = makePage(300, 400);
+      replacementPage.rotate = 180;
+      pdf.getPage.mockReturnValueOnce(pending.promise).mockResolvedValueOnce(replacementPage);
+      const owner = runFork(
+        rotationOwner
+          ? service.getPageRotation(file, 1).pipe(Effect.asVoid)
+          : service.getPageSize(file, 1).pipe(Effect.asVoid)
+      );
+      await vi.waitFor(() => expect(pdf.getPage).toHaveBeenCalledTimes(1));
+      const waiter = runFork(
+        rotationOwner
+          ? service.getPageSize(file, 1).pipe(Effect.map((size) => [size.width, size.height]))
+          : service.getPageRotation(file, 1).pipe(Effect.map((rotation) => [rotation]))
+      );
+      await runPromise(Effect.yieldNow);
+      const interruption = runFork(Fiber.interrupt(owner));
+      await runPromise(Effect.yieldNow);
+      expect(interruption.pollUnsafe()).toBeUndefined();
+      pending.resolve(page);
+      await runPromise(Fiber.join(interruption));
+      expect(Exit.isFailure(await runPromise(Fiber.await(owner)))).toBe(true);
+      await expect(runPromise(Fiber.join(waiter))).resolves.toEqual(
+        rotationOwner ? [300, 400] : [180]
+      );
+      expect(pdf.getPage).toHaveBeenCalledTimes(2);
+      expect(page.cleanup).toHaveBeenCalledTimes(1);
+      expect(replacementPage.cleanup).toHaveBeenCalledTimes(1);
+      expect(page.cleanup.mock.invocationCallOrder[0]).toBeLessThan(
+        pdf.getPage.mock.invocationCallOrder[1]
+      );
+    }
+  );
+
+  it("preserves cleanup failure during owner cancellation and keeps the failed read retryable", async () => {
+    const pending = Promise.withResolvers<ReturnType<typeof makePage>>();
+    pdf.getPage.mockReturnValueOnce(pending.promise);
+    page.cleanup.mockImplementationOnce(() => {
+      throw new Error("cancelled page cleanup failed");
+    });
+    const owner = runFork(service.getPageRotation(file, 1));
+    await vi.waitFor(() => expect(pdf.getPage).toHaveBeenCalledTimes(1));
+    const waiter = runFork(service.getPageSize(file, 1));
+    await runPromise(Effect.yieldNow);
+    const interruption = runFork(Fiber.interrupt(owner));
+    await runPromise(Effect.yieldNow);
+    pending.resolve(page);
+    await runPromise(Fiber.join(interruption));
+    await expect(runPromise(Fiber.join(waiter))).rejects.toMatchObject({
+      operation: "get-page-size",
+      file,
+      message: "cancelled page cleanup failed",
+    });
+    expect(pdf.getPage).toHaveBeenCalledTimes(1);
+    pdf.getPage.mockResolvedValue(makePage(300, 400));
+    expect(await runPromise(service.getPageSize(file, 1))).toEqual({ width: 300, height: 400 });
+    expect(pdf.getPage).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["release", "reset", "dispose"] as const)(
+    "settles %s while an active waiter takes over from a cancelled owner",
+    async (action) => {
+      const pending = Promise.withResolvers<ReturnType<typeof makePage>>();
+      const takeover = Promise.withResolvers<ReturnType<typeof makePage>>();
+      const replacementPage = makePage(300, 400);
+      pdf.getPage.mockReturnValueOnce(pending.promise).mockReturnValueOnce(takeover.promise);
+      const owner = runFork(service.getPageRotation(file, 1));
+      await vi.waitFor(() => expect(pdf.getPage).toHaveBeenCalledTimes(1));
+      const waiter = runFork(service.getPageSize(file, 1));
+      await runPromise(Effect.yieldNow);
+      const interruption = runFork(Fiber.interrupt(owner));
+      await runPromise(Effect.yieldNow);
+      pending.resolve(page);
+      await runPromise(Fiber.join(interruption));
+      await vi.waitFor(() => expect(pdf.getPage).toHaveBeenCalledTimes(2));
+      const close = runFork(
+        action === "release"
+          ? service.releaseFile(file)
+          : action === "reset"
+            ? service.reset()
+            : service.dispose()
+      );
+      await runPromise(Effect.yieldNow);
+      expect(pdf.cleanup).not.toHaveBeenCalled();
+      takeover.resolve(replacementPage);
+      await runPromise(Fiber.join(close));
+      expect(Exit.isFailure(await runPromise(Fiber.await(waiter)))).toBe(true);
+      expect(pdf.getPage).toHaveBeenCalledTimes(2);
+      expect(page.cleanup).toHaveBeenCalledTimes(1);
+      expect(replacementPage.cleanup).toHaveBeenCalledTimes(1);
+      expect(pdf.cleanup).toHaveBeenCalledTimes(1);
+      expect(replacementPage.cleanup.mock.invocationCallOrder[0]).toBeLessThan(
+        pdf.cleanup.mock.invocationCallOrder[0]
+      );
+      expect(getDocument).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it("bounds scalar entries to 512 pages and retains recently read entries", async () => {
+    pdf.numPages = 513;
+    for (let number = 1; number <= 512; number++)
+      await runPromise(service.getPageRotation(file, number));
+    await runPromise(service.getPageSize(file, 1));
+    await runPromise(service.getPageSize(file, 513));
+    await runPromise(service.getPageSize(file, 1));
+    expect(pdf.getPage).toHaveBeenCalledTimes(513);
+    await runPromise(service.getPageSize(file, 2));
+    expect(pdf.getPage).toHaveBeenCalledTimes(514);
+  });
+
+  it("isolates page numbers and different File objects with identical names", async () => {
+    const other = new File(["%PDF"], file.name, { type: file.type });
+    const otherPdf = makeDocument(makePage(300, 400));
+    getDocument.mockReturnValueOnce(task).mockReturnValueOnce(makeTask(Promise.resolve(otherPdf)));
+    expect(await runPromise(service.getPageSize(file, 1))).toEqual({ width: 100, height: 200 });
+    expect(await runPromise(service.getPageSize(other, 1))).toEqual({ width: 300, height: 400 });
+    await runPromise(service.getPageSize(file, 2));
+    await runPromise(service.getPageSize(other, 1));
+    expect(pdf.getPage.mock.calls).toEqual([[1], [2]]);
+    expect(otherPdf.getPage).toHaveBeenCalledExactlyOnceWith(1);
+  });
+
+  it.each([
+    { action: "release", fails: false },
+    { action: "release", fails: true },
+    { action: "reset", fails: false },
+    { action: "reset", fails: true },
+  ] as const)(
+    "discards cached metadata on $action, cleanup fails=$fails",
+    async ({ action, fails }) => {
+      await runPromise(service.getPageSize(file, 1));
+      const stale = service.getPageSize(file, 1);
+      if (fails) pdf.cleanup.mockRejectedValueOnce(new Error("cleanup failed"));
+      const result = await runPromise(
+        Effect.exit(action === "release" ? service.releaseFile(file) : service.reset())
+      );
+      expect(Exit.isFailure(result)).toBe(fails);
+      await expect(runPromise(stale)).rejects.toMatchObject({ operation: "get-page-size", file });
+      const reopened = makeDocument(makePage(300, 400));
+      getDocument.mockReturnValueOnce(makeTask(Promise.resolve(reopened)));
+      expect(await runPromise(service.getPageSize(file, 1))).toEqual({ width: 300, height: 400 });
+      expect(reopened.getPage).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it.each(["release", "reset", "dispose"] as const)(
+    "drains late coalesced metadata before %s and never publishes it into a reopened file",
+    async (action) => {
+      const pending = Promise.withResolvers<ReturnType<typeof makePage>>();
+      pdf.getPage.mockReturnValueOnce(pending.promise);
+      const first = runFork(service.getPageRotation(file, 1));
+      await vi.waitFor(() => expect(pdf.getPage).toHaveBeenCalledTimes(1));
+      const second = runFork(service.getPageSize(file, 1));
+      await runPromise(Effect.yieldNow);
+      const close = runFork(
+        action === "release"
+          ? service.releaseFile(file)
+          : action === "reset"
+            ? service.reset()
+            : service.dispose()
+      );
+      await runPromise(Effect.yieldNow);
+      expect(pdf.cleanup).not.toHaveBeenCalled();
+      pending.resolve(page);
+      await runPromise(Fiber.join(close));
+      expect(Exit.isFailure(await runPromise(Fiber.await(first)))).toBe(true);
+      expect(Exit.isFailure(await runPromise(Fiber.await(second)))).toBe(true);
+      expect(page.cleanup).toHaveBeenCalledTimes(1);
+      expect(page.cleanup.mock.invocationCallOrder[0]).toBeLessThan(
+        pdf.cleanup.mock.invocationCallOrder[0]
+      );
+      const reopened = makeDocument(makePage(300, 400));
+      getDocument.mockReturnValueOnce(makeTask(Promise.resolve(reopened)));
+      if (action === "dispose") {
+        await expect(runPromise(service.getPageSize(file, 1))).rejects.toMatchObject({
+          operation: "document-store",
+          file,
+        });
+        expect(reopened.getPage).not.toHaveBeenCalled();
+      } else {
+        expect(await runPromise(service.getPageSize(file, 1))).toEqual({ width: 300, height: 400 });
+      }
+    }
+  );
+
+  it("does not publish metadata until deferred page cleanup finishes", async () => {
+    page.cleanup.mockReturnValue(false);
+    const first = runFork(service.getPageRotation(file, 1));
+    await vi.waitFor(() => expect(page.cleanup).toHaveBeenCalled());
+    const second = runFork(service.getPageSize(file, 1));
+    await runPromise(Effect.yieldNow);
+    expect(first.pollUnsafe()).toBeUndefined();
+    expect(second.pollUnsafe()).toBeUndefined();
+    expect(pdf.getPage).toHaveBeenCalledTimes(1);
+    page.cleanup.mockReturnValue(true);
+    await runPromise(Fiber.join(first));
+    await runPromise(Fiber.join(second));
+    expect(pdf.getPage).toHaveBeenCalledTimes(1);
+  });
+
   it("reuses a resident PDF across sequential and concurrent loads", async () => {
     await Promise.all([runPromise(service.loadPDF(file)), runPromise(service.loadPDF(file))]);
     await runPromise(service.loadPDF(file));
