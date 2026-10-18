@@ -6,6 +6,7 @@ import Download from "lucide-solid/icons/download";
 import FileStack from "lucide-solid/icons/file-stack";
 import FileText from "lucide-solid/icons/file-text";
 import Maximize from "lucide-solid/icons/maximize";
+import Minus from "lucide-solid/icons/minus";
 import Plus from "lucide-solid/icons/plus";
 import RotateCcw from "lucide-solid/icons/rotate-ccw";
 import RotateCw from "lucide-solid/icons/rotate-cw";
@@ -24,6 +25,7 @@ const editorIcons = {
   files: FileStack,
   review: Maximize,
   plus: Plus,
+  minus: Minus,
   restore: RotateCcw,
   rotate: RotateCw,
   "page-actions": SquarePen,

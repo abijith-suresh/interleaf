@@ -19,6 +19,7 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Mark pages for deletion before export
 - Unlock password-protected PDFs with an in-browser prompt
 - Review pages one at a time with previous/next navigation and a compact filmstrip
+- Zoom previews up to 4 times their fitted size. Pan with touch, drag, scrollbars, or arrow keys in the preview.
 - Losslessly compress one untouched PDF
 - Export selected or unmarked pages as PNG images in a ZIP archive
 - Render page thumbnails locally for inspection before export

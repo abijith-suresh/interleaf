@@ -705,15 +705,59 @@ body:has([data-page="editor"]) {
 
 .editor-review-stage {
   position: relative;
-  display: grid;
+  display: flex;
   min-width: 0;
   min-height: 0;
   flex: 1;
-  place-items: center;
   padding: clamp(0.75rem, 3vw, 2rem);
   background: #e9e7e1;
   overflow: auto;
   overscroll-behavior: contain;
+  touch-action: none;
+  overflow-anchor: none;
+  user-select: none;
+}
+
+.editor-review-page {
+  flex: 0 0 auto;
+  margin: auto;
+}
+
+.editor-review-stage.is-zoomed {
+  cursor: grab;
+}
+.editor-review-stage.is-panning {
+  cursor: grabbing;
+}
+
+.editor-review-stage:focus-visible {
+  outline: 2px solid var(--editor-ink);
+  outline-offset: -3px;
+}
+
+.editor-review-zoom {
+  display: flex;
+  flex: 0 0 auto;
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: 0;
+  gap: 0.125rem;
+}
+
+.editor-review-zoom .editor-button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.4rem;
+}
+
+@media (max-width: 400px) {
+  .editor-review-header {
+    gap: 0.25rem;
+  }
+  .editor-review-heading {
+    flex-direction: column;
+    gap: 0.125rem;
+  }
 }
 
 .editor-review-filmstrip {
@@ -780,8 +824,6 @@ body:has([data-page="editor"]) {
   display: block;
   width: auto;
   height: auto;
-  max-width: 100%;
-  max-height: 100%;
   background: #fffefa;
   box-shadow: 0 0.5rem 1.5rem rgb(36 36 33 / 16%);
 }
