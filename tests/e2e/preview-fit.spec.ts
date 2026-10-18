@@ -20,67 +20,92 @@ async function makePages() {
 
 async function expectFittedPage(page: Page, width: number, height: number, budget: number) {
   const stage = page.locator(".editor-review-stage");
-  await expect(stage).toHaveAttribute("data-render-state", "ready");
-  // Wait for the resize debounce as well as PDF.js. The previous ready frame can
-  // still be present immediately after a viewport change.
+  let allocation: { width: number; height: number; cssWidth: number } | undefined;
+  // A queued resize can start between separate readiness and canvas reads.
+  // Check the complete rendered frame in one browser turn, including its pixels.
   await expect
-    .poll(() =>
-      stage.evaluate(
-        (element, size) => {
+    .poll(async () => {
+      const snapshot = await stage.evaluate(
+        (element, expected) => {
           const canvas = element.querySelector("canvas");
           if (!canvas) throw new Error("Missing review canvas");
+          const bounds = canvas.getBoundingClientRect();
+          const stageBounds = element.getBoundingClientRect();
           const style = getComputedStyle(element);
           const availableWidth =
             element.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
           const availableHeight =
             element.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
-          const scale = Math.min(1.5, availableWidth / size.width, availableHeight / size.height);
-          const bounds = canvas.getBoundingClientRect();
-          return Math.max(
-            Math.abs(bounds.width - size.width * scale),
-            Math.abs(bounds.height - size.height * scale)
+          const scale = Math.min(
+            1.5,
+            availableWidth / expected.width,
+            availableHeight / expected.height
           );
+          const center = canvas
+            .getContext("2d")
+            ?.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data;
+          const allocation = {
+            state: element.getAttribute("data-render-state"),
+            width: canvas.width,
+            height: canvas.height,
+            cssWidth: bounds.width,
+            cssHeight: bounds.height,
+            fitError: Math.max(
+              Math.abs(bounds.width - expected.width * scale),
+              Math.abs(bounds.height - expected.height * scale)
+            ),
+            left: bounds.left - stageBounds.left - parseFloat(style.paddingLeft),
+            right: stageBounds.right - parseFloat(style.paddingRight) - bounds.right,
+            top: bounds.top - stageBounds.top - parseFloat(style.paddingTop),
+            bottom: stageBounds.bottom - parseFloat(style.paddingBottom) - bounds.bottom,
+            overflowX: element.scrollWidth - element.clientWidth,
+            overflowY: element.scrollHeight - element.clientHeight,
+            center: center ? Array.from(center) : [],
+          };
+          return {
+            allocation,
+            checks: {
+              ready: allocation.state === "ready",
+              fitted: allocation.fitError < 1,
+              positiveBitmap: allocation.width > 0 && allocation.height > 0,
+              withinBudget: allocation.width * allocation.height <= expected.budget,
+              aspectRatio:
+                Math.abs(
+                  allocation.cssWidth / allocation.cssHeight - expected.width / expected.height
+                ) < 0.05,
+              withinBounds: [
+                allocation.left,
+                allocation.right,
+                allocation.top,
+                allocation.bottom,
+              ].every((distance) => distance >= -1),
+              noOverflow: allocation.overflowX <= 1 && allocation.overflowY <= 1,
+              redPixel: allocation.center[0] > 180,
+              greenPixel: allocation.center[1] < 80,
+              opaquePixel: allocation.center[3] === 255,
+            },
+          };
         },
-        { width, height }
-      )
-    )
-    .toBeLessThan(1);
-  await expect(stage).toHaveAttribute("data-render-state", "ready");
-  const allocation = await stage.evaluate((element) => {
-    const canvas = element.querySelector("canvas");
-    if (!canvas) throw new Error("Missing review canvas");
-    const bounds = canvas.getBoundingClientRect();
-    const stageBounds = element.getBoundingClientRect();
-    const style = getComputedStyle(element);
-    const center = canvas
-      .getContext("2d")
-      ?.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data;
-    return {
-      width: canvas.width,
-      height: canvas.height,
-      cssWidth: bounds.width,
-      cssHeight: bounds.height,
-      left: bounds.left - stageBounds.left - parseFloat(style.paddingLeft),
-      right: stageBounds.right - parseFloat(style.paddingRight) - bounds.right,
-      top: bounds.top - stageBounds.top - parseFloat(style.paddingTop),
-      bottom: stageBounds.bottom - parseFloat(style.paddingBottom) - bounds.bottom,
-      overflowX: element.scrollWidth - element.clientWidth,
-      overflowY: element.scrollHeight - element.clientHeight,
-      center: center ? Array.from(center) : [],
-    };
-  });
-  expect(allocation.width).toBeGreaterThan(0);
-  expect(allocation.height).toBeGreaterThan(0);
-  expect(allocation.width * allocation.height).toBeLessThanOrEqual(budget);
-  expect(allocation.cssWidth / allocation.cssHeight).toBeCloseTo(width / height, 1);
-  for (const distance of [allocation.left, allocation.right, allocation.top, allocation.bottom]) {
-    expect(distance).toBeGreaterThanOrEqual(-1);
-  }
-  expect(allocation.overflowX).toBeLessThanOrEqual(1);
-  expect(allocation.overflowY).toBeLessThanOrEqual(1);
-  expect(allocation.center[0]).toBeGreaterThan(180);
-  expect(allocation.center[1]).toBeLessThan(80);
-  expect(allocation.center[3]).toBe(255);
+        { width, height, budget }
+      );
+      allocation = snapshot.allocation;
+      return snapshot;
+    })
+    .toMatchObject({
+      checks: {
+        ready: true,
+        fitted: true,
+        positiveBitmap: true,
+        withinBudget: true,
+        aspectRatio: true,
+        withinBounds: true,
+        noOverflow: true,
+        redPixel: true,
+        greenPixel: true,
+        opaquePixel: true,
+      },
+    });
+  if (!allocation) throw new Error("Missing review allocation sample");
   return allocation;
 }
 
