@@ -1,5 +1,6 @@
 import { it } from "@effect/vitest";
 import { Deferred, Effect, Fiber } from "effect";
+import { TestClock } from "effect/testing";
 import type * as pdfjsLib from "pdfjs-dist";
 import { describe, expect, vi } from "vitest";
 import { PageResources } from "../page-resources";
@@ -88,6 +89,56 @@ describe("PageResources", () => {
       expect(events).toEqual(["first-start", "first-end", "cleanup", "second", "cleanup"]);
     });
   });
+
+  it.effect(
+    "waits for deferred cleanup before finishing interruption, reusing the page or draining",
+    () => {
+      const resources = new PageResources();
+      const file = makeFile("deferred.pdf");
+      const started = Deferred.makeUnsafe<void>();
+      const cleanupStarted = Deferred.makeUnsafe<void>();
+      let cleanupReady = false;
+      let reused = false;
+      const page = {
+        cleanup: vi.fn(() => {
+          Deferred.doneUnsafe(cleanupStarted, Effect.void);
+          return cleanupReady;
+        }),
+      };
+      const document = makeDocument(page);
+
+      return Effect.gen(function* () {
+        const first = yield* Effect.forkChild(
+          resources.withPageCleanup(file, 1, resources.getPage(document, file, 1, "render"), () =>
+            Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never))
+          )
+        );
+        yield* Deferred.await(started);
+        const interruption = yield* Effect.forkChild(Fiber.interrupt(first));
+        yield* Deferred.await(cleanupStarted);
+        const second = yield* Effect.forkChild(
+          resources.withPageCleanup(file, 1, resources.getPage(document, file, 1, "reuse"), () =>
+            Effect.sync(() => {
+              reused = true;
+            })
+          )
+        );
+        const drain = yield* Effect.forkChild(resources.drain(file));
+        yield* TestClock.adjust("100 millis");
+        expect(page.cleanup.mock.calls.length).toBeGreaterThan(1);
+        expect(interruption.pollUnsafe()).toBeUndefined();
+        expect(drain.pollUnsafe()).toBeUndefined();
+        expect(reused).toBe(false);
+
+        cleanupReady = true;
+        yield* TestClock.adjust("25 millis");
+        yield* Fiber.join(interruption);
+        yield* Fiber.join(second);
+        yield* Fiber.join(drain);
+        expect(reused).toBe(true);
+      });
+    }
+  );
 
   it.effect("keeps access to different pages independent", () => {
     const resources = new PageResources();

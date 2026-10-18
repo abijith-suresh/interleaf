@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { THUMBNAIL_SCALE } from "@/constants";
+import { THUMBNAIL_INTERSECTION_MARGIN, THUMBNAIL_SCALE } from "@/constants";
 import { makePDFRuntime, type PDFRuntime } from "@/services/pdf-runtime";
 import type { PageState } from "@/types/interfaces";
 
@@ -32,7 +32,10 @@ class TestIntersectionObserver {
   private readonly callback: IntersectionObserverCallback;
   private target: Element | undefined;
 
-  constructor(callback: IntersectionObserverCallback) {
+  constructor(
+    callback: IntersectionObserverCallback,
+    readonly options?: IntersectionObserverInit
+  ) {
     this.callback = callback;
     TestIntersectionObserver.instances.push(this);
   }
@@ -41,9 +44,9 @@ class TestIntersectionObserver {
     this.target = target;
   });
 
-  disconnect() {
+  disconnect = vi.fn(() => {
     this.target = undefined;
-  }
+  });
 
   trigger(isIntersecting = true) {
     if (!this.target) return;
@@ -76,6 +79,7 @@ describe("EditorPageCanvas", () => {
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     await runtime.dispose();
     vi.unstubAllGlobals();
   });
@@ -83,7 +87,12 @@ describe("EditorPageCanvas", () => {
   it("keeps rendering lazy and offers an accessible retry after a failure", async () => {
     pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(90));
     pdfServiceMocks.renderPage
-      .mockReturnValueOnce(Effect.fail(new Error("thumbnail failed")))
+      .mockImplementationOnce((_file, _pageNumber, canvas: HTMLCanvasElement) =>
+        Effect.sync(() => {
+          canvas.width = 612;
+          canvas.height = 792;
+        }).pipe(Effect.andThen(Effect.fail(new Error("thumbnail failed"))))
+      )
       .mockImplementationOnce((_file, _pageNumber, canvas: HTMLCanvasElement) =>
         Effect.sync(() => {
           canvas.width = 612;
@@ -107,6 +116,15 @@ describe("EditorPageCanvas", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Preview unavailable.");
     expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
     expect(canvasFrame).toHaveStyle({ "--frame-ratio": "0.75", "--page-rotation": "90deg" });
+
+    vi.useFakeTimers();
+    TestIntersectionObserver.intersect(false);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(canvasFrame.querySelector("canvas")?.width).toBe(0);
+    TestIntersectionObserver.intersect();
+    expect(canvasFrame).toHaveAttribute("data-render-state", "error");
+    expect(pdfServiceMocks.renderPage).toHaveBeenCalledOnce();
+    vi.useRealTimers();
 
     fireEvent.click(screen.getByRole("button", { name: "Retry page preview" }));
 
@@ -148,5 +166,166 @@ describe("EditorPageCanvas", () => {
     await waitFor(() => expect(canvasFrame).toHaveAttribute("data-render-state", "error"));
     expect(screen.getByRole("status")).toHaveTextContent("Preview unavailable.");
     expect(pdfServiceMocks.renderPage).not.toHaveBeenCalled();
+  });
+
+  it("retains completed previews briefly, then releases and rerenders with the same proportions", async () => {
+    pdfServiceMocks.renderPage.mockImplementation((_file, _pageNumber, canvas: HTMLCanvasElement) =>
+      Effect.sync(() => {
+        canvas.width = 240;
+        canvas.height = 120;
+      })
+    );
+    const scrollRoot = document.createElement("div");
+    const { getByTestId, unmount } = render(() => (
+      <EditorPageCanvas page={makePage()} rotation={90} scrollRoot={scrollRoot} runtime={runtime} />
+    ));
+    const frame = getByTestId("editor-page-canvas");
+    const canvas = frame.querySelector("canvas");
+    if (!canvas) throw new Error("Missing thumbnail canvas");
+    expect(canvas.width).toBe(0);
+    expect(canvas.height).toBe(0);
+    expect(TestIntersectionObserver.instances[0]?.options).toEqual({
+      root: scrollRoot,
+      rootMargin: THUMBNAIL_INTERSECTION_MARGIN,
+      threshold: 0,
+    });
+    TestIntersectionObserver.intersect();
+    await waitFor(() => expect(frame).toHaveAttribute("data-render-state", "ready"));
+    const style = frame.getAttribute("style");
+
+    vi.useFakeTimers();
+    TestIntersectionObserver.intersect(false);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(canvas.width).toBe(240);
+    TestIntersectionObserver.intersect();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(canvas.width).toBe(240);
+    expect(pdfServiceMocks.renderPage).toHaveBeenCalledOnce();
+
+    TestIntersectionObserver.intersect(false);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(canvas.width).toBe(0);
+    expect(canvas.height).toBe(0);
+    expect(frame).toHaveAttribute("data-render-state", "loading");
+    expect(frame.getAttribute("style")).toBe(style);
+    vi.useRealTimers();
+    TestIntersectionObserver.intersect();
+    await waitFor(() => expect(frame).toHaveAttribute("data-render-state", "ready"));
+    expect(canvas.width).toBe(240);
+    expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2);
+
+    vi.useFakeTimers();
+    TestIntersectionObserver.intersect(false);
+    expect(vi.getTimerCount()).toBe(1);
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(canvas.width).toBe(0);
+    expect(canvas.height).toBe(0);
+    expect(TestIntersectionObserver.instances[0]?.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it.each(["reentry", "offscreen", "unmount"] as const)(
+    "waits for cancelled PDF.js work to settle before clearing or reusing the canvas on %s",
+    async (action) => {
+      let finishCancellation!: () => void;
+      const cancellation = new Promise<void>((resolve) => {
+        finishCancellation = resolve;
+      });
+      const interrupted = vi.fn();
+      pdfServiceMocks.renderPage
+        .mockImplementationOnce((_file, _pageNumber, canvas: HTMLCanvasElement) =>
+          Effect.sync(() => {
+            canvas.width = 120;
+            canvas.height = 160;
+          }).pipe(
+            Effect.andThen(Effect.never),
+            Effect.onInterrupt(() =>
+              Effect.sync(interrupted).pipe(
+                Effect.andThen(Effect.promise(() => cancellation)),
+                // Model a renderer writing pixels while cancellation is still settling.
+                Effect.andThen(
+                  Effect.sync(() => {
+                    canvas.width = 999;
+                  })
+                )
+              )
+            )
+          )
+        )
+        .mockImplementationOnce((_file, _pageNumber, canvas: HTMLCanvasElement) =>
+          Effect.sync(() => {
+            expect(canvas.width).toBe(0);
+            expect(canvas.height).toBe(0);
+            canvas.width = 240;
+            canvas.height = 320;
+          })
+        );
+      const { getByTestId, unmount } = render(() => (
+        <EditorPageCanvas
+          page={makePage()}
+          rotation={90}
+          scrollRoot={document.createElement("div")}
+          runtime={runtime}
+        />
+      ));
+      const frame = getByTestId("editor-page-canvas");
+      const canvas = frame.querySelector("canvas");
+      if (!canvas) throw new Error("Missing thumbnail canvas");
+      TestIntersectionObserver.intersect();
+      await waitFor(() => expect(canvas.width).toBe(120));
+      TestIntersectionObserver.intersect(false);
+      await waitFor(() => expect(interrupted).toHaveBeenCalledOnce());
+
+      if (action === "reentry") {
+        // Repeated boundary crossings cannot start overlapping renders.
+        TestIntersectionObserver.intersect();
+        TestIntersectionObserver.intersect(false);
+        TestIntersectionObserver.intersect();
+      } else if (action === "unmount") unmount();
+      vi.useFakeTimers();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(canvas.width).toBe(120);
+      expect(pdfServiceMocks.renderPage).toHaveBeenCalledOnce();
+      expect(frame).toHaveAttribute("data-render-state", "loading");
+      vi.useRealTimers();
+      finishCancellation();
+
+      if (action === "reentry") {
+        await waitFor(() => expect(frame).toHaveAttribute("data-render-state", "ready"));
+        expect(canvas.width).toBe(240);
+        expect(canvas.height).toBe(320);
+        expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2);
+      } else {
+        await waitFor(() => expect(canvas.width).toBe(0));
+        expect(canvas.height).toBe(0);
+        expect(frame).toHaveAttribute("data-render-state", "loading");
+        expect(pdfServiceMocks.renderPage).toHaveBeenCalledOnce();
+      }
+      expect(screen.queryByText("Preview unavailable.")).not.toBeInTheDocument();
+      unmount();
+    }
+  );
+
+  it("cancels work queued before canvas allocation and renders only after reentry", async () => {
+    const interrupted = vi.fn();
+    pdfServiceMocks.getPageRotation.mockReturnValueOnce(
+      Effect.never.pipe(Effect.onInterrupt(() => Effect.sync(interrupted)))
+    );
+    const { getByTestId } = render(() => (
+      <EditorPageCanvas
+        page={makePage()}
+        rotation={0}
+        scrollRoot={document.createElement("div")}
+        runtime={runtime}
+      />
+    ));
+    TestIntersectionObserver.intersect();
+    await waitFor(() => expect(pdfServiceMocks.getPageRotation).toHaveBeenCalledOnce());
+    TestIntersectionObserver.intersect(false);
+    await waitFor(() => expect(interrupted).toHaveBeenCalledOnce());
+    expect(pdfServiceMocks.renderPage).not.toHaveBeenCalled();
+    expect(getByTestId("editor-page-canvas")).toHaveAttribute("data-render-state", "loading");
+    TestIntersectionObserver.intersect();
+    await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledOnce());
   });
 });
