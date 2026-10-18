@@ -126,6 +126,7 @@ for (const viewport of [
     expect(Math.abs(end.y - end.maxY)).toBeLessThanOrEqual(1);
     await page.keyboard.press("Home");
     await page.keyboard.press("ArrowDown");
+    await expect(stage).toHaveCSS("outline-color", "rgb(36, 36, 33)");
     await expect(page.getByRole("heading", { name: "Page 2", exact: true })).toBeVisible();
     await expect.poll(() => stage.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
     // Modified browser shortcuts must not be consumed by the dialog.
@@ -354,4 +355,54 @@ test.describe("touch preview", () => {
     expect(await stage.evaluate((el) => [el.scrollLeft, el.scrollTop])).toEqual([0, 0]);
     await cdp?.detach();
   });
+});
+
+test("zoom limits retain modal focus and Escape for keyboard and pointer actions", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 480 });
+  await page.goto("/app");
+  await page.getByTestId("editor-upload-input").setInputFiles({
+    name: "focus-report.pdf",
+    mimeType: "application/pdf",
+    buffer: await makeDocument(),
+  });
+  for (const action of ["Zoom in", "Zoom out"]) {
+    for (const input of ["keyboard", "pointer"]) {
+      await test.step(`${input} ${action} limit`, async () => {
+        await page.getByTestId("editor-review-button").click();
+        await ready(page, 1);
+        const fit = page.getByRole("button", { name: "Fit page", exact: true });
+        const zoomIn = page.getByRole("button", { name: "Zoom in", exact: true });
+        const zoomOut = page.getByRole("button", { name: "Zoom out", exact: true });
+        if (action === "Zoom out") {
+          await zoomIn.click();
+          await zoomOut.focus();
+        } else {
+          await fit.focus();
+          await page.keyboard.press("Tab");
+          await expect(zoomIn).toBeFocused();
+        }
+        const button = action === "Zoom in" ? zoomIn : zoomOut;
+        for (let i = 0; i < (action === "Zoom in" ? 5 : 1); i++) {
+          if (input === "keyboard") await page.keyboard.press("Enter");
+          else await button.click();
+        }
+        await expect(button).toBeDisabled();
+        await expect(fit).toBeFocused();
+        // Tab stays within the modal after the focused action became disabled.
+        await page.keyboard.press("Tab");
+        await expect(
+          action === "Zoom in"
+            ? page.getByRole("button", { name: "Close page review", exact: true })
+            : zoomIn
+        ).toBeFocused();
+        await page.keyboard.press("Shift+Tab");
+        await expect(fit).toBeFocused();
+        await page.keyboard.press("Escape");
+        await expect(page.getByTestId("editor-page-viewer")).toHaveCount(0);
+        await expect(page.getByTestId("editor-review-button")).toBeFocused();
+      });
+    }
+  }
 });

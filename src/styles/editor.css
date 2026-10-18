@@ -731,7 +731,7 @@ body:has([data-page="editor"]) {
 }
 
 .editor-review-stage:focus-visible {
-  outline: 2px solid var(--editor-accent);
+  outline: 2px solid var(--editor-ink);
   outline-offset: -3px;
 }
 

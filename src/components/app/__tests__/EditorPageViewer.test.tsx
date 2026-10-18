@@ -535,6 +535,7 @@ describe("EditorPageViewer", () => {
     expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1);
     pointer("pointermove", 2, 500, 100);
     expect(stage).toHaveAttribute("data-zoom", "4");
+    expect(stage).toHaveFocus();
     pointer("pointercancel", 2, 500, 100);
     expect(stage).not.toHaveClass("is-panning");
     const scroll = stage.scrollLeft;
@@ -694,4 +695,177 @@ describe("EditorPageViewer", () => {
     vi.advanceTimersByTime(80);
     await vi.waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(3));
   });
+  it("keeps staging owned by the renderer during simultaneous unmount and runtime disposal", async () => {
+    const release = Deferred.makeUnsafe<void>();
+    const cancelled = vi.fn(() => Deferred.await(release));
+    const completionObservers = vi.spyOn(runtime, "runPromise");
+    pdfServiceMocks.renderPage.mockImplementation((_file, _number, target) =>
+      Effect.sync(() => {
+        target.width = 600;
+        target.height = 1200;
+      }).pipe(Effect.andThen(Effect.never), Effect.onInterrupt(cancelled))
+    );
+    const pages = makePages();
+    const view = render(() => (
+      <EditorPageViewer
+        pages={pages}
+        navigationPageIds={pages.map((p) => p.id)}
+        activePageId="page-1"
+        runtime={runtime}
+        onActivePageChange={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1));
+    const staging = pdfServiceMocks.renderPage.mock.calls[0][2] as HTMLCanvasElement;
+    const width = vi.spyOn(staging, "width", "set");
+    const height = vi.spyOn(staging, "height", "set");
+    view.unmount();
+    const disposal = runtime.dispose();
+    try {
+      await waitFor(() => expect(cancelled).toHaveBeenCalledTimes(1));
+      // Disposal can settle managed completion observers before the rendering
+      // fiber's gated cancellation finalizer. Drain those observers explicitly.
+      await Promise.allSettled(completionObservers.mock.results.map((result) => result.value));
+      expect(width).not.toHaveBeenCalled();
+      expect(height).not.toHaveBeenCalled();
+      expect([staging.width, staging.height]).toEqual([600, 1200]);
+    } finally {
+      await Effect.runPromise(Deferred.succeed(release, undefined));
+      await disposal;
+    }
+    await waitFor(() => expect([staging.width, staging.height]).toEqual([0, 0]));
+  });
+
+  it.each(["Zoom in", "Zoom out"])(
+    "hands focused %s to Fit at its limit and preserves Escape",
+    async (action) => {
+      const pages = makePages();
+      const onClose = vi.fn();
+      render(() => (
+        <EditorPageViewer
+          pages={pages}
+          navigationPageIds={pages.map((p) => p.id)}
+          activePageId="page-1"
+          runtime={runtime}
+          onActivePageChange={vi.fn()}
+          onClose={onClose}
+        />
+      ));
+      const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+      await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
+      const zoomIn = screen.getByRole("button", { name: "Zoom in" });
+      if (action === "Zoom out") fireEvent.click(zoomIn);
+      const button = screen.getByRole("button", { name: action });
+      button.focus();
+      for (let i = 0; i < (action === "Zoom in" ? 5 : 1); i++) fireEvent.click(button);
+      expect(button).toBeDisabled();
+      const fit = screen.getByRole("button", { name: "Fit page" });
+      expect(fit).toHaveFocus();
+      fireEvent.keyDown(fit, { key: "Escape" });
+      expect(onClose).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it("does not steal preview or unrelated action focus when zoom reaches a limit", async () => {
+    const pages = makePages();
+    render(() => (
+      <EditorPageViewer
+        pages={pages}
+        navigationPageIds={pages.map((p) => p.id)}
+        activePageId="page-1"
+        runtime={runtime}
+        onActivePageChange={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+    await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
+    stage.focus();
+    for (let i = 0; i < 5; i++) fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(stage).toHaveFocus();
+    const close = screen.getByRole("button", { name: "Close page review" });
+    close.focus();
+    for (let i = 0; i < 5; i++) fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(close).toHaveFocus();
+  });
+
+  it.each(["pointerup", "pointercancel", "lostpointercapture"])(
+    "avoids rendering for pure pan on %s while retaining pending zoom, resize and page work",
+    async (endEvent) => {
+      const pages = makePages();
+      const [active, setActive] = createSignal("page-1");
+      render(() => (
+        <EditorPageViewer
+          pages={pages}
+          navigationPageIds={pages.map((p) => p.id)}
+          activePageId={active()}
+          runtime={runtime}
+          onActivePageChange={setActive}
+          onClose={vi.fn()}
+        />
+      ));
+      const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+      await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
+      const pointer = (type: string, x = 100, y = 100) => {
+        const event = new Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperties(
+          event,
+          Object.fromEntries(
+            Object.entries({
+              pointerId: 1,
+              pointerType: "touch",
+              button: 0,
+              clientX: x,
+              clientY: y,
+            }).map(([key, value]) => [key, { value }])
+          )
+        );
+        fireEvent(stage, event);
+      };
+      const ready = async (count: number) => {
+        vi.advanceTimersByTime(80);
+        await vi.waitFor(() => {
+          expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(count);
+          expect(stage).toHaveAttribute("data-render-state", "ready");
+        });
+      };
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+      await ready(2);
+      pointer("pointerdown");
+      pointer("pointermove", 60, 50);
+      pointer(endEvent);
+      vi.advanceTimersByTime(1000);
+      expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2);
+
+      // A button zoom has not sharpened yet. A pan cancels its timer, but must
+      // retain the pending work and render it once on release/cancel/capture loss.
+      fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+      pointer("pointerdown");
+      pointer("pointermove", 60, 50);
+      vi.advanceTimersByTime(1000);
+      expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2);
+      pointer(endEvent);
+      await ready(3);
+      expect(pdfServiceMocks.renderPage.mock.calls[2][3]).toBeCloseTo(1.5 * 1.4 * 1.4);
+
+      fireEvent(window, new Event("resize"));
+      pointer("pointerdown");
+      vi.advanceTimersByTime(1000);
+      expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(3);
+      pointer(endEvent);
+      await ready(4);
+      expect(stage).toHaveAttribute("data-zoom", "1");
+      pointer("pointerdown");
+      setActive("page-2");
+      await vi.waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
+      expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(5);
+      expect(pdfServiceMocks.renderPage.mock.calls[4][1]).toBe(2);
+      expect(stage).not.toHaveClass("is-panning");
+      pointer(endEvent);
+      vi.advanceTimersByTime(1000);
+      expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(5);
+    }
+  );
 });

@@ -41,6 +41,9 @@ export default function EditorPageViewer(props: Props) {
 
   let pane!: HTMLElement;
   let closeButton!: HTMLButtonElement;
+  let fitButton!: HTMLButtonElement;
+  let zoomInButton!: HTMLButtonElement;
+  let zoomOutButton!: HTMLButtonElement;
   let stage!: HTMLElement;
   let filmstrip!: HTMLElement;
   let canvas!: HTMLCanvasElement;
@@ -59,6 +62,7 @@ export default function EditorPageViewer(props: Props) {
   let renderFiber: Fiber.Fiber<unknown, unknown> | null = null;
   let resizeObserver: ResizeObserver | null = null;
   let resizeTimer: number | null = null;
+  let renderNeeded = false;
   let reviewBackgrounds: HTMLElement[] = [];
 
   const navigationPages = createMemo(() =>
@@ -161,6 +165,17 @@ export default function EditorPageViewer(props: Props) {
     frame.style.height = canvas.style.height = `${height * cssScale}px`;
   }
 
+  function setViewZoom(value: number): void {
+    const next = Math.max(1, Math.min(4, value));
+    const focused = document.activeElement;
+    // Move focus before disabling an action, otherwise browsers can send it to body.
+    if ((next >= 4 && focused === zoomInButton) || (next <= 1 && focused === zoomOutButton)) {
+      fitButton.focus({ preventScroll: true });
+    }
+    if (next !== untrack(zoom)) renderNeeded = true;
+    setZoom(next);
+  }
+
   function changeZoom(value: number, clientX?: number, clientY?: number): void {
     if (!pageDimensions) return;
     const stageRect = stage.getBoundingClientRect();
@@ -169,18 +184,18 @@ export default function EditorPageViewer(props: Props) {
     const y = clientY ?? stageRect.top + stage.clientHeight / 2;
     const anchorX = rect.width ? (x - rect.left) / rect.width : 0.5;
     const anchorY = rect.height ? (y - rect.top) / rect.height : 0.5;
-    setZoom(Math.max(1, Math.min(4, value)));
+    setViewZoom(value);
     layoutPage();
     const nextRect = frame.getBoundingClientRect();
     stage.scrollLeft += nextRect.left + nextRect.width * anchorX - x;
     stage.scrollTop += nextRect.top + nextRect.height * anchorY - y;
     if (untrack(zoom) === 1) stage.scrollLeft = stage.scrollTop = 0;
-    if (!pointers.size) requestResizeRender();
+    if (!pointers.size && renderNeeded) requestResizeRender();
   }
 
   function resetView(): void {
     endGesture();
-    setZoom(1);
+    setViewZoom(1);
     stage.scrollLeft = stage.scrollTop = 0;
     layoutPage();
   }
@@ -250,7 +265,12 @@ export default function EditorPageViewer(props: Props) {
     if (!pointers.delete(event.pointerId)) return;
     if (stage.hasPointerCapture?.(event.pointerId)) stage.releasePointerCapture(event.pointerId);
     rebaseGesture();
-    if (!pointers.size) requestResizeRender();
+    if (!pointers.size && renderNeeded) requestResizeRender();
+  }
+
+  function cancelGesture(): void {
+    endGesture();
+    if (renderNeeded) requestResizeRender();
   }
 
   async function renderLoop(): Promise<void> {
@@ -306,7 +326,9 @@ export default function EditorPageViewer(props: Props) {
 
         renderFiber = fiber;
         try {
-          await props.runtime.runPromise(Fiber.join(fiber));
+          // This completion observer must outlive managed-runtime disposal too.
+          // Only the rendering fiber's settled exit permits staging reuse/release.
+          await Effect.runPromise(Fiber.join(fiber));
           if (canUpdateRenderState() && !renderQueued) {
             canvas.width = canvas.height = 0;
             canvas.width = staging.width;
@@ -334,6 +356,9 @@ export default function EditorPageViewer(props: Props) {
 
   function requestRender(): void {
     if (disposed || !mounted) return;
+    renderNeeded = false;
+    if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+    resizeTimer = null;
     renderQueued = true;
     interruptRender();
     if (!renderLoopRunning) void renderLoop();
@@ -341,6 +366,7 @@ export default function EditorPageViewer(props: Props) {
 
   function requestResizeRender(): void {
     if (disposed || !mounted) return;
+    renderNeeded = true;
     if (resizeTimer !== null) window.clearTimeout(resizeTimer);
     if (pointers.size) return;
     resizeTimer = window.setTimeout(() => {
@@ -436,6 +462,9 @@ export default function EditorPageViewer(props: Props) {
     if (mounted) {
       resetView();
       pageDimensions = null;
+      if (document.activeElement === zoomInButton || document.activeElement === zoomOutButton) {
+        fitButton.focus({ preventScroll: true });
+      }
       setHasFrame(false);
       requestRender();
     }
@@ -541,6 +570,7 @@ export default function EditorPageViewer(props: Props) {
         </div>
         <fieldset class="editor-review-zoom" aria-label="Page zoom">
           <EditorButton
+            ref={zoomOutButton}
             aria-label="Zoom out"
             title="Zoom out"
             icon="minus"
@@ -548,6 +578,7 @@ export default function EditorPageViewer(props: Props) {
             onClick={() => changeZoom(zoom() / 1.4)}
           />
           <EditorButton
+            ref={fitButton}
             aria-label="Fit page"
             title="Fit page"
             onClick={() => {
@@ -558,6 +589,7 @@ export default function EditorPageViewer(props: Props) {
             Fit
           </EditorButton>
           <EditorButton
+            ref={zoomInButton}
             aria-label="Zoom in"
             title="Zoom in"
             icon="plus"
@@ -586,14 +618,10 @@ export default function EditorPageViewer(props: Props) {
         onPointerDown={pointerDown}
         onPointerMove={pointerMove}
         onPointerUp={pointerEnd}
-        onPointerCancel={() => {
-          endGesture();
-          requestResizeRender();
-        }}
+        onPointerCancel={cancelGesture}
         onLostPointerCapture={(event) => {
           if (pointers.has(event.pointerId)) {
-            endGesture();
-            requestResizeRender();
+            cancelGesture();
           }
         }}
         data-render-state={renderState()}
