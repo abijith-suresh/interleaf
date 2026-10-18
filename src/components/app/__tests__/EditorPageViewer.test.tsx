@@ -222,6 +222,144 @@ describe("EditorPageViewer", () => {
     }
   );
 
+  it.each([
+    {
+      name: "asymmetric computed padding",
+      stage: [500, 400],
+      padding: "10px 30px 20px 40px",
+      size: [1000, 1000],
+      display: [370, 370],
+    },
+    {
+      name: "a wide page in a small viewport",
+      stage: [390, 220],
+      padding: "12px",
+      size: [12000, 600],
+      display: [366, 18.3],
+    },
+    {
+      name: "a tall page in a short landscape viewport",
+      stage: [667, 180],
+      padding: "12px",
+      size: [600, 12000],
+      display: [7.8, 156],
+    },
+    {
+      name: "a huge page at desktop DPR 2",
+      stage: [2864, 2864],
+      padding: "32px",
+      size: [20000, 20000],
+      display: [2800, 2800],
+      pixelRatio: 2,
+      bitmapSide: 4000,
+    },
+    {
+      name: "a huge page with a coarse pointer at DPR 2",
+      stage: [2864, 2864],
+      padding: "32px",
+      size: [20000, 20000],
+      display: [2800, 2800],
+      coarse: true,
+      pixelRatio: 2,
+      bitmapSide: 2000,
+    },
+    {
+      name: "the mobile budget with a fine pointer",
+      stage: [2864, 2864],
+      padding: "32px",
+      size: [20000, 20000],
+      display: [2800, 2800],
+      viewportWidth: 700,
+      pixelRatio: 2,
+      bitmapSide: 2000,
+    },
+    {
+      name: "the maximum display scale for a small page",
+      stage: [1000, 1000],
+      padding: "12px",
+      size: [100, 200],
+      display: [150, 300],
+    },
+  ])("fits $name independently of bitmap resolution", async (scenario) => {
+    vi.stubGlobal("devicePixelRatio", scenario.pixelRatio ?? 1);
+    vi.stubGlobal("innerWidth", scenario.viewportWidth ?? 1200);
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: scenario.coarse ?? false }))
+    );
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(scenario.stage[0]);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(scenario.stage[1]);
+    const getStyle = window.getComputedStyle;
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element) => {
+      if (element.classList.contains("editor-review-stage")) {
+        (element as HTMLElement).style.padding = scenario.padding;
+      }
+      return getStyle(element);
+    });
+    pdfServiceMocks.getPageSize.mockReturnValue(
+      Effect.succeed({ width: scenario.size[0], height: scenario.size[1] })
+    );
+    const pages = makePages();
+    render(() => (
+      <EditorPageViewer
+        pages={pages}
+        navigationPageIds={pages.map((page) => page.id)}
+        activePageId="page-1"
+        runtime={runtime}
+        onActivePageChange={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1));
+    const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
+    expect(Number.parseFloat(canvas.style.width)).toBeCloseTo(scenario.display[0]);
+    expect(Number.parseFloat(canvas.style.height)).toBeCloseTo(scenario.display[1]);
+    const scale = pdfServiceMocks.renderPage.mock.calls[0][3];
+    if (scenario.bitmapSide) {
+      expect(scenario.size[0] * scale).toBeCloseTo(scenario.bitmapSide);
+      expect(scenario.size[1] * scale).toBeCloseTo(scenario.bitmapSide);
+    } else {
+      expect(scale).toBeCloseTo(scenario.display[0] / scenario.size[0]);
+    }
+  });
+
+  it.each([
+    { sourceRotation: 90, workspaceRotation: 0, rotation: 90, display: [352, 176] },
+    { sourceRotation: 90, workspaceRotation: 90, rotation: 180, display: [88, 176] },
+    { sourceRotation: 270, workspaceRotation: 180, rotation: 90, display: [352, 176] },
+  ])("fits combined rotation $rotation", async (scenario) => {
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(667);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(200);
+    const getStyle = window.getComputedStyle;
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element) => {
+      (element as HTMLElement).style.padding = "12px";
+      return getStyle(element);
+    });
+    pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(scenario.sourceRotation));
+    pdfServiceMocks.getPageSize.mockImplementation((_file, _pageNumber, rotation) =>
+      Effect.succeed(
+        rotation % 180 === 0 ? { width: 600, height: 1200 } : { width: 1200, height: 600 }
+      )
+    );
+    const pages = makePages();
+    pages[0].rotation = scenario.workspaceRotation;
+    render(() => (
+      <EditorPageViewer
+        pages={pages}
+        navigationPageIds={pages.map((page) => page.id)}
+        activePageId="page-1"
+        runtime={runtime}
+        onActivePageChange={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1));
+    const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
+    expect(Number.parseFloat(canvas.style.width)).toBeCloseTo(scenario.display[0]);
+    expect(Number.parseFloat(canvas.style.height)).toBeCloseTo(scenario.display[1]);
+    expect(pdfServiceMocks.renderPage.mock.calls[0][4]).toBe(scenario.rotation);
+  });
+
   it("debounces rerenders while the viewer is resizing", async () => {
     const pages = makePages();
     render(() => (
@@ -255,6 +393,54 @@ describe("EditorPageViewer", () => {
       expect([canvas.width, canvas.height]).toEqual([300, 600]);
     } finally {
       vi.useRealTimers();
+    }
+  });
+
+  it("waits for PDF.js cancellation before resizing the canvas to the latest fit", async () => {
+    let stageWidth = 800;
+    let stageHeight = 600;
+    vi.stubGlobal("devicePixelRatio", 1);
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(() => stageWidth);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(() => stageHeight);
+    const releaseCleanup = Deferred.makeUnsafe<void>();
+    const cancel = vi.fn(() => Deferred.await(releaseCleanup));
+    pdfServiceMocks.renderPage.mockImplementationOnce(
+      (_file, _pageNumber, canvas: HTMLCanvasElement) =>
+        Effect.sync(() => {
+          canvas.width = 150;
+          canvas.height = 300;
+        }).pipe(Effect.andThen(Effect.never), Effect.onInterrupt(cancel))
+    );
+    const pages = makePages();
+    const view = render(() => (
+      <EditorPageViewer
+        pages={pages}
+        navigationPageIds={pages.map((page) => page.id)}
+        activePageId="page-1"
+        runtime={runtime}
+        onActivePageChange={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    try {
+      const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
+      await waitFor(() => expect(canvas.width).toBe(150));
+      const setWidth = vi.spyOn(canvas, "width", "set");
+      const setHeight = vi.spyOn(canvas, "height", "set");
+      stageWidth = 100;
+      stageHeight = 120;
+      fireEvent(window, new Event("resize"));
+      await waitFor(() => expect(cancel).toHaveBeenCalledTimes(1));
+      expect(setWidth).not.toHaveBeenCalled();
+      expect(setHeight).not.toHaveBeenCalled();
+      expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1);
+      await Effect.runPromise(Deferred.succeed(releaseCleanup, undefined));
+      await waitFor(() => expect([canvas.width, canvas.height]).toEqual([60, 120]));
+      expect(canvas.style.width).toBe("60px");
+      expect(canvas.style.height).toBe("120px");
+    } finally {
+      await Effect.runPromise(Deferred.succeed(releaseCleanup, undefined));
+      view.unmount();
     }
   });
 
