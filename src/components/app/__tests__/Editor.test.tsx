@@ -180,10 +180,10 @@ describe("Editor", () => {
     expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
   });
 
-  it("opens a multi-page review without requiring a single selected page", async () => {
+  it("switches to Document without requiring a selection and retains the active page", async () => {
     await openPDF();
 
-    fireEvent.click(screen.getByRole("button", { name: /Review/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Document" }));
 
     await waitFor(() => expect(screen.getByTestId("editor-page-viewer")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
@@ -194,7 +194,7 @@ describe("Editor", () => {
       expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2")
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Close page review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pages" }));
     await waitFor(() => expect(screen.queryByTestId("editor-page-viewer")).not.toBeInTheDocument());
   });
 
@@ -354,7 +354,7 @@ describe("Editor", () => {
   it.each([
     {
       selectedIndex: 1,
-      selection: "No pages selected",
+      selection: "All 3 exportable",
       pressed: ["false", "false", "false"],
       selectedIndices: undefined,
     },
@@ -759,7 +759,7 @@ describe("Editor", () => {
       expect(screen.queryByTestId("editor-edit-menu")).not.toBeInTheDocument();
       expect(hitareas[0].closest("li")).not.toHaveClass("dragging");
       expect(dropTile).not.toHaveClass("drag-insert-after");
-      expect(screen.getByTestId("editor-selection-title")).toHaveTextContent("No pages selected");
+      expect(screen.getByTestId("editor-selection-title")).toHaveTextContent("All 3 exportable");
       fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
       await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
       expect(

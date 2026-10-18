@@ -124,13 +124,13 @@ for (const viewport of [
 
     // Clear selection to review the full document, including filmstrip turnover.
     await page.getByTestId("editor-page-tile").first().click();
-    await page.getByTestId("editor-review-button").click();
+    await page.getByTestId("editor-document-view-button").click();
     const viewer = page.getByTestId("editor-page-viewer");
     await expect(viewer.locator(".editor-review-stage")).toHaveAttribute(
       "data-render-state",
       "ready"
     );
-    await page.getByRole("button", { name: "Review page 2", exact: true }).click();
+    await page.getByRole("button", { name: "View page 2", exact: true }).click();
     await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 2");
     for (let index = 0; index < 15; index++) {
       await page.getByTestId("editor-page-viewer-next").click();
@@ -140,13 +140,14 @@ for (const viewport of [
       "data-render-state",
       "ready"
     );
-    await expect(
-      viewer.getByRole("button", { name: "Review page 17", exact: true })
-    ).toHaveAttribute("aria-current", "page");
+    await expect(viewer.getByRole("button", { name: "View page 17", exact: true })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
     await expect(viewer.getByTestId("editor-page-canvas-error")).toHaveCount(0);
     await page.getByTestId("editor-page-viewer-previous").click();
     await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 16");
-    await page.getByTestId("editor-page-viewer-close-button").click();
+    await page.getByTestId("editor-pages-view-button").click();
     await expect(viewer).toHaveCount(0);
     await expect(first).toHaveAttribute("data-render-state", "ready");
     expect(errors).toEqual([]);

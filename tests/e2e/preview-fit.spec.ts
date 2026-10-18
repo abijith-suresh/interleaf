@@ -140,7 +140,7 @@ for (const scenario of [
         buffer: await makePages(),
       });
       await expect(page.getByTestId("editor-page-tile")).toHaveCount(4);
-      await page.getByTestId("editor-review-button").click();
+      await page.getByTestId("editor-document-view-button").click();
       const first = await expectFittedPage(page, 20000, 20000, scenario.budget);
       if (scenario.name !== "mobile fine pointer") {
         expect(first.width * first.height).toBeGreaterThan(scenario.budget * 0.99);
@@ -173,19 +173,19 @@ for (const scenario of [
           [3, 600, 12000],
           [4, 1200, 600],
         ]) {
-          await page.getByRole("button", { name: `Review page ${index}`, exact: true }).click();
+          await page.getByRole("button", { name: `View page ${index}`, exact: true }).click();
           await expectFittedPage(page, width, height, scenario.budget);
         }
       }
 
       // Intrinsic rotation plus a workspace rotation remains the same in review,
       // PDF output and PNG output. Keep exports on the ordinary-sized last page.
-      await page.getByTestId("editor-page-viewer-close-button").click();
+      await page.getByTestId("editor-pages-view-button").click();
       await page.getByTestId("editor-page-tile").nth(3).click();
       await page.getByRole("button", { name: "Rotate page 4 90 degrees", exact: true }).click();
-      await page.getByTestId("editor-review-button").click();
+      await page.getByTestId("editor-document-view-button").click();
       await expectFittedPage(page, 600, 1200, scenario.budget);
-      await page.getByTestId("editor-page-viewer-close-button").click();
+      await page.getByTestId("editor-pages-view-button").click();
       const pdfDownload = page.waitForEvent("download");
       await page.getByTestId("editor-download-button").click();
       const pdfPath = await (await pdfDownload).path();

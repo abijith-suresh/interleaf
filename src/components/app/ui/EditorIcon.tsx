@@ -5,7 +5,7 @@ import ChevronRight from "lucide-solid/icons/chevron-right";
 import Download from "lucide-solid/icons/download";
 import FileStack from "lucide-solid/icons/file-stack";
 import FileText from "lucide-solid/icons/file-text";
-import Maximize from "lucide-solid/icons/maximize";
+import LayoutGrid from "lucide-solid/icons/layout-grid";
 import Minus from "lucide-solid/icons/minus";
 import Plus from "lucide-solid/icons/plus";
 import RotateCcw from "lucide-solid/icons/rotate-ccw";
@@ -23,7 +23,7 @@ const editorIcons = {
   open: Download,
   document: FileText,
   files: FileStack,
-  review: Maximize,
+  pages: LayoutGrid,
   plus: Plus,
   minus: Minus,
   restore: RotateCcw,
