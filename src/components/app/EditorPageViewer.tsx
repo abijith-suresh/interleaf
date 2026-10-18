@@ -629,8 +629,6 @@ export default function EditorPageViewer(props: Props) {
             {(page) => {
               const workspaceIndex = () =>
                 props.pages.findIndex((candidate) => candidate.id === page.id);
-              const navigationIndex = () =>
-                navigationPages().findIndex((candidate) => candidate.id === page.id);
 
               return (
                 <button
@@ -650,7 +648,7 @@ export default function EditorPageViewer(props: Props) {
                     scrollRoot={filmstrip}
                     showRetry={false}
                   />
-                  <span>{navigationIndex() + 1}</span>
+                  <span>{workspaceIndex() + 1}</span>
                 </button>
               );
             }}

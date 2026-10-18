@@ -17,6 +17,37 @@ async function downloadPDF(page: Page) {
   return PDFDocument.load(await readFile(path));
 }
 
+test("numbered short-landscape filmstrip identifies workspace pages in a noncontiguous selection", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 568, height: 320 });
+  await page.goto("/app");
+  await page
+    .getByTestId("editor-upload-input")
+    .setInputFiles(await source("subset.pdf", [400, 420, 440]));
+  const tiles = page.getByTestId("editor-page-tile");
+  await tiles.nth(0).click();
+  await tiles.nth(2).click();
+  await page.getByTestId("editor-document-view-button").click();
+
+  const filmstrip = page.getByRole("navigation", { name: "Document pages" });
+  const labels = filmstrip.getByRole("button").locator(":scope > span:last-child");
+  await expect(labels).toHaveText(["1", "3"]);
+  await expect(filmstrip.locator(".canvas-container").first()).toBeHidden();
+  const thirdPage = filmstrip.getByRole("button", { name: "View page 3", exact: true });
+  await expect(thirdPage).toHaveAttribute("title", "Page 3");
+  await expect(thirdPage).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 3");
+  await expect(page.locator(".editor-review-position")).toHaveText("2 of 2");
+
+  await filmstrip.getByRole("button", { name: "View page 1", exact: true }).click();
+  await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 1");
+  await expect(page.locator(".editor-review-position")).toHaveText("1 of 2");
+  await thirdPage.click();
+  await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 3");
+  await expect(page.locator(".editor-review-position")).toHaveText("2 of 2");
+});
+
 test("Document preserves marked subset inspection, output eligibility and active page across views", async ({
   page,
 }) => {
