@@ -1,5 +1,14 @@
 import { Effect, Fiber } from "effect";
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+  untrack,
+} from "solid-js";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
 import EditorPageCanvas from "./EditorPageCanvas";
@@ -25,13 +34,24 @@ interface Props {
 
 export default function EditorPageViewer(props: Props) {
   const [renderState, setRenderState] = createSignal<"loading" | "ready" | "error">("loading");
+  const [zoom, setZoom] = createSignal(1);
+  const [panning, setPanning] = createSignal(false);
+  const [hasFrame, setHasFrame] = createSignal(false);
   const [filmstripWindowStart, setFilmstripWindowStart] = createSignal(0);
 
   let pane!: HTMLElement;
   let closeButton!: HTMLButtonElement;
-  let stage!: HTMLDivElement;
+  let stage!: HTMLElement;
   let filmstrip!: HTMLElement;
   let canvas!: HTMLCanvasElement;
+  let frame!: HTMLDivElement;
+  // PDF.js owns this canvas until its render and cancellation finalizers settle.
+  // The visible canvas retains the last complete frame. Each has the same pixel cap.
+  const staging = document.createElement("canvas");
+  staging.width = staging.height = 0;
+  let pageDimensions: { width: number; height: number } | null = null;
+  const pointers = new Map<number, { x: number; y: number }>();
+  let gesture: { distance: number; zoom: number; x: number; y: number } | null = null;
   let mounted = false;
   let disposed = false;
   let renderQueued = false;
@@ -125,12 +145,112 @@ export default function EditorPageViewer(props: Props) {
             Math.max(stage.clientWidth - horizontalPadding, 1) / pageWidth,
             Math.max(stage.clientHeight - verticalPadding, 1) / pageHeight
           );
-    const cssScale = Math.min(VIEWER_MAX_SCALE, fitScale);
+    const cssScale = Math.min(VIEWER_MAX_SCALE, fitScale) * untrack(zoom);
 
     return {
       cssScale,
       renderScale: Math.min(cssScale * devicePixelRatio, pixelSafeRenderScale),
     };
+  }
+
+  function layoutPage(): void {
+    if (!pageDimensions) return;
+    const { width, height } = pageDimensions;
+    const { cssScale } = getViewerScale(width, height);
+    frame.style.width = canvas.style.width = `${width * cssScale}px`;
+    frame.style.height = canvas.style.height = `${height * cssScale}px`;
+  }
+
+  function changeZoom(value: number, clientX?: number, clientY?: number): void {
+    if (!pageDimensions) return;
+    const stageRect = stage.getBoundingClientRect();
+    const rect = frame.getBoundingClientRect();
+    const x = clientX ?? stageRect.left + stage.clientWidth / 2;
+    const y = clientY ?? stageRect.top + stage.clientHeight / 2;
+    const anchorX = rect.width ? (x - rect.left) / rect.width : 0.5;
+    const anchorY = rect.height ? (y - rect.top) / rect.height : 0.5;
+    setZoom(Math.max(1, Math.min(4, value)));
+    layoutPage();
+    const nextRect = frame.getBoundingClientRect();
+    stage.scrollLeft += nextRect.left + nextRect.width * anchorX - x;
+    stage.scrollTop += nextRect.top + nextRect.height * anchorY - y;
+    if (untrack(zoom) === 1) stage.scrollLeft = stage.scrollTop = 0;
+    if (!pointers.size) requestResizeRender();
+  }
+
+  function resetView(): void {
+    endGesture();
+    setZoom(1);
+    stage.scrollLeft = stage.scrollTop = 0;
+    layoutPage();
+  }
+
+  function rebaseGesture(): void {
+    const points = [...pointers.values()];
+    const first = points[0];
+    const second = points[1] ?? first;
+    gesture = first
+      ? {
+          distance: Math.hypot(first.x - second.x, first.y - second.y),
+          zoom: untrack(zoom),
+          x: (first.x + second.x) / 2,
+          y: (first.y + second.y) / 2,
+        }
+      : null;
+    setPanning(pointers.size > 0);
+  }
+
+  function endGesture(): void {
+    const ids = [...pointers.keys()];
+    pointers.clear();
+    gesture = null;
+    setPanning(false);
+    for (const id of ids) {
+      if (stage.hasPointerCapture?.(id)) stage.releasePointerCapture(id);
+    }
+  }
+
+  function pointerDown(event: PointerEvent): void {
+    if (
+      event.button !== 0 ||
+      !pageDimensions ||
+      !untrack(hasFrame) ||
+      (event.target instanceof Element && event.target.closest("button, a")) ||
+      (event.pointerType !== "touch" && untrack(zoom) === 1)
+    )
+      return;
+    event.preventDefault();
+    stage.focus({ preventScroll: true });
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    stage.setPointerCapture?.(event.pointerId);
+    if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+    resizeTimer = null;
+    rebaseGesture();
+  }
+
+  function pointerMove(event: PointerEvent): void {
+    if (!pointers.has(event.pointerId) || !gesture) return;
+    event.preventDefault();
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const points = [...pointers.values()];
+    const first = points[0];
+    const second = points[1] ?? first;
+    const x = (first.x + second.x) / 2;
+    const y = (first.y + second.y) / 2;
+    if (points.length >= 2 && gesture.distance > 0) {
+      const distance = Math.hypot(first.x - second.x, first.y - second.y);
+      changeZoom((gesture.zoom * distance) / gesture.distance, gesture.x, gesture.y);
+    }
+    stage.scrollLeft -= x - gesture.x;
+    stage.scrollTop -= y - gesture.y;
+    rebaseGesture();
+  }
+
+  function pointerEnd(event: PointerEvent): void {
+    if (!pointers.delete(event.pointerId)) return;
+    if (stage.hasPointerCapture?.(event.pointerId)) stage.releasePointerCapture(event.pointerId);
+    rebaseGesture();
+    if (!pointers.size) requestResizeRender();
   }
 
   async function renderLoop(): Promise<void> {
@@ -148,8 +268,8 @@ export default function EditorPageViewer(props: Props) {
         }
 
         setRenderState("loading");
-        canvas.width = 0;
-        canvas.height = 0;
+        staging.width = 0;
+        staging.height = 0;
 
         let fiber: Fiber.Fiber<unknown, unknown>;
         try {
@@ -166,13 +286,13 @@ export default function EditorPageViewer(props: Props) {
                   page.sourcePageNumber,
                   rotation
                 );
-                const { cssScale, renderScale } = getViewerScale(pageSize.width, pageSize.height);
-                canvas.style.width = `${pageSize.width * cssScale}px`;
-                canvas.style.height = `${pageSize.height * cssScale}px`;
+                pageDimensions = pageSize;
+                layoutPage();
+                const { renderScale } = getViewerScale(pageSize.width, pageSize.height);
                 yield* service.renderPage(
                   page.sourceFile,
                   page.sourcePageNumber,
-                  canvas,
+                  staging,
                   renderScale,
                   rotation
                 );
@@ -187,12 +307,22 @@ export default function EditorPageViewer(props: Props) {
         renderFiber = fiber;
         try {
           await props.runtime.runPromise(Fiber.join(fiber));
-          if (canUpdateRenderState()) setRenderState("ready");
+          if (canUpdateRenderState() && !renderQueued) {
+            canvas.width = canvas.height = 0;
+            canvas.width = staging.width;
+            canvas.height = staging.height;
+            const context = canvas.getContext("2d");
+            if (!context) throw new Error("Could not get preview canvas context");
+            context.drawImage(staging, 0, 0);
+            setHasFrame(true);
+            setRenderState("ready");
+          }
         } catch {
           // Navigation and resizing interrupt the current render on purpose. The queued
           // request will render the latest page or fit when this fiber settles.
           if (canUpdateRenderState() && !renderQueued) setRenderState("error");
         } finally {
+          staging.width = staging.height = 0;
           if (renderFiber === fiber) renderFiber = null;
         }
       }
@@ -212,10 +342,16 @@ export default function EditorPageViewer(props: Props) {
   function requestResizeRender(): void {
     if (disposed || !mounted) return;
     if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+    if (pointers.size) return;
     resizeTimer = window.setTimeout(() => {
       resizeTimer = null;
       requestRender();
     }, VIEWER_RESIZE_DEBOUNCE_MS);
+  }
+
+  function handleResize(): void {
+    resetView();
+    requestResizeRender();
   }
 
   function selectPage(pageId: string): void {
@@ -236,6 +372,23 @@ export default function EditorPageViewer(props: Props) {
   }
 
   function handleKeyDown(event: KeyboardEvent): void {
+    // Keep browser zoom and modified navigation shortcuts native.
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (
+      event.target === stage &&
+      ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)
+    ) {
+      event.preventDefault();
+      if (event.key === "Home") stage.scrollLeft = stage.scrollTop = 0;
+      else if (event.key === "End") {
+        stage.scrollLeft = stage.scrollWidth;
+        stage.scrollTop = stage.scrollHeight;
+      } else {
+        stage.scrollLeft += event.key === "ArrowLeft" ? -60 : event.key === "ArrowRight" ? 60 : 0;
+        stage.scrollTop += event.key === "ArrowUp" ? -60 : event.key === "ArrowDown" ? 60 : 0;
+      }
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
       props.onClose();
@@ -280,7 +433,12 @@ export default function EditorPageViewer(props: Props) {
     }
     void rotation;
     navigationPages();
-    if (mounted) requestRender();
+    if (mounted) {
+      resetView();
+      pageDimensions = null;
+      setHasFrame(false);
+      requestRender();
+    }
   });
 
   createEffect(() => {
@@ -319,12 +477,21 @@ export default function EditorPageViewer(props: Props) {
       ) ?? []
     );
     for (const background of reviewBackgrounds) background.setAttribute("inert", "");
-    window.addEventListener("resize", requestResizeRender);
+    window.addEventListener("resize", handleResize);
     queueMicrotask(() => closeButton?.focus());
     requestRender();
 
     if (typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(requestResizeRender);
+      let observedBounds = stage.getBoundingClientRect();
+      resizeObserver = new ResizeObserver(() => {
+        const bounds = stage.getBoundingClientRect();
+        // Initial delivery and scrollbar changes need no new bitmap. Window resize
+        // remains unconditional to account for DPR and same-size padding changes.
+        if (bounds.width === observedBounds.width && bounds.height === observedBounds.height)
+          return;
+        observedBounds = bounds;
+        handleResize();
+      });
       resizeObserver.observe(stage);
     }
   });
@@ -332,19 +499,21 @@ export default function EditorPageViewer(props: Props) {
   onCleanup(() => {
     disposed = true;
     renderQueued = false;
+    endGesture();
     if (resizeTimer !== null) {
       window.clearTimeout(resizeTimer);
       resizeTimer = null;
     }
     resizeObserver?.disconnect();
     resizeObserver = null;
-    window.removeEventListener("resize", requestResizeRender);
+    window.removeEventListener("resize", handleResize);
     for (const background of reviewBackgrounds) background.removeAttribute("inert");
     reviewBackgrounds = [];
     const fiber = renderFiber;
-    renderFiber = null;
     if (fiber) {
       void Effect.runPromise(Fiber.interrupt(fiber)).catch(() => undefined);
+    } else {
+      staging.width = staging.height = 0;
     }
     canvas.width = 0;
     canvas.height = 0;
@@ -370,6 +539,32 @@ export default function EditorPageViewer(props: Props) {
             {currentNavigationIndex() + 1} of {navigationPages().length}
           </span>
         </div>
+        <fieldset class="editor-review-zoom" aria-label="Page zoom">
+          <EditorButton
+            aria-label="Zoom out"
+            title="Zoom out"
+            icon="minus"
+            disabled={!hasFrame() || zoom() <= 1}
+            onClick={() => changeZoom(zoom() / 1.4)}
+          />
+          <EditorButton
+            aria-label="Fit page"
+            title="Fit page"
+            onClick={() => {
+              resetView();
+              requestResizeRender();
+            }}
+          >
+            Fit
+          </EditorButton>
+          <EditorButton
+            aria-label="Zoom in"
+            title="Zoom in"
+            icon="plus"
+            disabled={!hasFrame() || zoom() >= 4}
+            onClick={() => changeZoom(zoom() * 1.4)}
+          />
+        </fieldset>
         <EditorButton
           ref={closeButton}
           data-testid="editor-page-viewer-close-button"
@@ -380,21 +575,43 @@ export default function EditorPageViewer(props: Props) {
         />
       </header>
 
-      <div
+      <section
         ref={stage}
         class="editor-review-stage"
+        classList={{ "is-panning": panning(), "is-zoomed": zoom() > 1 }}
+        data-zoom={zoom()}
+        aria-label="Page preview, use arrow keys to pan"
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: The scroll region supports keyboard panning.
+        tabIndex={0}
+        onPointerDown={pointerDown}
+        onPointerMove={pointerMove}
+        onPointerUp={pointerEnd}
+        onPointerCancel={() => {
+          endGesture();
+          requestResizeRender();
+        }}
+        onLostPointerCapture={(event) => {
+          if (pointers.has(event.pointerId)) {
+            endGesture();
+            requestResizeRender();
+          }
+        }}
         data-render-state={renderState()}
         aria-busy={renderState() === "loading"}
       >
-        <canvas
-          ref={canvas}
-          class="editor-review-canvas"
-          role="img"
-          aria-label={`Preview of page ${currentWorkspaceIndex() + 1}`}
-        >
-          Page preview.
-        </canvas>
-        <Show when={renderState() === "loading"}>
+        <div ref={frame} class="editor-review-page" style={{ opacity: hasFrame() ? 1 : 0 }}>
+          <canvas
+            ref={canvas}
+            width={0}
+            height={0}
+            class="editor-review-canvas"
+            role="img"
+            aria-label={`Preview of page ${currentWorkspaceIndex() + 1}`}
+          >
+            Page preview.
+          </canvas>
+        </div>
+        <Show when={renderState() === "loading" && !hasFrame()}>
           <p class="editor-review-state" role="status" aria-live="polite">
             Loading page…
           </p>
@@ -411,7 +628,7 @@ export default function EditorPageViewer(props: Props) {
             </EditorButton>
           </div>
         </Show>
-      </div>
+      </section>
 
       <footer class="editor-review-bottom">
         <EditorButton

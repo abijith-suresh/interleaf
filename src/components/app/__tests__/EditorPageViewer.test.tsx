@@ -41,6 +41,9 @@ describe("EditorPageViewer", () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      drawImage: vi.fn(),
+    } as unknown as CanvasRenderingContext2D);
     pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(0));
     pdfServiceMocks.getPageSize.mockReturnValue(Effect.succeed({ width: 100, height: 200 }));
     pdfServiceMocks.renderPage.mockImplementation(
@@ -180,9 +183,13 @@ describe("EditorPageViewer", () => {
       />
     ));
 
-    await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1));
+    const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+    await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2));
     pdfServiceMocks.renderPage.mockClear();
     setPages(0, "rotation", 90);
+    expect(stage).toHaveAttribute("data-zoom", "1");
 
     await waitFor(() =>
       expect(pdfServiceMocks.renderPage).toHaveBeenCalledWith(
@@ -424,9 +431,11 @@ describe("EditorPageViewer", () => {
     ));
     try {
       const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
-      await waitFor(() => expect(canvas.width).toBe(150));
-      const setWidth = vi.spyOn(canvas, "width", "set");
-      const setHeight = vi.spyOn(canvas, "height", "set");
+      await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1));
+      const staging = pdfServiceMocks.renderPage.mock.calls[0][2] as HTMLCanvasElement;
+      expect(staging.width).toBe(150);
+      const setWidth = vi.spyOn(staging, "width", "set");
+      const setHeight = vi.spyOn(staging, "height", "set");
       stageWidth = 100;
       stageHeight = 120;
       fireEvent(window, new Event("resize"));
@@ -471,11 +480,218 @@ describe("EditorPageViewer", () => {
     expect(background).toHaveAttribute("inert");
 
     const next = screen.getByRole("button", { name: "Next page" });
-    const close = screen.getByRole("button", { name: "Close page review" });
+    const first = screen.getByRole("button", { name: "Fit page" });
     next.focus();
     fireEvent.keyDown(viewer, { key: "Tab" });
-    expect(close).toHaveFocus();
+    expect(first).toHaveFocus();
     fireEvent.keyDown(viewer, { key: "Tab", shiftKey: true });
     expect(next).toHaveFocus();
+  });
+  it("reuses the visible frame throughout a pinch, coalesces sharpening, and clears cancelled drags", async () => {
+    const pages = makePages();
+    render(() => (
+      <EditorPageViewer
+        pages={pages}
+        navigationPageIds={pages.map((p) => p.id)}
+        activePageId="page-1"
+        runtime={runtime}
+        onActivePageChange={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
+    const stage = screen.getByRole<HTMLElement>("region", {
+      name: "Page preview, use arrow keys to pan",
+    });
+    await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
+    const bitmap = [canvas.width, canvas.height];
+    const staging = pdfServiceMocks.renderPage.mock.calls[0][2] as HTMLCanvasElement;
+    expect(staging).not.toBe(canvas);
+    expect([staging.width, staging.height]).toEqual([0, 0]);
+    const pointer = (type: string, id: number, x: number, y: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(
+        event,
+        Object.fromEntries(
+          Object.entries({
+            pointerId: id,
+            clientX: x,
+            clientY: y,
+            button: 0,
+            pointerType: "touch",
+          }).map(([key, value]) => [key, { value }])
+        )
+      );
+      fireEvent(stage, event);
+    };
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    pointer("pointerdown", 1, 100, 100);
+    pointer("pointerdown", 2, 200, 100);
+    pointer("pointermove", 2, 300, 100);
+    expect(stage).toHaveAttribute("data-zoom", "2");
+    expect(canvas.style.width).toBe("300px");
+    expect([canvas.width, canvas.height]).toEqual(bitmap);
+    vi.advanceTimersByTime(1000);
+    expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1);
+    pointer("pointermove", 2, 500, 100);
+    expect(stage).toHaveAttribute("data-zoom", "4");
+    pointer("pointercancel", 2, 500, 100);
+    expect(stage).not.toHaveClass("is-panning");
+    const scroll = stage.scrollLeft;
+    pointer("pointermove", 1, 20, 100);
+    expect(stage.scrollLeft).toBe(scroll);
+    vi.advanceTimersByTime(80);
+    await vi.waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2));
+    expect(pdfServiceMocks.renderPage.mock.calls[1][3]).toBe(6);
+    await vi.waitFor(() => expect([staging.width, staging.height]).toEqual([0, 0]));
+    fireEvent.click(screen.getByRole("button", { name: "Fit page" }));
+    expect(stage).toHaveAttribute("data-zoom", "1");
+    expect(stage.scrollLeft).toBe(0);
+    expect(stage.scrollTop).toBe(0);
+    expect(canvas.style.width).toBe("150px");
+  });
+
+  it("keeps each zoomed bitmap within its budget and releases staging only after unmount cancellation settles", async () => {
+    vi.stubGlobal("innerWidth", 390);
+    vi.stubGlobal("devicePixelRatio", 2);
+    pdfServiceMocks.getPageSize.mockReturnValue(Effect.succeed({ width: 20000, height: 20000 }));
+    pdfServiceMocks.renderPage.mockImplementation((_file, _number, canvas, scale) =>
+      Effect.sync(() => {
+        canvas.width = Math.floor(20000 * scale);
+        canvas.height = Math.floor(20000 * scale);
+      })
+    );
+    const pages = makePages();
+    const view = render(() => (
+      <EditorPageViewer
+        pages={pages}
+        navigationPageIds={pages.map((p) => p.id)}
+        activePageId="page-1"
+        runtime={runtime}
+        onActivePageChange={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
+    const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+    await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
+    expect(canvas.width * canvas.height).toBeLessThanOrEqual(4_000_000);
+    const release = Deferred.makeUnsafe<void>();
+    const cancelled = vi.fn(() => Deferred.await(release));
+    pdfServiceMocks.renderPage.mockImplementation((_file, _number, target, scale) =>
+      Effect.sync(() => {
+        target.width = Math.floor(20000 * scale);
+        target.height = Math.floor(20000 * scale);
+      }).pipe(Effect.andThen(Effect.never), Effect.onInterrupt(cancelled))
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2));
+    const staging = pdfServiceMocks.renderPage.mock.calls[1][2] as HTMLCanvasElement;
+    expect(staging.width * staging.height).toBeLessThanOrEqual(4_000_000);
+    const width = vi.spyOn(staging, "width", "set");
+    const height = vi.spyOn(staging, "height", "set");
+    try {
+      view.unmount();
+      await waitFor(() => expect(cancelled).toHaveBeenCalledTimes(1));
+      expect(width).not.toHaveBeenCalled();
+      expect(height).not.toHaveBeenCalled();
+      expect([canvas.width, canvas.height]).toEqual([0, 0]);
+    } finally {
+      await Effect.runPromise(Deferred.succeed(release, undefined));
+    }
+    await waitFor(() => expect([staging.width, staging.height]).toEqual([0, 0]));
+  });
+  it("does not publish a superseded sharper frame while page cancellation is settling", async () => {
+    const pages = makePages();
+    const [activePageId, setActivePageId] = createSignal("page-1");
+    const view = render(() => (
+      <EditorPageViewer
+        pages={pages}
+        navigationPageIds={pages.map((p) => p.id)}
+        activePageId={activePageId()}
+        runtime={runtime}
+        onActivePageChange={setActivePageId}
+        onClose={vi.fn()}
+      />
+    ));
+    const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
+    const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+    await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
+    const release = Deferred.makeUnsafe<void>();
+    const cancelled = vi.fn(() => Deferred.await(release));
+    pdfServiceMocks.renderPage.mockImplementationOnce((_file, _number, target) =>
+      Effect.sync(() => {
+        target.width = 600;
+        target.height = 1200;
+      }).pipe(Effect.andThen(Effect.never), Effect.onInterrupt(cancelled))
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2));
+    const staging = pdfServiceMocks.renderPage.mock.calls[1][2] as HTMLCanvasElement;
+    const width = vi.spyOn(staging, "width", "set");
+    const publish = vi.spyOn(canvas, "width", "set");
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+      fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+      await waitFor(() => expect(cancelled).toHaveBeenCalledTimes(1));
+      expect(width).not.toHaveBeenCalled();
+      expect(publish).not.toHaveBeenCalled();
+      expect(stage).toHaveAttribute("data-zoom", "1");
+      expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2);
+      await Effect.runPromise(Deferred.succeed(release, undefined));
+      await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
+      expect(pdfServiceMocks.renderPage.mock.calls.map((call) => call[1])).toEqual([1, 1, 3]);
+      expect([canvas.width, canvas.height]).toEqual([150, 300]);
+      expect(screen.getByRole("heading", { name: "Page 3" })).toBeInTheDocument();
+    } finally {
+      await Effect.runPromise(Deferred.succeed(release, undefined));
+      view.unmount();
+    }
+  });
+  it("ignores unchanged observer bounds without resetting zoom or requesting another bitmap", async () => {
+    let notify: ResizeObserverCallback = () => {};
+    let width = 500;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(0, 0, width, 400)
+    );
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          notify = callback;
+        }
+        observe() {}
+        disconnect() {}
+      }
+    );
+    const pages = makePages();
+    render(() => (
+      <EditorPageViewer
+        pages={pages}
+        navigationPageIds={pages.map((p) => p.id)}
+        activePageId="page-1"
+        runtime={runtime}
+        onActivePageChange={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+    await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    notify([], {} as ResizeObserver);
+    vi.advanceTimersByTime(80);
+    expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    vi.advanceTimersByTime(80);
+    await vi.waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2));
+    notify([], {} as ResizeObserver);
+    expect(stage).toHaveAttribute("data-zoom", "1.4");
+    vi.advanceTimersByTime(80);
+    expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2);
+    width = 600;
+    notify([], {} as ResizeObserver);
+    expect(stage).toHaveAttribute("data-zoom", "1");
+    vi.advanceTimersByTime(80);
+    await vi.waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(3));
   });
 });
