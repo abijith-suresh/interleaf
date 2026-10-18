@@ -353,7 +353,9 @@ describe("PDFService", () => {
   });
 
   it("reports a page metadata cleanup failure", async () => {
-    page.cleanup.mockReturnValue(false);
+    page.cleanup.mockImplementation(() => {
+      throw new Error("page cleanup failed");
+    });
     await expect(runPromise(service.getPageRotation(file, 1))).rejects.toMatchObject({
       operation: "get-page-rotation",
       file,
@@ -414,7 +416,10 @@ describe("PDFService", () => {
     async (succeeds) => {
       const render = pendingRender();
       page.render.mockReturnValue(render);
-      page.cleanup.mockReturnValue(succeeds);
+      page.cleanup.mockImplementation(() => {
+        if (!succeeds) throw new Error("page cleanup failed");
+        return true;
+      });
       const fiber = runFork(service.renderPage(file, 1, document.createElement("canvas")));
       await vi.waitFor(() => expect(page.render).toHaveBeenCalledTimes(1));
       await runPromise(Fiber.interrupt(fiber));
@@ -431,7 +436,9 @@ describe("PDFService", () => {
   it("reports page cleanup failures during release and still closes the document", async () => {
     const render = pendingRender();
     page.render.mockReturnValue(render);
-    page.cleanup.mockReturnValue(false);
+    page.cleanup.mockImplementation(() => {
+      throw new Error("page cleanup failed");
+    });
     const fiber = runFork(service.renderPage(file, 1, document.createElement("canvas")));
     await vi.waitFor(() => expect(page.render).toHaveBeenCalledTimes(1));
     await expect(runPromise(service.releaseFile(file))).rejects.toMatchObject({
@@ -453,9 +460,14 @@ describe("PDFService", () => {
     await vi.waitFor(() => expect(render.cancel).toHaveBeenCalledTimes(1));
     expect(pdf.cleanup).not.toHaveBeenCalled();
     expect(page.cleanup).not.toHaveBeenCalled();
+    page.cleanup.mockReturnValue(false);
     render.resolve();
+    await vi.waitFor(() => expect(page.cleanup).toHaveBeenCalled());
+    expect(pdf.cleanup).not.toHaveBeenCalled();
+    expect(task.destroy).not.toHaveBeenCalled();
+    page.cleanup.mockReturnValue(true);
     await runPromise(Fiber.join(release));
-    expect(page.cleanup).toHaveBeenCalledTimes(1);
+    expect(page.cleanup.mock.calls.length).toBeGreaterThan(1);
     expect(pdf.cleanup).toHaveBeenCalledTimes(1);
     expect(page.cleanup.mock.invocationCallOrder[0]).toBeLessThan(
       pdf.cleanup.mock.invocationCallOrder[0]

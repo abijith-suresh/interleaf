@@ -22,13 +22,18 @@ function cleanupPage(
   file: File,
   operation: string
 ): Effect.Effect<void, PDFProcessingError> {
-  return Effect.try({
-    try: () => {
-      if (page.cleanup() === false) {
-        throw new Error("PDF.js did not finish cleaning up the page.");
-      }
-    },
-    catch: (cause) => processingError(operation, file, cause),
+  return Effect.gen(function* () {
+    while (true) {
+      const cleaned = yield* Effect.try({
+        try: () => page.cleanup(),
+        catch: (cause) => processingError(operation, file, cause),
+      });
+      if (cleaned) return;
+      // PDF.js can settle RenderTask.promise before its operator-list stream stops.
+      // Keep the page lock and finalizer until deferred cleanup completes, so a
+      // new render or document teardown cannot overtake it.
+      yield* Effect.sleep("25 millis");
+    }
   });
 }
 
