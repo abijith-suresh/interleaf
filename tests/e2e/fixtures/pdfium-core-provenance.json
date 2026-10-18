@@ -1,0 +1,63 @@
+{
+  "checkedAt": "2026-10-18",
+  "purpose": "Development-only migration evidence. Not a production engine approval.",
+  "stable": {
+    "package": "@embedpdf/pdfium",
+    "version": "2.15.1",
+    "publishedAt": "2026-09-16",
+    "registry": "https://registry.npmjs.org/@embedpdf/pdfium/2.15.1",
+    "integrity": "sha512-qDH4gEkGSQT0iM+07Hpm3LyvoB7PEFbW3Qyk6+LPkEYLJYfHagkHM1OzYlDq2EDOhJRguykTkzdMOT3/w27x5Q==",
+    "wrapperCommit": "eb14d5ae4bdb0626fa8c63ffead6d9e0d74ce2bc",
+    "wrapperSource": "https://github.com/embedpdf/embed-pdf-viewer/tree/eb14d5ae4bdb0626fa8c63ffead6d9e0d74ce2bc/packages/pdfium",
+    "forkCommit": "73a041a5c1aaffa09ebb64f1981ff501cb91a41c",
+    "forkSource": "https://github.com/embedpdf/runtime/tree/73a041a5c1aaffa09ebb64f1981ff501cb91a41c",
+    "lastUpstreamMerge": "35eeddbbcd8936398a70ecfe179087d873143900",
+    "upstreamCommit": "7cfa57a91284ba907cb0facaf9cd8e4a570fe5c7",
+    "upstreamDate": "2026-02-14",
+    "upstreamSource": "https://pdfium.googlesource.com/pdfium/+/7cfa57a91284ba907cb0facaf9cd8e4a570fe5c7",
+    "wasmBytes": 4646932,
+    "wasmSha256": "5e4cd023c3dad4a895b3571ca573d3fc51bac6de48360d95283134385b954eaa",
+    "vendorGitBlob": "9af0377bd26230ec397c7e418e9a9df38eb43d8f",
+    "vendorSource": "https://github.com/embedpdf/embed-pdf-viewer/blob/eb14d5ae4bdb0626fa8c63ffead6d9e0d74ce2bc/packages/pdfium/src/vendor/pdfium.wasm",
+    "buildScript": "https://github.com/embedpdf/embed-pdf-viewer/blob/eb14d5ae4bdb0626fa8c63ffead6d9e0d74ce2bc/packages/pdfium/scripts/build.sh",
+    "buildFlags": { "v8": false, "xfa": false, "skia": false },
+    "caveats": [
+      "npm metadata has no gitHead. Vendor binary byte identity supports this source mapping, not a reproducible-build attestation.",
+      "The current v2.15.1 GitHub tag resolves to successor structure; use the verified version commit above.",
+      "September release date does not establish current PDFium parser/security-fix coverage."
+    ]
+  },
+  "maintainedSuccessor": {
+    "package": "@embedpdf/engine-runtime",
+    "version": "3.0.0-next.15",
+    "license": "Apache-2.0",
+    "registry": "https://registry.npmjs.org/@embedpdf/engine-runtime/next",
+    "manifest": "https://github.com/embedpdf/embed-pdf-viewer/blob/7d7055846f4d215f7daa98ff17af40943d2aa90e/packages/engine/runtime/engine-runtime-build.json",
+    "forkCommit": "72c5eb114d7e59b35eba3c0a4e8a55809e5f34c2",
+    "upstreamCommit": "7c55203ed66b0461378323e3fcf2efaf76755241",
+    "upstreamDate": "2026-10-15",
+    "dimensionSource": "https://github.com/embedpdf/runtime/blob/72c5eb114d7e59b35eba3c0a4e8a55809e5f34c2/core/fpdfapi/page/cpdf_page.cpp",
+    "syncPolicy": "https://github.com/embedpdf/runtime/blob/72c5eb114d7e59b35eba3c0a4e8a55809e5f34c2/docs/embedpdf/upstream-sync.md",
+    "finding": "Active successor has no evidenced UserUnit fix: dimension calculation still uses intersected page boxes and rotation without UserUnit. Successor binary not tested here."
+  },
+  "officialAPI": {
+    "commit": "9c866a447ca929bac93ed7da5f957fddb16ccde9",
+    "header": "https://pdfium.googlesource.com/pdfium/+/9c866a447ca929bac93ed7da5f957fddb16ccde9/public/fpdfview.h",
+    "implementation": "https://pdfium.googlesource.com/pdfium/+/9c866a447ca929bac93ed7da5f957fddb16ccde9/fpdfsdk/fpdf_view.cpp",
+    "dimensions": "https://pdfium.googlesource.com/pdfium/+/9c866a447ca929bac93ed7da5f957fddb16ccde9/core/fpdfapi/page/cpdf_page.cpp",
+    "finding": "Header describes point dimensions and intrinsic rotation. Implementation forwards page dimensions from intersected CropBox/MediaBox, without UserUnit scaling. No public UserUnit accessor found."
+  },
+  "licenseReview": {
+    "application": "MIT unchanged; no PDFium assets are added to the application build.",
+    "wrapper": "MIT",
+    "pdfium": "BSD-style PDFium terms; package LICENSE.pdfium also contains Apache-2.0 text. Do not describe all bundled code as MIT or Apache-2.0.",
+    "status": "Production redistribution notice completeness unresolved. These are confirmed omissions, not a complete notice inventory.",
+    "missingNotices": [
+      "https://github.com/embedpdf/runtime/blob/73a041a5c1aaffa09ebb64f1981ff501cb91a41c/third_party/libopenjpeg/LICENSE",
+      "https://github.com/embedpdf/runtime/blob/73a041a5c1aaffa09ebb64f1981ff501cb91a41c/third_party/lcms/LICENSE",
+      "https://github.com/embedpdf/runtime/blob/73a041a5c1aaffa09ebb64f1981ff501cb91a41c/third_party/freetype/README.pdfium"
+    ],
+    "requiredBeforeProduction": "Generate complete notices from the resolved build dependency graph, including codecs, fonts, rasterizer and Emscripten runtime; verify pinned binary provenance and current security fixes."
+  },
+  "unresolvedDecision": "Obtain a maintained, auditable build exposing scalar UserUnit metadata from PDFium's parsed page dictionary, with complete notices and current fixes, before implementing migration. No custom PDF syntax parser or second production-engine workaround. A small bridge is a possible remedy, not a tested fix."
+}
