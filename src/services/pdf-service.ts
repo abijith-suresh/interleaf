@@ -21,12 +21,23 @@ function loadPdfjs(): Promise<typeof pdfjsLib> {
   return pdfjsModule;
 }
 
+interface PageMetadata {
+  readonly rotation: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+// Adapt the prototype's entry cap per loaded document, retaining only scalars.
+const PAGE_METADATA_LIMIT = 512;
+
 interface LoadedPDFRecord {
   // PDF.js is enough for page counts, password handling, and thumbnails. The
   // export service loads pdf-lib only when it needs to build a new document.
   readonly file: File;
   readonly pdfjsDocument: pdfjsLib.PDFDocumentProxy;
   readonly loadingTask: ReturnType<typeof pdfjsLib.getDocument>;
+  readonly pageMetadata: Map<number, PageMetadata>;
+  readonly measuring: Map<number, Deferred.Deferred<PageMetadata, PDFProcessingError>>;
 }
 
 function isPasswordException(cause: unknown): boolean {
@@ -120,16 +131,8 @@ export class PDFService {
     )(
       Effect.gen({ self: this }, function* () {
         const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
-        return yield* this.pageResources.withPageCleanup(
-          file,
-          pageNumber,
-          this.pageResources.getPage(record.pdfjsDocument, file, pageNumber, "get-page-rotation"),
-          (page) =>
-            Effect.try({
-              try: () => page.rotate,
-              catch: (cause) => processingError("get-page-rotation", file, cause),
-            })
-        );
+        const metadata = yield* this.getPageMetadata(record, pageNumber, "get-page-rotation");
+        return metadata.rotation;
       })
     );
   }
@@ -145,21 +148,90 @@ export class PDFService {
     )(
       Effect.gen({ self: this }, function* () {
         const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
-        return yield* this.pageResources.withPageCleanup(
+        const metadata = yield* this.getPageMetadata(record, pageNumber, "get-page-size");
+        return yield* Effect.try({
+          try: () => {
+            // PDF.js normalizes requested rotations before accepting quarter-turns.
+            let normalized = rotation % 360;
+            if (normalized < 0) normalized += 360;
+            switch (normalized) {
+              case 0:
+              case 180:
+                return { width: metadata.width, height: metadata.height };
+              case 90:
+              case 270:
+                return { width: metadata.height, height: metadata.width };
+              default:
+                throw new Error(
+                  "PageViewport: Invalid rotation, must be a multiple of 90 degrees."
+                );
+            }
+          },
+          catch: (cause) => processingError("get-page-size", file, cause),
+        });
+      })
+    );
+  }
+
+  private getPageMetadata(
+    record: LoadedPDFRecord,
+    pageNumber: number,
+    operation: string
+  ): Effect.Effect<PageMetadata, PDFProcessingError> {
+    const file = record.file;
+    return Effect.suspend(() => {
+      const cached = record.pageMetadata.get(pageNumber);
+      if (cached) {
+        record.pageMetadata.delete(pageNumber);
+        record.pageMetadata.set(pageNumber, cached);
+        return Effect.succeed(cached);
+      }
+      const pending = record.measuring.get(pageNumber);
+      if (pending) {
+        return Deferred.await(pending).pipe(
+          Effect.mapError((error) => processingError(operation, file, error.cause))
+        );
+      }
+
+      const completion = Deferred.makeUnsafe<PageMetadata, PDFProcessingError>();
+      record.measuring.set(pageNumber, completion);
+      return this.pageResources
+        .withPageCleanup(
           file,
           pageNumber,
-          this.pageResources.getPage(record.pdfjsDocument, file, pageNumber, "get-page-size"),
+          this.pageResources.getPage(record.pdfjsDocument, file, pageNumber, operation),
           (page) =>
             Effect.try({
               try: () => {
-                const viewport = page.getViewport({ scale: 1, rotation });
-                return { width: viewport.width, height: viewport.height };
+                // An explicit zero rotation gives CropBox/UserUnit dimensions without
+                // applying the intrinsic rotation that getPageRotation reports.
+                const viewport = page.getViewport({ scale: 1, rotation: 0 });
+                return { rotation: page.rotate, width: viewport.width, height: viewport.height };
               },
-              catch: (cause) => processingError("get-page-size", file, cause),
+              catch: (cause) => processingError(operation, file, cause),
             })
+        )
+        .pipe(
+          Effect.tap((metadata) =>
+            Effect.sync(() => {
+              // Release/reset removes the resident before interrupting operations.
+              // Only publish after page cleanup and while this exact load is resident.
+              const resident = this.documents.peek(file);
+              if (Option.isNone(resident) || resident.value !== record) return;
+              record.pageMetadata.set(pageNumber, metadata);
+              if (record.pageMetadata.size > PAGE_METADATA_LIMIT) {
+                const oldest = record.pageMetadata.keys().next().value;
+                if (oldest !== undefined) record.pageMetadata.delete(oldest);
+              }
+            })
+          ),
+          Effect.onExit((exit) =>
+            Effect.sync(() => record.measuring.delete(pageNumber)).pipe(
+              Effect.andThen(Deferred.done(completion, exit))
+            )
+          )
         );
-      })
-    );
+    });
   }
 
   renderPage(
@@ -232,6 +304,7 @@ export class PDFService {
 
   private cleanupRecord(record: LoadedPDFRecord): Effect.Effect<void, PDFProcessingError> {
     return collectFirstError([
+      Effect.sync(() => record.pageMetadata.clear()),
       Effect.tryPromise({
         try: () => Promise.resolve(record.pdfjsDocument.cleanup()),
         catch: (cause) => processingError("cleanup-pdf-js", record.file, cause),
@@ -329,6 +402,8 @@ export class PDFService {
                     file,
                     pdfjsDocument,
                     loadingTask: task,
+                    pageMetadata: new Map(),
+                    measuring: new Map(),
                   } satisfies LoadedPDFRecord;
                   resolvedRecord = loadedRecord;
                   return loadedRecord;
