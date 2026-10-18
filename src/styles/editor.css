@@ -340,6 +340,66 @@ body:has([data-page="editor"]) {
   flex: 1;
 }
 
+.editor-sidebar {
+  display: flex;
+  width: 11.5rem;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 1.5rem;
+  overflow-y: auto;
+  padding: calc(1rem + env(safe-area-inset-top)) 0.75rem calc(0.5rem + env(safe-area-inset-bottom));
+  border-right: 1px solid var(--editor-line);
+  background: var(--editor-paper);
+}
+
+.editor-sidebar .editor-brand {
+  padding-inline: 0.5rem;
+}
+
+.editor-view-nav,
+.editor-source-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.editor-sidebar .editor-button {
+  min-width: 2.75rem;
+  justify-content: flex-start;
+  padding-inline: 0.75rem;
+}
+
+.editor-view-nav .editor-button[aria-pressed="true"] {
+  background: var(--editor-hover);
+  color: var(--editor-ink);
+  box-shadow: inset 2px 0 var(--editor-accent);
+}
+
+.editor-workspace-context {
+  display: grid;
+  gap: 0.25rem;
+  padding-inline: 0.75rem;
+  color: var(--editor-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-workspace-privacy {
+  margin: auto 0 0;
+  padding-inline: 0.75rem;
+  color: var(--editor-muted);
+  font-size: 0.6875rem;
+  line-height: 1.5;
+}
+
+.editor-sidebar .editor-back {
+  padding-inline: 0.75rem;
+}
+
+.editor-document-clear {
+  min-width: 2.75rem;
+}
+
 .editor-workspace-main {
   display: flex;
   min-width: 0;
@@ -466,13 +526,6 @@ body:has([data-page="editor"]) {
   font-size: 0.75rem;
   line-height: 1.5;
   text-align: center;
-}
-
-.editor-add-pdf {
-  min-width: 2.75rem;
-  gap: 0.5rem;
-  padding: 0.45rem;
-  border-radius: 0.4rem;
 }
 
 .editor-file-list {
@@ -649,26 +702,22 @@ body:has([data-page="editor"]) {
 }
 
 .editor-review-pane {
-  position: fixed;
-  inset: 0;
-  z-index: 45;
   display: flex;
+  flex: 1;
   min-width: 0;
   min-height: 0;
   flex-direction: column;
   background: var(--editor-page);
-  box-shadow: 0 0 2rem rgb(36 36 33 / 18%);
 }
 
 .editor-review-header {
   display: flex;
-  min-height: calc(3.75rem + env(safe-area-inset-top));
+  min-height: 3.25rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: calc(0.5rem + env(safe-area-inset-top)) calc(0.75rem + env(safe-area-inset-right)) 0.5rem
-    calc(0.75rem + env(safe-area-inset-left));
+  padding: 0.25rem 0.75rem;
   border-bottom: 1px solid var(--editor-line);
   background: var(--editor-paper);
 }
@@ -696,7 +745,6 @@ body:has([data-page="editor"]) {
   font-variant-numeric: tabular-nums;
 }
 
-.editor-review-close,
 .editor-review-nav {
   min-width: 2.75rem;
   padding: 0.4rem;
@@ -860,8 +908,7 @@ body:has([data-page="editor"]) {
   flex-shrink: 0;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem calc(0.75rem + env(safe-area-inset-right))
-    calc(0.5rem + env(safe-area-inset-bottom)) calc(0.75rem + env(safe-area-inset-left));
+  padding: 0.25rem 0.75rem;
   border-top: 1px solid var(--editor-line);
   background: var(--editor-paper);
 }
@@ -1172,36 +1219,6 @@ body:has([data-page="editor"]) {
   font-variant-numeric: tabular-nums;
 }
 
-.editor-canvas-tools,
-.editor-canvas-actions {
-  display: flex;
-  align-items: center;
-}
-
-.editor-canvas-tools {
-  gap: 0.75rem;
-}
-
-.editor-canvas-actions {
-  gap: 0.4rem;
-}
-
-.editor-review-button {
-  gap: 0.4rem;
-}
-
-.editor-files-button {
-  min-width: 2.75rem;
-  gap: 0.4rem;
-}
-
-.editor-files-button-count {
-  min-width: 1.5em;
-  color: var(--editor-muted);
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
 .editor-selection-bar {
   position: relative;
   z-index: 10;
@@ -1219,7 +1236,7 @@ body:has([data-page="editor"]) {
 
 .editor-selection-summary {
   display: grid;
-  min-width: 10rem;
+  min-width: 0;
   flex: 1 1 auto;
   align-content: center;
 }
@@ -1385,6 +1402,52 @@ body:has([data-page="editor"]) {
     flex-direction: column;
   }
 
+  .editor-sidebar {
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
+    overflow: visible;
+    padding: env(safe-area-inset-top) max(0.25rem, env(safe-area-inset-right)) 0
+      max(0.25rem, env(safe-area-inset-left));
+    border-right: 0;
+    border-bottom: 1px solid var(--editor-line);
+  }
+
+  .editor-sidebar .editor-brand,
+  .editor-workspace-context,
+  .editor-workspace-privacy,
+  .editor-sidebar .editor-back span {
+    display: none;
+  }
+
+  .editor-view-nav,
+  .editor-source-actions {
+    flex-direction: row;
+    gap: 0;
+  }
+
+  .editor-view-nav {
+    margin-right: auto;
+  }
+
+  .editor-sidebar .editor-button {
+    justify-content: center;
+    gap: 0.25rem;
+    padding-inline: 0.5rem;
+    font-size: 0.6875rem;
+  }
+
+  .editor-view-nav .editor-button[aria-pressed="true"] {
+    box-shadow: inset 0 -2px var(--editor-accent);
+  }
+
+  .editor-sidebar .editor-back {
+    width: 2.75rem;
+    justify-content: center;
+    padding: 0;
+  }
+
   .editor-header {
     min-height: calc(3.25rem + env(safe-area-inset-top));
     padding: env(safe-area-inset-top) 1rem 0;
@@ -1417,23 +1480,13 @@ body:has([data-page="editor"]) {
     padding: 0.55rem 0.75rem 0.5rem;
   }
 
-  .editor-canvas-tools {
-    gap: 0.4rem;
-  }
-
   .editor-canvas-count {
     display: none;
   }
 
   .editor-add-pdf-label,
-  .editor-review-button-label,
   .editor-files-button-label {
     display: none;
-  }
-
-  .editor-files-button {
-    padding-right: 0.55rem;
-    padding-left: 0.55rem;
   }
 
   .editor-selection-bar {
@@ -1459,8 +1512,29 @@ body:has([data-page="editor"]) {
     min-width: 2.75rem;
   }
 
-  .editor-menu-trigger-label {
+  .editor-menu-trigger-label,
+  .editor-edit-menu-group .editor-menu-trigger > .editor-icon:last-child {
     display: none;
+  }
+
+  .editor-selection-summary strong {
+    overflow: visible;
+    white-space: normal;
+    line-height: 1.25;
+  }
+
+  .editor-selection-exportable {
+    display: block;
+    font-size: 0.6875rem;
+  }
+
+  .editor-selection-separator {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .editor-download-group {
@@ -1517,6 +1591,79 @@ body:has([data-page="editor"]) {
 
   .editor-files-dialog-body {
     padding: 0.75rem 1rem;
+  }
+}
+
+@media (max-height: 450px) and (min-width: 480px) {
+  .editor-workspace {
+    flex-direction: row;
+  }
+
+  .editor-sidebar {
+    width: 8.5rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+    overflow-y: auto;
+    padding: env(safe-area-inset-top) 0.5rem env(safe-area-inset-bottom);
+    border-right: 1px solid var(--editor-line);
+    border-bottom: 0;
+  }
+
+  .editor-sidebar .editor-brand {
+    display: flex;
+  }
+
+  .editor-view-nav,
+  .editor-source-actions {
+    flex-direction: column;
+    margin: 0;
+  }
+
+  .editor-sidebar .editor-button {
+    justify-content: flex-start;
+  }
+
+  .editor-sidebar .editor-back {
+    width: auto;
+    justify-content: flex-start;
+    margin-top: auto;
+    padding-inline: 0.5rem;
+  }
+
+  .editor-sidebar .editor-back span,
+  .editor-sidebar .editor-add-pdf-label,
+  .editor-sidebar .editor-files-button-label {
+    display: inline;
+  }
+
+  .editor-view-nav .editor-button[aria-pressed="true"] {
+    box-shadow: inset 2px 0 var(--editor-accent);
+  }
+}
+
+@media (max-height: 450px) {
+  .editor-review-bottom {
+    min-height: 0;
+    padding-block: 0;
+  }
+
+  .editor-review-filmstrip-item {
+    min-height: 2.75rem;
+    place-content: center;
+  }
+
+  .editor-review-filmstrip-item .canvas-container {
+    display: none;
+  }
+
+  .editor-review-stage {
+    padding: 0.5rem;
+  }
+
+  .editor-selection-bar {
+    min-height: 0;
+    padding-block: 0.25rem calc(0.25rem + env(safe-area-inset-bottom));
   }
 }
 

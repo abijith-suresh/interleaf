@@ -1,5 +1,5 @@
 import { Effect, Exit, Fiber } from "effect";
-import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { ROTATION_STEP, TOAST_DISMISS_TIMEOUT_MS } from "../../constants";
 import { planUploadGroups } from "../../controllers/editor-import";
@@ -74,7 +74,6 @@ export default function Editor() {
   let addPdfInput!: HTMLInputElement;
   let editorRoot!: HTMLDivElement;
   let filesButton!: HTMLButtonElement;
-  let reviewButton!: HTMLButtonElement;
   let nextToastId = 0;
   let activeOperationFiber: Fiber.Fiber<unknown, unknown> | null = null;
   const toastTimers = new Map<number, number>();
@@ -87,7 +86,7 @@ export default function Editor() {
   const [dragSourceIndex, setDragSourceIndex] = createSignal<number | null>(null);
   const [dragOverTarget, setDragOverTarget] = createSignal<DragOverTarget | null>(null);
   const [filesOpen, setFilesOpen] = createSignal(false);
-  const [reviewOpen, setReviewOpen] = createSignal(false);
+  const [workspaceView, setWorkspaceView] = createSignal<"pages" | "document">("pages");
   const [activePageId, setActivePageId] = createSignal<string | null>(null);
   const [operation, setOperation] = createSignal<EditorOperation>("idle");
   const [statusMessage, setStatusMessage] = createSignal("Your files never leave your device.");
@@ -176,6 +175,33 @@ export default function Editor() {
     document.addEventListener(TOAST_EVENT_NAME, handleToast);
   }
 
+  onMount(() => {
+    let lastWorkspaceFocus: HTMLElement | null = null;
+    const rememberFocus = (event: FocusEvent) => {
+      if (event.target instanceof HTMLElement && editorRoot.contains(event.target)) {
+        lastWorkspaceFocus = event.target;
+      }
+    };
+    const retainVisibleFocus = () => {
+      // Browsers may blur a newly hidden element before delivering resize.
+      const focused =
+        document.activeElement === document.body ? lastWorkspaceFocus : document.activeElement;
+      if (
+        focused instanceof HTMLElement &&
+        editorRoot.contains(focused) &&
+        !focused.getClientRects().length
+      ) {
+        editorRoot.querySelector<HTMLButtonElement>(`[data-view="${workspaceView()}"]`)?.focus();
+      }
+    };
+    document.addEventListener("focusin", rememberFocus);
+    window.addEventListener("resize", retainVisibleFocus);
+    onCleanup(() => {
+      document.removeEventListener("focusin", rememberFocus);
+      window.removeEventListener("resize", retainVisibleFocus);
+    });
+  });
+
   onCleanup(() => {
     disposed = true;
     if (typeof document !== "undefined") {
@@ -263,7 +289,7 @@ export default function Editor() {
       setPages(nextPages);
       setSelectedIndices(new Set<number>());
       setActivePageId(nextPages[0]?.id ?? null);
-      setReviewOpen(false);
+      setWorkspaceView("pages");
       setPhase("edit");
       return;
     }
@@ -413,25 +439,17 @@ export default function Editor() {
     queueMicrotask(() => filesButton?.focus());
   }
 
-  function openPageReview(): void {
-    if (isBusy()) return;
-    const ids = reviewPageIds();
-    if (ids.length === 0) return;
-
-    const activeId = activePageId();
-    if (!activeId || !ids.includes(activeId)) setActivePageId(ids[0]);
-    setReviewOpen(true);
-  }
-
-  function closePageReview(): void {
-    setReviewOpen(false);
-    queueMicrotask(() => {
-      if (reviewButton && !reviewButton.disabled) {
-        reviewButton.focus();
-      } else {
-        editorRoot?.focus();
-      }
-    });
+  function changeWorkspaceView(view: "pages" | "document"): void {
+    if (view === "document") {
+      const ids = reviewPageIds();
+      if (!ids.includes(activePageId() ?? "")) setActivePageId(ids[0] ?? null);
+    }
+    setWorkspaceView(view);
+    // The switch stays mounted at every breakpoint, so keyboard focus never
+    // lands in a region that is being removed.
+    queueMicrotask(() =>
+      editorRoot.querySelector<HTMLButtonElement>(`[data-view="${view}"]`)?.focus()
+    );
   }
 
   async function handleInitialFiles(files: File[]): Promise<void> {
@@ -497,7 +515,7 @@ export default function Editor() {
 
     if (remainingPages.length === 0) {
       setPhase("upload");
-      setReviewOpen(false);
+      setWorkspaceView("pages");
       setFilesOpen(false);
       setStatusMessage(`Removed ${removedFileName}. The workspace is empty.`);
     } else {
@@ -838,7 +856,7 @@ export default function Editor() {
   }
 
   return (
-    <div class="editor-app">
+    <div class="editor-app" data-workspace-view={phase() === "edit" ? workspaceView() : undefined}>
       <section
         data-testid="editor-toast-region"
         aria-label="Notifications"
@@ -864,21 +882,23 @@ export default function Editor() {
         tabIndex={-1}
         class="contents"
       >
-        <header class="editor-header">
-          <div class="editor-header-left">
-            <a href={base} class="editor-brand" translate="no">
-              interleaf
-            </a>
-          </div>
-          <h1 class="sr-only">Interleaf PDF editor</h1>
-          <div class="editor-header-right">
-            <a href={base} class="editor-back" aria-label="Return to Interleaf home">
-              <EditorIcon name="back" />
-              <span class="editor-back-wide">Back</span>
-              <span class="editor-back-compact">Exit</span>
-            </a>
-          </div>
-        </header>
+        <Show when={phase() === "upload"}>
+          <header class="editor-header">
+            <div class="editor-header-left">
+              <a href={base} class="editor-brand" translate="no">
+                interleaf
+              </a>
+            </div>
+            <h1 class="sr-only">Interleaf PDF editor</h1>
+            <div class="editor-header-right">
+              <a href={base} class="editor-back" aria-label="Return to Interleaf home">
+                <EditorIcon name="back" />
+                <span class="editor-back-wide">Back</span>
+                <span class="editor-back-compact">Exit</span>
+              </a>
+            </div>
+          </header>
+        </Show>
 
         <Show
           when={phase() === "edit"}
@@ -891,7 +911,74 @@ export default function Editor() {
           }
         >
           <div class="editor-workspace">
-            <section class="editor-workspace-main" aria-labelledby="editor-pages-title">
+            <aside class="editor-sidebar" aria-label="Workspace">
+              <a href={base} class="editor-brand" translate="no">
+                interleaf
+              </a>
+              <h1 class="sr-only">Interleaf PDF editor</h1>
+              <nav class="editor-view-nav" aria-label="Workspace views">
+                <EditorButton
+                  data-testid="editor-pages-view-button"
+                  data-view="pages"
+                  aria-pressed={workspaceView() === "pages"}
+                  aria-controls="editor-workspace-content"
+                  onClick={() => changeWorkspaceView("pages")}
+                  icon="pages"
+                >
+                  Pages
+                </EditorButton>
+                <EditorButton
+                  data-testid="editor-document-view-button"
+                  data-view="document"
+                  aria-pressed={workspaceView() === "document"}
+                  aria-controls="editor-workspace-content"
+                  onClick={() => changeWorkspaceView("document")}
+                  icon="document"
+                >
+                  Document
+                </EditorButton>
+              </nav>
+              <div class="editor-workspace-context">
+                <span>{formatPageCount(pages.length)}</span>
+                <span>
+                  {workspaceFiles().length} {workspaceFiles().length === 1 ? "file" : "files"}
+                </span>
+              </div>
+              <div class="editor-source-actions">
+                <EditorButton
+                  data-testid="editor-add-pdf-button"
+                  aria-label="Add PDFs or images"
+                  onClick={requestAddFiles}
+                  disabled={isBusy()}
+                  icon="plus"
+                >
+                  <span class="editor-add-pdf-label">Add files</span>
+                </EditorButton>
+                <EditorButton
+                  ref={filesButton}
+                  data-testid="editor-files-button"
+                  aria-label={filesButtonLabel()}
+                  aria-controls="editor-files-dialog"
+                  aria-expanded={filesOpen()}
+                  title={filesButtonLabel()}
+                  onClick={() => setFilesOpen(true)}
+                  disabled={isBusy()}
+                  icon="files"
+                >
+                  <span class="editor-files-button-label">Files</span>
+                </EditorButton>
+              </div>
+              <p class="editor-workspace-privacy">Your files never leave your device.</p>
+              <a href={base} class="editor-back" aria-label="Return to Interleaf home">
+                <EditorIcon name="back" />
+                <span>Exit editor</span>
+              </a>
+            </aside>
+            <section
+              id="editor-workspace-content"
+              class="editor-workspace-main"
+              aria-label={workspaceView() === "pages" ? "Pages workspace" : "Document workspace"}
+            >
               <input
                 ref={addPdfInput}
                 data-testid="editor-add-pdf-input"
@@ -904,79 +991,49 @@ export default function Editor() {
                 disabled={isBusy()}
                 onChange={handleAddFilesInput}
               />
-              <div class="editor-canvas-header">
-                <h2 id="editor-pages-title">Pages</h2>
-                <div class="editor-canvas-tools">
-                  <span class="editor-canvas-count">{formatPageCount(pages.length)}</span>
-                  <div class="editor-canvas-actions">
-                    <EditorButton
-                      ref={reviewButton}
-                      data-testid="editor-review-button"
-                      class="editor-toolbar-action editor-review-button"
-                      aria-label="Review pages"
-                      aria-controls="editor-page-review"
-                      aria-expanded={reviewOpen()}
-                      title="Review pages"
-                      onClick={openPageReview}
-                      disabled={isBusy()}
-                      icon="review"
-                    >
-                      <span class="editor-review-button-label">Review</span>
-                    </EditorButton>
-                    <EditorButton
-                      data-testid="editor-add-pdf-button"
-                      aria-label="Add PDFs or images"
-                      onClick={requestAddFiles}
-                      disabled={isBusy()}
-                      class="editor-add-pdf"
-                      icon="plus"
-                    >
-                      <span class="editor-add-pdf-label">Add files</span>
-                    </EditorButton>
-                    <EditorButton
-                      ref={filesButton}
-                      data-testid="editor-files-button"
-                      class="editor-toolbar-action editor-files-button"
-                      aria-label={filesButtonLabel()}
-                      aria-controls="editor-files-dialog"
-                      aria-expanded={filesOpen()}
-                      title={filesButtonLabel()}
-                      onClick={() => setFilesOpen(true)}
-                      disabled={isBusy()}
-                      icon="files"
-                    >
-                      <span class="editor-files-button-label">Files</span>
-                      <span class="editor-files-button-count">{workspaceFiles().length}</span>
-                    </EditorButton>
-                  </div>
+              <Show
+                when={workspaceView() === "pages"}
+                fallback={
+                  <EditorPageViewer
+                    pages={pages}
+                    navigationPageIds={reviewPageIds()}
+                    activePageId={activePageId()}
+                    runtime={pdfRuntime}
+                    onActivePageChange={(pageId) => setActivePageId(pageId)}
+                  />
+                }
+              >
+                <div class="editor-canvas-header">
+                  <h2 id="editor-pages-title">Pages</h2>
+                  <span class="editor-canvas-count">{pageStatusSummary()}</span>
                 </div>
-              </div>
-
-              <EditorPageGrid
-                busy={isBusy()}
-                pages={pages}
-                runtime={pdfRuntime}
-                selectedIndices={selectedIndices()}
-                dragSourceIndex={dragSourceIndex()}
-                dragOverTarget={dragOverTarget()}
-                onPageClick={handlePageClick}
-                onClearSelection={clearSelection}
-                onPageKeyDown={handlePageKeyDown}
-                onPageRotate={handlePageRotate}
-                onPageDelete={handlePageDelete}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDragEnter={handleDragEnter}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onDragEnd={handleDragEnd}
-                onTouchDragStart={handleTouchDragStart}
-                onTouchDragMove={handleTouchDragMove}
-                onTouchDragEnd={handleTouchDragEnd}
-                onTouchDragCancel={handleTouchDragCancel}
-              />
+                <EditorPageGrid
+                  busy={isBusy()}
+                  pages={pages}
+                  runtime={pdfRuntime}
+                  selectedIndices={selectedIndices()}
+                  dragSourceIndex={dragSourceIndex()}
+                  dragOverTarget={dragOverTarget()}
+                  onPageClick={handlePageClick}
+                  onClearSelection={clearSelection}
+                  onPageKeyDown={handlePageKeyDown}
+                  onPageRotate={handlePageRotate}
+                  onPageDelete={handlePageDelete}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onDragEnd={handleDragEnd}
+                  onTouchDragStart={handleTouchDragStart}
+                  onTouchDragMove={handleTouchDragMove}
+                  onTouchDragEnd={handleTouchDragEnd}
+                  onTouchDragCancel={handleTouchDragCancel}
+                />
+              </Show>
 
               <EditorSelectionBar
+                documentView={workspaceView() === "document"}
                 busy={isBusy()}
                 busyLabel={statusMessage()}
                 selectedCount={selectedIndices().size}
@@ -1008,16 +1065,6 @@ export default function Editor() {
                 <span data-testid="editor-status-message">{statusMessage()}</span>
               </div>
             </section>
-            <Show when={reviewOpen()}>
-              <EditorPageViewer
-                pages={pages}
-                navigationPageIds={reviewPageIds()}
-                activePageId={activePageId()}
-                runtime={pdfRuntime}
-                onActivePageChange={(pageId) => setActivePageId(pageId)}
-                onClose={closePageReview}
-              />
-            </Show>
             <EditorFilesDialog
               open={filesOpen()}
               busy={isBusy()}

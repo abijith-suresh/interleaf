@@ -22,6 +22,7 @@ for (const viewport of [
   { width: 390, height: 844 },
   { width: 320, height: 568 },
   { width: 568, height: 320 },
+  { width: 667, height: 320 },
 ]) {
   test(`editor actions, keyboard focus and export at ${viewport.width}x${viewport.height}`, async ({
     page,
@@ -37,7 +38,7 @@ for (const viewport of [
 
     // Icon-only actions keep their hit targets and remain inside the viewport.
     for (const id of [
-      "editor-review-button",
+      "editor-document-view-button",
       "editor-add-pdf-button",
       "editor-files-button",
       "editor-edit-menu-button",
@@ -52,8 +53,8 @@ for (const viewport of [
       expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
       expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
     }
-    const review = page.getByTestId("editor-review-button");
-    await page.getByRole("link", { name: "Return to Interleaf home" }).focus();
+    const review = page.getByTestId("editor-document-view-button");
+    await page.getByTestId("editor-pages-view-button").focus();
     await page.keyboard.press("Tab");
     await expect(review).toBeFocused();
     await expect(review).toHaveCSS("outline-color", "rgb(36, 36, 33)");
@@ -116,13 +117,20 @@ for (const viewport of [
     await tiles.nth(1).focus();
     await page.keyboard.press("Escape");
     await review.click();
-    await expect(page.getByTestId("editor-page-viewer-close-button")).toBeFocused();
+    await expect(review).toBeFocused();
+    await expect(page.getByTestId("editor-edit-menu-button")).toHaveCount(0);
+    await expect(page.locator("[inert], [aria-modal='true']:visible")).toHaveCount(0);
+    const stage = page.locator(".editor-review-stage");
+    const stageBounds = await stage.boundingBox();
+    expect(stageBounds?.height).toBeGreaterThan(viewport.height <= 320 ? 150 : 240);
     await page.getByTestId("editor-page-viewer-next").click();
     await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 3");
     await page.keyboard.press("ArrowLeft");
     await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 2");
     await page.keyboard.press("Escape");
-    await expect(review).toBeFocused();
+    await expect(page.getByTestId("editor-page-viewer")).toBeVisible();
+    await page.getByTestId("editor-pages-view-button").click();
+    await expect(page.getByTestId("editor-pages-view-button")).toBeFocused();
 
     const chooser = page.waitForEvent("filechooser");
     await page.getByTestId("editor-add-pdf-button").click();

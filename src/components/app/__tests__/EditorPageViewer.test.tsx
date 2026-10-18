@@ -78,21 +78,22 @@ describe("EditorPageViewer", () => {
         activePageId={activePageId()}
         runtime={runtime}
         onActivePageChange={onActivePageChange}
-        onClose={vi.fn()}
       />
     ));
 
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("region", { name: "Document preview" })).toBeInTheDocument()
+    );
     expect(screen.getByRole("heading", { name: /Page \d/ })).toHaveTextContent("Page 1");
     expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
-    expect(await screen.findAllByRole("button", { name: /Review page/ })).toHaveLength(3);
+    expect(await screen.findAllByRole("button", { name: /View page/ })).toHaveLength(3);
 
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));
     await waitFor(() =>
       expect(screen.getByRole("heading", { name: "Page 2" })).toBeInTheDocument()
     );
-    expect(screen.getByRole("button", { name: "Review page 2" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "View page 2" })).toHaveAttribute(
       "aria-current",
       "page"
     );
@@ -101,7 +102,7 @@ describe("EditorPageViewer", () => {
     await waitFor(() =>
       expect(screen.getByRole("heading", { name: "Page 1" })).toBeInTheDocument()
     );
-    fireEvent.click(screen.getByRole("button", { name: "Review page 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "View page 3" }));
     expect(screen.getByRole("heading", { name: "Page 3" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
   });
@@ -122,7 +123,6 @@ describe("EditorPageViewer", () => {
         activePageId={activePageId()}
         runtime={runtime}
         onActivePageChange={setActivePageId}
-        onClose={vi.fn()}
       />
     ));
 
@@ -143,9 +143,8 @@ describe("EditorPageViewer", () => {
     }
   });
 
-  it("limits navigation to the selected review scope and closes from Escape", async () => {
+  it("limits navigation to the selected inspection scope and leaves Escape native", async () => {
     const pages = makePages();
-    const onClose = vi.fn();
 
     render(() => (
       <EditorPageViewer
@@ -154,7 +153,6 @@ describe("EditorPageViewer", () => {
         activePageId="page-3"
         runtime={runtime}
         onActivePageChange={vi.fn()}
-        onClose={onClose}
       />
     ));
 
@@ -163,10 +161,15 @@ describe("EditorPageViewer", () => {
     );
     expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Previous page" })).toBeEnabled();
-    expect(await screen.findAllByRole("button", { name: /Review page/ })).toHaveLength(2);
+    expect(await screen.findAllByRole("button", { name: /View page/ })).toHaveLength(2);
 
-    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
-    expect(onClose).toHaveBeenCalledTimes(1);
+    const escapeEvent = new KeyboardEvent("keydown", {
+      key: "Escape",
+      bubbles: true,
+      cancelable: true,
+    });
+    screen.getByRole("region", { name: "Document preview" }).dispatchEvent(escapeEvent);
+    expect(escapeEvent.defaultPrevented).toBe(false);
   });
 
   it("rerenders the active page when its organizer rotation changes", async () => {
@@ -179,7 +182,6 @@ describe("EditorPageViewer", () => {
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
-        onClose={vi.fn()}
       />
     ));
 
@@ -218,7 +220,6 @@ describe("EditorPageViewer", () => {
           activePageId="page-1"
           runtime={runtime}
           onActivePageChange={vi.fn()}
-          onClose={vi.fn()}
         />
       ));
       const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
@@ -314,7 +315,6 @@ describe("EditorPageViewer", () => {
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
-        onClose={vi.fn()}
       />
     ));
     await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1));
@@ -357,7 +357,6 @@ describe("EditorPageViewer", () => {
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
-        onClose={vi.fn()}
       />
     ));
     await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1));
@@ -376,7 +375,6 @@ describe("EditorPageViewer", () => {
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
-        onClose={vi.fn()}
       />
     ));
 
@@ -426,7 +424,6 @@ describe("EditorPageViewer", () => {
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
-        onClose={vi.fn()}
       />
     ));
     try {
@@ -453,14 +450,12 @@ describe("EditorPageViewer", () => {
     }
   });
 
-  it("contains keyboard focus while the review dialog is open", async () => {
+  it("leaves the workspace interactive and Tab navigation native", async () => {
     const pages = makePages();
-    let background!: HTMLElement;
-
     render(() => (
       <div class="editor-workspace">
-        <section ref={background} class="editor-workspace-main">
-          <button type="button">Organizer</button>
+        <section class="editor-workspace-main">
+          <button type="button">Pages</button>
         </section>
         <EditorPageViewer
           pages={pages}
@@ -468,24 +463,18 @@ describe("EditorPageViewer", () => {
           activePageId="page-1"
           runtime={runtime}
           onActivePageChange={vi.fn()}
-          onClose={vi.fn()}
         />
       </div>
     ));
-
-    const viewer = screen.getByRole("dialog");
-    await waitFor(() => expect(viewer).toBeInTheDocument());
-    expect(viewer).toHaveAttribute("role", "dialog");
-    expect(viewer).toHaveAttribute("aria-modal", "true");
-    expect(background).toHaveAttribute("inert");
-
-    const next = screen.getByRole("button", { name: "Next page" });
-    const first = screen.getByRole("button", { name: "Fit page" });
-    next.focus();
-    fireEvent.keyDown(viewer, { key: "Tab" });
-    expect(first).toHaveFocus();
-    fireEvent.keyDown(viewer, { key: "Tab", shiftKey: true });
-    expect(next).toHaveFocus();
+    const viewer = screen.getByRole("region", { name: "Document preview" });
+    expect(viewer).not.toHaveAttribute("aria-modal");
+    expect(document.querySelector("[inert]")).toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const tab = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    screen.getByRole("button", { name: "Next page" }).dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(false);
+    screen.getByRole("button", { name: "Pages" }).focus();
+    expect(screen.getByRole("button", { name: "Pages" })).toHaveFocus();
   });
   it("reuses the visible frame throughout a pinch, coalesces sharpening, and clears cancelled drags", async () => {
     const pages = makePages();
@@ -496,7 +485,6 @@ describe("EditorPageViewer", () => {
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
-        onClose={vi.fn()}
       />
     ));
     const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
@@ -570,7 +558,6 @@ describe("EditorPageViewer", () => {
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
-        onClose={vi.fn()}
       />
     ));
     const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
@@ -612,7 +599,6 @@ describe("EditorPageViewer", () => {
         activePageId={activePageId()}
         runtime={runtime}
         onActivePageChange={setActivePageId}
-        onClose={vi.fn()}
       />
     ));
     const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
@@ -673,7 +659,6 @@ describe("EditorPageViewer", () => {
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
-        onClose={vi.fn()}
       />
     ));
     const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
@@ -713,7 +698,6 @@ describe("EditorPageViewer", () => {
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
-        onClose={vi.fn()}
       />
     ));
     await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(1));
@@ -738,10 +722,9 @@ describe("EditorPageViewer", () => {
   });
 
   it.each(["Zoom in", "Zoom out"])(
-    "hands focused %s to Fit at its limit and preserves Escape",
+    "hands focused %s to Fit at its limit and leaves Escape native",
     async (action) => {
       const pages = makePages();
-      const onClose = vi.fn();
       render(() => (
         <EditorPageViewer
           pages={pages}
@@ -749,7 +732,6 @@ describe("EditorPageViewer", () => {
           activePageId="page-1"
           runtime={runtime}
           onActivePageChange={vi.fn()}
-          onClose={onClose}
         />
       ));
       const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
@@ -762,8 +744,14 @@ describe("EditorPageViewer", () => {
       expect(button).toBeDisabled();
       const fit = screen.getByRole("button", { name: "Fit page" });
       expect(fit).toHaveFocus();
-      fireEvent.keyDown(fit, { key: "Escape" });
-      expect(onClose).toHaveBeenCalledTimes(1);
+      const escapeEvent = new KeyboardEvent("keydown", {
+        key: "Escape",
+        bubbles: true,
+        cancelable: true,
+      });
+      fit.dispatchEvent(escapeEvent);
+      expect(escapeEvent.defaultPrevented).toBe(false);
+      expect(fit).toHaveFocus();
     }
   );
 
@@ -776,7 +764,6 @@ describe("EditorPageViewer", () => {
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
-        onClose={vi.fn()}
       />
     ));
     const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
@@ -784,7 +771,7 @@ describe("EditorPageViewer", () => {
     stage.focus();
     for (let i = 0; i < 5; i++) fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     expect(stage).toHaveFocus();
-    const close = screen.getByRole("button", { name: "Close page review" });
+    const close = screen.getByRole("button", { name: "Next page" });
     close.focus();
     for (let i = 0; i < 5; i++) fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
     expect(close).toHaveFocus();
@@ -802,7 +789,6 @@ describe("EditorPageViewer", () => {
           activePageId={active()}
           runtime={runtime}
           onActivePageChange={setActive}
-          onClose={vi.fn()}
         />
       ));
       const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });

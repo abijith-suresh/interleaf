@@ -23,6 +23,7 @@ The active product supports:
 - marking pages for deletion before export
 - unlocking password-protected PDFs with an in-browser prompt
 - locally rendered page thumbnails for inspection before export
+- organizing and reading in persistent Pages and Document views within one workspace
 - reviewing pages one at a time with previous/next navigation and a compact filmstrip
 - zooming read-only page previews up to 4 times their fitted size, with pinch, drag, scroll, and keyboard panning
 - losslessly compressing an untouched, single uploaded PDF in the browser

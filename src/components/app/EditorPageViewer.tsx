@@ -29,7 +29,6 @@ interface Props {
   activePageId: string | null;
   runtime: PDFRuntime;
   onActivePageChange: (pageId: string) => void;
-  onClose: () => void;
 }
 
 export default function EditorPageViewer(props: Props) {
@@ -39,8 +38,6 @@ export default function EditorPageViewer(props: Props) {
   const [hasFrame, setHasFrame] = createSignal(false);
   const [filmstripWindowStart, setFilmstripWindowStart] = createSignal(0);
 
-  let pane!: HTMLElement;
-  let closeButton!: HTMLButtonElement;
   let fitButton!: HTMLButtonElement;
   let zoomInButton!: HTMLButtonElement;
   let zoomOutButton!: HTMLButtonElement;
@@ -63,7 +60,6 @@ export default function EditorPageViewer(props: Props) {
   let resizeObserver: ResizeObserver | null = null;
   let resizeTimer: number | null = null;
   let renderNeeded = false;
-  let reviewBackgrounds: HTMLElement[] = [];
 
   const navigationPages = createMemo(() =>
     props.navigationPageIds
@@ -415,36 +411,6 @@ export default function EditorPageViewer(props: Props) {
       }
       return;
     }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      props.onClose();
-      return;
-    }
-
-    if (event.key === "Tab") {
-      const focusable = Array.from(
-        pane.querySelectorAll<HTMLElement>(
-          "button:not(:disabled), [href], [tabindex]:not([tabindex='-1'])"
-        )
-      );
-      const first = focusable[0];
-      const last = focusable.at(-1);
-
-      if (!first || !last) {
-        event.preventDefault();
-        return;
-      }
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-      return;
-    }
-
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
       moveBy(event.key === "ArrowLeft" ? -1 : 1);
@@ -500,14 +466,7 @@ export default function EditorPageViewer(props: Props) {
 
   onMount(() => {
     mounted = true;
-    reviewBackgrounds = Array.from(
-      (pane.closest(".editor-app") ?? pane.parentElement)?.querySelectorAll<HTMLElement>(
-        ".editor-header, .editor-workspace-main"
-      ) ?? []
-    );
-    for (const background of reviewBackgrounds) background.setAttribute("inert", "");
     window.addEventListener("resize", handleResize);
-    queueMicrotask(() => closeButton?.focus());
     requestRender();
 
     if (typeof ResizeObserver !== "undefined") {
@@ -536,8 +495,6 @@ export default function EditorPageViewer(props: Props) {
     resizeObserver?.disconnect();
     resizeObserver = null;
     window.removeEventListener("resize", handleResize);
-    for (const background of reviewBackgrounds) background.removeAttribute("inert");
-    reviewBackgrounds = [];
     const fiber = renderFiber;
     if (fiber) {
       void Effect.runPromise(Fiber.interrupt(fiber)).catch(() => undefined);
@@ -549,14 +506,11 @@ export default function EditorPageViewer(props: Props) {
   });
 
   return (
-    <aside
-      ref={pane}
-      id="editor-page-review"
+    <section
+      id="editor-document"
       data-testid="editor-page-viewer"
       class="editor-review-pane"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="editor-review-title"
+      aria-label="Document preview"
       onKeyDown={handleKeyDown}
     >
       <header class="editor-review-header">
@@ -566,6 +520,7 @@ export default function EditorPageViewer(props: Props) {
           </h2>
           <span class="editor-review-position" aria-live="polite">
             {currentNavigationIndex() + 1} of {navigationPages().length}
+            <Show when={currentPage()?.markedForDeletion}> · Marked for deletion</Show>
           </span>
         </div>
         <fieldset class="editor-review-zoom" aria-label="Page zoom">
@@ -597,14 +552,6 @@ export default function EditorPageViewer(props: Props) {
             onClick={() => changeZoom(zoom() * 1.4)}
           />
         </fieldset>
-        <EditorButton
-          ref={closeButton}
-          data-testid="editor-page-viewer-close-button"
-          class="editor-review-close"
-          aria-label="Close page review"
-          onClick={props.onClose}
-          icon="close"
-        />
       </header>
 
       <section
@@ -670,7 +617,7 @@ export default function EditorPageViewer(props: Props) {
         <nav
           ref={filmstrip}
           class="editor-review-filmstrip"
-          aria-label="Pages in review"
+          aria-label="Document pages"
           onScroll={updateFilmstripWindow}
         >
           <span
@@ -682,8 +629,6 @@ export default function EditorPageViewer(props: Props) {
             {(page) => {
               const workspaceIndex = () =>
                 props.pages.findIndex((candidate) => candidate.id === page.id);
-              const navigationIndex = () =>
-                navigationPages().findIndex((candidate) => candidate.id === page.id);
 
               return (
                 <button
@@ -691,7 +636,7 @@ export default function EditorPageViewer(props: Props) {
                   class="editor-review-filmstrip-item"
                   classList={{ "is-active": currentPage()?.id === page.id }}
                   aria-current={currentPage()?.id === page.id ? "page" : undefined}
-                  aria-label={`Review page ${workspaceIndex() + 1}`}
+                  aria-label={`View page ${workspaceIndex() + 1}`}
                   tabIndex={currentPage()?.id === page.id ? 0 : -1}
                   title={`Page ${workspaceIndex() + 1}`}
                   onClick={() => selectPage(page.id)}
@@ -703,7 +648,7 @@ export default function EditorPageViewer(props: Props) {
                     scrollRoot={filmstrip}
                     showRetry={false}
                   />
-                  <span>{navigationIndex() + 1}</span>
+                  <span>{workspaceIndex() + 1}</span>
                 </button>
               );
             }}
@@ -723,6 +668,6 @@ export default function EditorPageViewer(props: Props) {
           icon="next"
         />
       </footer>
-    </aside>
+    </section>
   );
 }

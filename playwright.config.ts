@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const baseURL = "http://127.0.0.1:4321";
+const port = Number(process.env.PLAYWRIGHT_PORT ?? 4321);
+const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -15,7 +16,7 @@ export default defineConfig({
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],
   webServer: {
-    command: "bun run preview --host 127.0.0.1",
+    command: `bun run preview --host 127.0.0.1 --port ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
   },

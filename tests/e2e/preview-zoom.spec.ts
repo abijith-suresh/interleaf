@@ -82,12 +82,12 @@ for (const viewport of [
     await expect(page.getByTestId("editor-page-tile")).toHaveCount(3);
     // Review/export selection must survive view-only gestures.
     await page.getByTestId("editor-page-tile").nth(1).click();
-    await page.getByTestId("editor-review-button").click();
+    await page.getByTestId("editor-document-view-button").click();
     await ready(page, 1, 2);
     const stage = page.locator(".editor-review-stage");
     const fit = await page.locator(".editor-review-canvas").boundingBox();
     if (!fit) throw new Error("Missing fit bounds");
-    for (const name of ["Zoom in", "Zoom out", "Fit page", "Close page review"]) {
+    for (const name of ["Zoom in", "Zoom out", "Fit page", "Pages"]) {
       const bounds = await page.getByRole("button", { name, exact: true }).boundingBox();
       if (!bounds) throw new Error(`Missing ${name}`);
       expect(bounds.width).toBeGreaterThanOrEqual(44);
@@ -161,12 +161,12 @@ for (const viewport of [
     // A same-size resize must reset too, without a stale sharper completion.
     await stage.evaluate(() => window.dispatchEvent(new Event("resize")));
     await ready(page, 1, 2);
-    await page.keyboard.press("Escape");
-    await expect(page.getByTestId("editor-review-button")).toBeFocused();
+    await page.getByTestId("editor-pages-view-button").click();
+    await expect(page.getByTestId("editor-pages-view-button")).toBeFocused();
     await page.getByRole("button", { name: "Rotate page 2 90 degrees", exact: true }).click();
-    await page.getByTestId("editor-review-button").click();
+    await page.getByTestId("editor-document-view-button").click();
     await ready(page, 1, 2);
-    await page.getByRole("button", { name: "Close page review", exact: true }).click();
+    // Download directly in Document with the original selection intact.
 
     const pdfDownload = page.waitForEvent("download");
     await page.getByTestId("editor-download-button").click();
@@ -229,7 +229,7 @@ test.describe("touch preview", () => {
       mimeType: "application/pdf",
       buffer: await makeDocument(),
     });
-    await page.getByTestId("editor-review-button").click();
+    await page.getByTestId("editor-document-view-button").click();
     await ready(page, 1);
     const stage = page.locator(".editor-review-stage");
     const box = await stage.boundingBox();
@@ -357,7 +357,7 @@ test.describe("touch preview", () => {
   });
 });
 
-test("zoom limits retain modal focus and Escape for keyboard and pointer actions", async ({
+test("zoom limits retain Fit focus and workspace navigation for keyboard and pointer actions", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 320, height: 480 });
@@ -370,7 +370,7 @@ test("zoom limits retain modal focus and Escape for keyboard and pointer actions
   for (const action of ["Zoom in", "Zoom out"]) {
     for (const input of ["keyboard", "pointer"]) {
       await test.step(`${input} ${action} limit`, async () => {
-        await page.getByTestId("editor-review-button").click();
+        await page.getByTestId("editor-document-view-button").click();
         await ready(page, 1);
         const fit = page.getByRole("button", { name: "Fit page", exact: true });
         const zoomIn = page.getByRole("button", { name: "Zoom in", exact: true });
@@ -390,18 +390,21 @@ test("zoom limits retain modal focus and Escape for keyboard and pointer actions
         }
         await expect(button).toBeDisabled();
         await expect(fit).toBeFocused();
-        // Tab stays within the modal after the focused action became disabled.
+        // Tab follows the normal workspace after the focused action becomes disabled.
         await page.keyboard.press("Tab");
         await expect(
           action === "Zoom in"
-            ? page.getByRole("button", { name: "Close page review", exact: true })
+            ? page.getByRole("region", { name: "Page preview, use arrow keys to pan" })
             : zoomIn
         ).toBeFocused();
         await page.keyboard.press("Shift+Tab");
         await expect(fit).toBeFocused();
         await page.keyboard.press("Escape");
+        await expect(page.getByTestId("editor-page-viewer")).toBeVisible();
+        await expect(fit).toBeFocused();
+        await page.getByTestId("editor-pages-view-button").click();
         await expect(page.getByTestId("editor-page-viewer")).toHaveCount(0);
-        await expect(page.getByTestId("editor-review-button")).toBeFocused();
+        await expect(page.getByTestId("editor-pages-view-button")).toBeFocused();
       });
     }
   }
