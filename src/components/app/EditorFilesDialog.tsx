@@ -1,5 +1,7 @@
 import { createEffect, For } from "solid-js";
 import type { WorkspaceFile } from "../../controllers/editor-workspace";
+import EditorButton from "./ui/EditorButton";
+import EditorIcon from "./ui/EditorIcon";
 
 interface Props {
   open: boolean;
@@ -88,18 +90,14 @@ export default function EditorFilesDialog(props: Props) {
           <div>
             <h2 id="editor-files-title">Files</h2>
           </div>
-          <button
+          <EditorButton
             ref={closeButton}
-            type="button"
             data-testid="editor-files-close-button"
             class="editor-files-close"
             aria-label="Close files"
             onClick={requestClose}
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="m5 5 10 10M15 5 5 15" />
-            </svg>
-          </button>
+            icon="close"
+          />
         </header>
 
         <div class="editor-files-dialog-body">
@@ -117,17 +115,14 @@ export default function EditorFilesDialog(props: Props) {
                       disabled={props.busy}
                     >
                       <span class="editor-file-icon" aria-hidden="true">
-                        <svg viewBox="0 0 20 20" aria-hidden="true">
-                          <path d="M5 2.5h6l4 4v11H5zM11 2.5v4h4" />
-                        </svg>
+                        <EditorIcon name="document" />
                       </span>
                       <span class="editor-file-copy">
                         <strong>{workspaceFile.file.name}</strong>
                         <span>{formatPageCount(workspaceFile.pageCount)}</span>
                       </span>
                     </button>
-                    <button
-                      type="button"
+                    <EditorButton
                       data-testid="editor-file-remove"
                       class="editor-file-remove"
                       aria-label={`Remove ${workspaceFile.file.name} and its ${formatPageCount(workspaceFile.pageCount)} from the workspace`}
@@ -137,11 +132,9 @@ export default function EditorFilesDialog(props: Props) {
                         focusAfterRemoval(index());
                         props.onRemoveFile(workspaceFile.file);
                       }}
-                    >
-                      <svg viewBox="0 0 20 20" aria-hidden="true">
-                        <path d="M4.5 6.5h11M8 6.5V4h4v2.5M6.5 8.5v6m3.5-6v6m3.5-6v6M5.5 6.5l.5 10h8l.5-10" />
-                      </svg>
-                    </button>{" "}
+                      variant="danger"
+                      icon="delete"
+                    />
                   </li>
                 );
               }}

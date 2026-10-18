@@ -26,6 +26,8 @@ import EditorPageGrid from "./EditorPageGrid";
 import EditorPageViewer from "./EditorPageViewer";
 import EditorSelectionBar from "./EditorSelectionBar";
 import EditorUploader from "./EditorUploader";
+import EditorButton from "./ui/EditorButton";
+import EditorIcon from "./ui/EditorIcon";
 
 interface DragOverTarget {
   index: number;
@@ -871,9 +873,7 @@ export default function Editor() {
           <h1 class="sr-only">Interleaf PDF editor</h1>
           <div class="editor-header-right">
             <a href={base} class="editor-back" aria-label="Return to Interleaf home">
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M8 4 3 10l5 6M4 10h13" />
-              </svg>
+              <EditorIcon name="back" />
               <span class="editor-back-wide">Back</span>
               <span class="editor-back-compact">Exit</span>
             </a>
@@ -909,9 +909,8 @@ export default function Editor() {
                 <div class="editor-canvas-tools">
                   <span class="editor-canvas-count">{formatPageCount(pages.length)}</span>
                   <div class="editor-canvas-actions">
-                    <button
+                    <EditorButton
                       ref={reviewButton}
-                      type="button"
                       data-testid="editor-review-button"
                       class="editor-toolbar-action editor-review-button"
                       aria-label="Review pages"
@@ -920,28 +919,22 @@ export default function Editor() {
                       title="Review pages"
                       onClick={openPageReview}
                       disabled={isBusy()}
+                      icon="review"
                     >
-                      <svg viewBox="0 0 20 20" aria-hidden="true">
-                        <path d="M4 7V4h3M13 4h3v3M16 13v3h-3M7 16H4v-3" />
-                      </svg>
                       <span class="editor-review-button-label">Review</span>
-                    </button>
-                    <button
-                      type="button"
+                    </EditorButton>
+                    <EditorButton
                       data-testid="editor-add-pdf-button"
                       aria-label="Add PDFs or images"
                       onClick={requestAddFiles}
                       disabled={isBusy()}
                       class="editor-add-pdf"
+                      icon="plus"
                     >
-                      <svg viewBox="0 0 20 20" aria-hidden="true">
-                        <path d="M10 4v12M4 10h12" />
-                      </svg>
                       <span class="editor-add-pdf-label">Add files</span>
-                    </button>
-                    <button
+                    </EditorButton>
+                    <EditorButton
                       ref={filesButton}
-                      type="button"
                       data-testid="editor-files-button"
                       class="editor-toolbar-action editor-files-button"
                       aria-label={filesButtonLabel()}
@@ -950,13 +943,11 @@ export default function Editor() {
                       title={filesButtonLabel()}
                       onClick={() => setFilesOpen(true)}
                       disabled={isBusy()}
+                      icon="files"
                     >
-                      <svg viewBox="0 0 20 20" aria-hidden="true">
-                        <path d="M5 2.5h6l4 4v11H5zM11 2.5v4h4" />
-                      </svg>
                       <span class="editor-files-button-label">Files</span>
                       <span class="editor-files-button-count">{workspaceFiles().length}</span>
-                    </button>
+                    </EditorButton>
                   </div>
                 </div>
               </div>

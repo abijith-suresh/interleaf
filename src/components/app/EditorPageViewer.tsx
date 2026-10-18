@@ -3,6 +3,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show }
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
 import EditorPageCanvas from "./EditorPageCanvas";
+import EditorButton from "./ui/EditorButton";
 
 const VIEWER_MAX_PIXELS = 16_000_000;
 const VIEWER_MAX_SCALE = 1.5;
@@ -360,18 +361,14 @@ export default function EditorPageViewer(props: Props) {
             {currentNavigationIndex() + 1} of {navigationPages().length}
           </span>
         </div>
-        <button
+        <EditorButton
           ref={closeButton}
-          type="button"
           data-testid="editor-page-viewer-close-button"
           class="editor-review-close"
           aria-label="Close page review"
           onClick={props.onClose}
-        >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m5 5 10 10M15 5 5 15" />
-          </svg>
-        </button>
+          icon="close"
+        />
       </header>
 
       <div
@@ -396,31 +393,26 @@ export default function EditorPageViewer(props: Props) {
         <Show when={renderState() === "error"}>
           <div class="editor-review-state editor-review-error" role="alert">
             <span>Preview unavailable.</span>
-            <button
-              type="button"
+            <EditorButton
               data-testid="editor-page-viewer-retry"
               class="editor-review-retry"
               onClick={retryRender}
             >
               Retry
-            </button>
+            </EditorButton>
           </div>
         </Show>
       </div>
 
       <footer class="editor-review-bottom">
-        <button
-          type="button"
+        <EditorButton
           data-testid="editor-page-viewer-previous"
           class="editor-review-nav"
           aria-label="Previous page"
           disabled={currentNavigationIndex() <= 0}
           onClick={() => moveBy(-1)}
-        >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m12.5 4-6 6 6 6" />
-          </svg>
-        </button>
+          icon="previous"
+        />
         <nav
           ref={filmstrip}
           class="editor-review-filmstrip"
@@ -468,18 +460,14 @@ export default function EditorPageViewer(props: Props) {
             aria-hidden="true"
           />
         </nav>
-        <button
-          type="button"
+        <EditorButton
           data-testid="editor-page-viewer-next"
           class="editor-review-nav"
           aria-label="Next page"
           disabled={currentNavigationIndex() >= navigationPages().length - 1}
           onClick={() => moveBy(1)}
-        >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m7.5 4 6 6-6 6" />
-          </svg>
-        </button>
+          icon="next"
+        />
       </footer>
     </aside>
   );

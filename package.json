@@ -28,6 +28,7 @@
     "astro": "^7.3.8",
     "effect": "4.0.2",
     "fflate": "^0.8.3",
+    "lucide-solid": "1.56.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.4.299",
     "satori": "^0.44.3",
