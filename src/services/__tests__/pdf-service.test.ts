@@ -206,24 +206,106 @@ describe("PDFService", () => {
     expect(page.cleanup).toHaveBeenCalledTimes(1);
   });
 
-  it("evicts an interrupted acquisition after late cleanup and allows waiters to retry", async () => {
+  it.each([true, false])(
+    "keeps an active waiter successful when its metadata owner is cancelled, rotation owner=%s",
+    async (rotationOwner) => {
+      const pending = Promise.withResolvers<ReturnType<typeof makePage>>();
+      const replacementPage = makePage(300, 400);
+      replacementPage.rotate = 180;
+      pdf.getPage.mockReturnValueOnce(pending.promise).mockResolvedValueOnce(replacementPage);
+      const owner = runFork(
+        rotationOwner
+          ? service.getPageRotation(file, 1).pipe(Effect.asVoid)
+          : service.getPageSize(file, 1).pipe(Effect.asVoid)
+      );
+      await vi.waitFor(() => expect(pdf.getPage).toHaveBeenCalledTimes(1));
+      const waiter = runFork(
+        rotationOwner
+          ? service.getPageSize(file, 1).pipe(Effect.map((size) => [size.width, size.height]))
+          : service.getPageRotation(file, 1).pipe(Effect.map((rotation) => [rotation]))
+      );
+      await runPromise(Effect.yieldNow);
+      const interruption = runFork(Fiber.interrupt(owner));
+      await runPromise(Effect.yieldNow);
+      expect(interruption.pollUnsafe()).toBeUndefined();
+      pending.resolve(page);
+      await runPromise(Fiber.join(interruption));
+      expect(Exit.isFailure(await runPromise(Fiber.await(owner)))).toBe(true);
+      await expect(runPromise(Fiber.join(waiter))).resolves.toEqual(
+        rotationOwner ? [300, 400] : [180]
+      );
+      expect(pdf.getPage).toHaveBeenCalledTimes(2);
+      expect(page.cleanup).toHaveBeenCalledTimes(1);
+      expect(replacementPage.cleanup).toHaveBeenCalledTimes(1);
+      expect(page.cleanup.mock.invocationCallOrder[0]).toBeLessThan(
+        pdf.getPage.mock.invocationCallOrder[1]
+      );
+    }
+  );
+
+  it("preserves cleanup failure during owner cancellation and keeps the failed read retryable", async () => {
     const pending = Promise.withResolvers<ReturnType<typeof makePage>>();
     pdf.getPage.mockReturnValueOnce(pending.promise);
+    page.cleanup.mockImplementationOnce(() => {
+      throw new Error("cancelled page cleanup failed");
+    });
     const owner = runFork(service.getPageRotation(file, 1));
     await vi.waitFor(() => expect(pdf.getPage).toHaveBeenCalledTimes(1));
     const waiter = runFork(service.getPageSize(file, 1));
     await runPromise(Effect.yieldNow);
     const interruption = runFork(Fiber.interrupt(owner));
     await runPromise(Effect.yieldNow);
-    expect(interruption.pollUnsafe()).toBeUndefined();
     pending.resolve(page);
     await runPromise(Fiber.join(interruption));
-    expect(Exit.isFailure(await runPromise(Fiber.await(waiter)))).toBe(true);
+    await expect(runPromise(Fiber.join(waiter))).rejects.toMatchObject({
+      operation: "get-page-size",
+      file,
+      message: "cancelled page cleanup failed",
+    });
+    expect(pdf.getPage).toHaveBeenCalledTimes(1);
     pdf.getPage.mockResolvedValue(makePage(300, 400));
     expect(await runPromise(service.getPageSize(file, 1))).toEqual({ width: 300, height: 400 });
     expect(pdf.getPage).toHaveBeenCalledTimes(2);
-    expect(page.cleanup).toHaveBeenCalledTimes(1);
   });
+
+  it.each(["release", "reset", "dispose"] as const)(
+    "settles %s while an active waiter takes over from a cancelled owner",
+    async (action) => {
+      const pending = Promise.withResolvers<ReturnType<typeof makePage>>();
+      const takeover = Promise.withResolvers<ReturnType<typeof makePage>>();
+      const replacementPage = makePage(300, 400);
+      pdf.getPage.mockReturnValueOnce(pending.promise).mockReturnValueOnce(takeover.promise);
+      const owner = runFork(service.getPageRotation(file, 1));
+      await vi.waitFor(() => expect(pdf.getPage).toHaveBeenCalledTimes(1));
+      const waiter = runFork(service.getPageSize(file, 1));
+      await runPromise(Effect.yieldNow);
+      const interruption = runFork(Fiber.interrupt(owner));
+      await runPromise(Effect.yieldNow);
+      pending.resolve(page);
+      await runPromise(Fiber.join(interruption));
+      await vi.waitFor(() => expect(pdf.getPage).toHaveBeenCalledTimes(2));
+      const close = runFork(
+        action === "release"
+          ? service.releaseFile(file)
+          : action === "reset"
+            ? service.reset()
+            : service.dispose()
+      );
+      await runPromise(Effect.yieldNow);
+      expect(pdf.cleanup).not.toHaveBeenCalled();
+      takeover.resolve(replacementPage);
+      await runPromise(Fiber.join(close));
+      expect(Exit.isFailure(await runPromise(Fiber.await(waiter)))).toBe(true);
+      expect(pdf.getPage).toHaveBeenCalledTimes(2);
+      expect(page.cleanup).toHaveBeenCalledTimes(1);
+      expect(replacementPage.cleanup).toHaveBeenCalledTimes(1);
+      expect(pdf.cleanup).toHaveBeenCalledTimes(1);
+      expect(replacementPage.cleanup.mock.invocationCallOrder[0]).toBeLessThan(
+        pdf.cleanup.mock.invocationCallOrder[0]
+      );
+      expect(getDocument).toHaveBeenCalledTimes(1);
+    }
+  );
 
   it("bounds scalar entries to 512 pages and retains recently read entries", async () => {
     pdf.numPages = 513;

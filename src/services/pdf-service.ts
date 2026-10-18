@@ -37,7 +37,7 @@ interface LoadedPDFRecord {
   readonly pdfjsDocument: pdfjsLib.PDFDocumentProxy;
   readonly loadingTask: ReturnType<typeof pdfjsLib.getDocument>;
   readonly pageMetadata: Map<number, PageMetadata>;
-  readonly measuring: Map<number, Deferred.Deferred<PageMetadata, PDFProcessingError>>;
+  readonly measuring: Map<number, Deferred.Deferred<Exit.Exit<PageMetadata, PDFProcessingError>>>;
 }
 
 function isPasswordException(cause: unknown): boolean {
@@ -189,11 +189,24 @@ export class PDFService {
       const pending = record.measuring.get(pageNumber);
       if (pending) {
         return Deferred.await(pending).pipe(
-          Effect.mapError((error) => processingError(operation, file, error.cause))
+          Effect.flatMap((exit) => {
+            if (Exit.isSuccess(exit)) return Effect.succeed(exit.value);
+            // Only the owner was cancelled. An independent live caller can take
+            // over after its cleanup, unless release/reset retired this load.
+            if (exit.cause.reasons.every(Cause.isInterruptReason)) {
+              const resident = this.documents.peek(file);
+              if (Option.isSome(resident) && resident.value === record) {
+                return this.getPageMetadata(record, pageNumber, operation);
+              }
+            }
+            return Effect.failCause(
+              Cause.map(exit.cause, (error) => processingError(operation, file, error.cause))
+            );
+          })
         );
       }
 
-      const completion = Deferred.makeUnsafe<PageMetadata, PDFProcessingError>();
+      const completion = Deferred.makeUnsafe<Exit.Exit<PageMetadata, PDFProcessingError>>();
       record.measuring.set(pageNumber, completion);
       return this.pageResources
         .withPageCleanup(
@@ -227,7 +240,7 @@ export class PDFService {
           ),
           Effect.onExit((exit) =>
             Effect.sync(() => record.measuring.delete(pageNumber)).pipe(
-              Effect.andThen(Deferred.done(completion, exit))
+              Effect.andThen(Deferred.succeed(completion, exit))
             )
           )
         );
