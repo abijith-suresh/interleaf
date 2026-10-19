@@ -1,6 +1,7 @@
 import type { PageState } from "../types/interfaces";
 
 export const PAGE_HISTORY_LIMIT = 32;
+export const INACTIVE_SOURCE_SIZE_LIMIT = 48 * 1024 * 1024;
 
 export interface PageOrganizationSnapshot {
   readonly pages: readonly PageState[];
@@ -66,5 +67,43 @@ export function recordOrganization(
       );
     });
   if (unchanged) return history;
-  return { undo: [...history.undo, { label, before, after }].slice(-PAGE_HISTORY_LIMIT), redo: [] };
+  return trimOrganizationHistory(
+    { undo: [...history.undo, { label, before, after }], redo: [] },
+    after.pages
+  );
+}
+
+// Count original File identities, including generated image PDFs, across both stacks.
+// This bounds retained source sizes, not the browser's document or rendering memory.
+export function inactiveSourceSize(
+  history: PageOrganizationHistory,
+  activePages: readonly PageState[]
+): number {
+  const active = new Set(activePages.map((page) => page.sourceFile));
+  const inactive = new Set<File>();
+  for (const entry of [...history.undo, ...history.redo]) {
+    for (const snapshot of [entry.before, entry.after]) {
+      for (const page of snapshot.pages) {
+        if (!active.has(page.sourceFile)) inactive.add(page.sourceFile);
+      }
+    }
+  }
+  return [...inactive].reduce((size, file) => size + file.size, 0);
+}
+
+export function trimOrganizationHistory(
+  history: PageOrganizationHistory,
+  activePages: readonly PageState[]
+): PageOrganizationHistory {
+  let { undo, redo } = history;
+  while (
+    undo.length + redo.length > 1 &&
+    (undo.length + redo.length > PAGE_HISTORY_LIMIT ||
+      inactiveSourceSize({ undo, redo }, activePages) > INACTIVE_SOURCE_SIZE_LIMIT)
+  ) {
+    // Timeline order is undo followed by reversed redo. Keep its newest entry.
+    if (undo.length > 0) undo = undo.slice(1);
+    else redo = redo.slice(0, -1);
+  }
+  return { undo, redo };
 }

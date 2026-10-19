@@ -4,9 +4,11 @@ import { describe, expect, it } from "vitest";
 import {
   copyOrganizationPages,
   emptyOrganizationHistory,
+  inactiveSourceSize,
   PAGE_HISTORY_LIMIT,
   recordOrganization,
   snapshotOrganization,
+  trimOrganizationHistory,
 } from "../editor-history";
 import { createPageStates, duplicatePageState } from "../editor-page-state";
 
@@ -76,5 +78,66 @@ describe("page organization history", () => {
     expect(history.undo.at(-1)?.before.pages).toHaveLength(1);
     history = emptyOrganizationHistory();
     expect(history).toEqual({ undo: [], redo: [] });
+  });
+});
+
+describe("source history retention", () => {
+  const file = (size: number) => {
+    const source = new File(["immutable"], "same.pdf");
+    Object.defineProperty(source, "size", { value: size });
+    return source;
+  };
+  const snapshot = (source: File) =>
+    snapshotOrganization(createPageStates(source, 1), new Set(), null);
+
+  it("counts identity once across both stacks and excludes active files", () => {
+    const first = file(20 * 1024 * 1024);
+    const sameName = file(20 * 1024 * 1024);
+    const before = snapshot(first);
+    const after = snapshot(sameName);
+    const entry = { label: "add", before, after };
+    const history = { undo: [entry, entry], redo: [entry] };
+    expect(inactiveSourceSize(history, [])).toBe(40 * 1024 * 1024);
+    expect(inactiveSourceSize(history, before.pages)).toBe(20 * 1024 * 1024);
+    expect(inactiveSourceSize(history, [...before.pages, ...after.pages])).toBe(0);
+    expect(trimOrganizationHistory(history, after.pages)).toEqual(history);
+  });
+
+  it("evicts old File references, keeps an oversized newest entry, and drops redo on branching", () => {
+    const old = snapshot(file(30 * 1024 * 1024));
+    const middle = snapshot(file(30 * 1024 * 1024));
+    const newest = snapshot(file(60 * 1024 * 1024));
+    const empty = snapshotOrganization([], new Set(), null);
+    const first = { label: "old removal", before: old, after: empty };
+    const second = { label: "middle removal", before: middle, after: empty };
+    const third = { label: "newest removal", before: newest, after: empty };
+    expect(trimOrganizationHistory({ undo: [first, second, third], redo: [] }, [])).toEqual({
+      undo: [third],
+      redo: [],
+    });
+    expect(trimOrganizationHistory({ undo: [], redo: [third, second, first] }, [])).toEqual({
+      undo: [],
+      redo: [third],
+    });
+    const branch = recordOrganization({ undo: [first], redo: [third] }, "add", empty, middle);
+    expect(branch.redo).toEqual([]);
+    expect(inactiveSourceSize(branch, middle.pages)).toBe(old.pages[0].sourceFile.size);
+    expect(inactiveSourceSize(emptyOrganizationHistory(), [])).toBe(0);
+  });
+
+  it("applies the 32-entry bound to both stacks together", () => {
+    const before = snapshot(file(1));
+    const entries = Array.from({ length: 40 }, (_, index) => ({
+      label: String(index),
+      before,
+      after: before,
+    }));
+    const trimmed = trimOrganizationHistory(
+      { undo: entries.slice(0, 20), redo: entries.slice(20).reverse() },
+      before.pages
+    );
+    expect(trimmed.undo).toHaveLength(12);
+    expect(trimmed.undo[0].label).toBe("8");
+    expect(trimmed.redo).toHaveLength(20);
   });
 });

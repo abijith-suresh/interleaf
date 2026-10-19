@@ -159,6 +159,295 @@ describe("Editor", () => {
     );
   });
 
+  const idle = () =>
+    waitFor(() => expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false"));
+  const step = async (direction: "undo" | "redo") => {
+    fireEvent.click(screen.getByTestId(`editor-${direction}-button`));
+    await idle();
+  };
+  const exportedState = async () => {
+    const calls = pdfOperationsMocks.buildPDF.mock.calls.length;
+    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await waitFor(() => expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledTimes(calls + 1));
+    await idle();
+    const call = pdfOperationsMocks.buildPDF.mock.calls.at(-1);
+    if (!call) throw new Error("Missing export call");
+    const [pages, options] = call;
+    return {
+      pages: pages.map((page: Record<string, unknown>) => ({ ...page })),
+      selected: options.selectedIndices,
+    };
+  };
+
+  it("interleaves source and page history with stable same-named Files, generated PDF identity and duplicates", async () => {
+    const first = makeFile("same.pdf");
+    const second = makeFile("same.pdf");
+    await openPDF(first);
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    const copied = await exportedState();
+    selectFiles("add", [
+      second,
+      makeImageFile("portrait.jpg", "image/jpeg"),
+      makeImageFile("scan.png"),
+    ]);
+    await waitFor(() => expect(getPages()).toHaveLength(10));
+    const added = await exportedState();
+    const generated = added.pages[7].sourceFile;
+    expect(generated).toBeInstanceOf(File);
+    expect(added.pages[4].sourceFile).toBe(second);
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 5 90 degrees" }));
+    const rotated = await exportedState();
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    fireEvent.click(screen.getAllByTestId("editor-file-remove")[0]);
+    await idle();
+    fireEvent.click(screen.getByTestId("editor-files-close-button"));
+    expect(getPages()).toHaveLength(6);
+    await step("undo");
+    const restored = await exportedState();
+    expect(restored).toEqual(rotated);
+    restored.pages.forEach((page: Record<string, unknown>, index: number) => {
+      expect(page.sourceFile).toBe(rotated.pages[index].sourceFile);
+    });
+    await step("undo");
+    expect(await exportedState()).toEqual(added);
+    await step("undo");
+    expect(await exportedState()).toEqual(copied);
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(second);
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(generated);
+    await step("redo");
+    expect(await exportedState()).toEqual(added);
+    expect(pdfServiceMocks.loadPDF.mock.calls.at(-1)?.[0]).toBe(generated);
+    expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalledTimes(1);
+    await step("undo");
+    fireEvent.click(screen.getByRole("button", { name: "Mark page 1 for deletion" }));
+    expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
+    await step("undo");
+    await step("undo");
+    expect(getPages()).toHaveLength(3);
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("rolls back a second missing-source failure and holds busy through cleanup without moving either stack", async () => {
+    const existing = makeFile("baseline.pdf");
+    const firstMissing = makeFile("one.pdf");
+    const secondMissing = makeFile("two.pdf");
+    await openPDF(existing);
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 1 90 degrees" }));
+    const prior = await exportedState();
+    selectFiles("add", [firstMissing, secondMissing]);
+    await waitFor(() => expect(getPages()).toHaveLength(9));
+    await step("undo");
+    pdfServiceMocks.releaseFile.mockClear();
+    const cleanup = Deferred.makeUnsafe<void>();
+    pdfServiceMocks.releaseFile.mockReturnValueOnce(Deferred.await(cleanup));
+    pdfServiceMocks.loadPDF
+      .mockReturnValueOnce(Effect.void)
+      .mockReturnValueOnce(Effect.fail(new Error("second source details")));
+    const undoLabel = screen.getByTestId("editor-undo-button").getAttribute("aria-label");
+    const redoLabel = screen.getByTestId("editor-redo-button").getAttribute("aria-label");
+    const accepted = new KeyboardEvent("keydown", {
+      key: "y",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    screen.getByTestId("editor-redo-button").dispatchEvent(accepted);
+    expect(accepted.defaultPrevented).toBe(true);
+    await waitFor(() => expectLastToast("Failed to load two.pdf: second source details"));
+    expect(getPages()).toHaveLength(3);
+    expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "true");
+    const repeated = new KeyboardEvent("keydown", {
+      key: "y",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.body.dispatchEvent(repeated);
+    expect(repeated.defaultPrevented).toBe(false);
+    fireEvent.click(screen.getByTestId("editor-undo-button"));
+    selectFiles("add", [makeFile("ignored.pdf")]);
+    expect(pdfServiceMocks.loadPDF).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: "ignored.pdf" })
+    );
+    expect(pdfServiceMocks.releaseFile.mock.calls.some(([file]) => file === existing)).toBe(false);
+    await Effect.runPromise(Deferred.succeed(cleanup, undefined));
+    await idle();
+    expect(pdfServiceMocks.releaseFile.mock.calls.map(([file]) => file)).toEqual([
+      firstMissing,
+      secondMissing,
+    ]);
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-label", undoLabel);
+    expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-label", redoLabel);
+    expect(await exportedState()).toEqual(prior);
+    await step("redo");
+    expect(getPages()).toHaveLength(9);
+    await step("undo");
+    expect(await exportedState()).toEqual(prior);
+  });
+
+  it("keeps last-source history and selection, re-prompts after release, and leaves canceled password retries unchanged", async () => {
+    const protectedFile = makeFile("protected.pdf");
+    await openPDF(protectedFile);
+    fireEvent.click(getPages()[1]);
+    fireEvent.click(screen.getByTestId("editor-document-view-button"));
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    await waitFor(() => expect(screen.getByTestId("editor-files-close-button")).toHaveFocus());
+    fireEvent.click(screen.getByTestId("editor-file-remove"));
+    await idle();
+    await waitFor(() => expect(screen.getByTestId("editor-undo-button")).toHaveFocus());
+    expect(screen.getByTestId("editor-root")).toHaveAttribute("data-phase", "edit");
+    expect(screen.getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
+    const documentButton = screen.getByTestId("editor-document-view-button");
+    documentButton.focus();
+    fireEvent.click(documentButton);
+    expect(documentButton).toHaveFocus();
+    expect(documentButton).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("editor-upload-input")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("editor-upload-dropzone"));
+    const pickerUndo = new KeyboardEvent("keydown", {
+      key: "z",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    documentButton.dispatchEvent(pickerUndo);
+    expect(pickerUndo.defaultPrevented).toBe(false);
+    fireEvent(screen.getByTestId("editor-upload-input"), new Event("cancel", { bubbles: true }));
+    pdfServiceMocks.loadPDF.mockReturnValueOnce(
+      Effect.fail(new PDFPasswordRequiredError(protectedFile))
+    );
+    await step("undo");
+    expect(screen.getByTestId("editor-upload-input")).toBeInTheDocument();
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute(
+      "aria-label",
+      "Undo source removal"
+    );
+    expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
+    pdfServiceMocks.loadPDF.mockReturnValueOnce(
+      Effect.fail(new PDFPasswordRequiredError(protectedFile))
+    );
+    promptForPassword.mockResolvedValueOnce("wrong").mockResolvedValueOnce(null);
+    pdfServiceMocks.loadPDFWithPassword.mockReturnValueOnce(
+      Effect.fail(new PDFPasswordRequiredError(protectedFile, "wrong-password"))
+    );
+    await step("undo");
+    expect(promptForPassword).toHaveBeenLastCalledWith(
+      "protected.pdf",
+      true,
+      expect.any(AbortSignal)
+    );
+    pdfServiceMocks.loadPDF.mockReturnValueOnce(
+      Effect.fail(new PDFPasswordRequiredError(protectedFile))
+    );
+    promptForPassword.mockResolvedValueOnce("correct");
+    await step("undo");
+    expect(getPages().map((tile) => tile.getAttribute("aria-pressed"))).toEqual([
+      "false",
+      "true",
+      "false",
+    ]);
+    fireEvent.click(documentButton);
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
+    await step("redo");
+    expect(screen.getByTestId("editor-pages-view-button")).toHaveAttribute("aria-pressed", "true");
+    selectFiles("upload", [makeFile("new.pdf")]);
+    await findPages();
+    await step("undo");
+    expect(screen.getByTestId("editor-upload-input")).toBeInTheDocument();
+    await step("undo");
+    expect(getPages()).toHaveLength(3);
+    expect(pdfServiceMocks.loadPDF.mock.calls.at(-1)?.[0]).toBe(protectedFile);
+  });
+
+  it("commits before releasing obsolete caches and reports cleanup failure without claiming rollback", async () => {
+    await openPDF();
+    const added = makeFile("added.pdf");
+    selectFiles("add", [added]);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    const cleanup = Deferred.makeUnsafe<void>();
+    pdfServiceMocks.releaseFile.mockImplementationOnce((file: File) =>
+      Effect.suspend(() => {
+        expect(file).toBe(added);
+        expect(getPages()).toHaveLength(3);
+        expect(screen.getByTestId("editor-redo-button")).toHaveAttribute(
+          "aria-label",
+          "Redo source addition"
+        );
+        return Deferred.await(cleanup);
+      })
+    );
+    fireEvent.click(screen.getByTestId("editor-undo-button"));
+    await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(added));
+    expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "true");
+    await Effect.runPromise(Deferred.succeed(cleanup, undefined));
+    await idle();
+    await step("redo");
+    pdfServiceMocks.releaseFile.mockReturnValueOnce(
+      Effect.fail(
+        new PDFProcessingError({
+          operation: "release-file",
+          file: added,
+          cause: new Error("cleanup detail"),
+          message: "cleanup detail",
+        })
+      )
+    );
+    await step("undo");
+    expectLastToast("Workspace restored, but could not release added.pdf: cleanup detail");
+    expect(getPages()).toHaveLength(3);
+    expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
+    await step("redo");
+    expect(getPages()).toHaveLength(6);
+  });
+
+  it("leaves focus on a surviving dialog control while removal cleanup completes", async () => {
+    await openPDF();
+    selectFiles("add", [makeFile("second.pdf")]);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    const cleanup = Deferred.makeUnsafe<void>();
+    pdfServiceMocks.releaseFile.mockReturnValueOnce(Deferred.await(cleanup));
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    const remove = screen.getAllByTestId("editor-file-remove")[0];
+    remove.focus();
+    fireEvent.click(remove);
+    await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalled());
+    const close = screen.getByTestId("editor-files-close-button");
+    close.focus();
+    await Effect.runPromise(Deferred.succeed(cleanup, undefined));
+    await idle();
+    await new Promise(requestAnimationFrame);
+    expect(close).toHaveFocus();
+  });
+
+  it("waits for an interrupted native load and rollback cleanup before disposing", async () => {
+    const view = render(() => <Editor />);
+    selectFiles("upload", [makeFile("baseline.pdf")]);
+    await findPages();
+    const added = makeFile("pending.pdf");
+    selectFiles("add", [added]);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    await step("undo");
+    pdfServiceMocks.releaseFile.mockClear();
+    const native = Deferred.makeUnsafe<void>();
+    const cleanup = Deferred.makeUnsafe<void>();
+    const started = vi.fn();
+    pdfServiceMocks.loadPDF.mockReturnValueOnce(
+      Effect.sync(started).pipe(Effect.andThen(Effect.uninterruptible(Deferred.await(native))))
+    );
+    pdfServiceMocks.releaseFile.mockReturnValueOnce(Deferred.await(cleanup));
+    fireEvent.click(screen.getByTestId("editor-redo-button"));
+    await waitFor(() => expect(started).toHaveBeenCalledOnce());
+    view.unmount();
+    expect(pdfServiceMocks.reset).not.toHaveBeenCalled();
+    expect(pdfServiceMocks.releaseFile).not.toHaveBeenCalled();
+    await Effect.runPromise(Deferred.succeed(native, undefined));
+    await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(added));
+    expect(pdfServiceMocks.reset).not.toHaveBeenCalled();
+    await Effect.runPromise(Deferred.succeed(cleanup, undefined));
+    await waitFor(() => expect(pdfServiceMocks.reset).toHaveBeenCalledOnce());
+  });
+
   it("undoes and redoes mixed organization with exact logical identity, selection, and File references", async () => {
     const file = makeFile();
     await openPDF(file);
@@ -325,7 +614,7 @@ describe("Editor", () => {
     expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("preserves history through failed and canceled imports and exports, then resets on committed source changes", async () => {
+  it("preserves history through failed and canceled imports and exports, records committed source changes", async () => {
     const first = makeFile("first.pdf");
     await openPDF(first);
     fireEvent.click(screen.getByRole("button", { name: "Rotate page 1 90 degrees" }));
@@ -366,21 +655,31 @@ describe("Editor", () => {
     selectFiles("add", [second]);
     await waitFor(() => expect(getPages()).toHaveLength(6));
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
-      "Page organization history reset."
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute(
+      "aria-label",
+      "Undo source addition"
     );
     fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
     fireEvent.click(screen.getByTestId("editor-files-button"));
     fireEvent.click(screen.getAllByTestId("editor-file-remove")[0]);
     await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(first));
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
+    );
     expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getAllByTestId("editor-file-remove")[0]);
     await waitFor(() => expect(screen.getByTestId("editor-upload-input")).toBeInTheDocument());
     expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(second);
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
+    );
     selectFiles("upload", [makeFile("fresh.pdf")]);
     await findPages();
-    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute(
+      "aria-label",
+      "Undo source addition"
+    );
   });
 
   it("keeps redo across boundary moves and canceled drags, clears it on new changes, and restores compression", async () => {
@@ -424,7 +723,7 @@ describe("Editor", () => {
     expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
     await Effect.runPromise(Deferred.succeed(pending, undefined));
     await waitFor(() => expect(getPages()).toHaveLength(6));
-    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "false");
   });
 
   it("keeps Document keyboard history usable when a focused copy or navigation action disappears", async () => {
@@ -824,6 +1123,9 @@ describe("Editor", () => {
       expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(selection);
       expect(getPages().map((tile) => tile.getAttribute("aria-pressed"))).toEqual(pressed);
       expect(pdfServiceMocks.releaseFile).toHaveBeenCalledExactlyOnceWith(removed);
+      await waitFor(() =>
+        expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
+      );
 
       fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
       await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
@@ -856,6 +1158,9 @@ describe("Editor", () => {
       expect.objectContaining({ name: "only.pdf" })
     );
 
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
+    );
     selectFile("upload", makeFile("fresh.pdf"));
     await findPages();
     expect(screen.getByTestId("editor-files-dialog")).not.toHaveAttribute("open");

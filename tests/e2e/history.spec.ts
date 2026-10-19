@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { degrees, PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { createServer, type ViteDevServer } from "vite";
+import { createJpegFile, createPngFile } from "../../src/services/__tests__/pdf-fixtures";
 import type { inspectPDF, inspectZIP } from "./fixtures/duplication";
 
 let server: ViteDevServer;
@@ -44,7 +45,7 @@ async function inspect(reader: Page, bytes: number[]) {
     return (await import(path)).inspectPDF(bytes);
   }, bytes);
 }
-async function source() {
+async function source(form = false) {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   for (const [index, width] of [200, 240].entries()) {
@@ -59,6 +60,11 @@ async function source() {
     });
     if (!index) {
       page.setRotation(degrees(90));
+      if (form) {
+        const field = pdf.getForm().createTextField("name");
+        field.setText("Current form baseline");
+        field.addToPage(page, { x: 15, y: 150, width: 170, height: 30, font });
+      }
     }
   }
   return { name: "source.pdf", mimeType: "application/pdf", buffer: Buffer.from(await pdf.save()) };
@@ -266,7 +272,7 @@ test("Document keeps keyboard focus when undo removes the active copy or disable
   await expect(filmstrip.getByRole("button", { name: "View page 2", exact: true })).toBeFocused();
 });
 
-test("text controls, open menus, dialogs and failed imports preserve history; source commits reset it", async ({
+test("text controls, open menus, dialogs and failed imports preserve history; source commits extend it", async ({
   page,
 }) => {
   await page.goto("/app");
@@ -316,19 +322,210 @@ test("text controls, open menus, dialogs and failed imports preserve history; so
     .setInputFiles({ ...(await source()), name: "second.pdf" });
   await expect(page.getByTestId("editor-page-tile")).toHaveCount(4);
   await expect(redo).toHaveAttribute("aria-disabled", "true");
-  await expect(page.getByTestId("editor-status-message")).toContainText(
-    "Page organization history reset."
-  );
+  await expect(undo).toHaveAttribute("aria-label", "Undo source addition");
   await page.getByRole("button", { name: "Duplicate page 1", exact: true }).click();
   await page.getByTestId("editor-files-button").click();
   await page.getByTestId("editor-file-remove").nth(0).click();
   await page.getByTestId("editor-files-close-button").click();
   await expect(page.getByTestId("editor-page-tile")).toHaveCount(2);
-  await expect(undo).toHaveAttribute("aria-disabled", "true");
+  await expect(undo).toHaveAttribute("aria-disabled", "false");
   await page.getByTestId("editor-files-button").click();
   await page.getByTestId("editor-file-remove").click();
   await expect(page.getByTestId("editor-upload-input")).toBeAttached();
+  await expect(page.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false");
   await page.getByTestId("editor-upload-input").setInputFiles(await source());
-  await expect(undo).toHaveAttribute("aria-disabled", "true");
+  await expect(undo).toHaveAttribute("aria-label", "Undo source addition");
   await expect(redo).toHaveAttribute("aria-disabled", "true");
+});
+
+const idle = (page: Page) =>
+  expect(page.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false");
+async function historyStep(page: Page, direction: "undo" | "redo") {
+  await page.getByTestId(`editor-${direction}-button`).click();
+  await idle(page);
+}
+async function imageInput(file: File) {
+  return { name: file.name, mimeType: file.type, buffer: Buffer.from(await file.arrayBuffer()) };
+}
+
+test("source and page history restores real mixed PDF, PNG and EXIF JPEG output including copied forms", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(90_000);
+  await page.goto("/app");
+  await page.getByTestId("editor-upload-input").setInputFiles(await source(true));
+  const tiles = page.getByTestId("editor-page-tile");
+  const reader = await context.newPage();
+  await reader.goto(`${url}duplicate-test`);
+  const pdf = async () =>
+    inspect(reader, await download(page, () => page.getByTestId("editor-download-button").click()));
+  const png = async () => {
+    await page.getByTestId("editor-download-options-button").click();
+    const bytes = await download(page, () =>
+      page.getByTestId("editor-export-images-button").click()
+    );
+    return reader.evaluate(async (bytes): Promise<Awaited<ReturnType<typeof inspectZIP>>> => {
+      const path = "/tests/e2e/fixtures/duplication.ts";
+      return (await import(path)).inspectZIP(bytes);
+    }, bytes);
+  };
+  const original = await pdf();
+  await page
+    .getByTestId("editor-add-pdf-input")
+    .setInputFiles([
+      await source(),
+      await imageInput(createPngFile()),
+      await imageInput(createJpegFile("portrait.jpg", true)),
+    ]);
+  await expect(tiles).toHaveCount(6);
+  const added = await pdf();
+  expect(added.pages.slice(0, 2)).toEqual(original.pages);
+  expect(added.pages.slice(4).map((p) => p.libSize)).toEqual([
+    { width: 841.89, height: 595.28 },
+    { width: 841.89, height: 595.28 },
+  ]);
+  await page.getByRole("button", { name: "Duplicate page 5", exact: true }).click();
+  await page.getByRole("button", { name: "Rotate page 6 90 degrees", exact: true }).click();
+  await tiles.nth(5).focus();
+  await page.keyboard.press("Alt+ArrowLeft");
+  await page.getByTestId("editor-edit-menu-button").click();
+  await page.getByRole("menuitem", { name: "Clear page selection", exact: true }).click();
+  await page.getByRole("button", { name: "Mark page 1 for deletion", exact: true }).click();
+  const changed = await pdf();
+  const changedPNG = await png();
+  expect(changedPNG.map((p) => [p.hash, p.size, p.ink])).toEqual(
+    changed.pages.map((p) => [p.hash, p.size, p.ink])
+  );
+  await page.getByTestId("editor-files-button").click();
+  await page.getByTestId("editor-file-remove").nth(2).click();
+  await idle(page);
+  await page.getByTestId("editor-files-close-button").click();
+  await expect(tiles).toHaveCount(4);
+  await historyStep(page, "undo");
+  await expect(tiles).toHaveCount(7);
+  expect(await pdf()).toEqual(changed);
+  expect(await png()).toEqual(changedPNG);
+  // Undo marking, reordering, rotation, duplication, then the whole mixed import.
+  for (let step = 0; step < 5; step++) await historyStep(page, "undo");
+  await expect(tiles).toHaveCount(2);
+  expect(await pdf()).toEqual(original);
+  await page.getByTestId("editor-download-options-button").click();
+  await expect(page.getByTestId("editor-compress-button")).toHaveAttribute(
+    "aria-disabled",
+    "false"
+  );
+  await page.keyboard.press("Escape");
+  await historyStep(page, "redo");
+  expect(await pdf()).toEqual(added);
+  for (let step = 0; step < 4; step++) await historyStep(page, "redo");
+  expect(await pdf()).toEqual(changed);
+  expect(await png()).toEqual(changedPNG);
+});
+
+for (const viewport of [
+  { width: 1280, height: 800 },
+  { width: 320, height: 568 },
+  { width: 390, height: 844 },
+  { width: 568, height: 320 },
+  { width: 667, height: 320 },
+]) {
+  test(`empty session retains visible focus and source undo at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.goto("/app");
+    await page.getByTestId("editor-upload-input").setInputFiles(await source());
+    await page.getByTestId("editor-document-view-button").click();
+    await page.getByTestId("editor-files-button").click();
+    await page.getByTestId("editor-file-remove").click();
+    await idle(page);
+    const undo = page.getByTestId("editor-undo-button");
+    const redo = page.getByTestId("editor-redo-button");
+    await expect(undo).toBeFocused();
+    await expect(page.getByTestId("editor-pages-view-button")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    const documentButton = page.getByTestId("editor-document-view-button");
+    await expect(documentButton).toHaveAttribute("aria-disabled", "true");
+    await documentButton.focus();
+    await page.keyboard.press("Enter");
+    await expect(documentButton).toBeFocused();
+    const uploader = page.getByTestId("editor-upload-dropzone");
+    await uploader.scrollIntoViewIfNeeded();
+    for (const control of [undo, redo, uploader]) {
+      await expect(control).toBeVisible();
+      const box = await control.boundingBox();
+      if (!box) throw new Error("Missing empty workspace control");
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true
+    );
+    await historyStep(page, "undo");
+    await expect(page.getByTestId("editor-page-tile")).toHaveCount(2);
+    await expect(undo).toBeFocused();
+    await historyStep(page, "redo");
+    await page
+      .getByTestId("editor-upload-input")
+      .setInputFiles({ ...(await source()), name: "new.pdf" });
+    await expect(page.getByTestId("editor-page-tile")).toHaveCount(2);
+    await historyStep(page, "undo");
+    await expect(uploader).toBeVisible();
+    await historyStep(page, "undo");
+    await expect(page.getByTestId("editor-page-tile")).toHaveCount(2);
+    await expect(redo).toHaveAttribute("aria-disabled", "false");
+  });
+}
+
+test("restoring an encrypted source re-prompts, cancels transactionally, and supports export after password retry", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(60_000);
+  await page.goto("/app");
+  const encrypted = Buffer.from(
+    await readFile("tools/qpdf-wasm/fixtures/encrypted-40-bit-r3.b64", "utf8"),
+    "base64"
+  );
+  await page
+    .getByTestId("editor-upload-input")
+    .setInputFiles({ name: "protected.pdf", mimeType: "application/pdf", buffer: encrypted });
+  const password = page.getByLabel("PDF password", { exact: true });
+  await password.fill("623");
+  await page.getByRole("button", { name: "Unlock", exact: true }).click();
+  await idle(page);
+  const reader = await context.newPage();
+  await reader.goto(`${url}duplicate-test`);
+  const pdf = async () =>
+    inspect(reader, await download(page, () => page.getByTestId("editor-download-button").click()));
+  const original = await pdf();
+  await page.getByTestId("editor-files-button").click();
+  await page.getByTestId("editor-file-remove").click();
+  await idle(page);
+  await page.getByTestId("editor-undo-button").click();
+  await expect(password).toBeFocused();
+  await page.keyboard.press("Escape");
+  await idle(page);
+  await expect(page.getByTestId("editor-upload-input")).toBeAttached();
+  await expect(page.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
+  await page.getByTestId("editor-undo-button").click();
+  await password.fill("wrong");
+  await page.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(page.getByText("Incorrect password. Try again.")).toBeVisible();
+  await password.fill("623");
+  await page.getByRole("button", { name: "Unlock", exact: true }).click();
+  await idle(page);
+  expect(await pdf()).toEqual(original);
+  await historyStep(page, "redo");
+  await page.getByTestId("editor-undo-button").click();
+  await expect(password).toBeFocused();
+  await password.fill("623");
+  await page.getByRole("button", { name: "Unlock", exact: true }).click();
+  await idle(page);
+  expect(await pdf()).toEqual(original);
 });

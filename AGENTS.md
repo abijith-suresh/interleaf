@@ -22,8 +22,9 @@ The active product supports:
 - duplicating a page in the workspace, with independent rotation, deletion marking, and ordering
 - rotating pages in 90-degree steps, individually or by selection
 - marking pages for deletion before export
-- undoing and redoing the last 32 page-organization changes in the current session: rotation, deletion marking or restoration, reordering, and duplication
-- resetting page-organization history when source files are added or removed
+- undoing and redoing up to 32 changes in the current session: rotation, deletion marking or restoration, reordering, duplication, and source additions or removals after the first successful open
+- retaining source history within a 48 MiB limit on unique inactive files, while keeping the newest change if it alone exceeds that limit
+- keeping undo and redo available when the last source is removed
 - unlocking password-protected PDFs with an in-browser prompt
 - locally rendered page thumbnails for inspection before export
 - organizing and reading in persistent Pages and Document views within one workspace
