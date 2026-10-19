@@ -1,7 +1,13 @@
 import { Effect, Exit, Fiber } from "effect";
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { createStore, produce } from "solid-js/store";
+import { batch, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createStore, produce, reconcile } from "solid-js/store";
 import { ROTATION_STEP, TOAST_DISMISS_TIMEOUT_MS } from "../../constants";
+import {
+  copyOrganizationPages,
+  emptyOrganizationHistory,
+  recordOrganization,
+  snapshotOrganization,
+} from "../../controllers/editor-history";
 import { planUploadGroups } from "../../controllers/editor-import";
 import {
   areAllPagesSelected,
@@ -23,6 +29,7 @@ import { getSupportedFileKind } from "../../utils/file-types";
 import { promptForPassword } from "../../utils/password-prompt";
 import { showToast as dispatchToast, TOAST_EVENT_NAME, type ToastDetail } from "../../utils/toast";
 import EditorFilesDialog from "./EditorFilesDialog";
+import EditorHistoryControls from "./EditorHistoryControls";
 import EditorPageGrid from "./EditorPageGrid";
 import EditorPageViewer from "./EditorPageViewer";
 import EditorSelectionBar from "./EditorSelectionBar";
@@ -86,6 +93,8 @@ export default function Editor() {
   const [selectedIndices, setSelectedIndices] = createSignal<Set<number>>(new Set<number>());
   const [dragSourceIndex, setDragSourceIndex] = createSignal<number | null>(null);
   const [dragOverTarget, setDragOverTarget] = createSignal<DragOverTarget | null>(null);
+  const [history, setHistory] = createSignal(emptyOrganizationHistory());
+  const [filePickerOpen, setFilePickerOpen] = createSignal(false);
   const [filesOpen, setFilesOpen] = createSignal(false);
   const [workspaceView, setWorkspaceView] = createSignal<"pages" | "document">("pages");
   const [activePageId, setActivePageId] = createSignal<string | null>(null);
@@ -112,6 +121,130 @@ export default function Editor() {
   const allPagesSelected = () => areAllPagesSelected(pages.length, selectedIndices());
   const selectedDeletionAction = () => getDeletionAction(pages, selectedIndices());
   const deletionCopy = () => deletionActionCopy[selectedDeletionAction()];
+
+  const historyUnavailable = () =>
+    isBusy() || dragSourceIndex() !== null || filesOpen() || filePickerOpen();
+
+  function organizationSnapshot() {
+    return snapshotOrganization(pages, selectedIndices(), activePageId());
+  }
+
+  function organize(label: string, mutation: () => void) {
+    const before = organizationSnapshot();
+    batch(() => {
+      mutation();
+      setHistory((current) => recordOrganization(current, label, before, organizationSnapshot()));
+    });
+  }
+
+  function resetOrganizationHistory(): string {
+    const hadHistory = history().undo.length > 0 || history().redo.length > 0;
+    setHistory(emptyOrganizationHistory());
+    return hadHistory ? " Page organization history reset." : "";
+  }
+
+  function restoreOrganization(direction: "undo" | "redo"): boolean {
+    if (disposed || phase() !== "edit" || historyUnavailable()) return false;
+    const current = history();
+    const entry = current[direction].at(-1);
+    if (!entry) return false;
+    const snapshot = direction === "undo" ? entry.before : entry.after;
+    const focused = document.activeElement;
+    const focusedInWorkspace = focused instanceof HTMLElement && editorRoot.contains(focused);
+    const focusedView = workspaceView();
+    const focusedInViewer = focused instanceof HTMLElement && !!focused.closest("#editor-document");
+    const focusedRow =
+      focused instanceof HTMLElement
+        ? focused.closest<HTMLElement>(".editor-page-grid > li[data-page-index]")
+        : null;
+    const focusedIndex = focusedRow ? Number(focusedRow.dataset.pageIndex) : -1;
+    const focusedId = pages[focusedIndex]?.id;
+    batch(() => {
+      setPages(reconcile(copyOrganizationPages(snapshot.pages), { key: "id" }));
+      const selectedIds = new Set(snapshot.selectedIds);
+      setSelectedIndices(
+        new Set(pages.flatMap((page, index) => (selectedIds.has(page.id) ? [index] : [])))
+      );
+      const reviewIds = pages
+        .filter((page) => selectedIds.size === 0 || selectedIds.has(page.id))
+        .map((page) => page.id);
+      setActivePageId(
+        reviewIds.includes(snapshot.activePageId ?? "")
+          ? snapshot.activePageId
+          : (reviewIds[0] ?? null)
+      );
+      setHistory(
+        direction === "undo"
+          ? { undo: current.undo.slice(0, -1), redo: [...current.redo, entry] }
+          : { undo: [...current.undo, entry], redo: current.redo.slice(0, -1) }
+      );
+      setStatusMessage(`${direction === "undo" ? "Undid" : "Redid"} ${entry.label}.`);
+    });
+    // Reordering can blur a moved tile; undoing a copy can remove it entirely.
+    // Restore only focus that belonged to that page, never an unrelated control.
+    if (focusedInWorkspace && focused instanceof HTMLElement)
+      queueMicrotask(() => {
+        if (disposed || workspaceView() !== focusedView || !editorRoot.isConnected) return;
+        if (document.activeElement !== document.body && document.activeElement !== focused) return;
+        if (!focusedRow) {
+          if (focused.isConnected && !focused.matches(":disabled")) return;
+          const fallback = focusedInViewer
+            ? '.editor-review-filmstrip-item[aria-current="page"]'
+            : `[data-testid="editor-${direction}-button"]`;
+          editorRoot.querySelector<HTMLButtonElement>(fallback)?.focus();
+          return;
+        }
+        if (focused.isConnected) {
+          focused.focus();
+          return;
+        }
+        const logicalIndex = pages.findIndex((page) => page.id === focusedId);
+        const activeIndex = pages.findIndex((page) => page.id === activePageId());
+        const index =
+          logicalIndex >= 0
+            ? logicalIndex
+            : activeIndex >= 0
+              ? activeIndex
+              : Math.min(focusedIndex, pages.length - 1);
+        editorRoot
+          .querySelector<HTMLButtonElement>(
+            `[data-testid="editor-page-tile"][data-page-index="${index}"]`
+          )
+          ?.focus();
+      });
+    return true;
+  }
+
+  function handleHistoryKeyDown(event: KeyboardEvent) {
+    if (
+      event.defaultPrevented ||
+      event.isComposing ||
+      event.altKey ||
+      !(event.ctrlKey || event.metaKey)
+    )
+      return;
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !editorRoot.contains(target)) return;
+    if (
+      target.isContentEditable ||
+      target.closest(
+        'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="menu"], [role="dialog"], dialog'
+      )
+    )
+      return;
+    if (document.querySelector('dialog[open], [role="dialog"][aria-modal="true"], [role="menu"]'))
+      return;
+    const key = event.key.toLowerCase();
+    const direction =
+      key === "z"
+        ? event.shiftKey
+          ? "redo"
+          : "undo"
+        : key === "y" && event.ctrlKey && !event.metaKey && !event.shiftKey
+          ? "redo"
+          : null;
+    if (direction && restoreOrganization(direction)) event.preventDefault();
+  }
 
   function getUnmodifiedSourceFile(): File | null {
     if (pages.length === 0 || selectedIndices().size > 0) return null;
@@ -195,9 +328,11 @@ export default function Editor() {
         editorRoot.querySelector<HTMLButtonElement>(`[data-view="${workspaceView()}"]`)?.focus();
       }
     };
+    document.addEventListener("keydown", handleHistoryKeyDown);
     document.addEventListener("focusin", rememberFocus);
     window.addEventListener("resize", retainVisibleFocus);
     onCleanup(() => {
+      document.removeEventListener("keydown", handleHistoryKeyDown);
       document.removeEventListener("focusin", rememberFocus);
       window.removeEventListener("resize", retainVisibleFocus);
     });
@@ -205,6 +340,7 @@ export default function Editor() {
 
   onCleanup(() => {
     disposed = true;
+    setHistory(emptyOrganizationHistory());
     if (typeof document !== "undefined") {
       document.removeEventListener(TOAST_EVENT_NAME, handleToast);
     }
@@ -284,7 +420,8 @@ export default function Editor() {
     );
   }
 
-  function commitWorkspaceFiles(files: LoadedWorkspaceFile[], replace: boolean): void {
+  function commitWorkspaceFiles(files: LoadedWorkspaceFile[], replace: boolean): string {
+    const resetStatus = resetOrganizationHistory();
     const nextPages = files.flatMap(({ file, pageCount }) => createPageStates(file, pageCount));
     if (replace) {
       setPages(nextPages);
@@ -292,7 +429,7 @@ export default function Editor() {
       setActivePageId(nextPages[0]?.id ?? null);
       setWorkspaceView("pages");
       setPhase("edit");
-      return;
+      return resetStatus;
     }
 
     setPages(
@@ -301,6 +438,7 @@ export default function Editor() {
       })
     );
     if (!activePageId()) setActivePageId(nextPages[0]?.id ?? null);
+    return resetStatus;
   }
 
   function describeLoadedFiles(mode: "upload" | "add", pdfCount: number, imageCount: number) {
@@ -394,8 +532,8 @@ export default function Editor() {
               loadedFiles.push({ file: pdfFile, pageCount });
             }
 
-            commitWorkspaceFiles(loadedFiles, mode === "upload");
-            setStatusMessage(describeLoadedFiles(mode, pdfCount, imageCount));
+            const resetStatus = commitWorkspaceFiles(loadedFiles, mode === "upload");
+            setStatusMessage(describeLoadedFiles(mode, pdfCount, imageCount) + resetStatus);
             return true;
           }).pipe(
             Effect.onExit((exit) =>
@@ -424,10 +562,12 @@ export default function Editor() {
   function requestAddFiles(): void {
     if (isBusy()) return;
     setFilesOpen(false);
+    setFilePickerOpen(true);
     addPdfInput.click();
   }
 
   function handleAddFilesInput(event: Event): void {
+    setFilePickerOpen(false);
     const input = event.currentTarget as HTMLInputElement;
     const files = Array.from(input.files ?? []);
     input.value = "";
@@ -495,6 +635,7 @@ export default function Editor() {
 
     const workspaceFile = workspaceFiles().find((candidate) => candidate.file === file);
     if (!workspaceFile) return;
+    const resetStatus = resetOrganizationHistory();
     const removedPageCount = workspaceFile.pageCount;
     const removedFileName = file.name;
 
@@ -518,9 +659,11 @@ export default function Editor() {
       setPhase("upload");
       setWorkspaceView("pages");
       setFilesOpen(false);
-      setStatusMessage(`Removed ${removedFileName}. The workspace is empty.`);
+      setStatusMessage(`Removed ${removedFileName}. The workspace is empty.${resetStatus}`);
     } else {
-      setStatusMessage(`Removed ${removedFileName} and ${formatPageCount(removedPageCount)}.`);
+      setStatusMessage(
+        `Removed ${removedFileName} and ${formatPageCount(removedPageCount)}.${resetStatus}`
+      );
     }
 
     try {
@@ -549,9 +692,11 @@ export default function Editor() {
     const page = pages[index];
     if (!page) return;
     const copy = duplicatePageState(page);
-    setPages(produce((draft) => draft.splice(index + 1, 0, copy)));
-    setSelectedIndices(new Set([index + 1]));
-    setActivePageId(copy.id);
+    organize("page duplication", () => {
+      setPages(produce((draft) => draft.splice(index + 1, 0, copy)));
+      setSelectedIndices(new Set([index + 1]));
+      setActivePageId(copy.id);
+    });
     setStatusMessage(`Duplicated page ${index + 1}. Page ${index + 2} selected.`);
     queueMicrotask(() =>
       editorRoot
@@ -564,8 +709,8 @@ export default function Editor() {
 
   function handlePageRotate(index: number, e: MouseEvent): void {
     e.stopPropagation();
-    if (isBusy()) return;
-    setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360);
+    if (isBusy() || !pages[index]) return;
+    organize("page rotation", () => setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360));
     setStatusMessage(`Rotated page ${index + 1}.`);
   }
 
@@ -573,8 +718,11 @@ export default function Editor() {
     e.stopPropagation();
     if (isBusy()) return;
 
-    const markedForDeletion = pages[index]?.markedForDeletion ?? false;
-    setPages(index, "markedForDeletion", !markedForDeletion);
+    if (!pages[index]) return;
+    const markedForDeletion = pages[index].markedForDeletion;
+    organize(markedForDeletion ? "page restoration" : "deletion marking", () =>
+      setPages(index, "markedForDeletion", !markedForDeletion)
+    );
     setStatusMessage(
       markedForDeletion ? `Restored page ${index + 1}.` : `Marked page ${index + 1} for deletion.`
     );
@@ -582,9 +730,11 @@ export default function Editor() {
 
   function handleRotateSelected(): void {
     if (isBusy() || selectedIndices().size === 0) return;
-    for (const index of selectedIndices()) {
-      setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360);
-    }
+    organize("selected page rotation", () => {
+      for (const index of selectedIndices()) {
+        setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360);
+      }
+    });
     setStatusMessage(
       `Rotated ${selectedIndices().size} selected page${selectedIndices().size === 1 ? "" : "s"}.`
     );
@@ -597,9 +747,11 @@ export default function Editor() {
     const action = selectedDeletionAction();
     const markForDeletion = action === "mark";
 
-    for (const index of selectedIndices()) {
-      setPages(index, "markedForDeletion", markForDeletion);
-    }
+    organize(markForDeletion ? "selected deletion marking" : "selected page restoration", () => {
+      for (const index of selectedIndices()) {
+        setPages(index, "markedForDeletion", markForDeletion);
+      }
+    });
     setStatusMessage(
       `${markForDeletion ? "Marked" : "Restored"} ${selectedIndices().size} selected page${
         selectedIndices().size === 1 ? "" : "s"
@@ -733,13 +885,17 @@ export default function Editor() {
   function movePage(from: number, to: number): void {
     if (from === to || from < 0 || to < 0 || from >= pages.length || to >= pages.length) return;
 
-    setPages(
-      produce((currentPages) => {
-        const [moved] = currentPages.splice(from, 1);
-        currentPages.splice(to, 0, moved);
-      })
-    );
-    setSelectedIndices((previousSelection) => remapSelectionAfterMove(previousSelection, from, to));
+    organize("page reorder", () => {
+      setPages(
+        produce((currentPages) => {
+          const [moved] = currentPages.splice(from, 1);
+          currentPages.splice(to, 0, moved);
+        })
+      );
+      setSelectedIndices((previousSelection) =>
+        remapSelectionAfterMove(previousSelection, from, to)
+      );
+    });
     setStatusMessage(`Moved page ${from + 1} to position ${to + 1}.`);
   }
 
@@ -1004,6 +1160,13 @@ export default function Editor() {
                   <span class="editor-files-button-label">Files</span>
                 </EditorButton>
               </div>
+              <EditorHistoryControls
+                undoLabel={history().undo.at(-1)?.label}
+                redoLabel={history().redo.at(-1)?.label}
+                unavailable={historyUnavailable()}
+                onUndo={() => restoreOrganization("undo")}
+                onRedo={() => restoreOrganization("redo")}
+              />
               <p class="editor-workspace-privacy">Your files never leave your device.</p>
               <a href={base} class="editor-back" aria-label="Return to Interleaf home">
                 <EditorIcon name="back" />
@@ -1026,6 +1189,7 @@ export default function Editor() {
                 class="hidden"
                 disabled={isBusy()}
                 onChange={handleAddFilesInput}
+                onCancel={() => setFilePickerOpen(false)}
               />
               <Show
                 when={workspaceView() === "pages"}
