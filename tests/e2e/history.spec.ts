@@ -9,7 +9,7 @@ let url: string;
 test.beforeAll(async () => {
   server = await createServer({
     configFile: false,
-    cacheDir: `node_modules/.vite-duplication/${test.info().project.name}`,
+    cacheDir: `node_modules/.vite-history/${test.info().project.name}`,
     plugins: [
       {
         name: "duplication-fixture",
@@ -44,7 +44,7 @@ async function inspect(reader: Page, bytes: number[]) {
     return (await import(path)).inspectPDF(bytes);
   }, bytes);
 }
-async function source(form = false) {
+async function source() {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   for (const [index, width] of [200, 240].entries()) {
@@ -59,11 +59,6 @@ async function source(form = false) {
     });
     if (!index) {
       page.setRotation(degrees(90));
-      if (form) {
-        const field = pdf.getForm().createTextField("name");
-        field.setText("Current form baseline");
-        field.addToPage(page, { x: 15, y: 150, width: 170, height: 30, font });
-      }
     }
   }
   return { name: "source.pdf", mimeType: "application/pdf", buffer: Buffer.from(await pdf.save()) };
