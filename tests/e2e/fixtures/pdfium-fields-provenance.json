@@ -1,0 +1,48 @@
+{
+  "purpose": "Test-only inherited field graph preservation blocker. Current production engines and UI remain unchanged.",
+  "runtimePackage": "@embedpdf/engine-runtime@3.0.0-next.15",
+  "wasmPackage": "@embedpdf/engine-runtime-wasm32@3.0.0-next.15",
+  "artifactProvenance": "pdfium-core-provenance.json",
+  "declaredForkCommit": "ed2f716e5381e34f096cc1e50e4259a55998d391",
+  "sourceEvidence": [
+    {
+      "url": "https://github.com/embedpdf/runtime/blob/ed2f716e5381e34f096cc1e50e4259a55998d391/core/fpdfapi/edit/cpdf_pageorganizer.cpp#L80-L110",
+      "finding": "UpdateReference skips Parent, Prev and First keys instead of remapping their referenced objects. Ordinary inherited widget field dictionaries are reached through Parent."
+    },
+    {
+      "url": "https://github.com/embedpdf/runtime/blob/ed2f716e5381e34f096cc1e50e4259a55998d391/fpdfsdk/epdf_form.cpp#L2582-L2708",
+      "finding": "AttachWidget requires an unattached non-merged widget, rejects unknown authoring families, sets Parent, appends Kids, resets toggle AS, and calls BakeWidgetAppearance. The bounded native model-adoption counterexample retains field metadata but changes original AP pixels."
+    },
+    {
+      "url": "https://github.com/embedpdf/runtime/blob/ed2f716e5381e34f096cc1e50e4259a55998d391/fpdfsdk/epdf_form.cpp#L2489-L2510",
+      "finding": "CreateField rejects a duplicate full field name. Main's page-copy export can retain distinct same-named fields from two sources."
+    },
+    {
+      "url": "https://github.com/embedpdf/runtime/blob/ed2f716e5381e34f096cc1e50e4259a55998d391/public/epdf_form.h#L211-L222",
+      "finding": "The supported value model marks non-scalar/non-array values, including signature dictionaries, UNSUPPORTED. This evidence does not promise signature validity or new filling support."
+    },
+    {
+      "url": "https://github.com/embedpdf/runtime/blob/ed2f716e5381e34f096cc1e50e4259a55998d391/fpdfsdk/epdf_capture.cpp#L532-L662",
+      "finding": "Raw field capture is layer-based, carries original field/widget/page object numbers and requires an import transaction. It is not a cross-document field graph copier. This constraint is source evidence, not a tested production workaround."
+    },
+    {
+      "url": "https://github.com/embedpdf/runtime/blob/ed2f716e5381e34f096cc1e50e4259a55998d391/public/epdf_flatten.h#L76-L98",
+      "finding": "Annotation export creates a flattened appearance document. It cannot preserve the inherited field graph."
+    },
+    {
+      "url": "https://github.com/embedpdf/runtime/blob/ed2f716e5381e34f096cc1e50e4259a55998d391/fpdfsdk/fpdf_annot.cpp#L1322-L1342",
+      "finding": "GetLinkedAnnot requires a linked dictionary with Type Annot. Ordinary non-widget parent fields do not meet that requirement. The model counterexample checks this fixture-specific failure."
+    }
+  ],
+  "limits": [
+    "Generated AP-backed text and radio widgets establish a concrete regression, not full PDF migration fidelity.",
+    "The baseline exercises current PDFOperationsService with its cached source documents and separate copyPages call per selected page. It retains inherited metadata and reciprocal parent/Kids membership, but copies a separate field graph per call; this is recorded, not upgraded into a new grouping promise.",
+    "Repeated import is a reference-identity diagnostic, not a duplication product feature.",
+    "All candidate outputs are saved and every native source/output handle is closed before bytes reach independent PDF.js reopening. Exact appearances and field/group metadata are asserted separately.",
+    "Model adoption is restricted to the generated two-field full-import case. It is a bounded counterexample, not a production repair implementation.",
+    "Source-to-artifact mapping is the declared input evidence established in #316, not a reproducible final-link attestation.",
+    "Complete bundled distribution notices, security-fix review, other fidelity, worker lifetime/cache and measured performance remain separate production prerequisites."
+  ],
+  "parityCommand": "PDFIUM_FIELDS_REQUIRE_PARITY=1 PLAYWRIGHT_PORT=4387 bun run test:e2e tests/e2e/pdfium-fields.spec.ts --project=chromium --workers=2",
+  "parityBehavior": "Intentionally fails inherited metadata equality for full/plain on the pinned successor. Default tests assert the exact known deficit plus successful main/direct-save controls; no tests are skipped or retried."
+}
