@@ -159,6 +159,358 @@ describe("Editor", () => {
     );
   });
 
+  it("undoes and redoes mixed organization with exact logical identity, selection, and File references", async () => {
+    const file = makeFile();
+    await openPDF(file);
+    const state = async () => {
+      const count = downloadPDF.mock.calls.length;
+      fireEvent.click(screen.getByTestId("editor-download-button"));
+      await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(count + 1));
+      const call = pdfOperationsMocks.buildPDF.mock.calls.at(-1);
+      if (!call) throw new Error("Missing export");
+      const [pages, options] = call;
+      return {
+        pages: pages.map((page: import("@/types/interfaces").PageState) => ({ ...page })),
+        selected: options.selectedIndices,
+      };
+    };
+    const original = await state();
+    fireEvent.click(getPages()[1]);
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 2 90 degrees" }));
+    fireEvent.click(getPages()[0]);
+    await openEditMenu();
+    fireEvent.click(screen.getByTestId("editor-rotate-button"));
+    await openEditMenu();
+    fireEvent.click(screen.getByTestId("editor-delete-button"));
+    await openEditMenu();
+    fireEvent.click(screen.getByTestId("editor-delete-button"));
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 2" }));
+    await waitFor(() => expect(getPages()[2]).toHaveFocus());
+    fireEvent.keyDown(getPages()[2], { key: "ArrowRight", altKey: true });
+    const changed = await state();
+    expect(changed.pages.map((page: { rotation: number }) => page.rotation)).toEqual([
+      90, 180, 0, 180,
+    ]);
+    expect(changed.selected).toEqual([3]);
+    expect(changed.pages[3].id).not.toBe(original.pages[1].id);
+    fireEvent.click(screen.getByTestId("editor-document-view-button"));
+    for (let step = 0; step < 6; step++) fireEvent.click(screen.getByTestId("editor-undo-button"));
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
+    expect(screen.getByTestId("editor-selection-title")).toHaveTextContent("1 selected");
+    expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
+    const restored = await state();
+    expect(restored.pages).toEqual(original.pages);
+    expect(restored.pages.every((page: { sourceFile: File }) => page.sourceFile === file)).toBe(
+      true
+    );
+    expect(restored.selected).toEqual([1]);
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
+    for (let step = 0; step < 6; step++) fireEvent.click(screen.getByTestId("editor-redo-button"));
+    expect(await state()).toEqual(changed);
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 4");
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledExactlyOnceWith(file);
+  });
+
+  it("handles history from the workspace background without taking focus from it", async () => {
+    await openPDF();
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 1 90 degrees" }));
+    (document.activeElement as HTMLElement).blur();
+    const undo = new KeyboardEvent("keydown", {
+      key: "z",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.body.dispatchEvent(undo);
+    expect(undo.defaultPrevented).toBe(true);
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
+    expect(document.body).toHaveFocus();
+    fireEvent.keyDown(document.body, { key: "y", ctrlKey: true });
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "false");
+  });
+
+  it("retains focus when undo removes a copy and when the history button becomes unavailable", async () => {
+    await openPDF();
+    getPages()[0].focus();
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expect(getPages()[1]).toHaveFocus());
+    const undoEvent = new KeyboardEvent("keydown", {
+      key: "z",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    getPages()[1].dispatchEvent(undoEvent);
+    expect(undoEvent.defaultPrevented).toBe(true);
+    await waitFor(() => expect(getPages()[0]).toHaveFocus());
+    expect(getPages()).toHaveLength(3);
+    fireEvent.keyDown(getPages()[0], { key: "Z", metaKey: true, shiftKey: true });
+    expect(getPages()).toHaveLength(4);
+    const undo = screen.getByTestId("editor-undo-button");
+    undo.focus();
+    fireEvent.click(undo);
+    expect(undo).toHaveFocus();
+    expect(undo).toHaveAttribute("aria-disabled", "true");
+    const noUndo = new KeyboardEvent("keydown", {
+      key: "z",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    undo.dispatchEvent(noUndo);
+    expect(noUndo.defaultPrevented).toBe(false);
+    fireEvent.keyDown(undo, { key: "y", ctrlKey: true });
+    expect(getPages()).toHaveLength(4);
+    expect(undo).toHaveFocus();
+  });
+
+  it("does not claim shortcuts owned by text controls, composition, menus, dialogs, a file picker or drag", async () => {
+    await openPDF();
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 1 90 degrees" }));
+    const root = screen.getByTestId("editor-root");
+    const ignored = (target: HTMLElement, extra = {}) => {
+      const event = new KeyboardEvent("keydown", {
+        key: "z",
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+        ...extra,
+      });
+      target.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+      expect(screen.getByTestId("editor-undo-button")).toHaveAttribute(
+        "aria-label",
+        "Undo page rotation"
+      );
+    };
+    for (const tag of ["input", "textarea", "select", "div"]) {
+      const input = document.createElement(tag);
+      if (tag === "div") input.setAttribute("contenteditable", "true");
+      root.append(input);
+      ignored(input);
+      input.remove();
+    }
+    ignored(getPages()[0], { isComposing: true });
+    ignored(getPages()[0], { altKey: true });
+    await openEditMenu();
+    ignored(screen.getByTestId("editor-select-all-button"));
+    fireEvent.keyDown(screen.getByTestId("editor-select-all-button"), { key: "Escape" });
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    ignored(screen.getByTestId("editor-files-close-button"));
+    fireEvent.click(screen.getByTestId("editor-files-close-button"));
+    const row = getPages()[0].closest("li");
+    if (!row) throw new Error("Missing page row");
+    fireEvent.dragStart(row);
+    const dragEvent = new KeyboardEvent("keydown", {
+      key: "z",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    getPages()[0].dispatchEvent(dragEvent);
+    expect(dragEvent.defaultPrevented).toBe(false);
+    fireEvent.dragEnd(row);
+    fireEvent.click(screen.getByTestId("editor-add-pdf-button"));
+    const pickerEvent = new KeyboardEvent("keydown", {
+      key: "z",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    getPages()[0].dispatchEvent(pickerEvent);
+    expect(pickerEvent.defaultPrevented).toBe(false);
+    fireEvent(screen.getByTestId("editor-add-pdf-input"), new Event("cancel", { bubbles: true }));
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "false");
+    fireEvent.click(screen.getByTestId("editor-undo-button"));
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("preserves history through failed and canceled imports and exports, then resets on committed source changes", async () => {
+    const first = makeFile("first.pdf");
+    await openPDF(first);
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 1 90 degrees" }));
+    fireEvent.click(screen.getByTestId("editor-undo-button"));
+    const second = makeFile("second.pdf");
+    pdfServiceMocks.loadPDF.mockReturnValueOnce(Effect.fail(new PDFPasswordRequiredError(second)));
+    selectFiles("add", [second]);
+    await waitFor(() => expect(promptForPassword).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
+    );
+    expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
+    pdfOperationsMocks.imagesToPDF.mockReturnValueOnce(Effect.fail(new Error("conversion failed")));
+    selectFiles("add", [makeImageFile()]);
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
+    );
+    expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
+    pdfOperationsMocks.buildPDF.mockReturnValueOnce(Effect.fail(new Error("export failed")));
+    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await waitFor(() => expectLastToast("Failed to export the PDF."));
+    expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
+    const broken = makeFile("broken.pdf");
+    pdfServiceMocks.loadPDF
+      .mockReturnValueOnce(Effect.void)
+      .mockReturnValueOnce(Effect.fail(new Error("invalid PDF")));
+    selectFiles("add", [makeFile("staged.pdf"), broken]);
+    await waitFor(() =>
+      expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "staged.pdf" })
+      )
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
+    );
+    expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
+    expect(getPages()).toHaveLength(3);
+    selectFiles("add", [second]);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Page organization history reset."
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    fireEvent.click(screen.getAllByTestId("editor-file-remove")[0]);
+    await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(first));
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getAllByTestId("editor-file-remove")[0]);
+    await waitFor(() => expect(screen.getByTestId("editor-upload-input")).toBeInTheDocument());
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(second);
+    selectFiles("upload", [makeFile("fresh.pdf")]);
+    await findPages();
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("keeps redo across boundary moves and canceled drags, clears it on new changes, and restores compression", async () => {
+    await openPDF();
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 1 90 degrees" }));
+    fireEvent.click(screen.getByTestId("editor-undo-button"));
+    fireEvent.keyDown(getPages()[0], { altKey: true, key: "ArrowLeft" });
+    const row = getPages()[0].closest("li");
+    if (!row) throw new Error("Missing page row");
+    fireEvent.dragStart(row);
+    fireEvent.dragEnd(row);
+    expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
+    await openDownloadMenu();
+    expect(screen.getByTestId("editor-compress-button")).toHaveAttribute("aria-disabled", "false");
+    fireEvent.keyDown(screen.getByTestId("editor-compress-button"), { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Mark page 1 for deletion" }));
+    expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByTestId("editor-undo-button"));
+    expect(getPages()[0]).toHaveAttribute("data-marked-for-deletion", "false");
+    await openDownloadMenu();
+    expect(screen.getByTestId("editor-compress-button")).toHaveAttribute("aria-disabled", "false");
+  });
+
+  it("ignores history shortcuts during an active operation and resumes after it completes", async () => {
+    await openPDF();
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 1 90 degrees" }));
+    const pending = Deferred.makeUnsafe<void>();
+    pdfServiceMocks.loadPDF.mockReturnValueOnce(Deferred.await(pending));
+    selectFiles("add", [makeFile("busy.pdf")]);
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "true")
+    );
+    const event = new KeyboardEvent("keydown", {
+      key: "z",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    screen.getByTestId("editor-undo-button").dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
+    await Effect.runPromise(Deferred.succeed(pending, undefined));
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("keeps Document keyboard history usable when a focused copy or navigation action disappears", async () => {
+    await openPDF();
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    fireEvent.click(screen.getByTestId("editor-document-view-button"));
+    await waitFor(() => expect(screen.getByTestId("editor-document-view-button")).toHaveFocus());
+    const copy = screen.getByRole("button", { name: "View page 2" });
+    copy.focus();
+    fireEvent.keyDown(copy, { key: "z", ctrlKey: true });
+    await waitFor(() => expect(screen.getByRole("button", { name: "View page 1" })).toHaveFocus());
+    fireEvent.keyDown(document.activeElement ?? document.body, {
+      key: "Z",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
+    expect(screen.getByRole("button", { name: "View page 2" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    fireEvent.click(screen.getByTestId("editor-undo-button"));
+    const next = screen.getByTestId("editor-page-viewer-next");
+    next.focus();
+    fireEvent.keyDown(next, { key: "y", ctrlKey: true });
+    await waitFor(() => expect(screen.getByRole("button", { name: "View page 2" })).toHaveFocus());
+    expect(next).toBeDisabled();
+  });
+
+  it("keeps marked pages inspectable after history restores their selection in Document", async () => {
+    await openPDF();
+    fireEvent.click(getPages()[1]);
+    fireEvent.click(screen.getByRole("button", { name: "Mark page 2 for deletion" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restore page 2 from deletion" }));
+    fireEvent.click(screen.getByTestId("editor-document-view-button"));
+    fireEvent.click(screen.getByTestId("editor-undo-button"));
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
+    expect(screen.getByLabelText("Document preview")).toHaveTextContent("Marked for deletion");
+    expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(
+      "1 selected · 0 exportable"
+    );
+    expect(screen.getByTestId("editor-download-button")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("editor-redo-button"));
+    expect(screen.getByTestId("editor-download-button")).not.toBeDisabled();
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
+  });
+
+  it("does not steal focus from another control or restore queued focus after disposal", async () => {
+    const view = render(() => <Editor />);
+    selectFiles("upload", [makeFile()]);
+    await findPages();
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expect(getPages()[1]).toHaveFocus());
+    fireEvent.keyDown(getPages()[1], { key: "z", ctrlKey: true });
+    const download = screen.getByTestId("editor-download-button");
+    download.focus();
+    await Promise.resolve();
+    expect(download).toHaveFocus();
+    fireEvent.click(screen.getByTestId("editor-redo-button"));
+    getPages()[1].focus();
+    fireEvent.keyDown(getPages()[1], { key: "z", ctrlKey: true });
+    view.unmount();
+    await Promise.resolve();
+    expect(document.body).toHaveFocus();
+    await waitFor(() => expect(pdfServiceMocks.dispose).toHaveBeenCalledOnce());
+  });
+
+  it("evicts old steps and redoes the remaining bounded history without retaining mutable page aliases", async () => {
+    const file = makeFile();
+    await openPDF(file);
+    for (let i = 0; i < 35; i++)
+      fireEvent.click(screen.getByRole("button", { name: "Rotate page 1 90 degrees" }));
+    for (let i = 0; i < 32; i++) fireEvent.click(screen.getByTestId("editor-undo-button"));
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
+    expect(document.querySelector('[data-testid="editor-page-canvas"]')).toHaveStyle({
+      "--page-rotation": "270deg",
+    });
+    for (let i = 0; i < 32; i++) fireEvent.click(screen.getByTestId("editor-redo-button"));
+    expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
+    expect(document.querySelector('[data-testid="editor-page-canvas"]')).toHaveStyle({
+      "--page-rotation": "270deg",
+    });
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledExactlyOnceWith(file);
+    expect(pdfOperationsMocks.buildPDF).not.toHaveBeenCalled();
+  });
+
   it("renders the upload dropzone before any file is loaded", () => {
     render(() => <Editor />);
 

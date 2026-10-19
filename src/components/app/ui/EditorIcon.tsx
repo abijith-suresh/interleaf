@@ -9,15 +9,19 @@ import FileText from "lucide-solid/icons/file-text";
 import LayoutGrid from "lucide-solid/icons/layout-grid";
 import Minus from "lucide-solid/icons/minus";
 import Plus from "lucide-solid/icons/plus";
+import Redo2 from "lucide-solid/icons/redo-2";
 import RotateCcw from "lucide-solid/icons/rotate-ccw";
 import RotateCw from "lucide-solid/icons/rotate-cw";
 import SquarePen from "lucide-solid/icons/square-pen";
 import Trash from "lucide-solid/icons/trash";
+import Undo2 from "lucide-solid/icons/undo-2";
 import X from "lucide-solid/icons/x";
 import { Dynamic } from "solid-js/web";
 
 const editorIcons = {
   back: ArrowLeft,
+  undo: Undo2,
+  redo: Redo2,
   "chevron-down": ChevronDown,
   previous: ChevronLeft,
   next: ChevronRight,

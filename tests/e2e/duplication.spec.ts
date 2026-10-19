@@ -179,6 +179,8 @@ test("repeated form source pages keep the existing separate copyPages export bas
   await page.getByTestId("editor-upload-input").setInputFiles(input);
   await page.getByRole("button", { name: "Duplicate page 1", exact: true }).click();
   await page.getByRole("button", { name: "Duplicate page 2", exact: true }).click();
+  await page.getByTestId("editor-undo-button").click();
+  await page.getByTestId("editor-redo-button").click();
   await page.getByTestId("editor-page-tile").nth(0).click();
   await page.getByTestId("editor-page-tile").nth(1).click();
   const reader = await context.newPage();

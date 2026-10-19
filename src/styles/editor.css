@@ -384,6 +384,21 @@ body:has([data-page="editor"]) {
   font-variant-numeric: tabular-nums;
 }
 
+.editor-history-controls {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.editor-history-controls .editor-button {
+  min-width: 2.75rem;
+  justify-content: center;
+  padding: 0;
+}
+
 .editor-workspace-privacy {
   margin: auto 0 0;
   padding-inline: 0.75rem;
@@ -1410,6 +1425,7 @@ body:has([data-page="editor"]) {
   .editor-sidebar {
     width: auto;
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0;
     overflow: visible;
@@ -1430,6 +1446,13 @@ body:has([data-page="editor"]) {
   .editor-source-actions {
     flex-direction: row;
     gap: 0;
+  }
+
+  .editor-history-controls {
+    flex-basis: 100%;
+    order: 1;
+    justify-content: flex-end;
+    border-top: 1px solid var(--editor-line);
   }
 
   .editor-view-nav {
@@ -1607,12 +1630,20 @@ body:has([data-page="editor"]) {
   .editor-sidebar {
     width: 8.5rem;
     flex-direction: column;
+    flex-wrap: nowrap;
     align-items: stretch;
-    gap: 0.25rem;
+    gap: 0.125rem;
     overflow-y: auto;
     padding: env(safe-area-inset-top) 0.5rem env(safe-area-inset-bottom);
     border-right: 1px solid var(--editor-line);
     border-bottom: 0;
+  }
+
+  .editor-history-controls {
+    flex-basis: auto;
+    order: 0;
+    justify-content: flex-start;
+    border-top: 0;
   }
 
   .editor-sidebar .editor-brand {
