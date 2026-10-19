@@ -17,6 +17,50 @@ const image = {
   ),
 };
 
+for (const width of [1280, 390]) {
+  test(`keyboard reorder retains logical page focus at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/app");
+    await page.getByTestId("editor-upload-input").setInputFiles(await report());
+    const tiles = page.getByTestId("editor-page-tile");
+    await tiles.nth(2).focus();
+    for (const [key, index] of [
+      ["ArrowLeft", 1],
+      ["ArrowLeft", 0],
+      ["ArrowLeft", 0],
+      ["ArrowRight", 1],
+      ["ArrowRight", 2],
+      ["ArrowRight", 2],
+      ["ArrowLeft", 1],
+    ] as const) {
+      await page.keyboard.press(`Alt+${key}`);
+      await expect(tiles.nth(index)).toBeFocused();
+      await expect(tiles.nth(index)).toHaveAttribute("data-source-page", "3");
+      await expect(tiles.nth(index)).toHaveAttribute("aria-pressed", "false");
+    }
+    await page.keyboard.press("Space");
+    await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "Duplicate page 2", exact: true }).click();
+    await expect(tiles.nth(2)).toBeFocused();
+    await page.keyboard.press("Alt+ArrowLeft");
+    await expect(tiles.nth(1)).toBeFocused();
+    await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "true");
+    await expect(tiles.nth(2)).toHaveAttribute("aria-pressed", "false");
+    await page.keyboard.press("Alt+ArrowRight");
+    await expect(tiles.nth(2)).toBeFocused();
+    await expect(tiles.nth(2)).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("editor-document-view-button").click();
+    await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 3");
+    const download = page.waitForEvent("download");
+    await page.getByTestId("editor-download-button").click();
+    const path = await (await download).path();
+    if (!path) throw new Error("PDF download failed");
+    const exported = await PDFDocument.load(await readFile(path));
+    expect(exported.getPageCount()).toBe(1);
+    expect(exported.getPage(0).getWidth()).toBe(440);
+  });
+}
+
 for (const viewport of [
   { width: 1280, height: 800 },
   { width: 390, height: 844 },
@@ -147,6 +191,7 @@ for (const viewport of [
     await tiles.first().click();
     await page.keyboard.press("Alt+ArrowRight");
     await expect(tiles.nth(1)).toHaveAttribute("data-source-page", "1");
+    await expect(tiles.nth(1)).toBeFocused();
     await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "true");
     await edit.click();
     await page.getByTestId("editor-rotate-button").click();
