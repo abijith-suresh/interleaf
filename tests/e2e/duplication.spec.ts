@@ -137,7 +137,7 @@ test("copies retain independent organization, real PDF/PNG content and source re
   await tiles.nth(2).focus();
   await page.keyboard.press("Alt+ArrowRight");
   await expect(tiles.nth(3)).toHaveAttribute("aria-pressed", "true");
-  await tiles.nth(3).focus();
+  await expect(tiles.nth(3)).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("editor-selection-title")).toHaveText("All 3 exportable");
   await page.getByTestId("editor-download-options-button").click();

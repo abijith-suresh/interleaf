@@ -790,21 +790,136 @@ describe("Editor", () => {
     });
   });
 
-  it("reorders a page with the keyboard alternative", async () => {
+  it("keeps the same unselected page focused through repeated, reverse and boundary keyboard moves", async () => {
     const tiles = await openPDF();
-
-    fireEvent.keyDown(tiles[2], { altKey: true, key: "ArrowLeft" });
-
+    const moved = tiles[2];
+    moved.focus();
+    for (const [key, index] of [
+      ["ArrowLeft", 1],
+      ["ArrowLeft", 0],
+      ["ArrowLeft", 0],
+      ["ArrowRight", 1],
+      ["ArrowRight", 2],
+      ["ArrowRight", 2],
+      ["ArrowLeft", 1],
+    ] as const) {
+      fireEvent.keyDown(document.activeElement as HTMLElement, { altKey: true, key });
+      await waitFor(() => expect(getPages()[index]).toHaveFocus());
+      expect(getPages()[index]).toBe(moved);
+      expect(moved).toHaveAttribute("data-source-page", "3");
+      expect(moved).toHaveAttribute("aria-pressed", "false");
+    }
     expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
       "Moved page 3 to position 2."
     );
-    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
-    await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
-    expect(
-      pdfOperationsMocks.buildPDF.mock.calls[0][0].map(
-        (page: { sourcePageNumber: number }) => page.sourcePageNumber
-      )
-    ).toEqual([1, 3, 2]);
+    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const [pages, options] = pdfOperationsMocks.buildPDF.mock.calls[0];
+    expect(pages.map((page: { sourcePageNumber: number }) => page.sourcePageNumber)).toEqual([
+      1, 3, 2,
+    ]);
+    expect(options.selectedIndices).toBeUndefined();
+  });
+
+  it("keeps a selected copy's focus, active ID and export identity separate from its source", async () => {
+    const file = makeFile();
+    await openPDF(file);
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    const copy = getPages()[1];
+    const original = getPages()[0];
+    await waitFor(() => expect(copy).toHaveFocus());
+    for (const [key, index] of [
+      ["ArrowLeft", 0],
+      ["ArrowRight", 1],
+      ["ArrowRight", 2],
+      ["ArrowLeft", 1],
+    ] as const) {
+      fireEvent.keyDown(document.activeElement as HTMLElement, { altKey: true, key });
+      await waitFor(() => expect(getPages()[index]).toHaveFocus());
+      expect(getPages()[index]).toBe(copy);
+      expect(copy).toHaveAttribute("aria-pressed", "true");
+      expect(original).toHaveAttribute("aria-pressed", "false");
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 2 90 degrees" }));
+    fireEvent.click(screen.getByRole("button", { name: "Document" }));
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
+    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const [pages, options] = pdfOperationsMocks.buildPDF.mock.calls[0];
+    expect(pages.map((page: { sourcePageNumber: number }) => page.sourcePageNumber)).toEqual([
+      1, 1, 2, 3,
+    ]);
+    expect(pages[1].id).not.toBe(pages[0].id);
+    expect(pages.every((page: { sourceFile: File }) => page.sourceFile === file)).toBe(true);
+    expect(pages.map((page: { rotation: number }) => page.rotation)).toEqual([0, 90, 0, 0]);
+    expect(options.selectedIndices).toEqual([1]);
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledExactlyOnceWith(file);
+  });
+
+  it("does not reclaim focus from another control or from an unfocused keyboard event", async () => {
+    const tiles = await openPDF();
+    const download = screen.getByTestId("editor-download-button");
+    tiles[2].focus();
+    fireEvent.keyDown(tiles[2], { altKey: true, key: "ArrowLeft" });
+    download.focus();
+    await Promise.resolve();
+    expect(download).toHaveFocus();
+    fireEvent.keyDown(tiles[2], { altKey: true, key: "ArrowLeft" });
+    await Promise.resolve();
+    expect(download).toHaveFocus();
+    expect(getPages()[0]).toBe(tiles[2]);
+  });
+
+  it("resolves queued focus by page identity after another move changes its position", async () => {
+    const tiles = await openPDF();
+    tiles[2].focus();
+    fireEvent.keyDown(tiles[2], { altKey: true, key: "ArrowLeft" });
+    fireEvent.keyDown(tiles[2], { altKey: true, key: "ArrowLeft" });
+    await waitFor(() => expect(getPages()[0]).toHaveFocus());
+    expect(getPages()[0]).toBe(tiles[2]);
+  });
+
+  it("does not focus after a boundary, unrelated key or busy keyboard action", async () => {
+    const tiles = await openPDF();
+    tiles[0].focus();
+    const focus = vi.spyOn(tiles[0], "focus");
+    fireEvent.keyDown(tiles[0], { altKey: true, key: "ArrowLeft" });
+    fireEvent.keyDown(tiles[0], { altKey: true, key: "ArrowUp" });
+    fireEvent.keyDown(tiles[0], { key: "ArrowRight" });
+    await Promise.resolve();
+    expect(focus).not.toHaveBeenCalled();
+    expect(tiles[0]).toHaveFocus();
+    pdfOperationsMocks.buildPDF.mockReturnValue(Effect.never);
+    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await waitFor(() => expect(tiles[0]).toBeDisabled());
+    fireEvent.keyDown(tiles[0], { altKey: true, key: "ArrowRight" });
+    await Promise.resolve();
+    expect(getPages()).toEqual(tiles);
+    expect(focus).not.toHaveBeenCalled();
+  });
+
+  it("does not focus a queued keyboard move after the editor is disposed", async () => {
+    const view = render(() => <Editor />);
+    selectFile("upload", makeFile());
+    const tiles = await findPages();
+    tiles[2].focus();
+    const focus = vi.spyOn(tiles[2], "focus");
+    fireEvent.keyDown(tiles[2], { altKey: true, key: "ArrowLeft" });
+    view.unmount();
+    await Promise.resolve();
+    expect(focus).not.toHaveBeenCalled();
+    expect(document.body).toHaveFocus();
+  });
+
+  it("does not reclaim keyboard focus after switching away from the grid", async () => {
+    const tiles = await openPDF();
+    tiles[2].focus();
+    const focus = vi.spyOn(tiles[2], "focus");
+    fireEvent.keyDown(tiles[2], { altKey: true, key: "ArrowLeft" });
+    fireEvent.click(screen.getByRole("button", { name: "Document" }));
+    await Promise.resolve();
+    expect(focus).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Document" })).toHaveFocus();
   });
 
   it("reorders a page with a long-press touch drag and skips the tap selection", async () => {

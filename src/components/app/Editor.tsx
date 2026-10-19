@@ -746,12 +746,28 @@ export default function Editor() {
   function handlePageKeyDown(index: number, e: KeyboardEvent): void {
     if (isBusy() || !e.altKey) return;
 
-    if (e.key === "ArrowLeft" && index > 0) {
-      e.preventDefault();
-      movePage(index, index - 1);
-    } else if (e.key === "ArrowRight" && index < pages.length - 1) {
-      e.preventDefault();
-      movePage(index, index + 1);
+    const to = e.key === "ArrowLeft" ? index - 1 : e.key === "ArrowRight" ? index + 1 : index;
+    if (to === index || to < 0 || to >= pages.length) return;
+    const pageId = pages[index]?.id;
+    if (!pageId) return;
+    const focusedTile = e.currentTarget;
+    const restoreFocus = document.activeElement === focusedTile;
+    e.preventDefault();
+    movePage(index, to);
+
+    // Solid moves the existing row, which can blur its focused button.
+    if (restoreFocus) {
+      queueMicrotask(() => {
+        if (disposed || isBusy() || workspaceView() !== "pages" || !editorRoot.isConnected) return;
+        if (document.activeElement !== document.body && document.activeElement !== focusedTile)
+          return;
+        const currentIndex = pages.findIndex((page) => page.id === pageId);
+        editorRoot
+          .querySelector<HTMLButtonElement>(
+            `[data-testid="editor-page-tile"][data-page-index="${currentIndex}"]`
+          )
+          ?.focus();
+      });
     }
   }
 
