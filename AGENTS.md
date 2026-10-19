@@ -19,6 +19,7 @@ The active product supports:
 - merging multiple PDFs into one working set
 - extracting selected pages into a new PDF
 - reordering pages with drag and drop
+- duplicating a page in the workspace, with independent rotation, deletion marking, and ordering
 - rotating pages in 90-degree steps, individually or by selection
 - marking pages for deletion before export
 - unlocking password-protected PDFs with an in-browser prompt

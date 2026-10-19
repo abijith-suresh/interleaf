@@ -1156,6 +1156,7 @@ body:has([data-page="editor"]) {
 
 .page-controls {
   display: flex;
+  flex-wrap: wrap;
   width: 100%;
   min-height: 2.75rem;
   align-items: center;
@@ -1165,6 +1166,7 @@ body:has([data-page="editor"]) {
 }
 
 .page-controls .page-label {
+  flex-shrink: 0;
   overflow: hidden;
   color: var(--editor-muted);
   font-size: 0.6875rem;
@@ -1175,10 +1177,13 @@ body:has([data-page="editor"]) {
 
 .page-action-buttons {
   display: inline-flex;
-  flex-shrink: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.15rem;
 }
 
+.btn-page-duplicate,
 .btn-page-rotate,
 .btn-page-delete {
   min-width: 2.75rem;
