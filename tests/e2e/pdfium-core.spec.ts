@@ -4,6 +4,7 @@ import { expect, test } from "@playwright/test";
 import { createServer, type ViteDevServer } from "vite";
 import type { checkPDFiumGeometry, smallestUserUnitRegression } from "./fixtures/pdfium-core";
 import provenance from "./fixtures/pdfium-core-provenance.json" with { type: "json" };
+import type { checkSuccessorAccessor, checkSuccessorGeometry } from "./fixtures/pdfium-successor";
 
 let server: ViteDevServer;
 let url: string;
@@ -12,6 +13,17 @@ test.beforeAll(async () => {
   const wasm = await readFile("node_modules/@embedpdf/pdfium/dist/pdfium.wasm");
   expect(wasm.byteLength).toBe(provenance.stable.wasmBytes);
   expect(createHash("sha256").update(wasm).digest("hex")).toBe(provenance.stable.wasmSha256);
+  const successor = await readFile(
+    "node_modules/@embedpdf/engine-runtime-wasm32/lib/embedpdf.wasm"
+  );
+  expect(successor.byteLength).toBe(provenance.maintainedSuccessor.wasmBytes);
+  expect(createHash("sha256").update(successor).digest("hex")).toBe(
+    provenance.maintainedSuccessor.wasmSha256
+  );
+  expect(WebAssembly.Module.exports(await WebAssembly.compile(successor))).toContainEqual({
+    name: "EPDF_GetPageUserUnitByIndex",
+    kind: "function",
+  });
   server = await createServer({
     configFile: false,
     cacheDir: `node_modules/.vite-pdfium-core/${test.info().project.name}`,
@@ -27,10 +39,90 @@ test.beforeAll(async () => {
       },
     ],
     server: { host: "127.0.0.1", port: 0 },
-    optimizeDeps: { include: ["@embedpdf/pdfium", "pdfjs-dist", "pdf-lib"] },
+    optimizeDeps: {
+      include: [
+        "@embedpdf/pdfium",
+        "@embedpdf/engine-runtime",
+        "@embedpdf/engine-runtime-wasm32",
+        "pdfjs-dist",
+        "pdf-lib",
+      ],
+    },
   });
   await server.listen();
   url = server.resolvedUrls?.local[0] ?? "";
+});
+
+test("published successor accessor ABI, defaults and invalid arguments", async ({ page }) => {
+  await page.goto(`${url}pdfium-core-probe`);
+  const result: Awaited<ReturnType<typeof checkSuccessorAccessor>> = await page.evaluate(
+    async () => {
+      const path = "/tests/e2e/fixtures/pdfium-successor.ts";
+      return (await import(path)).checkSuccessorAccessor();
+    }
+  );
+  await test.info().attach("successor-accessor.json", {
+    body: JSON.stringify(result),
+    contentType: "application/json",
+  });
+  expect(result.pages).toEqual(
+    [1, 1, 1, 1.5].map((value) => ({ success: true, value, guardsIntact: true }))
+  );
+  expect(result.invalid).toEqual(
+    Array.from({ length: 3 }, () => ({ success: false, value: -777.25, guardsIntact: true }))
+  );
+  expect(result.nullOutput).toBe(false);
+});
+
+test("published successor uses native UserUnit for geometry, rendering and reopened output", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await page.goto(`${url}pdfium-core-probe`);
+  const result: Awaited<ReturnType<typeof checkSuccessorGeometry>> = await page.evaluate(
+    async () => {
+      const path = "/tests/e2e/fixtures/pdfium-successor.ts";
+      return (await import(path)).checkSuccessorGeometry();
+    }
+  );
+  await test.info().attach("successor-geometry-and-output.json", {
+    body: JSON.stringify(result),
+    contentType: "application/json",
+  });
+  expect(result.rows).toHaveLength(24);
+  for (const row of result.rows) {
+    expect(row.renders.map((render) => render.rotation)).toEqual([0, 90, 180, 270]);
+    for (const render of row.renders) {
+      expect(render.unit).toEqual({ success: true, value: row.unit, guardsIntact: true });
+      expect(render.intrinsicRotation).toBe(row.rotation);
+      expect(render.rawSize.map((value) => value * render.unit.value)).toEqual(row.physicalSize);
+      expect(render.physicalSize).toEqual(row.physicalSize);
+      expect(render.size).toEqual(render.expectedSize);
+      expect(render.ink).toBeGreaterThan(1000);
+      expect(render.changedFraction).toBeLessThan(0.01);
+      expect(render.meanError).toBeLessThan(1);
+    }
+  }
+  expect(result.outputs.map((output) => output.command)).toEqual(["save", "import"]);
+  for (const output of result.outputs) {
+    expect(output.dictionaries).toEqual(output.expectedDictionaries);
+    expect(output.renders).toHaveLength(24);
+    for (const [index, render] of output.renders.entries()) {
+      expect(render.size).toEqual(render.expectedSize);
+      expect(render.nativeSize).toEqual(render.expectedSize);
+      expect(render.unit).toEqual({
+        success: true,
+        value: result.rows[index].unit,
+        guardsIntact: true,
+      });
+      expect(render.oracleDifference.ink).toBeGreaterThan(1000);
+      expect(render.oracleDifference.changedFraction).toBe(0);
+      expect(render.oracleDifference.meanError).toBe(0);
+      expect(render.nativeDifference.ink).toBeGreaterThan(1000);
+      expect(render.nativeDifference.changedFraction).toBeLessThan(0.01);
+      expect(render.nativeDifference.meanError).toBeLessThan(1);
+    }
+  }
 });
 
 test.afterAll(async () => {

@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-18",
+  "checkedAt": "2026-10-19",
   "purpose": "Development-only migration evidence. Not a production engine approval.",
   "stable": {
     "package": "@embedpdf/pdfium",
@@ -20,44 +20,122 @@
     "vendorGitBlob": "9af0377bd26230ec397c7e418e9a9df38eb43d8f",
     "vendorSource": "https://github.com/embedpdf/embed-pdf-viewer/blob/eb14d5ae4bdb0626fa8c63ffead6d9e0d74ce2bc/packages/pdfium/src/vendor/pdfium.wasm",
     "buildScript": "https://github.com/embedpdf/embed-pdf-viewer/blob/eb14d5ae4bdb0626fa8c63ffead6d9e0d74ce2bc/packages/pdfium/scripts/build.sh",
-    "buildFlags": { "v8": false, "xfa": false, "skia": false },
+    "buildFlags": {
+      "v8": false,
+      "xfa": false,
+      "skia": false
+    },
     "caveats": [
       "npm metadata has no gitHead. Vendor binary byte identity supports this source mapping, not a reproducible-build attestation.",
       "The current v2.15.1 GitHub tag resolves to successor structure; use the verified version commit above.",
-      "September release date does not establish current PDFium parser/security-fix coverage."
+      "September release date does not establish current PDFium parser/security-fix coverage.",
+      "Baseline age alone is not evidence of a vulnerability."
     ]
   },
   "maintainedSuccessor": {
     "package": "@embedpdf/engine-runtime",
     "version": "3.0.0-next.15",
     "license": "Apache-2.0",
-    "registry": "https://registry.npmjs.org/@embedpdf/engine-runtime/next",
-    "manifest": "https://github.com/embedpdf/embed-pdf-viewer/blob/7d7055846f4d215f7daa98ff17af40943d2aa90e/packages/engine/runtime/engine-runtime-build.json",
-    "forkCommit": "72c5eb114d7e59b35eba3c0a4e8a55809e5f34c2",
-    "upstreamCommit": "7c55203ed66b0461378323e3fcf2efaf76755241",
-    "upstreamDate": "2026-10-15",
-    "dimensionSource": "https://github.com/embedpdf/runtime/blob/72c5eb114d7e59b35eba3c0a4e8a55809e5f34c2/core/fpdfapi/page/cpdf_page.cpp",
-    "syncPolicy": "https://github.com/embedpdf/runtime/blob/72c5eb114d7e59b35eba3c0a4e8a55809e5f34c2/docs/embedpdf/upstream-sync.md",
-    "finding": "Active successor has no evidenced UserUnit fix: dimension calculation still uses intersected page boxes and rotation without UserUnit. Successor binary not tested here."
+    "publishedAt": "2026-10-14T01:05:16.180Z",
+    "registry": "https://registry.npmjs.org/@embedpdf/engine-runtime/3.0.0-next.15",
+    "runtimeTarball": "https://registry.npmjs.org/@embedpdf/engine-runtime/-/engine-runtime-3.0.0-next.15.tgz",
+    "runtimeTarballSha256": "8e9383fde724a09b004e04659ac0e2f89c84509d62f710ebc4b14ed278328408",
+    "runtimeIntegrity": "sha512-NYqrZWtCoKtSwml41C+58IVJoM9M3/85IvLXqgkm+i37MbTAtngTDPU/AL+0AxxsM17Ij9GxXPc6SFM2hytfkw==",
+    "wasmPackage": "@embedpdf/engine-runtime-wasm32",
+    "wasmPublishedAt": "2026-10-14T01:17:05.882Z",
+    "wasmRegistry": "https://registry.npmjs.org/@embedpdf/engine-runtime-wasm32/3.0.0-next.15",
+    "wasmTarball": "https://registry.npmjs.org/@embedpdf/engine-runtime-wasm32/-/engine-runtime-wasm32-3.0.0-next.15.tgz",
+    "wasmTarballSha256": "002a8ccd1fecb00cc176404507d1c4d4c9a2d7837b3b0b51b2fc0a4f73b77f85",
+    "wasmIntegrity": "sha512-/qapSUmJ4FIcXm3JaVEygfcAe9tck+z2iIgxRcvxhdrbItx4LDMKa10HiCT8jtmIAw0dF7O6PZuJV/pHxDIcCw==",
+    "wasmBytes": 7634095,
+    "wasmSha256": "4c911f967e09839593eeb81011b76afff98d9688c7460fefdd37ddae43c35073",
+    "releaseTagCommit": "c6f87eecf9636e7ef367946a7fd7f3729401ce90",
+    "releaseManifest": "https://github.com/embedpdf/embed-pdf-viewer/blob/c6f87eecf9636e7ef367946a7fd7f3729401ce90/packages/engine/runtime/engine-runtime-build.json",
+    "declaredBuildInput": {
+      "forkCommit": "ed2f716e5381e34f096cc1e50e4259a55998d391",
+      "upstreamCommit": "59ea54cce0179db3269c4c58874249597ca3b118",
+      "upstreamDate": "2026-10-11T23:50:04-07:00",
+      "archive": "https://github.com/embedpdf/runtime/releases/download/runtime-ed2f716e5381e34f096cc1e50e4259a55998d391/libembedpdf-runtime-wasm32-ed2f716e5.tar.gz",
+      "archiveSha256": "ca90d0084769c177fe0d6e393787fbfd95ce248db5172217426395b17b33e58d",
+      "archiveMetadata": {
+        "name": "embedpdf-runtime",
+        "target": "wasm32",
+        "sha": "ed2f716e5381e34f096cc1e50e4259a55998d391",
+        "createdAt": "2026-10-13T10:57:43Z"
+      },
+      "verification": "Downloaded archive hash matches release-tag manifest; BUILD-METADATA.json names the same fork commit. This is release-specific build-input evidence, not final-WASM reproducible-link attestation. npm packages have no gitHead."
+    },
+    "accessor": {
+      "name": "EPDF_GetPageUserUnitByIndex",
+      "signature": "(document: Ptr, zeroBasedPageIndex: number, outFloat32: Ptr) => boolean",
+      "header": "https://github.com/embedpdf/runtime/blob/ed2f716e5381e34f096cc1e50e4259a55998d391/public/epdf_view.h",
+      "implementation": "https://github.com/embedpdf/runtime/blob/ed2f716e5381e34f096cc1e50e4259a55998d391/fpdfsdk/fpdf_view.cpp#L2076",
+      "publishedBindings": "@embedpdf/engine-runtime@3.0.0-next.15/dist/core/pdf-functions.generated.d.ts",
+      "publishedWasmExport": "EPDF_GetPageUserUnitByIndex",
+      "semantics": "Reads parsed page dictionary; missing or nonpositive UserUnit defaults to 1. Invalid document, page index or null output returns false. Probe checks actual float32 out-pointer writes and guard bytes."
+    },
+    "laterRepositorySnapshot": {
+      "manifest": "https://github.com/embedpdf/embed-pdf-viewer/blob/7d7055846f4d215f7daa98ff17af40943d2aa90e/packages/engine/runtime/engine-runtime-build.json",
+      "forkCommit": "72c5eb114d7e59b35eba3c0a4e8a55809e5f34c2",
+      "upstreamCommit": "7c55203ed66b0461378323e3fcf2efaf76755241",
+      "upstreamDate": "2026-10-15",
+      "qualification": "Later than npm publication; cannot establish next.15 published binary provenance."
+    },
+    "finding": "Raw FPDF dimensions omit UserUnit. The published successor exports the native scalar accessor, so no custom bridge is required. The test-only probe derives bitmap dimensions from that accessor without oracle-supplied geometry."
   },
   "officialAPI": {
     "commit": "9c866a447ca929bac93ed7da5f957fddb16ccde9",
     "header": "https://pdfium.googlesource.com/pdfium/+/9c866a447ca929bac93ed7da5f957fddb16ccde9/public/fpdfview.h",
     "implementation": "https://pdfium.googlesource.com/pdfium/+/9c866a447ca929bac93ed7da5f957fddb16ccde9/fpdfsdk/fpdf_view.cpp",
     "dimensions": "https://pdfium.googlesource.com/pdfium/+/9c866a447ca929bac93ed7da5f957fddb16ccde9/core/fpdfapi/page/cpdf_page.cpp",
-    "finding": "Header describes point dimensions and intrinsic rotation. Implementation forwards page dimensions from intersected CropBox/MediaBox, without UserUnit scaling. No public UserUnit accessor found."
+    "finding": "Official upstream FPDF size functions use intersected page boxes and intrinsic rotation without UserUnit scaling. This statement is limited to upstream FPDF APIs; the published EmbedPDF successor separately provides EPDF_GetPageUserUnitByIndex."
   },
   "licenseReview": {
     "application": "MIT unchanged; no PDFium assets are added to the application build.",
     "wrapper": "MIT",
     "pdfium": "BSD-style PDFium terms; package LICENSE.pdfium also contains Apache-2.0 text. Do not describe all bundled code as MIT or Apache-2.0.",
-    "status": "Production redistribution notice completeness unresolved. These are confirmed omissions, not a complete notice inventory.",
+    "status": "Complete shipped notice-file inventory recorded for the two successor npm tarballs and declared static-library input archive. Complete final-WASM dependency/license inventory remains unresolved; these archives do not provide all component notices.",
     "missingNotices": [
       "https://github.com/embedpdf/runtime/blob/73a041a5c1aaffa09ebb64f1981ff501cb91a41c/third_party/libopenjpeg/LICENSE",
       "https://github.com/embedpdf/runtime/blob/73a041a5c1aaffa09ebb64f1981ff501cb91a41c/third_party/lcms/LICENSE",
       "https://github.com/embedpdf/runtime/blob/73a041a5c1aaffa09ebb64f1981ff501cb91a41c/third_party/freetype/README.pdfium"
     ],
-    "requiredBeforeProduction": "Generate complete notices from the resolved build dependency graph, including codecs, fonts, rasterizer and Emscripten runtime; verify pinned binary provenance and current security fixes."
+    "requiredBeforeProduction": "Resolve retained final-WASM components and copy their complete notices, including codecs, shaping/fonts, ICU, rasterizer and Emscripten runtime; verify release-to-final-binary build provenance and current security-fix coverage. Age alone does not prove vulnerability.",
+    "publishedSuccessorNoticeFiles": [
+      {
+        "distribution": "engine-runtime@3.0.0-next.15",
+        "path": "LICENSE",
+        "sha256": "1267d31e07547ce02f96b823350c0427c09af4224a920a5f428f7a478b6608c4",
+        "contents": "Apache-2.0 notice/text; no separate dependency notice files in npm tarball."
+      },
+      {
+        "distribution": "engine-runtime-wasm32@3.0.0-next.15",
+        "path": "LICENSE",
+        "sha256": "1267d31e07547ce02f96b823350c0427c09af4224a920a5f428f7a478b6608c4",
+        "contents": "Apache-2.0 notice/text; no separate dependency notice files in npm tarball."
+      },
+      {
+        "distribution": "release-declared wasm32 static-library input archive",
+        "path": "LICENSES/PDFIUM_LICENSE",
+        "sha256": "1fe9dea718fbd75cf149adaf4d8a22a4335604d964ddb76d1b45383dec8668c9",
+        "contents": "PDFium BSD-style terms followed by Apache-2.0 text; the archive contains no other LICENSES files."
+      }
+    ],
+    "buildInputComponentsObserved": {
+      "scope": "Representative archive-member evidence only. A complete static library can include objects the final WASM linker discards; this is not a complete final-binary notice inventory.",
+      "examples": {
+        "ICU": "ubidi.o",
+        "Little CMS": "cmsalpha.o",
+        "OpenJPEG": "openjpeg.o",
+        "libpng": "png.o",
+        "zlib": "deflate.o",
+        "FreeType": "ftbase.o",
+        "HarfBuzz": "hb-font.o",
+        "JPEG codec": "jpeg_nbits.o",
+        "AGG integration": "cfx_agg_devicedriver.o"
+      },
+      "source": "Release-specific archive and DEPS/source at ed2f716e5381e34f096cc1e50e4259a55998d391"
+    }
   },
-  "unresolvedDecision": "Obtain a maintained, auditable build exposing scalar UserUnit metadata from PDFium's parsed page dictionary, with complete notices and current fixes, before implementing migration. No custom PDF syntax parser or second production-engine workaround. A small bridge is a possible remedy, not a tested fix."
+  "unresolvedDecision": "Review the published prerelease candidate and remaining full migration fidelity/lifetime/cache/performance, complete distribution notices, and final-binary build provenance. The native UserUnit accessor is already published; a custom bridge is unnecessary. Production remains unchanged."
 }

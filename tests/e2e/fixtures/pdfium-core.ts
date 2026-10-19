@@ -24,13 +24,13 @@ function withProbe<T>(
   return use(probe).finally(() => worker.terminate());
 }
 
-async function reference(bytes: Uint8Array<ArrayBuffer>) {
+export async function reference(bytes: Uint8Array<ArrayBuffer>) {
   const task = getDocument({ data: bytes.slice() });
   const pdf = await task.promise;
   return { pdf, dispose: () => task.destroy() };
 }
 
-async function pixels(pdf: PDFDocumentProxy, number: number, rotation: number, scale = 1) {
+export async function pixels(pdf: PDFDocumentProxy, number: number, rotation: number, scale = 1) {
   const page = await pdf.getPage(number);
   const viewport = page.getViewport({ scale, rotation });
   const canvas = document.createElement("canvas");
@@ -51,7 +51,7 @@ async function pixels(pdf: PDFDocumentProxy, number: number, rotation: number, s
   }
 }
 
-function difference(a: Uint8ClampedArray, b: Uint8ClampedArray) {
+export function difference(a: Uint8ClampedArray, b: Uint8ClampedArray) {
   if (a.length !== b.length) throw new Error("Cannot compare different bitmap dimensions.");
   let changed = 0;
   let totalError = 0;
@@ -67,7 +67,7 @@ function difference(a: Uint8ClampedArray, b: Uint8ClampedArray) {
   return { changedFraction: changed / (a.length / 4), meanError: totalError / (a.length / 4), ink };
 }
 
-async function geometrySource() {
+export async function geometrySource() {
   const pdf = await PDFDocument.create();
   const cases = [];
   for (const origin of [
@@ -96,7 +96,7 @@ async function geometrySource() {
   return { bytes: new Uint8Array(await pdf.save()), cases };
 }
 
-function pageDictionaries(pdf: PDFDocument) {
+export function pageDictionaries(pdf: PDFDocument) {
   return pdf.getPages().map((page) => ({
     crop: page.getCropBox(),
     media: page.getMediaBox(),
