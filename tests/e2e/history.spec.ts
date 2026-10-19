@@ -199,7 +199,8 @@ test("pointer and touch drags record one committed move and ignore canceled gest
   const undo = page.getByTestId("editor-undo-button");
   await rows.nth(0).dragTo(rows.nth(1));
   await expect(tiles.nth(0)).toHaveAttribute("data-source-page", "2");
-  await undo.click();
+  await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+  await page.keyboard.press("Control+z");
   await expect(tiles.nth(0)).toHaveAttribute("data-source-page", "1");
   await expect(undo).toHaveAttribute("aria-disabled", "true");
   const touch = async (type: string, index: number, target: number) => {

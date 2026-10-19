@@ -224,7 +224,11 @@ export default function Editor() {
     )
       return;
     const target = event.target;
-    if (!(target instanceof HTMLElement) || !editorRoot.contains(target)) return;
+    if (
+      !(target instanceof HTMLElement) ||
+      (target !== document.body && !editorRoot.contains(target))
+    )
+      return;
     if (
       target.isContentEditable ||
       target.closest(

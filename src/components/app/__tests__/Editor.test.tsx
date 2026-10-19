@@ -211,6 +211,24 @@ describe("Editor", () => {
     expect(pdfServiceMocks.loadPDF).toHaveBeenCalledExactlyOnceWith(file);
   });
 
+  it("handles history from the workspace background without taking focus from it", async () => {
+    await openPDF();
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 1 90 degrees" }));
+    (document.activeElement as HTMLElement).blur();
+    const undo = new KeyboardEvent("keydown", {
+      key: "z",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.body.dispatchEvent(undo);
+    expect(undo.defaultPrevented).toBe(true);
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
+    expect(document.body).toHaveFocus();
+    fireEvent.keyDown(document.body, { key: "y", ctrlKey: true });
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "false");
+  });
+
   it("retains focus when undo removes a copy and when the history button becomes unavailable", async () => {
     await openPDF();
     getPages()[0].focus();
