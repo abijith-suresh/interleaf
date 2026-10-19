@@ -2,6 +2,7 @@ import ArrowLeft from "lucide-solid/icons/arrow-left";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import ChevronLeft from "lucide-solid/icons/chevron-left";
 import ChevronRight from "lucide-solid/icons/chevron-right";
+import Copy from "lucide-solid/icons/copy";
 import Download from "lucide-solid/icons/download";
 import FileStack from "lucide-solid/icons/file-stack";
 import FileText from "lucide-solid/icons/file-text";
@@ -20,6 +21,7 @@ const editorIcons = {
   "chevron-down": ChevronDown,
   previous: ChevronLeft,
   next: ChevronRight,
+  copy: Copy,
   open: Download,
   document: FileText,
   files: FileStack,

@@ -29,6 +29,14 @@ export function createPageStates(
   }));
 }
 
+export function duplicatePageState(page: PageState): PageState {
+  return {
+    ...page,
+    id: `copy-${createPageBatchId()}`,
+    markedForDeletion: false,
+  };
+}
+
 export function toggleSelection(selectedIndices: Set<number>, index: number): Set<number> {
   const next = new Set(selectedIndices);
 

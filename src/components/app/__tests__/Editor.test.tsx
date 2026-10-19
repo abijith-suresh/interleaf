@@ -168,6 +168,93 @@ describe("Editor", () => {
     expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
   });
 
+  it("duplicates rapidly without loading or building sources and navigates to the selected copy", async () => {
+    const file = makeFile();
+    await openPDF(file);
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 2 90 degrees" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark page 2 for deletion" }));
+    for (let repeat = 0; repeat < 5; repeat++) {
+      fireEvent.click(screen.getByRole("button", { name: "Duplicate page 2" }));
+    }
+    expect(getPages()).toHaveLength(8);
+    expect(getPages().map((page) => page.dataset.selected)).toEqual([
+      "false",
+      "false",
+      "true",
+      "false",
+      "false",
+      "false",
+      "false",
+      "false",
+    ]);
+    await waitFor(() => expect(getPages()[2]).toHaveFocus());
+    expect(getPages()[1]).toHaveAttribute("data-marked-for-deletion", "true");
+    expect(getPages()[2]).toHaveAttribute("data-marked-for-deletion", "false");
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledExactlyOnceWith(file);
+    expect(pdfOperationsMocks.buildPDF).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Document" }));
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 3");
+    expect(screen.queryByRole("button", { name: /Duplicate page/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const [pages, options] = pdfOperationsMocks.buildPDF.mock.calls[0];
+    expect(new Set(pages.map((page: { id: string }) => page.id)).size).toBe(8);
+    expect(pages.every((page: { sourceFile: File }) => page.sourceFile === file)).toBe(true);
+    expect(pages.map((page: { rotation: number }) => page.rotation)).toEqual([
+      0, 90, 90, 90, 90, 90, 90, 0,
+    ]);
+    expect(options.selectedIndices).toEqual([2]);
+    fireEvent.click(screen.getByRole("button", { name: "More download options" }));
+    fireEvent.click(screen.getByTestId("editor-export-images-button"));
+    await waitFor(() => expect(downloadFile).toHaveBeenCalledOnce());
+    expect(pdfImageExportMocks.exportImages.mock.calls[0][0][2].id).toBe(pages[2].id);
+    expect(pdfImageExportMocks.exportImages.mock.calls[0][1].selectedIndices).toEqual([2]);
+  });
+
+  it("keeps copy organization independent and removes all copies with their original source", async () => {
+    const first = makeFile("same.pdf");
+    const second = makeFile("same.pdf");
+    render(() => <Editor />);
+    selectFiles("upload", [first, second]);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 2 90 degrees" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark page 2 for deletion" }));
+    expect(getPages()[0]).toHaveAttribute("data-marked-for-deletion", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Restore page 2 from deletion" }));
+    fireEvent.keyDown(getPages()[1], { altKey: true, key: "ArrowRight" });
+    expect(getPages()[2]).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const [pages, options] = pdfOperationsMocks.buildPDF.mock.calls[0];
+    expect(pages.map((page: { sourcePageNumber: number }) => page.sourcePageNumber)).toEqual([
+      1, 2, 1, 3, 1, 2, 3,
+    ]);
+    expect(pages.map((page: { rotation: number }) => page.rotation)).toEqual([
+      0, 0, 90, 0, 0, 0, 0,
+    ]);
+    expect(options.selectedIndices).toEqual([2]);
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    const sources = screen.getAllByTestId("editor-file-item");
+    expect(sources).toHaveLength(2);
+    expect(sources[0]).toHaveTextContent("4 pages");
+    fireEvent.click(screen.getAllByTestId("editor-file-remove")[0]);
+    await waitFor(() => expect(getPages()).toHaveLength(3));
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledExactlyOnceWith(first);
+    expect(pdfServiceMocks.releaseFile.mock.calls[0][0]).toBe(first);
+    expect(pdfServiceMocks.releaseFile.mock.calls[0][0]).not.toBe(second);
+  });
+
+  it("disables untouched compression after duplication even when selection is cleared", async () => {
+    await openPDF();
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 3" }));
+    fireEvent.click(getPages()[3]);
+    await openDownloadMenu();
+    expect(screen.getByTestId("editor-compress-button")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByTestId("editor-compress-button"));
+    expect(pdfCompressionMocks.compressPDF).not.toHaveBeenCalled();
+  });
+
   it("rejects unsupported files with an error toast", async () => {
     render(() => <Editor />);
 

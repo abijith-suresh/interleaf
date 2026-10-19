@@ -15,6 +15,7 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Remove a source file and its pages from the working set
 - Extract selected pages into a new PDF
 - Reorder pages with drag and drop
+- Duplicate a page, then rotate, mark, or reorder each copy independently
 - Rotate individual pages or selections in 90-degree steps
 - Mark pages for deletion before export
 - Unlock password-protected PDFs with an in-browser prompt

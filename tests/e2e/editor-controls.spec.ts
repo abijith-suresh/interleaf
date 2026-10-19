@@ -24,6 +24,64 @@ for (const viewport of [
   { width: 568, height: 320 },
   { width: 667, height: 320 },
 ]) {
+  test(`duplicate action fits tiles and supports keyboard at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.goto("/app");
+    await page.getByTestId("editor-upload-input").setInputFiles(await report());
+    const tile = page.locator(".editor-page-grid > li").first();
+    const bounds = await tile.boundingBox();
+    if (!bounds) throw new Error("Missing tile");
+    const actions = tile.locator(".page-action-buttons button");
+    await expect(actions).toHaveCount(3);
+    const boxes = [];
+    for (const action of await actions.all()) {
+      const box = await action.boundingBox();
+      if (!box) throw new Error("Missing action");
+      await expect(action).toHaveCSS("min-width", "44px");
+      await expect(action).toHaveCSS("min-height", "44px");
+      // Firefox bounding boxes can report 44px as 43.999992px.
+      expect(Number(box.width.toFixed(4))).toBeGreaterThanOrEqual(44);
+      expect(Number(box.height.toFixed(4))).toBeGreaterThanOrEqual(44);
+      expect(box.x).toBeGreaterThanOrEqual(bounds.x);
+      expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+      expect(box.y + box.height).toBeLessThanOrEqual(bounds.y + bounds.height);
+      boxes.push(box);
+    }
+    const label = await tile.locator(".page-label").boundingBox();
+    const thumbnail = await tile.locator(".editor-page-preview").boundingBox();
+    if (!label || !thumbnail) throw new Error("Missing page content");
+    for (const [index, box] of boxes.entries()) {
+      expect(box.y).toBeGreaterThanOrEqual(thumbnail.y + thumbnail.height);
+      for (const other of [label, ...boxes.slice(index + 1)]) {
+        const overlapX =
+          Math.min(box.x + box.width, other.x + other.width) - Math.max(box.x, other.x);
+        const overlapY =
+          Math.min(box.y + box.height, other.y + other.height) - Math.max(box.y, other.y);
+        expect(overlapX > 0 && overlapY > 0).toBe(false);
+      }
+    }
+    const duplicate = tile.getByTestId("editor-page-duplicate-button");
+    await duplicate.focus();
+    await expect(duplicate).toHaveCSS("outline-color", "rgb(36, 36, 33)");
+    await expect(duplicate).toHaveCSS("outline-width", "2px");
+    await expect(duplicate).toHaveCSS("outline-style", "solid");
+    // Dragging the action must never begin a page reorder.
+    await duplicate.dispatchEvent("dragstart");
+    await expect(tile).not.toHaveClass(/dragging/);
+    await page.keyboard.press("Space");
+    const tiles = page.getByTestId("editor-page-tile");
+    await expect(tiles).toHaveCount(4);
+    await expect(tiles.nth(1)).toBeFocused();
+    await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "true");
+    await expect(tiles.nth(0)).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator(".editor-page-grid > li.dragging")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true
+    );
+  });
+
   test(`editor actions, keyboard focus and export at ${viewport.width}x${viewport.height}`, async ({
     page,
   }) => {
@@ -173,6 +231,11 @@ test("touch taps release transient styles while selected states remain visible",
   await expect(remove).toHaveAttribute("aria-pressed", "true");
   await remove.tap();
   await expect(remove).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  const duplicate = page.getByTestId("editor-page-duplicate-button").first();
+  await duplicate.tap();
+  await expect(page.getByTestId("editor-page-tile")).toHaveCount(4);
+  await expect(page.getByTestId("editor-page-tile").nth(1)).toHaveAttribute("aria-pressed", "true");
+  await expect(duplicate).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   const options = page.getByTestId("editor-download-options-button");
   await options.tap();
   await expect(options).toHaveAttribute("aria-expanded", "true");

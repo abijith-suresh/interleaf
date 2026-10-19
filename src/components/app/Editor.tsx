@@ -7,6 +7,7 @@ import {
   areAllPagesSelected,
   createPageStates,
   type DeletionAction,
+  duplicatePageState,
   getDeletionAction,
   remapSelectionAfterMove,
   toggleSelectAll,
@@ -540,7 +541,26 @@ export default function Editor() {
     );
   }
 
-  // --- Rotation ---
+  // --- Page organization ---
+
+  function handlePageDuplicate(index: number, e: MouseEvent): void {
+    e.stopPropagation();
+    if (isBusy()) return;
+    const page = pages[index];
+    if (!page) return;
+    const copy = duplicatePageState(page);
+    setPages(produce((draft) => draft.splice(index + 1, 0, copy)));
+    setSelectedIndices(new Set([index + 1]));
+    setActivePageId(copy.id);
+    setStatusMessage(`Duplicated page ${index + 1}. Page ${index + 2} selected.`);
+    queueMicrotask(() =>
+      editorRoot
+        .querySelector<HTMLButtonElement>(
+          `[data-testid="editor-page-tile"][data-page-index="${index + 1}"]`
+        )
+        ?.focus()
+    );
+  }
 
   function handlePageRotate(index: number, e: MouseEvent): void {
     e.stopPropagation();
@@ -1019,6 +1039,7 @@ export default function Editor() {
                   onPageKeyDown={handlePageKeyDown}
                   onPageRotate={handlePageRotate}
                   onPageDelete={handlePageDelete}
+                  onPageDuplicate={handlePageDuplicate}
                   onDragStart={handleDragStart}
                   onDragOver={handleDragOver}
                   onDragEnter={handleDragEnter}
