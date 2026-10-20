@@ -435,6 +435,11 @@ body:has([data-page="editor"]) {
   background: var(--editor-page);
 }
 
+.editor-workspace-main .editor-uploader {
+  align-items: safe center;
+  padding: 1.25rem;
+}
+
 .editor-uploader-inner {
   display: grid;
   width: 100%;
@@ -1679,6 +1684,24 @@ body:has([data-page="editor"]) {
 }
 
 @media (max-height: 450px) {
+  .editor-workspace-main .editor-uploader {
+    padding-block: 0.75rem;
+  }
+
+  .editor-workspace-main .editor-uploader-inner {
+    gap: 0.5rem;
+  }
+
+  .editor-workspace-main .editor-uploader-intro h2 {
+    font-size: 1.5rem;
+  }
+
+  .editor-workspace-main .editor-dropzone {
+    min-height: 7rem;
+    flex-direction: row;
+    padding: 0.75rem;
+  }
+
   .editor-review-bottom {
     min-height: 0;
     padding-block: 0;

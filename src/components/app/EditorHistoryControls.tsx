@@ -10,7 +10,7 @@ interface Props {
 
 export default function EditorHistoryControls(props: Props) {
   return (
-    <fieldset class="editor-history-controls" aria-label="Page organization history">
+    <fieldset class="editor-history-controls" aria-label="Workspace history">
       <EditorButton
         data-testid="editor-undo-button"
         variant="plain"

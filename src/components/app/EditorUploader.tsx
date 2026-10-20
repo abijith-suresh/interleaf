@@ -6,6 +6,7 @@ interface Props {
   busy: boolean;
   statusMessage: string;
   onFilesSelected: (files: File[]) => void;
+  onPickerChange?: (open: boolean) => void;
 }
 
 export default function EditorUploader(props: Props) {
@@ -14,6 +15,7 @@ export default function EditorUploader(props: Props) {
 
   function pickFile() {
     if (props.busy) return;
+    props.onPickerChange?.(true);
     fileInput.click();
   }
 
@@ -85,7 +87,9 @@ export default function EditorUploader(props: Props) {
           aria-label="Choose PDF or image files"
           class="hidden"
           disabled={props.busy}
+          onCancel={() => props.onPickerChange?.(false)}
           onChange={(e) => {
+            props.onPickerChange?.(false);
             handleFiles(Array.from(e.currentTarget.files ?? []));
             e.currentTarget.value = "";
           }}
