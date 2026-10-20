@@ -101,9 +101,12 @@ export function trimOrganizationHistory(
     (undo.length + redo.length > PAGE_HISTORY_LIMIT ||
       inactiveSourceSize({ undo, redo }, activePages) > INACTIVE_SOURCE_SIZE_LIMIT)
   ) {
-    // Timeline order is undo followed by reversed redo. Keep its newest entry.
+    // Timeline runs undo[0..n] through the present into reversed redo, out to
+    // the farthest future. Evict the farthest past first, then the farthest
+    // future, so the next undo and redo steps stay contiguous with the
+    // current workspace state.
     if (undo.length > 0) undo = undo.slice(1);
-    else redo = redo.slice(0, -1);
+    else redo = redo.slice(1);
   }
   return { undo, redo };
 }
