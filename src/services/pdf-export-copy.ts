@@ -5,6 +5,7 @@ import {
   PDFHexString,
   PDFInvalidObject,
   PDFName,
+  PDFNull,
   PDFNumber,
   type PDFObject,
   type PDFPage,
@@ -186,6 +187,20 @@ export class PDFExportCopy {
     // resolved Page name identifies an otherwise unknown dictionary as a Page.
     return resolvedValue(dict, N("Type")) === N("Page");
   }
+  // Optional action slots treat resolved null as absent. Keep this separate
+  // from required role/count resolution and field inheritance.
+  private actionValue(raw: PDFObject | undefined): PDFObject | undefined {
+    let value = raw;
+    const seen = new Set<PDFRef>();
+    while (value instanceof PDFRef) {
+      if (seen.has(value) || seen.size >= 32)
+        throw Error("Cyclic or excessive PDF action references");
+      seen.add(value);
+      value = this.output.context.lookup(value);
+      if (value === undefined) throw Error("Missing PDF action reference");
+    }
+    return value === PDFNull ? undefined : value;
+  }
   private named(source: PDFExportSource, name: string): PDFObject | undefined {
     const legacy = source.doc.catalog.lookupMaybe(N("Dests"), PDFDict)?.get(N(name));
     if (legacy) return legacy;
@@ -341,17 +356,20 @@ export class PDFExportCopy {
     for (const semantic of new Set([...actualSet, ...annotationOwners.keys(), ...keep])) {
       const action = annotationOwners.has(semantic) ? semantic.get(N("A")) : undefined;
       if (action) pendingActions.push(action);
-      const additional = semantic.lookupMaybe(N("AA"), PDFDict);
+      const additional = this.actionValue(semantic.get(N("AA"), true));
+      if (additional !== undefined && !(additional instanceof PDFDict))
+        throw Error("Invalid PDF additional actions dictionary");
       if (additional) pendingActions.push(...additional.values());
     }
     const actions = new Set<PDFDict>();
     while (pendingActions.length) {
-      const action = this.output.context.lookup(pendingActions.pop());
+      const action = this.actionValue(pendingActions.pop());
+      if (action === undefined) continue;
       if (!(action instanceof PDFDict)) throw Error("Invalid PDF action dictionary");
       if (actions.has(action)) continue;
       actions.add(action);
       this.name(action, N("S"), true);
-      const next = this.output.context.lookup(action.get(N("Next")));
+      const next = this.actionValue(action.get(N("Next"), true));
       if (next instanceof PDFArray) pendingActions.push(...next.asArray());
       else if (next) pendingActions.push(next);
     }
@@ -367,7 +385,8 @@ export class PDFExportCopy {
         const d = this.destination(o, o.get(N("D")));
         if (d) o.set(N("D"), d);
         else {
-          if (o.has(N("Next"))) throw Error("Omitted-target GoTo with Next actions is unsupported");
+          if (this.actionValue(o.get(N("Next"), true)) !== undefined)
+            throw Error("Omitted-target GoTo with Next actions is unsupported");
           removeActions.add(o);
         }
       }

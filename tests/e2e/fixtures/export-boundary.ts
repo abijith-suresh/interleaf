@@ -1,5 +1,14 @@
 import { Effect } from "effect";
-import { degrees, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFString } from "pdf-lib";
+import {
+  degrees,
+  PDFArray,
+  PDFDict,
+  PDFDocument,
+  PDFHexString,
+  PDFName,
+  PDFNull,
+  PDFString,
+} from "pdf-lib";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import worker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
@@ -10,6 +19,7 @@ import {
   exportIndirectPageFixture,
   exportIndirectWidgetFixture,
   exportLinkFixture,
+  exportOptionalActionFixture,
   exportPageCountFixture,
   exportPageIndexFixture,
   exportResourceNameFixture,
@@ -17,6 +27,8 @@ import {
   INDIRECT_OMITTED_ANSWER,
   OMITTED_ANSWER,
   OMITTED_CONTENT,
+  type OptionalActionContext,
+  type OptionalActionKind,
 } from "../../../src/services/__tests__/pdf-export-fixtures";
 import {
   inspectExport,
@@ -565,6 +577,102 @@ export async function checkCountsAndResourceNames() {
         });
       }
     return { counts, resources, countText: COUNT_PAGE_TEXT };
+  } finally {
+    await Effect.runPromise(operations.dispose());
+    await Effect.runPromise(service.dispose());
+  }
+}
+
+export async function checkOptionalNullActions() {
+  const service = new PDFService(),
+    operations = new PDFOperationsService(service);
+  const cases: [OptionalActionContext, OptionalActionKind][] = [
+    ["page", "null"],
+    ["page", "indirect-null"],
+    ["annotation", "null"],
+    ["field", "indirect-null"],
+    ["page", "aa-null"],
+    ["field", "aa-indirect-null"],
+    ["annotation", "chain-null"],
+    ["A", "indirect-null"],
+    ["Next", "indirect-null"],
+    ["Next", "null"],
+    ["page", "absent"],
+    ["annotation", "empty"],
+    ["Next", "valid"],
+  ];
+  try {
+    const results = [];
+    for (const [context, kind] of cases) {
+      const input = await exportOptionalActionFixture(context, kind),
+        source = file(input),
+        pages = [state(source, 1, 0)];
+      const before = await baseline(pages, service),
+        after = (await Effect.runPromise(operations.buildPDF(pages))).data;
+      const beforeEvidence: RenderEvidence = { images: [], metadata: [] },
+        afterEvidence: RenderEvidence = { images: [], metadata: [] };
+      const beforeJs = await reopenWithPDFjs(before, beforeEvidence),
+        afterJs = await reopenWithPDFjs(after, afterEvidence),
+        beforeNative = await inspectExport(before),
+        afterNative = await inspectExport(after);
+      const pixelsEqual =
+        beforeEvidence.images.length === afterEvidence.images.length &&
+        beforeEvidence.images.every(
+          (image, i) =>
+            image.data.length === afterEvidence.images[i].data.length &&
+            image.data.every((v, j) => v === afterEvidence.images[i].data[j])
+        );
+      const metadataEqual =
+          JSON.stringify(retainedMetadata(beforeNative)) ===
+          JSON.stringify(retainedMetadata(afterNative)),
+        jsEqual = JSON.stringify(beforeJs) === JSON.stringify(afterJs);
+      results.push({
+        context,
+        kind,
+        before: Array.from(before),
+        after: Array.from(after),
+        input: Array.from(input),
+        pixelsEqual,
+        metadataEqual,
+        jsEqual,
+        text: afterJs[0].text,
+        values: afterJs[0].annotations.map((a) => a.value),
+        pages: afterNative.pageObjects,
+        widgets: afterNative.widgetObjects,
+        orphanKids: afterNative.orphanKids,
+        diagnostics:
+          pixelsEqual && metadataEqual && jsEqual
+            ? undefined
+            : {
+                beforePngs: encodedImages(beforeEvidence.images),
+                afterPngs: encodedImages(afterEvidence.images),
+                before: beforeEvidence.metadata,
+                after: afterEvidence.metadata,
+              },
+      });
+    }
+    const doc = await PDFDocument.load(await exportLinkFixture("goto")),
+      link = doc.getPage(0).node.lookup(PDFName.of("Annots"), PDFArray).lookup(0, PDFDict);
+    link.lookup(PDFName.of("A"), PDFDict).set(PDFName.of("Next"), doc.context.register(PDFNull));
+    const source = file(await doc.save()),
+      output = (await Effect.runPromise(operations.buildPDF([state(source, 1, 0)]))).data,
+      saved = await PDFDocument.load(output),
+      native = await inspectExport(output),
+      js = await reopenWithPDFjs(output);
+    return {
+      results,
+      omitted: {
+        pages: native.pageObjects,
+        leaked: contains(native.serialized, OMITTED_CONTENT),
+        inactive: !saved
+          .getPage(0)
+          .node.lookup(PDFName.of("Annots"), PDFArray)
+          .lookup(0, PDFDict)
+          .has(PDFName.of("A")),
+        visiblePages: js.length,
+        output: Array.from(output),
+      },
+    };
   } finally {
     await Effect.runPromise(operations.dispose());
     await Effect.runPromise(service.dispose());

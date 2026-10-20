@@ -4,6 +4,7 @@ import {
   PDFDict,
   PDFDocument,
   PDFName,
+  PDFNull,
   PDFNumber,
   type PDFObject,
   PDFString,
@@ -261,6 +262,55 @@ export async function exportResourceNameFixture(key: string, checkbox: boolean) 
         doc.context.flateStream(`BT /${key} 18 Tf 20 100 Td (Valid font resource ${key}) Tj ET`)
       )
     );
+  }
+  return doc.save({ updateFieldAppearances: false });
+}
+
+export type OptionalActionContext = "page" | "annotation" | "field" | "A" | "Next";
+export type OptionalActionKind =
+  | "null"
+  | "indirect-null"
+  | "chain-null"
+  | "aa-null"
+  | "aa-indirect-null"
+  | "absent"
+  | "empty"
+  | "valid";
+export async function exportOptionalActionFixture(
+  context: OptionalActionContext,
+  kind: OptionalActionKind
+) {
+  const doc = await PDFDocument.create(),
+    N = PDFName.of,
+    page = doc.addPage([320, 180]);
+  page.drawText("Retained content", { x: 20, y: 130, size: 12 });
+  const field = doc.getForm().createTextField("retained");
+  field.addToPage(page, { x: 20, y: 50, width: 200, height: 24 });
+  field.setText("Retained answer");
+  doc.getForm().updateFieldAppearances();
+  const widget = page.node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict),
+    parent = widget.lookup(N("Parent"), PDFDict);
+  const uri = () => doc.context.obj({ S: "URI", URI: PDFString.of("https://example.com/") });
+  const value =
+    kind === "null" || kind === "aa-null"
+      ? PDFNull
+      : kind === "indirect-null" || kind === "aa-indirect-null"
+        ? doc.context.register(PDFNull)
+        : kind === "chain-null"
+          ? doc.context.register(doc.context.register(PDFNull))
+          : uri();
+  if (context === "A") {
+    if (kind !== "absent") widget.set(N("A"), value);
+  } else if (context === "Next") {
+    const action = uri();
+    widget.set(N("A"), action);
+    if (kind !== "absent") action.set(N("Next"), kind === "empty" ? doc.context.obj([]) : value);
+  } else if (kind !== "absent") {
+    const target = context === "page" ? page.node : context === "annotation" ? widget : parent;
+    const additional = doc.context.obj({});
+    if (kind !== "empty")
+      additional.set(N(context === "page" ? "O" : context === "annotation" ? "E" : "K"), value);
+    target.set(N("AA"), kind === "aa-null" || kind === "aa-indirect-null" ? value : additional);
   }
   return doc.save({ updateFieldAppearances: false });
 }

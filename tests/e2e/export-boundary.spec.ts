@@ -10,6 +10,7 @@ import type {
   checkDestinations,
   checkFormExports,
   checkIndirectRoles,
+  checkOptionalNullActions,
 } from "./fixtures/export-boundary";
 
 let server: ViteDevServer, url: string;
@@ -319,4 +320,43 @@ test("subtree Counts cannot substitute workspace pages and resource/AP lookup na
       await info.attach(path, { path, contentType: "application/pdf" });
     }
   }
+});
+
+test("optional null actions preserve saved text/widgets/AP and omitted-target safety", async ({
+  page,
+}, info) => {
+  await page.goto(`${url}boundary-test`);
+  const result: Awaited<ReturnType<typeof checkOptionalNullActions>> = await page.evaluate(
+    async () => {
+      const path = "/tests/e2e/fixtures/export-boundary.ts";
+      return (await import(path)).checkOptionalNullActions();
+    }
+  );
+  for (const entry of result.results) {
+    for (const kind of ["input", "before", "after"] as const) {
+      const path = info.outputPath(`null-${entry.context}-${entry.kind}-${kind}.pdf`);
+      await writeFile(path, new Uint8Array(entry[kind]));
+      await info.attach(path, { path, contentType: "application/pdf" });
+    }
+    if (entry.diagnostics)
+      await info.attach(`null-${entry.context}-${entry.kind}-mismatch`, {
+        body: JSON.stringify(entry.diagnostics),
+        contentType: "application/json",
+      });
+    expect(entry.metadataEqual).toBe(true);
+    expect(entry.jsEqual).toBe(true);
+    expect(entry.pixelsEqual).toBe(true);
+    expect(entry.text).toEqual(["Retained content"]);
+    expect(entry.values).toEqual(["Retained answer"]);
+    expect(entry.pages).toBe(1);
+    expect(entry.widgets).toBe(1);
+    expect(entry.orphanKids).toBe(false);
+  }
+  expect(result.omitted.pages).toBe(1);
+  expect(result.omitted.visiblePages).toBe(1);
+  expect(result.omitted.leaked).toBe(false);
+  expect(result.omitted.inactive).toBe(true);
+  const path = info.outputPath("null-next-omitted-output.pdf");
+  await writeFile(path, new Uint8Array(result.omitted.output));
+  await info.attach(path, { path, contentType: "application/pdf" });
 });

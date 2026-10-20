@@ -5,7 +5,9 @@ import {
   PDFDocument,
   PDFHexString,
   PDFName,
+  PDFNull,
   PDFNumber,
+  type PDFObject,
   PDFString,
 } from "pdf-lib";
 import { describe, expect, it, vi } from "vitest";
@@ -17,12 +19,15 @@ import {
   exportCrossPageButtonFixture,
   exportFormFixture,
   exportLinkFixture,
+  exportOptionalActionFixture,
   exportPageCountFixture,
   exportPageIndexFixture,
   exportResourceNameFixture,
   INDEX_PAGE_TEXT,
   OMITTED_ANSWER,
   OMITTED_CONTENT,
+  type OptionalActionContext,
+  type OptionalActionKind,
 } from "./pdf-export-fixtures";
 import { inspectExport, retainedMetadata } from "./pdf-export-inspection";
 import { createPageState } from "./pdf-fixtures";
@@ -885,4 +890,146 @@ it("preserves and remaps known Next/additional actions without changing URI/remo
   expect(
     saved.lookup(N("AA"), PDFDict).lookup(N("E"), PDFDict).lookup(N("D"), PDFArray).get(0)
   ).toBe(output.getPage(1).ref);
+});
+
+describe("optional action null means absence", () => {
+  const cases: [OptionalActionContext, OptionalActionKind][] = [];
+  for (const context of ["page", "annotation", "field"] as const)
+    for (const kind of [
+      "null",
+      "indirect-null",
+      "chain-null",
+      "aa-null",
+      "aa-indirect-null",
+      "empty",
+      "absent",
+      "valid",
+    ] as const)
+      cases.push([context, kind]);
+  for (const context of ["A", "Next"] as const)
+    for (const kind of ["null", "indirect-null", "chain-null", "absent", "valid"] as const)
+      cases.push([context, kind]);
+  cases.push(["Next", "empty"]);
+  it.each(cases)("preserves text/value/AP for %s %s", async (context, kind) => {
+    const bytes = await exportOptionalActionFixture(context, kind),
+      source = file(bytes),
+      pages = [createPageState(source, 1)];
+    const before = await inspectExport(await baseline(pages)),
+      after = await inspectExport(await build(pages));
+    expect(retainedMetadata(after)).toEqual(retainedMetadata(before));
+    expect(after.pageObjects).toBe(1);
+    expect(after.widgetObjects).toBe(1);
+    expect(after.orphanKids).toBe(false);
+    expect(after.pages[0].annotations[0]).toMatchObject({
+      name: "retained",
+      value: "Retained answer",
+      ownerCorrect: true,
+    });
+    expect(new Uint8Array(await source.arrayBuffer())).toEqual(bytes);
+  });
+  it.each([false, true])(
+    "deactivates an omitted GoTo target with indirect Next null=%s without orphan payload",
+    async (indirect) => {
+      const doc = await PDFDocument.load(await exportLinkFixture("goto")),
+        action = doc
+          .getPage(0)
+          .node.lookup(N("Annots"), PDFArray)
+          .lookup(0, PDFDict)
+          .lookup(N("A"), PDFDict);
+      action.set(N("Next"), indirect ? doc.context.register(PDFNull) : PDFNull);
+      const after = await inspectExport(await build([createPageState(file(await doc.save()), 1)]));
+      expect(after.pageObjects).toBe(1);
+      expectAbsent(after.serialized, OMITTED_CONTENT);
+      const saved = await PDFDocument.load(
+        await build([createPageState(file(await doc.save()), 1)])
+      );
+      expect(
+        saved.getPage(0).node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict).has(N("A"))
+      ).toBe(false);
+    }
+  );
+  for (const slot of ["AA", "event", "A", "Next"] as const)
+    it.each(["number", "string", "cycle", "excessive"])(
+      `rejects non-null malformed optional ${slot} %s`,
+      async (kind) => {
+        const doc = await PDFDocument.load(await exportOptionalActionFixture("page", "absent")),
+          page = doc.getPage(0),
+          widget = page.node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict);
+        const raw = kind === "number" ? PDFNumber.of(3) : PDFString.of("invalid");
+        let value: PDFObject = raw;
+        if (kind === "cycle") {
+          const ref = doc.context.nextRef();
+          doc.context.assign(ref, ref);
+          value = ref;
+        }
+        if (kind === "excessive") {
+          value = PDFNull;
+          for (let i = 0; i < 33; i++) value = doc.context.register(value);
+        }
+        if (slot === "AA") page.node.set(N("AA"), value);
+        else if (slot === "event") page.node.set(N("AA"), doc.context.obj({ O: value }));
+        else if (slot === "A") widget.set(N("A"), value);
+        else
+          widget.set(
+            N("A"),
+            doc.context.obj({ S: "URI", URI: PDFString.of("https://example.com/"), Next: value })
+          );
+        await expect(
+          build([createPageState(file(await doc.save({ updateFieldAppearances: false })), 1)])
+        ).rejects.toMatchObject(
+          kind === "cycle" || kind === "excessive"
+            ? {
+                operation: "reconcile-export",
+                message: "Cyclic or excessive PDF action references",
+              }
+            : { _tag: "PDFProcessingError" }
+        );
+      }
+    );
+  for (const role of ["Type", "Count", "Subtype", "S"] as const)
+    it.each([false, true])(
+      `keeps ${role} null invalid in required semantic context, indirect=%s`,
+      async (indirect) => {
+        const doc = await PDFDocument.load(await exportOptionalActionFixture("page", "absent")),
+          page = doc.getPage(0),
+          widget = page.node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict);
+        const value = indirect ? doc.context.register(PDFNull) : PDFNull;
+        if (role === "Count") doc.catalog.lookup(N("Pages"), PDFDict).set(N("Count"), value);
+        else if (role === "Type") page.node.set(N("Type"), value);
+        else if (role === "Subtype") widget.set(N("Subtype"), value);
+        else widget.set(N("A"), doc.context.obj({ S: value }));
+        await expect(
+          build([createPageState(file(await doc.save({ updateFieldAppearances: false })), 1)])
+        ).rejects.toMatchObject({ operation: "reconcile-export" });
+      }
+    );
+});
+
+it("keeps valid Next actions alongside direct and indirect null action slots", async () => {
+  const doc = await PDFDocument.load(await exportOptionalActionFixture("Next", "valid")),
+    widget = doc.getPage(0).node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict),
+    action = widget.lookup(N("A"), PDFDict);
+  action.set(
+    N("Next"),
+    doc.context.obj([
+      PDFNull,
+      doc.context.register(PDFNull),
+      { S: "URI", URI: PDFString.of("https://example.com/next") },
+    ])
+  );
+  const saved = await PDFDocument.load(
+    await build([createPageState(file(await doc.save({ updateFieldAppearances: false })), 1)])
+  );
+  const next = saved
+    .getPage(0)
+    .node.lookup(N("Annots"), PDFArray)
+    .lookup(0, PDFDict)
+    .lookup(N("A"), PDFDict)
+    .lookup(N("Next"), PDFArray);
+  expect(next.size()).toBe(3);
+  expect(saved.context.lookup(next.get(0))).toBe(PDFNull);
+  expect(saved.context.lookup(next.get(1))).toBe(PDFNull);
+  expect(next.lookup(2, PDFDict).lookup(N("URI"), PDFString).decodeText()).toBe(
+    "https://example.com/next"
+  );
 });
