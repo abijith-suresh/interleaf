@@ -138,6 +138,26 @@ export default function EditorAdditionsEditor(props: Props) {
     );
   }
 
+  function focusElement(element: HTMLElement) {
+    element.focus({ preventScroll: true });
+    if (
+      document.activeElement !== element ||
+      !visible(disclosure) ||
+      !props.toolbar.contains(element)
+    )
+      return;
+    // Reveal compact settings without scrolling the document or page preview.
+    for (const container of [element.closest<HTMLElement>(".editor-text-content"), props.toolbar]) {
+      if (!container || container.scrollHeight <= container.clientHeight) continue;
+      const viewport = container.getBoundingClientRect();
+      const field = element.getBoundingClientRect();
+      const top = viewport.top + container.clientTop + 4;
+      const bottom = viewport.top + container.clientTop + container.clientHeight - 4;
+      if (field.top < top) container.scrollTop += field.top - top;
+      else if (field.bottom > bottom) container.scrollTop += field.bottom - bottom;
+    }
+  }
+
   function focusLater(target: () => HTMLElement | undefined, ticket = focusTicket()) {
     const version = generation;
     queueMicrotask(() => {
@@ -150,7 +170,7 @@ export default function EditorAdditionsEditor(props: Props) {
       )
         return;
       const element = target();
-      if (visible(element)) element.focus({ preventScroll: true });
+      if (visible(element)) focusElement(element);
     });
   }
 
@@ -744,7 +764,8 @@ export default function EditorAdditionsEditor(props: Props) {
                 onClick={() => {
                   setToolsOpen(true);
                   setSettings(true);
-                  (checkmark() ? sizeInput : input)?.focus({ preventScroll: true });
+                  const field = checkmark() ? sizeInput : input;
+                  if (visible(field)) focusElement(field);
                 }}
               >
                 {isText(text()) ? (text() as AddedText).text || "Type text" : <CheckmarkShape />}

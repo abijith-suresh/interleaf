@@ -297,3 +297,109 @@ test.describe("touch checkmark gestures", () => {
     await expect(page.locator(".editor-text-layer")).not.toHaveClass(/is-editing/);
   });
 });
+
+for (const kind of ["checkmark", "text"] as const) {
+  test(`compact ${kind} settings reveal focused fields after a saved addition at 568x320`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 568, height: 320 });
+    await open(page);
+    await place(page);
+    await tools(page);
+    await page
+      .getByRole("button", { name: kind === "checkmark" ? "Checkmark" : "Add text", exact: true })
+      .press("Enter");
+    const stage = page.locator(".editor-review-stage");
+    await expect(stage).toBeFocused();
+    const scrollPosition = () =>
+      page.evaluate(() => {
+        const stage = document.querySelector(".editor-review-stage");
+        return [scrollX, scrollY, stage?.scrollLeft, stage?.scrollTop];
+      });
+    const before = await scrollPosition();
+    await stage.press("Enter");
+    const field = page.getByLabel(
+      kind === "checkmark" ? "Checkmark size in points" : "Added text",
+      { exact: true }
+    );
+    if (kind === "text") {
+      await field.fill("Saved text");
+      await page.getByRole("button", { name: "Save text", exact: true }).click();
+      await ready(page);
+      await page
+        .getByRole("button", { name: "Edit added text: Saved text", exact: true })
+        .press("Enter");
+    }
+    const unobscured = () =>
+      field.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return [0.2, 0.5, 0.8].every((fraction) => {
+          const top = document.elementFromPoint(
+            rect.left + rect.width / 2,
+            rect.top + rect.height * fraction
+          );
+          return top === element || element.contains(top);
+        });
+      });
+    await expect(field).toBeFocused();
+    await expect.poll(unobscured).toBe(true);
+    expect(await scrollPosition()).toEqual(before);
+
+    // Reach the draft through the actual tab order, including Edit additions.
+    for (let step = 0; step < 6; step++) await page.keyboard.press("Shift+Tab");
+    const draft = page.getByRole("button", { name: `Drag ${kind} to move it` });
+    await expect(draft).toBeFocused();
+    await expect(page.getByRole("button", { name: "Tools", exact: true })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    await draft.press("ArrowRight");
+    await draft.press("Enter");
+    await expect(field).toBeFocused();
+    await expect.poll(unobscured).toBe(true);
+    expect(await scrollPosition()).toEqual(before);
+
+    // Validation returns focus to a visible field after actions scroll into view.
+    if (kind === "checkmark") {
+      for (let step = 0; step < 60; step++) await draft.press("Shift+ArrowRight");
+      await draft.press("Enter");
+    } else await field.fill("Café");
+    await page.getByRole("button", { name: `Save ${kind}`, exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText(
+      kind === "checkmark" ? "beyond the page" : "basic Latin"
+    );
+    await expect(field).toBeFocused();
+    await expect.poll(unobscured).toBe(true);
+    expect(await scrollPosition()).toEqual(before);
+
+    // Scroll the popup itself to reach actions, without moving the page or preview.
+    await page.locator(".editor-document-tools").evaluate((popup) => {
+      popup.scrollTop = popup.scrollHeight;
+      const content = popup.querySelector(".editor-text-content");
+      if (content) content.scrollTop = content.scrollHeight;
+    });
+    const cancel = page.getByRole("button", { name: "Cancel", exact: true });
+    for (const action of [`Save ${kind}`, "Cancel"]) {
+      await expect
+        .poll(() =>
+          page.getByRole("button", { name: action, exact: true }).evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            const top = document.elementFromPoint(
+              rect.left + rect.width / 2,
+              rect.top + rect.height / 2
+            );
+            return top === element || element.contains(top);
+          })
+        )
+        .toBe(true);
+    }
+    expect(await scrollPosition()).toEqual(before);
+    await cancel.click();
+    await expect(
+      page.getByRole("button", {
+        name: kind === "text" ? "Edit added text: Saved text" : "Tools",
+        exact: true,
+      })
+    ).toBeFocused();
+  });
+}
