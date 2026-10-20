@@ -36,3 +36,16 @@ export function viewportToPDF(geometry: PageGeometry, rotation: number, x: numbe
     y: (-b * (x - e) + a * (y - f)) / determinant,
   };
 }
+
+// Deltas use physical page points in the displayed directions, independent of
+// raw PDF units, box origins, and intrinsic/workspace rotation.
+export function offsetPDFPoint(
+  geometry: PageGeometry,
+  rotation: number,
+  point: { readonly x: number; readonly y: number },
+  dx: number,
+  dy: number
+) {
+  const view = pdfToViewport(geometry, rotation, point.x, point.y);
+  return viewportToPDF(geometry, rotation, view.x + dx, view.y + dy);
+}

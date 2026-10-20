@@ -1,6 +1,6 @@
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { describe, expect, it } from "vitest";
-import { pdfToViewport, viewportToPDF } from "../../controllers/text-geometry";
+import { offsetPDFPoint, pdfToViewport, viewportToPDF } from "../../controllers/text-geometry";
 import type { AddedText, PageGeometry } from "../../types/interfaces";
 import { drawAddedText, measureAddedText } from "../pdf-text";
 
@@ -23,6 +23,29 @@ function geometry(unit: number): PageGeometry {
 }
 
 describe("added PDF text", () => {
+  it("nudges in displayed directions and physical points at every UserUnit and quarter-turn", () => {
+    for (const unit of [1, 1.5, 2])
+      for (const intrinsic of [0, 90, 180, 270])
+        for (const workspace of [0, 90, 180, 270])
+          for (const [dx, dy] of [
+            [-1, 0],
+            [1, 0],
+            [0, -1],
+            [0, 1],
+            [10, -10],
+          ]) {
+            const g = geometry(unit);
+            const rotation = intrinsic + workspace;
+            const before = pdfToViewport(g, rotation, text.x, text.y);
+            const next = offsetPDFPoint(g, rotation, text, dx, dy);
+            const after = pdfToViewport(g, rotation, next.x, next.y);
+            expect(after.x - before.x).toBeCloseTo(dx);
+            expect(after.y - before.y).toBeCloseTo(dy);
+            expect(Math.hypot(next.x - text.x, next.y - text.y) * unit).toBeCloseTo(
+              Math.hypot(dx, dy)
+            );
+          }
+  });
   it("roundtrips translated visible boxes at every intrinsic and workspace rotation, CSS scale and pan", () => {
     for (const unit of [1, 1.5, 2])
       for (const intrinsic of [0, 90, 180, 270])

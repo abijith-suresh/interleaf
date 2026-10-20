@@ -4,6 +4,7 @@ import { Portal } from "solid-js/web";
 import { MAX_TEXT_SIZE, MIN_TEXT_SIZE } from "../../constants";
 import {
   normalizeQuarterTurn,
+  offsetPDFPoint,
   pdfToViewport,
   viewportToPDF,
 } from "../../controllers/text-geometry";
@@ -12,6 +13,7 @@ import type { AddedText, PageGeometry, PageState } from "../../types/interfaces"
 import EditorButton from "./ui/EditorButton";
 
 export interface TextGesture {
+  key: (event: KeyboardEvent) => boolean;
   move: (event: PointerEvent) => boolean;
   end: (event: PointerEvent) => boolean;
   cancel: () => void;
@@ -22,6 +24,7 @@ interface Props {
   runtime: PDFRuntime;
   toolbar: HTMLElement;
   header: HTMLElement;
+  stage: HTMLElement;
   ready: boolean;
   disabled?: boolean;
   onChange: (pageId: string, texts: readonly AddedText[], label: string) => void;
@@ -41,6 +44,13 @@ export default function EditorTextEditor(props: Props) {
   const [settings, setSettings] = createSignal(true);
   let layer!: HTMLDivElement;
   let input: HTMLInputElement | undefined;
+  let sizeInput: HTMLInputElement | undefined;
+  let addButton: HTMLButtonElement | undefined;
+  let disclosure: HTMLButtonElement | undefined;
+  let focusRevision = 0;
+  const trackFocus = () => focusRevision++;
+  document.addEventListener("focusin", trackFocus);
+  document.addEventListener("pointerdown", trackFocus, true);
   let disposed = false;
   let generation = 0;
   let drag:
@@ -49,6 +59,12 @@ export default function EditorTextEditor(props: Props) {
 
   const texts = () => props.page.addedText ?? [];
   const textMode = createMemo(() => mode() !== "read");
+  const invalidSize = () => {
+    const size = draft()?.fontSize;
+    return (
+      size === undefined || !Number.isFinite(size) || size < MIN_TEXT_SIZE || size > MAX_TEXT_SIZE
+    );
+  };
   const visibleSize = createMemo(() => {
     const g = geometry();
     return g
@@ -65,6 +81,65 @@ export default function EditorTextEditor(props: Props) {
     setSaving(false);
     drag = undefined;
     props.onEditing(null);
+  }
+
+  function focusTicket() {
+    const active = document.activeElement;
+    return {
+      pageId: props.page.id,
+      revision: focusRevision,
+      owned:
+        active === props.stage ||
+        [layer, props.toolbar, props.header].some((root) => root?.contains(active)),
+    };
+  }
+
+  function visible(element: HTMLElement | undefined | null): element is HTMLElement {
+    return Boolean(
+      element?.isConnected && element.getClientRects().length && !element.matches(":disabled")
+    );
+  }
+
+  function focusLater(target: () => HTMLElement | undefined, ticket = focusTicket()) {
+    const version = generation;
+    queueMicrotask(() => {
+      if (
+        disposed ||
+        props.page.id !== ticket.pageId ||
+        generation !== version ||
+        focusRevision !== ticket.revision ||
+        !ticket.owned
+      )
+        return;
+      const element = target();
+      if (visible(element)) element.focus({ preventScroll: true });
+    });
+  }
+
+  function completionTarget(id?: string) {
+    const hit = Array.from(layer.querySelectorAll<HTMLButtonElement>(".editor-text-hit")).find(
+      (element) => element.dataset.textId === id
+    );
+    if (visible(hit)) {
+      const box = hit.getBoundingClientRect();
+      const view = props.stage.getBoundingClientRect();
+      if (
+        box.right > view.left &&
+        box.left < view.right &&
+        box.bottom > view.top &&
+        box.top < view.bottom
+      )
+        return hit;
+    }
+    return visible(disclosure) ? disclosure : visible(addButton) ? addButton : props.stage;
+  }
+
+  function finishDraft() {
+    const ticket = focusTicket();
+    const id = draft()?.id;
+    cancel();
+    setToolsOpen(false);
+    focusLater(() => completionTarget(id), ticket);
   }
 
   createEffect(() => {
@@ -112,6 +187,7 @@ export default function EditorTextEditor(props: Props) {
 
   createEffect(() => props.registerTap(mode() === "read" ? null : place));
   props.registerGesture({
+    key: previewKey,
     move: pointerMove,
     end: pointerEnd,
     cancel: () => {
@@ -127,6 +203,8 @@ export default function EditorTextEditor(props: Props) {
     props.onEditing(null);
     props.registerTap(null);
     props.registerGesture(null);
+    document.removeEventListener("focusin", trackFocus);
+    document.removeEventListener("pointerdown", trackFocus, true);
   });
 
   function position(event: PointerEvent) {
@@ -144,13 +222,14 @@ export default function EditorTextEditor(props: Props) {
 
   function startEdit(text: AddedText) {
     if (saving()) return;
+    const ticket = focusTicket();
     cancel();
     setMode("edit");
     setDraft({ ...text });
     setSettings(true);
     setToolsOpen(true);
     props.onEditing(text.id);
-    queueMicrotask(() => input?.focus({ preventScroll: true }));
+    focusLater(() => input, ticket);
   }
 
   function patch(change: Partial<AddedText>) {
@@ -162,6 +241,7 @@ export default function EditorTextEditor(props: Props) {
     const text = draft();
     const g = geometry();
     if (!text || !g || saving()) return;
+    const ticket = focusTicket();
     const version = ++generation;
     setSaving(true);
     setError("");
@@ -177,9 +257,22 @@ export default function EditorTextEditor(props: Props) {
       cancel();
       setMode("edit");
       setToolsOpen(false);
+      focusLater(() => completionTarget(text.id), ticket);
     } catch (cause) {
-      if (!disposed && version === generation)
+      if (!disposed && version === generation) {
         setError(cause instanceof Error ? cause.message : "Could not save text. Try again.");
+        // Re-enable the field before restoring focus lost to disabled controls.
+        setSaving(false);
+        focusLater(
+          () =>
+            !Number.isFinite(text.fontSize) ||
+            text.fontSize < MIN_TEXT_SIZE ||
+            text.fontSize > MAX_TEXT_SIZE
+              ? sizeInput
+              : input,
+          ticket
+        );
+      }
     } finally {
       if (!disposed && version === generation) setSaving(false);
     }
@@ -240,12 +333,70 @@ export default function EditorTextEditor(props: Props) {
       return;
     const point = position(event);
     if (!point) return;
+    createDraft(point);
+  }
+
+  function createDraft(point: { x: number; y: number }) {
     setDraft({ id: crypto.randomUUID(), text: "", ...point, fontSize: 16, rotation: rotation() });
     setMode("edit");
     setSettings(true);
     setToolsOpen(true);
     setError("");
-    queueMicrotask(() => input?.focus({ preventScroll: true }));
+    focusLater(() => input);
+  }
+
+  function previewKey(event: KeyboardEvent) {
+    if (event.target !== props.stage || mode() !== "place") return false;
+    if (event.key === "Escape") {
+      cancel();
+      setMode("read");
+      event.preventDefault();
+      return true;
+    }
+    if (event.key !== "Enter" && event.key !== " ") return false;
+    event.preventDefault();
+    const g = geometry();
+    if (!g || !props.ready || draft() || props.disabled) return true;
+    const box = layer.getBoundingClientRect();
+    const view = props.stage.getBoundingClientRect();
+    const size = visibleSize();
+    const x = (Math.max(box.left, view.left) + Math.min(box.right, view.right)) / 2;
+    const y = (Math.max(box.top, view.top) + Math.min(box.bottom, view.bottom)) / 2;
+    createDraft(
+      viewportToPDF(
+        g,
+        rotation(),
+        ((x - box.left) * size.width) / box.width,
+        ((y - box.top) * size.height) / box.height
+      )
+    );
+    return true;
+  }
+
+  function draftKey(event: KeyboardEvent) {
+    if (event.ctrlKey || event.metaKey || event.altKey || saving() || props.disabled) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      finishDraft();
+      return;
+    }
+    const g = geometry();
+    const text = draft();
+    if (!g || !text || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key))
+      return;
+    event.preventDefault();
+    event.stopPropagation();
+    const step = event.shiftKey ? 10 : 1;
+    patch(
+      offsetPDFPoint(
+        g,
+        rotation(),
+        text,
+        event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0,
+        event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0
+      )
+    );
   }
 
   function style(text: AddedText) {
@@ -277,6 +428,7 @@ export default function EditorTextEditor(props: Props) {
             Read
           </EditorButton>
           <EditorButton
+            ref={disclosure}
             icon="text"
             aria-label="Text tools"
             aria-pressed={mode() !== "read"}
@@ -290,7 +442,7 @@ export default function EditorTextEditor(props: Props) {
         <fieldset class="editor-text-controls" disabled={props.disabled}>
           <Show when={mode() === "place" && !toolsOpen()}>
             <span class="editor-text-hint editor-text-mobile-hint" role="status">
-              Tap the page to place text.
+              Tap the page or press Enter in the preview.
             </span>
           </Show>
           <div class="editor-text-content" classList={{ "is-open": toolsOpen() }}>
@@ -305,13 +457,16 @@ export default function EditorTextEditor(props: Props) {
                 Read
               </EditorButton>
               <EditorButton
+                ref={addButton}
                 icon="text"
                 aria-pressed={mode() === "place"}
                 disabled={!props.ready || saving()}
                 onClick={() => {
+                  const ticket = focusTicket();
                   cancel();
                   setMode("place");
                   setToolsOpen(false);
+                  focusLater(() => props.stage, ticket);
                 }}
               >
                 Add text
@@ -332,7 +487,7 @@ export default function EditorTextEditor(props: Props) {
               </Show>
               <Show when={mode() === "place"}>
                 <span class="editor-text-hint" role="status">
-                  Tap the page to place text.
+                  Tap the page or press Enter in the preview.
                 </span>
               </Show>
               <Show when={draft()}>
@@ -352,7 +507,7 @@ export default function EditorTextEditor(props: Props) {
                   event.stopPropagation();
                   if (event.key === "Escape") {
                     event.preventDefault();
-                    cancel();
+                    finishDraft();
                   }
                 }}
               >
@@ -361,6 +516,8 @@ export default function EditorTextEditor(props: Props) {
                   <input
                     ref={input}
                     aria-label="Added text"
+                    aria-invalid={Boolean(error()) && !invalidSize()}
+                    aria-describedby={error() && !invalidSize() ? "editor-text-error" : undefined}
                     onPaste={(event) => {
                       if (/[\r\n]/.test(event.clipboardData?.getData("text/plain") ?? "")) {
                         event.preventDefault();
@@ -375,8 +532,11 @@ export default function EditorTextEditor(props: Props) {
                 <label>
                   Size{" "}
                   <input
+                    ref={sizeInput}
                     type="number"
                     aria-label="Text size in points"
+                    aria-invalid={Boolean(error()) && invalidSize()}
+                    aria-describedby={error() && invalidSize() ? "editor-text-error" : undefined}
                     min={MIN_TEXT_SIZE}
                     max={MAX_TEXT_SIZE}
                     value={draft()?.fontSize}
@@ -396,7 +556,7 @@ export default function EditorTextEditor(props: Props) {
                 <EditorButton type="submit" variant="primary" disabled={saving()}>
                   {saving() ? "Saving…" : "Save text"}
                 </EditorButton>
-                <EditorButton disabled={saving()} onClick={cancel}>
+                <EditorButton disabled={saving()} onClick={finishDraft}>
                   Cancel
                 </EditorButton>
                 <Show when={texts().some((text) => text.id === draft()?.id)}>
@@ -406,6 +566,7 @@ export default function EditorTextEditor(props: Props) {
                     variant="danger"
                     disabled={saving()}
                     onClick={() => {
+                      const ticket = focusTicket();
                       const id = draft()?.id;
                       props.onChange(
                         props.page.id,
@@ -413,13 +574,15 @@ export default function EditorTextEditor(props: Props) {
                         "Delete text"
                       );
                       cancel();
+                      setToolsOpen(false);
+                      focusLater(() => completionTarget(), ticket);
                     }}
                   >
                     Delete
                   </EditorButton>
                 </Show>
                 <Show when={error()}>
-                  <p class="editor-text-error" role="alert">
+                  <p id="editor-text-error" class="editor-text-error" role="alert">
                     {error()}
                   </p>
                 </Show>
@@ -441,6 +604,14 @@ export default function EditorTextEditor(props: Props) {
         classList={{ "is-editing": mode() !== "read", "is-placing": mode() === "place" }}
         onPointerDown={pointerDown}
       >
+        <p id="editor-text-placement-help" class="sr-only">
+          {mode() === "place"
+            ? "Press Enter or Space to place text at the visible page center. Escape cancels placement."
+            : "Use arrow keys to pan. Choose added text to edit."}
+        </p>
+        <p id="editor-text-move-help" class="sr-only">
+          Arrow keys move text by 1 point. Shift moves 10 points. Enter edits text. Escape cancels.
+        </p>
         <Show when={mode() === "edit" && geometry()}>
           <For each={texts().filter((text) => text.id !== draft()?.id)}>
             {(text) => (
@@ -465,6 +636,8 @@ export default function EditorTextEditor(props: Props) {
                 type="button"
                 class="editor-text-draft"
                 aria-label="Drag text to move it"
+                aria-describedby="editor-text-move-help"
+                onKeyDown={draftKey}
                 style={style(text())}
                 onClick={() => {
                   setSettings(true);

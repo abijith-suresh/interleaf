@@ -446,6 +446,7 @@ export default function EditorPageViewer(props: Props) {
       return;
     // Keep browser zoom and modified navigation shortcuts native.
     if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (textGesture?.key(event)) return;
     if (
       event.target === stage &&
       ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)
@@ -620,6 +621,7 @@ export default function EditorPageViewer(props: Props) {
         classList={{ "is-panning": panning(), "is-zoomed": zoom() > 1 }}
         data-zoom={zoom()}
         aria-label="Page preview, use arrow keys to pan"
+        aria-describedby={props.onTextChange ? "editor-text-placement-help" : undefined}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: The scroll region supports keyboard panning.
         tabIndex={0}
         onPointerDown={pointerDown}
@@ -654,6 +656,7 @@ export default function EditorPageViewer(props: Props) {
                     runtime={props.runtime}
                     toolbar={textToolbar}
                     header={textHeader}
+                    stage={stage}
                     ready={hasFrame() && !props.disabled}
                     disabled={props.disabled}
                     onChange={onChange()}

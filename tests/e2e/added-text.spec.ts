@@ -48,6 +48,98 @@ async function place(page: Page, text = "Added text") {
   await ready(page);
 }
 
+for (const width of [1280, 390]) {
+  test(`text completion and validation keep logical keyboard focus at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await open(page);
+    await place(page, "Focus");
+    const hit = page.getByRole("button", { name: "Edit added text: Focus", exact: true });
+    await expect(hit).toBeFocused();
+    if (width === 1280) {
+      await page.keyboard.press("Tab");
+      await expect(page.getByRole("button", { name: "Read", exact: true })).toBeFocused();
+    }
+    const input = page.getByLabel("Added text", { exact: true });
+    for (const action of ["Cancel", "Escape", "Save text"]) {
+      await hit.press("Enter");
+      await expect(input).toBeFocused();
+      if (action === "Escape") await input.press("Escape");
+      else await page.getByRole("button", { name: action, exact: true }).press("Enter");
+      await expect(hit).toBeFocused();
+    }
+    await hit.press("Enter");
+    await input.fill("Café");
+    await input.press("Enter");
+    await expect(page.getByRole("alert")).toContainText("basic Latin");
+    await expect(input).toBeFocused();
+    await input.fill("Focus");
+    await page.getByRole("button", { name: "Delete added text" }).press("Enter");
+    const fallback =
+      width === 390
+        ? page.getByRole("button", { name: "Text tools", exact: true })
+        : page.getByRole("button", { name: "Add text", exact: true });
+    await expect(fallback).toBeFocused();
+  });
+
+  test(`keyboard text placement and movement at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await open(page);
+    await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await ready(page);
+    const stage = page.locator(".editor-review-stage");
+    await stage.press("ArrowRight");
+    await stage.press("ArrowDown");
+    const disclosure = page.getByRole("button", { name: "Text tools", exact: true });
+    if (await disclosure.isVisible()) await disclosure.click();
+    await page.getByRole("button", { name: "Add text", exact: true }).press("Enter");
+    await expect(stage).toBeFocused();
+    await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
+    const center = await stage.evaluate((element) => {
+      const view = element.getBoundingClientRect();
+      const box = element.querySelector(".editor-text-layer")!.getBoundingClientRect();
+      // Compare CSS percentages after the browser's own numeric serialization.
+      const style = document.createElement("div").style;
+      style.left = `${(100 * ((Math.max(box.left, view.left) + Math.min(box.right, view.right)) / 2 - box.left)) / box.width}%`;
+      style.top = `${(100 * ((Math.max(box.top, view.top) + Math.min(box.bottom, view.bottom)) / 2 - box.top)) / box.height}%`;
+      return [parseFloat(style.left), parseFloat(style.top)];
+    });
+    await stage.press(width === 390 ? "Enter" : "Space");
+    const input = page.getByLabel("Added text", { exact: true });
+    await expect(input).toBeFocused();
+    await input.fill("Keyboard");
+    const draft = page.getByRole("button", { name: "Drag text to move it" });
+    await draft.focus();
+    const before = await draft.evaluate((element) => [
+      parseFloat(element.style.left),
+      parseFloat(element.style.top),
+    ]);
+    expect(before).toEqual(center);
+    await draft.press("ArrowRight");
+    await draft.press("Shift+ArrowDown");
+    const after = await draft.evaluate((element) => [
+      parseFloat(element.style.left),
+      parseFloat(element.style.top),
+    ]);
+    expect(after[0]).toBeGreaterThan(before[0]);
+    expect(after[1]).toBeGreaterThan(before[1]);
+    await draft.press("Enter");
+    await expect(input).toBeFocused();
+    await input.press("Enter");
+    const hit = page.getByRole("button", { name: "Edit added text: Keyboard", exact: true });
+    await expect(hit).toBeFocused();
+    await hit.press("Enter");
+    await input.fill("Cancelled");
+    await draft.focus();
+    await draft.press("Escape");
+    await expect(hit).toBeFocused();
+    await page.keyboard.press("Control+z");
+    await expect(hit).toHaveCount(0);
+  });
+}
+
 test("point placement, validation, editing, movement, rotation and history retain independent copies", async ({
   page,
 }) => {
