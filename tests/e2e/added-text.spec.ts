@@ -61,6 +61,32 @@ test("point placement, validation, editing, movement, rotation and history retai
   await read.hover();
   await expect(read).toHaveCSS("background-color", selectionColor);
   await place(page, "Added 123");
+  await expect
+    .poll(() =>
+      page
+        .locator(".editor-review-filmstrip-item")
+        .first()
+        .evaluate((item) => {
+          const container = item.querySelector(".canvas-container");
+          const canvas = item.querySelector("canvas");
+          const stage = item.querySelector(".canvas-stage");
+          if (!canvas?.width || !canvas.height || !stage) return false;
+          const frame = stage.getBoundingClientRect();
+          const bitmap = canvas.getBoundingClientRect();
+          const pixel = canvas
+            .getContext("2d")
+            ?.getImageData(canvas.width / 2, canvas.height / 2, 1, 1).data;
+          return (
+            container?.getAttribute("data-render-state") === "ready" &&
+            frame.width > 0 &&
+            frame.height > 0 &&
+            Math.abs(bitmap.width - frame.width) < 1 &&
+            Math.abs(bitmap.height - frame.height) < 1 &&
+            pixel?.[3] === 255
+          );
+        })
+    )
+    .toBe(true);
   const hit = page.getByRole("button", { name: "Edit added text: Added 123", exact: true });
   await expect(hit).toBeVisible();
   await expect(page.getByTestId("editor-undo-button")).toHaveAttribute(
