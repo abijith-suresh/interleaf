@@ -48,6 +48,58 @@ async function place(page: Page, text = "Added text") {
   await ready(page);
 }
 
+for (const [width, height] of [
+  [667, 320],
+  [320, 667],
+  [390, 844],
+]) {
+  test(`keyboard movement keeps the draft visible at ${width}x${height}`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await open(page);
+    const disclosure = page.getByRole("button", { name: "Text tools", exact: true });
+    await disclosure.click();
+    await page.getByRole("button", { name: "Add text", exact: true }).press("Enter");
+    await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
+    await page.keyboard.press("Enter");
+    const input = page.getByLabel("Added text", { exact: true });
+    await expect(input).toBeFocused();
+    await input.fill("Landscape move");
+    await expect(disclosure).toHaveAttribute("aria-expanded", "true");
+    // Follow the actual reverse tab order from the input through the toolbar.
+    for (let step = 0; step < 4; step++) await page.keyboard.press("Shift+Tab");
+    const draft = page.getByRole("button", { name: "Drag text to move it" });
+    await expect(draft).toBeFocused();
+    const unobscured = () =>
+      draft.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+        return box.width > 0 && box.height > 0 && (top === element || element.contains(top));
+      });
+    await expect.poll(unobscured).toBe(true);
+    await expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    const before = await draft.evaluate((element) => parseFloat(element.style.left));
+    await page.keyboard.press("Shift+ArrowRight");
+    expect(await draft.evaluate((element) => parseFloat(element.style.left))).toBeGreaterThan(
+      before
+    );
+    await expect(draft).toBeFocused();
+    await expect.poll(unobscured).toBe(true);
+    await page.keyboard.press("Enter");
+    await expect(input).toBeFocused();
+    await expect(disclosure).toHaveAttribute("aria-expanded", "true");
+    await expect
+      .poll(() =>
+        input.evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          return (
+            document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === element
+          );
+        })
+      )
+      .toBe(true);
+  });
+}
+
 for (const width of [1280, 390]) {
   test(`text completion and validation keep logical keyboard focus at ${width}px`, async ({
     page,

@@ -637,9 +637,15 @@ export default function EditorTextEditor(props: Props) {
                 class="editor-text-draft"
                 aria-label="Drag text to move it"
                 aria-describedby="editor-text-move-help"
+                onFocus={(event) => {
+                  // The compact popup must not cover keyboard movement.
+                  if (visible(disclosure) && event.currentTarget.matches(":focus-visible"))
+                    setToolsOpen(false);
+                }}
                 onKeyDown={draftKey}
                 style={style(text())}
                 onClick={() => {
+                  setToolsOpen(true);
                   setSettings(true);
                   input?.focus({ preventScroll: true });
                 }}
