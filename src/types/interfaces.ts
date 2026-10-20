@@ -33,12 +33,31 @@ export class PDFNoPagesError extends Data.TaggedError("PDFNoPagesError")<{
 
 export type PDFError = PDFPasswordRequiredError | PDFProcessingError | PDFNoPagesError;
 
+// Baseline position and rotation use source PDF coordinates. Size is physical points.
+export interface AddedText {
+  readonly id: string;
+  readonly text: string;
+  readonly x: number;
+  readonly y: number;
+  readonly fontSize: number;
+  readonly rotation: number;
+}
+
+export interface PageGeometry {
+  readonly bounds: readonly [number, number, number, number];
+  readonly userUnit: number;
+  readonly transform: readonly [number, number, number, number, number, number];
+  readonly width: number;
+  readonly height: number;
+}
+
 export interface PageState {
   id: string;
   sourceFile: File;
   sourcePageNumber: number;
   rotation: number;
   markedForDeletion: boolean;
+  addedText?: readonly AddedText[];
 }
 
 export interface PDFOperationResult {

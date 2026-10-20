@@ -34,6 +34,7 @@ describe("page organization history", () => {
       expect(after.pages[1].rotation).toBe(90);
       expect(restored[0].sourceFile).toBe(file);
       expect(Object.keys(before.pages[0]).sort()).toEqual([
+        "addedText",
         "id",
         "markedForDeletion",
         "rotation",
@@ -253,4 +254,42 @@ describe("source history retention", () => {
     expect(restored[0]).toBe(first);
     expect(restored[1]).toBe(huge);
   });
+});
+
+it("copies saved text independently across history, duplicates, and source restoration", () => {
+  const file = new File(["source"], "text.pdf");
+  const pages = createPageStates(file, 1);
+  pages[0].addedText = [{ id: "a", text: "Original", x: 12, y: 40, fontSize: 16, rotation: 90 }];
+  const before = snapshotOrganization(pages, new Set(), pages[0].id);
+  const copy = duplicatePageState(pages[0]);
+  expect(copy.addedText).not.toBe(pages[0].addedText);
+  expect(copy.addedText?.[0]).not.toBe(pages[0].addedText?.[0]);
+  copy.addedText = copy.addedText?.map((text) => ({ ...text, text: "Copy", x: 20 }));
+  pages.push(copy);
+  const duplicated = snapshotOrganization(pages, new Set([1]), copy.id);
+  let history = recordOrganization(emptyOrganizationHistory(), "Duplicate", before, duplicated);
+  history = recordOrganization(
+    history,
+    "Remove source",
+    duplicated,
+    snapshotOrganization([], new Set(), null)
+  );
+  expect(history.undo.at(-1)?.before.pages.map((page) => page.addedText?.[0].text)).toEqual([
+    "Original",
+    "Copy",
+  ]);
+  const restored = copyOrganizationPages(duplicated.pages);
+  restored[0].addedText = restored[0].addedText?.map((text) => ({ ...text, text: "Edited" }));
+  expect(before.pages[0].addedText?.[0].text).toBe("Original");
+  expect(restored.every((page) => page.sourceFile === file)).toBe(true);
+  const changed = snapshotOrganization(restored, new Set(), restored[0].id);
+  expect(recordOrganization(history, "Edit text", duplicated, changed).undo).toHaveLength(3);
+  expect(
+    recordOrganization(
+      history,
+      "No text change",
+      duplicated,
+      snapshotOrganization(copyOrganizationPages(duplicated.pages), new Set(), null)
+    )
+  ).toBe(history);
 });

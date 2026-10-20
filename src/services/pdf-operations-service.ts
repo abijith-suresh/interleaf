@@ -12,11 +12,13 @@ import { getSupportedFileKind } from "../utils/file-types";
 import { type DocumentKey, type DocumentStore, makeDocumentStore } from "./document-store";
 import { processingError } from "./pdf-errors";
 import type { PDFService } from "./pdf-service";
+import { drawAddedText } from "./pdf-text";
 
 const ENCRYPTED_PAGE_RENDER_SCALE = 2;
 
 export interface PDFBuildOptions {
   readonly selectedIndices?: readonly number[];
+  readonly maxRasterPixels?: number;
   readonly onProgress?: (progress: PDFBuildProgress) => void;
 }
 
@@ -102,7 +104,10 @@ const sourceDocumentKey = (file: File): DocumentKey => ({
 export class PDFOperationsService {
   private readonly store: DocumentStore<PDFDocument>;
 
-  constructor(private readonly pdfService: Pick<PDFService, "renderPage">) {
+  constructor(
+    private readonly pdfService: Pick<PDFService, "renderPage"> &
+      Partial<Pick<PDFService, "getPageGeometry">>
+  ) {
     this.store = makeDocumentStore<PDFDocument>({
       load: (key) => {
         const file = key.file;
@@ -317,12 +322,30 @@ export class PDFOperationsService {
         });
 
         if (isEncrypted) {
-          yield* this.addEncryptedPage(outputDoc, sourceDoc, page);
+          yield* this.addEncryptedPage(outputDoc, sourceDoc, page, options.maxRasterPixels);
         } else {
           const [copiedPage] = yield* Effect.tryPromise({
             try: () => outputDoc.copyPages(sourceDoc, [page.sourcePageNumber - 1]),
             catch: (cause) => processingError("copy-page", page.sourceFile, cause),
           });
+          if (page.addedText?.length) {
+            if (!this.pdfService.getPageGeometry)
+              return yield* Effect.fail(
+                processingError(
+                  "draw-text",
+                  page.sourceFile,
+                  new Error("Page geometry is unavailable.")
+                )
+              );
+            const geometry = yield* this.pdfService.getPageGeometry(
+              page.sourceFile,
+              page.sourcePageNumber
+            );
+            yield* Effect.tryPromise({
+              try: () => drawAddedText(outputDoc, copiedPage, page.addedText ?? [], geometry),
+              catch: (cause) => processingError("draw-text", page.sourceFile, cause),
+            });
+          }
           yield* Effect.try({
             try: () => {
               if (!copiedPage) {
@@ -362,45 +385,74 @@ export class PDFOperationsService {
   private addEncryptedPage(
     outputDoc: PDFDocument,
     sourceDoc: PDFDocument,
-    page: PageState
+    page: PageState,
+    maxRasterPixels?: number
   ): Effect.Effect<void, PDFError> {
     return Effect.gen({ self: this }, function* () {
-      const { canvas, combinedRotation, height, width } = yield* Effect.try({
+      const geometry = this.pdfService.getPageGeometry
+        ? yield* this.pdfService.getPageGeometry(page.sourceFile, page.sourcePageNumber)
+        : undefined;
+      if (page.addedText?.length && !geometry) {
+        return yield* Effect.fail(
+          processingError("draw-text", page.sourceFile, new Error("Page geometry is unavailable."))
+        );
+      }
+      const { combinedRotation, height, width } = yield* Effect.try({
         try: () => {
           const sourcePage = sourceDoc.getPage(page.sourcePageNumber - 1);
-          const sourceRotation = normalizeRotation(sourcePage.getRotation().angle);
-          const combinedRotation = normalizeRotation(sourceRotation + page.rotation);
-
           return {
-            canvas: document.createElement("canvas"),
-            combinedRotation,
-            height: sourcePage.getHeight(),
-            width: sourcePage.getWidth(),
+            combinedRotation: normalizeRotation(sourcePage.getRotation().angle + page.rotation),
+            height: geometry?.height ?? sourcePage.getHeight(),
+            width: geometry?.width ?? sourcePage.getWidth(),
           };
         },
         catch: (cause) => processingError("prepare-page", page.sourceFile, cause),
       });
-
-      yield* this.pdfService.renderPage(
-        page.sourceFile,
-        page.sourcePageNumber,
-        canvas,
-        ENCRYPTED_PAGE_RENDER_SCALE,
-        0
+      return yield* Effect.acquireUseRelease(
+        Effect.try({
+          try: () => document.createElement("canvas"),
+          catch: (cause) => processingError("prepare-page", page.sourceFile, cause),
+        }),
+        (canvas) =>
+          Effect.gen({ self: this }, function* () {
+            yield* this.pdfService.renderPage(
+              page.sourceFile,
+              page.sourcePageNumber,
+              canvas,
+              maxRasterPixels === undefined
+                ? ENCRYPTED_PAGE_RENDER_SCALE
+                : Math.min(
+                    ENCRYPTED_PAGE_RENDER_SCALE,
+                    Math.sqrt(maxRasterPixels / (width * height))
+                  ),
+              0
+            );
+            const image = yield* Effect.tryPromise({
+              try: () => outputDoc.embedPng(canvas.toDataURL("image/png")),
+              catch: (cause) => processingError("embed-page", page.sourceFile, cause),
+            });
+            const outputPage = yield* Effect.try({
+              try: () => {
+                const outputPage = outputDoc.addPage([width, height]);
+                outputPage.drawImage(image, { x: 0, y: 0, width, height });
+                outputPage.setRotation(degrees(combinedRotation));
+                return outputPage;
+              },
+              catch: (cause) => processingError("add-page", page.sourceFile, cause),
+            });
+            if (page.addedText?.length && geometry) {
+              yield* Effect.tryPromise({
+                try: () =>
+                  drawAddedText(outputDoc, outputPage, page.addedText ?? [], geometry, true),
+                catch: (cause) => processingError("draw-text", page.sourceFile, cause),
+              });
+            }
+          }),
+        (canvas) =>
+          Effect.sync(() => {
+            canvas.width = canvas.height = 0;
+          })
       );
-
-      const image = yield* Effect.tryPromise({
-        try: () => outputDoc.embedPng(canvas.toDataURL("image/png")),
-        catch: (cause) => processingError("embed-page", page.sourceFile, cause),
-      });
-      yield* Effect.try({
-        try: () => {
-          const outputPage = outputDoc.addPage([width, height]);
-          outputPage.drawImage(image, { x: 0, y: 0, width, height });
-          outputPage.setRotation(degrees(combinedRotation));
-        },
-        catch: (cause) => processingError("add-page", page.sourceFile, cause),
-      });
     });
   }
 }

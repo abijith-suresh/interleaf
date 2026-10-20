@@ -9,9 +9,11 @@ import {
   Show,
   untrack,
 } from "solid-js";
+import { copyOrganizationPages } from "../../controllers/editor-history";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
-import type { PageState } from "../../types/interfaces";
+import type { AddedText, PageState } from "../../types/interfaces";
 import EditorPageCanvas from "./EditorPageCanvas";
+import EditorTextEditor, { type TextGesture } from "./EditorTextEditor";
 import EditorButton from "./ui/EditorButton";
 
 const VIEWER_MAX_PIXELS = 16_000_000;
@@ -28,6 +30,8 @@ interface Props {
   navigationPageIds: string[];
   activePageId: string | null;
   runtime: PDFRuntime;
+  disabled?: boolean;
+  onTextChange?: (pageId: string, texts: readonly AddedText[], label: string) => void;
   onActivePageChange: (pageId: string) => void;
 }
 
@@ -38,6 +42,14 @@ export default function EditorPageViewer(props: Props) {
   const [hasFrame, setHasFrame] = createSignal(false);
   const [filmstripWindowStart, setFilmstripWindowStart] = createSignal(0);
 
+  const [toolsMounted, setToolsMounted] = createSignal(false);
+  const [editingTextId, setEditingTextId] = createSignal<string | null>(null);
+  let textGesture: TextGesture | null = null;
+  let pageTap: ((event: PointerEvent) => void) | null = null;
+  let tapStart: { x: number; y: number; pointer: number } | null = null;
+  let previousPageKey = "";
+  let textHeader!: HTMLDivElement;
+  let textToolbar!: HTMLDivElement;
   let fitButton!: HTMLButtonElement;
   let zoomInButton!: HTMLButtonElement;
   let zoomOutButton!: HTMLButtonElement;
@@ -123,6 +135,7 @@ export default function EditorPageViewer(props: Props) {
   ): {
     cssScale: number;
     renderScale: number;
+    pixelBudget: number;
   } {
     const devicePixelRatio = Math.min(
       Math.max(window.devicePixelRatio || 1, 1),
@@ -150,6 +163,7 @@ export default function EditorPageViewer(props: Props) {
     return {
       cssScale,
       renderScale: Math.min(cssScale * devicePixelRatio, pixelSafeRenderScale),
+      pixelBudget,
     };
   }
 
@@ -212,6 +226,8 @@ export default function EditorPageViewer(props: Props) {
   }
 
   function endGesture(): void {
+    tapStart = null;
+    textGesture?.cancel();
     const ids = [...pointers.keys()];
     pointers.clear();
     gesture = null;
@@ -226,12 +242,17 @@ export default function EditorPageViewer(props: Props) {
       event.button !== 0 ||
       !pageDimensions ||
       !untrack(hasFrame) ||
-      (event.target instanceof Element && event.target.closest("button, a")) ||
-      (event.pointerType !== "touch" && untrack(zoom) === 1)
+      (event.target instanceof Element &&
+        event.target.closest("button, a") &&
+        !event.target.closest(".editor-text-layer")) ||
+      (event.pointerType !== "touch" && untrack(zoom) === 1 && !pageTap)
     )
       return;
     event.preventDefault();
     stage.focus({ preventScroll: true });
+    if (pointers.size > 0) textGesture?.cancel();
+    tapStart =
+      pointers.size === 0 ? { x: event.clientX, y: event.clientY, pointer: event.pointerId } : null;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     stage.setPointerCapture?.(event.pointerId);
     if (resizeTimer !== null) window.clearTimeout(resizeTimer);
@@ -241,8 +262,14 @@ export default function EditorPageViewer(props: Props) {
 
   function pointerMove(event: PointerEvent): void {
     if (!pointers.has(event.pointerId) || !gesture) return;
+    if (tapStart && Math.hypot(event.clientX - tapStart.x, event.clientY - tapStart.y) > 5)
+      tapStart = null;
     event.preventDefault();
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 1 && textGesture?.move(event)) {
+      rebaseGesture();
+      return;
+    }
     const points = [...pointers.values()];
     const first = points[0];
     const second = points[1] ?? first;
@@ -259,6 +286,10 @@ export default function EditorPageViewer(props: Props) {
 
   function pointerEnd(event: PointerEvent): void {
     if (!pointers.delete(event.pointerId)) return;
+    const tap = tapStart?.pointer === event.pointerId;
+    tapStart = null;
+    const dragged = textGesture?.end(event);
+    if (tap && !dragged) pageTap?.(event);
     if (stage.hasPointerCapture?.(event.pointerId)) stage.releasePointerCapture(event.pointerId);
     rebaseGesture();
     if (!pointers.size && renderNeeded) requestResizeRender();
@@ -276,7 +307,9 @@ export default function EditorPageViewer(props: Props) {
     try {
       while (renderQueued && !disposed) {
         renderQueued = false;
-        const page = currentPage();
+        const current = currentPage();
+        const page = current ? copyOrganizationPages([current])[0] : null;
+        const omittedTextId = editingTextId();
 
         if (!page) {
           setRenderState("loading");
@@ -304,14 +337,29 @@ export default function EditorPageViewer(props: Props) {
                 );
                 pageDimensions = pageSize;
                 layoutPage();
-                const { renderScale } = getViewerScale(pageSize.width, pageSize.height);
-                yield* service.renderPage(
-                  page.sourceFile,
-                  page.sourcePageNumber,
-                  staging,
-                  renderScale,
-                  rotation
+                const { renderScale, pixelBudget } = getViewerScale(
+                  pageSize.width,
+                  pageSize.height
                 );
+                if (page.addedText?.length) {
+                  yield* service.renderPageState(
+                    {
+                      ...page,
+                      addedText: page.addedText.filter((text) => text.id !== omittedTextId),
+                    },
+                    staging,
+                    renderScale,
+                    rotation,
+                    pixelBudget
+                  );
+                } else
+                  yield* service.renderPage(
+                    page.sourceFile,
+                    page.sourcePageNumber,
+                    staging,
+                    renderScale,
+                    rotation
+                  );
               })
             )
           );
@@ -394,8 +442,11 @@ export default function EditorPageViewer(props: Props) {
   }
 
   function handleKeyDown(event: KeyboardEvent): void {
+    if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select"))
+      return;
     // Keep browser zoom and modified navigation shortcuts native.
     if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (textGesture?.key(event)) return;
     if (
       event.target === stage &&
       ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)
@@ -420,18 +471,26 @@ export default function EditorPageViewer(props: Props) {
   createEffect(() => {
     const page = currentPage();
     const rotation = page?.rotation;
+    const savedText = JSON.stringify(page?.addedText ?? []);
+    const editing = editingTextId();
+    void savedText;
+    void editing;
     if (page && page.id !== props.activePageId) {
       props.onActivePageChange(page.id);
     }
     void rotation;
     navigationPages();
     if (mounted) {
-      resetView();
-      pageDimensions = null;
+      const key = `${page?.id}:${rotation}`;
+      if (key !== previousPageKey) {
+        resetView();
+        pageDimensions = null;
+        setHasFrame(false);
+        previousPageKey = key;
+      }
       if (document.activeElement === zoomInButton || document.activeElement === zoomOutButton) {
         fitButton.focus({ preventScroll: true });
       }
-      setHasFrame(false);
       requestRender();
     }
   });
@@ -466,6 +525,7 @@ export default function EditorPageViewer(props: Props) {
 
   onMount(() => {
     mounted = true;
+    setToolsMounted(true);
     window.addEventListener("resize", handleResize);
     requestRender();
 
@@ -523,6 +583,7 @@ export default function EditorPageViewer(props: Props) {
             <Show when={currentPage()?.markedForDeletion}> · Marked for deletion</Show>
           </span>
         </div>
+        <div ref={textHeader} class="editor-text-header-tools" />
         <fieldset class="editor-review-zoom" aria-label="Page zoom">
           <EditorButton
             ref={zoomOutButton}
@@ -560,6 +621,7 @@ export default function EditorPageViewer(props: Props) {
         classList={{ "is-panning": panning(), "is-zoomed": zoom() > 1 }}
         data-zoom={zoom()}
         aria-label="Page preview, use arrow keys to pan"
+        aria-describedby={props.onTextChange ? "editor-text-placement-help" : undefined}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: The scroll region supports keyboard panning.
         tabIndex={0}
         onPointerDown={pointerDown}
@@ -585,6 +647,31 @@ export default function EditorPageViewer(props: Props) {
           >
             Page preview.
           </canvas>
+          <Show when={toolsMounted() && props.onTextChange}>
+            {(onChange) => (
+              <Show when={currentPage()}>
+                {(page) => (
+                  <EditorTextEditor
+                    page={page()}
+                    runtime={props.runtime}
+                    toolbar={textToolbar}
+                    header={textHeader}
+                    stage={stage}
+                    ready={hasFrame() && !props.disabled}
+                    disabled={props.disabled}
+                    onChange={onChange()}
+                    onEditing={setEditingTextId}
+                    registerGesture={(handler) => {
+                      textGesture = handler;
+                    }}
+                    registerTap={(handler) => {
+                      pageTap = handler;
+                    }}
+                  />
+                )}
+              </Show>
+            )}
+          </Show>
         </div>
         <Show when={renderState() === "loading" && !hasFrame()}>
           <p class="editor-review-state" role="status" aria-live="polite">
@@ -605,6 +692,7 @@ export default function EditorPageViewer(props: Props) {
         </Show>
       </section>
 
+      <div ref={textToolbar} class="editor-document-tools" />
       <footer class="editor-review-bottom">
         <EditorButton
           data-testid="editor-page-viewer-previous"

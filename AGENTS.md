@@ -29,7 +29,10 @@ The active product supports:
 - locally rendered page thumbnails for inspection before export
 - organizing and reading in persistent Pages and Document views within one workspace
 - reviewing pages one at a time with previous/next navigation and a compact filmstrip
-- zooming read-only page previews up to 4 times their fitted size, with pinch, drag, scroll, and keyboard panning
+- adding, selecting, editing, dragging, rotating, and deleting one-line printable basic Latin text in Document view, using Helvetica
+- undoing and redoing saved text changes within the same session history
+- including saved text in page previews, thumbnails, PDF downloads, and PNG exports
+- zooming page previews up to 4 times their fitted size, with pinch, drag, scroll, and keyboard panning
 - losslessly compressing an untouched, single uploaded PDF in the browser
 - exporting selected or active PDF pages as PNG images in a local ZIP archive
 - opening one or more PDFs and PNG or JPEG images together at initial upload, with images converted to PDF pages in the browser

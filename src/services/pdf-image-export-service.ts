@@ -62,7 +62,10 @@ function canvasToPNG(
 }
 
 export class PDFImageExportService {
-  constructor(private readonly pdfService: Pick<PDFService, "getPageRotation" | "renderPage">) {}
+  constructor(
+    private readonly pdfService: Pick<PDFService, "getPageRotation" | "renderPage"> &
+      Partial<Pick<PDFService, "renderPageState">>
+  ) {}
 
   exportImages(
     pages: readonly PageState[],
@@ -119,13 +122,29 @@ export class PDFImageExportService {
               page.sourceFile,
               page.sourcePageNumber
             );
-            yield* this.pdfService.renderPage(
-              page.sourceFile,
-              page.sourcePageNumber,
-              canvas,
-              IMAGE_EXPORT_SCALE,
-              (sourceRotation + page.rotation) % 360
-            );
+            if (page.addedText?.length) {
+              if (!this.pdfService.renderPageState)
+                return yield* Effect.fail(
+                  processingError(
+                    "draw-text",
+                    page.sourceFile,
+                    new Error("Text rendering is unavailable.")
+                  )
+                );
+              yield* this.pdfService.renderPageState(
+                page,
+                canvas,
+                IMAGE_EXPORT_SCALE,
+                (sourceRotation + page.rotation) % 360
+              );
+            } else
+              yield* this.pdfService.renderPage(
+                page.sourceFile,
+                page.sourcePageNumber,
+                canvas,
+                IMAGE_EXPORT_SCALE,
+                (sourceRotation + page.rotation) % 360
+              );
             return yield* canvasToPNG(canvas, page.sourceFile);
           }).pipe(
             Effect.ensuring(

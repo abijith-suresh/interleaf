@@ -14,11 +14,13 @@ import RotateCcw from "lucide-solid/icons/rotate-ccw";
 import RotateCw from "lucide-solid/icons/rotate-cw";
 import SquarePen from "lucide-solid/icons/square-pen";
 import Trash from "lucide-solid/icons/trash";
+import Type from "lucide-solid/icons/type";
 import Undo2 from "lucide-solid/icons/undo-2";
 import X from "lucide-solid/icons/x";
 import { Dynamic } from "solid-js/web";
 
 const editorIcons = {
+  text: Type,
   back: ArrowLeft,
   undo: Undo2,
   redo: Redo2,
