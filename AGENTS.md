@@ -1,71 +1,23 @@
-# Agent Instructions — Interleaf
+# interleaf — agent brief
 
-## Product truth
+Interleaf is a PDF editor that runs entirely in your browser. Open PDFs and PNG or JPEG images together, review and shape their pages, unlock protected files, and export — with no uploads, accounts, or tracking.
 
-This section is the product source of truth. Update it before changing product scope, promises, or non-goals. Code and public copy follow this section, not the other way around.
+## The Project
 
-### Core Promise
+The promise is structural, not a policy: every operation runs client-side, files never leave the device, and the site loads no third-party resources. No accounts, no ads, no analytics, no cookies, no fingerprinting. Keep the product honest about what ships.
 
-- Every operation runs entirely client-side, in the browser.
-- Files never leave the device: no uploads, no server processing, no beacons.
-- No accounts, signups, or login.
-- No ads, tracking, analytics, or cookies.
-- Keep the product honest about what is implemented today.
+Non-goals — do not add without changing this section first: server-side PDF processing or uploads of any kind; accounts, signups, sync, or collaboration; tracking of any kind; speculative code kept for possible future expansion; public promises for unimplemented features.
 
-### Current Product Surface
+Status: live. How the app works is documented by the code and its tests, not by prose.
 
-The active product supports:
+## Sources of Truth
 
-- merging multiple PDFs into one working set
-- extracting selected pages into a new PDF
-- reordering pages with drag and drop
-- duplicating a page in the workspace, with independent rotation, deletion marking, and ordering
-- rotating pages in 90-degree steps, individually or by selection
-- marking pages for deletion before export
-- undoing and redoing up to 32 changes in the current session: rotation, deletion marking or restoration, reordering, duplication, and source additions or removals after the first successful open
-- retaining source history within a 48 MiB limit on unique inactive files, while keeping the newest change if it alone exceeds that limit
-- keeping undo and redo available when the last source is removed
-- unlocking password-protected PDFs with an in-browser prompt
-- locally rendered page thumbnails for inspection before export
-- organizing and reading in persistent Pages and Document views within one workspace
-- reviewing pages one at a time with previous/next navigation and a compact filmstrip
-- zooming read-only page previews up to 4 times their fitted size, with pinch, drag, scroll, and keyboard panning
-- losslessly compressing an untouched, single uploaded PDF in the browser
-- exporting selected or active PDF pages as PNG images in a local ZIP archive
-- opening one or more PDFs and PNG or JPEG images together at initial upload, with images converted to PDF pages in the browser
-- adding one or more PDFs and PNG or JPEG images to an existing workspace, with images converted to PDF pages in the browser
-- removing a source file and its pages from the workspace
+| Fact | Where |
+|---|---|
+| Product intent | § The Project (this file) |
+| Public product surface | README.md + code |
+| Runtime behavior | code + tests |
+| Commands & deps | package.json |
+| How to work here | CONTRIBUTING.md |
 
-These are the only current public product promises.
-
-### Non-Goals
-
-The product does not include, and must not gain without this section changing first:
-
-- server-side PDF processing or uploads of any kind
-- accounts, signups, sync, or collaboration
-- ads, tracking, analytics, cookies, or fingerprinting
-- unapproved speculative code kept only for possible future expansion
-- public promises for features that are not implemented
-
-## Documentation
-
-- `README.md`: user-facing current behavior only.
-- `CONTRIBUTING.md`: development workflow, commands, conventions, commits, and PR rules.
-- `AGENTS.md`: product truth and agent behavior.
-
-Do not advertise unimplemented features in any of them. Treat stale docs as defects: if product scope changes, update the Product Truth section of this file first, then code, then public copy.
-
-How the app works is documented by the code and its tests, not by prose. Do not restate implementation details in docs; they rot.
-
-## Agent workflow
-
-- Branch from the latest `main` before starting changes.
-- Never commit directly to `main`.
-- Commit and PR titles must use Conventional Commits: `feat`, `fix`, `docs`, `refactor`, `chore`, `test`, `ci`, or `build`.
-- Before push, run `bun run verify`.
-- Squash merge is the expected merge strategy.
-- Open one focused PR for each coherent change.
-- Independent PRs may be developed and opened in parallel. Stack or delay PRs that overlap in files or depend on another change.
-
-Detailed workflow, hooks, commands, and CI behavior live in `CONTRIBUTING.md`.
+Code and tests are the authority; this file never overrides executable truth.

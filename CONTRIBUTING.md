@@ -2,7 +2,7 @@
 
 This document describes the development workflow for Interleaf.
 
-Read `AGENTS.md` first for product truth and agent behavior.
+Read `AGENTS.md` first for product truth and philosophy.
 
 Do not expand product scope unless the Product Truth section of `AGENTS.md` is updated first.
 
@@ -24,15 +24,7 @@ Before pushing, run:
 bun run verify
 ```
 
-This runs, in order:
-
-1. `type-check` — `astro sync && astro check && tsc --noEmit`
-2. `lint` — `biome lint .`
-3. `format:check` — `biome format .`
-4. `test` — `vitest run`
-5. `build` — `astro build`
-
-Fix formatting and lint automatically:
+That is the agreement: a green `verify` plus focused tests for what you touched. CI owns the full suite. Fix formatting and lint automatically:
 
 ```sh
 bun run lint:fix
@@ -43,10 +35,11 @@ bun run format
 
 1. Branch from the latest `main`.
 2. Make the smallest correct change.
-3. Keep public copy, product truth, and implementation aligned.
-4. Run `bun run verify` before push — it also runs automatically on `pre-push`.
-5. Commit using [Conventional Commits](https://www.conventionalcommits.org/): `feat`, `fix`, `docs`, `refactor`, `chore`, `test`, `ci`, `build`.
-6. Open a focused pull request against `main` for each coherent change. Independent pull requests may be developed and reviewed in parallel. Stack or delay pull requests that overlap in files or depend on another change.
+3. Change product truth in `AGENTS.md` first, then code, then public copy — never advertise what is not implemented.
+4. Preserve the privacy model: no document uploads, no server-side processing, no accounts, no telemetry.
+5. Run `bun run verify` before push — it also runs automatically on `pre-push`.
+6. Commit using [Conventional Commits](https://www.conventionalcommits.org/): `feat`, `fix`, `docs`, `refactor`, `chore`, `test`, `ci`, `build`.
+7. Open a focused pull request against `main` for each coherent change. Independent pull requests may be developed and reviewed in parallel. Stack or delay pull requests that overlap in files or depend on another change.
 
 ### Hooks
 
@@ -155,7 +148,7 @@ If two phrasings exist for one concept, one of them is a defect: add the canonic
 ## Documentation
 
 - `README.md` — user-facing current behavior only.
-- `AGENTS.md` — product truth and agent behavior.
+- `AGENTS.md` — product truth and philosophy.
 - `CONTRIBUTING.md` — this file.
 
 Update `AGENTS.md` before changing product promises or scope, this file when the workflow changes, and `README.md` when public behavior changes.
