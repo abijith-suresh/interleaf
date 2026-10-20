@@ -1140,6 +1140,43 @@ describe("Editor", () => {
     }
   );
 
+  it.each(["restore", "other-focus", "view-change", "new-session"])(
+    "closing files during source cleanup guards focus: %s",
+    async (outcome) => {
+      const release = Deferred.makeUnsafe<void>();
+      pdfServiceMocks.releaseFile.mockReturnValueOnce(Deferred.await(release));
+      const view = render(() => <Editor />);
+      selectFiles("upload", [makeFile("first.pdf"), makeFile("second.pdf")]);
+      await waitFor(() => expect(getPages()).toHaveLength(6));
+      const files = screen.getByTestId("editor-files-button");
+      fireEvent.click(files);
+      fireEvent.click(screen.getAllByTestId("editor-file-remove")[0]);
+      await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledOnce());
+      const close = screen.getByTestId("editor-files-close-button");
+      close.focus();
+      fireEvent.click(close);
+      await Promise.resolve();
+      expect(files).toBeDisabled();
+      const other = screen.getByTestId("editor-document-view-button");
+      const focus = vi.spyOn(files, "focus");
+      if (outcome === "other-focus") other.focus();
+      if (outcome === "view-change") fireEvent.click(other);
+      if (outcome === "new-session") {
+        view.unmount();
+        render(() => <Editor />);
+        selectFile("upload", makeFile("new.pdf"));
+        await findPages();
+      }
+      await Effect.runPromise(Deferred.succeed(release, undefined));
+      if (outcome === "new-session") {
+        expect(focus).not.toHaveBeenCalled();
+      } else {
+        await waitFor(() => expect(files).toBeEnabled());
+        await waitFor(() => expect(outcome === "restore" ? files : other).toHaveFocus());
+      }
+    }
+  );
+
   it("returns to the uploader after the last removal and keeps the files dialog closed on reload", async () => {
     await openPDF(makeFile("only.pdf"));
 

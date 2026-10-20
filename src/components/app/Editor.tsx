@@ -90,6 +90,13 @@ export default function Editor() {
   const toastTimers = new Map<number, number>();
   const pdfRuntime = makePDFRuntime();
   let disposed = false;
+  let filesFocusGeneration = 0;
+  let restoreFilesAfterRemoval: (() => void) | undefined;
+
+  function invalidateFilesFocus(): void {
+    filesFocusGeneration++;
+    restoreFilesAfterRemoval = undefined;
+  }
 
   const [phase, setPhase] = createSignal<"upload" | "edit">("upload");
   const [pages, setPages] = createStore<PageState[]>([]);
@@ -414,6 +421,7 @@ export default function Editor() {
 
   onCleanup(() => {
     disposed = true;
+    invalidateFilesFocus();
     setHistory(emptyOrganizationHistory());
     if (typeof document !== "undefined") {
       document.removeEventListener(TOAST_EVENT_NAME, handleToast);
@@ -556,6 +564,7 @@ export default function Editor() {
 
   async function loadFilesIntoWorkspace(files: File[], mode: "upload" | "add"): Promise<boolean> {
     if (disposed || isBusy() || files.length === 0) return false;
+    invalidateFilesFocus();
 
     const unsupportedFiles = files.filter((file) => getSupportedFileKind(file) === null);
     if (unsupportedFiles.length > 0) {
@@ -674,16 +683,45 @@ export default function Editor() {
   }
 
   function closeFilesDialog(): void {
+    invalidateFilesFocus();
+    const version = filesFocusGeneration;
+    const view = workspaceView();
+    const focused = document.activeElement;
     setFilesOpen(false);
     queueMicrotask(() => {
+      if (disposed || version !== filesFocusGeneration || workspaceView() !== view) return;
+      if (
+        document.activeElement !== document.body &&
+        document.activeElement !== focused &&
+        document.activeElement !== filesButton
+      )
+        return;
       const target = filesButton?.disabled
         ? editorRoot.querySelector<HTMLButtonElement>('[data-testid="editor-undo-button"]')
         : filesButton;
       target?.focus();
+      if (operation() === "removing" && pages.length > 0 && filesButton?.disabled) {
+        const fallback = document.activeElement;
+        // Cleanup can outlive closing the dialog. Return to Files once enabled,
+        // only while focus still belongs to the fallback chosen above.
+        restoreFilesAfterRemoval = () => {
+          if (
+            !disposed &&
+            version === filesFocusGeneration &&
+            workspaceView() === view &&
+            !filesOpen() &&
+            filesButton?.isConnected &&
+            !filesButton.disabled &&
+            document.activeElement === fallback
+          )
+            filesButton.focus({ preventScroll: true });
+        };
+      }
     });
   }
 
   function changeWorkspaceView(view: "pages" | "document"): void {
+    invalidateFilesFocus();
     if (view === "document") {
       if (pages.length === 0) return;
       const ids = reviewPageIds();
@@ -780,8 +818,11 @@ export default function Editor() {
           "error"
         );
     } finally {
+      const restoreFiles = restoreFilesAfterRemoval;
+      restoreFilesAfterRemoval = undefined;
       if (!disposed) {
         setOperation("idle");
+        if (restoreFiles) queueMicrotask(restoreFiles);
         if (
           remainingPages.length === 0 &&
           (document.activeElement === document.body ||
