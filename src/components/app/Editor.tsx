@@ -330,7 +330,8 @@ export default function Editor() {
         page.sourceFile === sourceFile &&
         page.sourcePageNumber === index + 1 &&
         page.rotation === 0 &&
-        !page.markedForDeletion
+        !page.markedForDeletion &&
+        !page.addedText?.length
     );
 
     return isUnmodified ? sourceFile : null;
@@ -1321,10 +1322,22 @@ export default function Editor() {
                 fallback={
                   <EditorPageViewer
                     pages={pages}
+                    disabled={isBusy()}
                     navigationPageIds={reviewPageIds()}
                     activePageId={activePageId()}
                     runtime={pdfRuntime}
                     onActivePageChange={(pageId) => setActivePageId(pageId)}
+                    onTextChange={(pageId, texts, label) =>
+                      organize(label, () => {
+                        const index = pages.findIndex((page) => page.id === pageId);
+                        if (index >= 0)
+                          setPages(
+                            index,
+                            "addedText",
+                            texts.map((text) => ({ ...text }))
+                          );
+                      })
+                    }
                   />
                 }
               >

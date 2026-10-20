@@ -22,6 +22,8 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Source history retains up to 48 MiB of unique inactive files. The newest change stays available if it alone exceeds this limit.
 - Unlock password-protected PDFs with an in-browser prompt
 - Switch between Pages to organize and Document to read with navigation, zoom, and a compact filmstrip
+- Add one-line text in Document view, using Helvetica. Place, drag, resize, rotate, edit, or delete your added text.
+- Saved text appears in previews, thumbnails, PDF downloads, and PNG exports. Use session undo and redo for saved text changes.
 - Keep page selection and export scope when switching views
 - Zoom previews up to 4 times their fitted size. Pan with touch, drag, scrollbars, or arrow keys in the preview.
 - Losslessly compress one untouched PDF

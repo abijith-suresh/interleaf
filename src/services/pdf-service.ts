@@ -1,7 +1,9 @@
-import { Cause, Deferred, Effect, Exit, Option } from "effect";
+import { Cause, Deferred, Effect, Exit, Fiber, Option, Semaphore } from "effect";
 import type * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
+  type PageGeometry,
+  type PageState,
   type PDFError,
   PDFPasswordRequiredError,
   type PDFProcessingError,
@@ -21,7 +23,7 @@ function loadPdfjs(): Promise<typeof pdfjsLib> {
   return pdfjsModule;
 }
 
-interface PageMetadata {
+interface PageMetadata extends PageGeometry {
   readonly rotation: number;
   readonly width: number;
   readonly height: number;
@@ -62,6 +64,8 @@ export class PDFService {
   });
   private readonly pageResources = new PageResources();
   private readonly pageRenderer = new PageRenderer();
+  // Bound source reads and PDF generation too, before the shared bitmap permit.
+  private readonly editedRenders = Semaphore.makeUnsafe(2);
 
   loadPDF(file: File): Effect.Effect<void, PDFError> {
     const version = this.documents.version(file);
@@ -173,6 +177,74 @@ export class PDFService {
     );
   }
 
+  getPageGeometry(file: File, pageNumber: number): Effect.Effect<PageGeometry, PDFError> {
+    return this.documents.track(
+      file,
+      "get-page-geometry"
+    )(
+      Effect.gen({ self: this }, function* () {
+        const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
+        return yield* this.getPageMetadata(record, pageNumber, "get-page-geometry");
+      })
+    );
+  }
+
+  renderPageState(
+    page: PageState,
+    canvas: HTMLCanvasElement,
+    scale: number,
+    rotation: number
+  ): Effect.Effect<void, PDFError> {
+    if (!page.addedText?.length)
+      return this.renderPage(page.sourceFile, page.sourcePageNumber, canvas, scale, rotation);
+    // No derived-document cache. The temporary file lives until render cancellation
+    // and page cleanup settle, then its loading task is destroyed.
+    return this.documents.track(
+      page.sourceFile,
+      "render-edited-page"
+    )(
+      this.editedRenders.withPermit(
+        Effect.gen({ self: this }, function* () {
+          const { PDFOperationsService } = yield* Effect.tryPromise({
+            try: () => import("./pdf-operations-service"),
+            catch: (cause) => processingError("load-text-renderer", page.sourceFile, cause),
+          });
+          return yield* Effect.acquireUseRelease(
+            Effect.sync(() => new PDFOperationsService(this)),
+            (operations) =>
+              Effect.gen({ self: this }, function* () {
+                // Source metadata/render calls track their own fiber. Keep this
+                // outer source operation registered until derived cleanup completes.
+                const result = yield* Effect.acquireUseRelease(
+                  Effect.forkChild(
+                    operations.buildPDF([{ ...page, rotation: 0, markedForDeletion: false }], {
+                      maxRasterPixels: 4_000_000,
+                    })
+                  ),
+                  Fiber.join,
+                  (fiber) => Fiber.interrupt(fiber).pipe(Effect.asVoid)
+                );
+                const temporary = new File([new Uint8Array(result.data)], "edited-page.pdf", {
+                  type: "application/pdf",
+                });
+                // This store must be separate from the source store. A source reset
+                // waits for this fiber; its finalizer must not await that reset barrier.
+                yield* Effect.acquireUseRelease(
+                  Effect.sync(() => new PDFService()),
+                  (derived) =>
+                    this.pageRenderer.withPermit(
+                      derived.renderPage(temporary, 1, canvas, scale, rotation)
+                    ),
+                  (derived) => derived.dispose()
+                );
+              }),
+            (operations) => operations.dispose()
+          );
+        })
+      )
+    );
+  }
+
   private getPageMetadata(
     record: LoadedPDFRecord,
     pageNumber: number,
@@ -219,7 +291,21 @@ export class PDFService {
                 // An explicit zero rotation gives CropBox/UserUnit dimensions without
                 // applying the intrinsic rotation that getPageRotation reports.
                 const viewport = page.getViewport({ scale: 1, rotation: 0 });
-                return { rotation: page.rotate, width: viewport.width, height: viewport.height };
+                return {
+                  rotation: page.rotate,
+                  width: viewport.width,
+                  height: viewport.height,
+                  bounds: [...page.view] as [number, number, number, number],
+                  userUnit: page.userUnit,
+                  transform: [...viewport.transform] as [
+                    number,
+                    number,
+                    number,
+                    number,
+                    number,
+                    number,
+                  ],
+                };
               },
               catch: (cause) => processingError(operation, file, cause),
             })

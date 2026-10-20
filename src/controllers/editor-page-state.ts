@@ -1,4 +1,5 @@
 import type { PageState } from "../types/interfaces";
+import { copyAddedTexts } from "./editor-text-state";
 
 export type DeletionAction = "mark" | "restore";
 
@@ -33,6 +34,7 @@ export function duplicatePageState(page: PageState): PageState {
   return {
     ...page,
     id: `copy-${createPageBatchId()}`,
+    addedText: copyAddedTexts(page.addedText),
     markedForDeletion: false,
   };
 }

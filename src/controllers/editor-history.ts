@@ -1,4 +1,5 @@
 import type { PageState } from "../types/interfaces";
+import { copyAddedTexts, equalAddedTexts } from "./editor-text-state";
 
 export const PAGE_HISTORY_LIMIT = 32;
 export const INACTIVE_SOURCE_SIZE_LIMIT = 48 * 1024 * 1024;
@@ -29,6 +30,7 @@ export function copyOrganizationPages(pages: readonly PageState[]): PageState[] 
     sourcePageNumber: page.sourcePageNumber,
     rotation: page.rotation,
     markedForDeletion: page.markedForDeletion,
+    addedText: copyAddedTexts(page.addedText),
   }));
 }
 
@@ -63,7 +65,8 @@ export function recordOrganization(
         page.sourceFile === next.sourceFile &&
         page.sourcePageNumber === next.sourcePageNumber &&
         page.rotation === next.rotation &&
-        page.markedForDeletion === next.markedForDeletion
+        page.markedForDeletion === next.markedForDeletion &&
+        equalAddedTexts(page.addedText, next.addedText)
       );
     });
   if (unchanged) return history;

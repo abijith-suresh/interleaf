@@ -1,5 +1,6 @@
 import { Context, Effect, Exit, type Fiber, Layer, ManagedRuntime } from "effect";
 import type {
+  PageGeometry,
   PageState,
   PDFCompressionResult,
   PDFError,
@@ -33,6 +34,16 @@ export interface PDFProcessingShape {
     scale?: number,
     rotation?: number
   ) => Effect.Effect<void, PDFError>;
+  readonly renderPageState: (
+    page: PageState,
+    canvas: HTMLCanvasElement,
+    scale: number,
+    rotation: number
+  ) => Effect.Effect<void, PDFError>;
+  readonly getPageGeometry: (
+    file: File,
+    pageNumber: number
+  ) => Effect.Effect<PageGeometry, PDFError>;
   readonly getPageRotation: (file: File, pageNumber: number) => Effect.Effect<number, PDFError>;
   readonly getPageSize: (
     file: File,
@@ -146,6 +157,9 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
             scale?: number,
             rotation?: number
           ) => pdfService.renderPage(file, pageNumber, canvas, scale, rotation),
+          renderPageState: (page, canvas, scale, rotation) =>
+            pdfService.renderPageState(page, canvas, scale, rotation),
+          getPageGeometry: (file, pageNumber) => pdfService.getPageGeometry(file, pageNumber),
           getPageRotation: (file: File, pageNumber: number) =>
             pdfService.getPageRotation(file, pageNumber),
           getPageSize: (file: File, pageNumber: number, rotation?: number) =>
