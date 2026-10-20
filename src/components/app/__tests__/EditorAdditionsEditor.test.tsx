@@ -23,7 +23,7 @@ vi.mock("../../../services/pdf-service", () => ({
   },
 }));
 
-import EditorTextEditor from "../EditorTextEditor";
+import EditorAdditionsEditor from "../EditorAdditionsEditor";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -55,7 +55,7 @@ it.each(["failure", "success", "navigation", "disposal"])(
     document.body.append(toolbar, header, stage, external);
     const onChange = vi.fn();
     const view = render(() => (
-      <EditorTextEditor
+      <EditorAdditionsEditor
         page={current()}
         runtime={runtime}
         toolbar={toolbar}
@@ -69,7 +69,7 @@ it.each(["failure", "success", "navigation", "disposal"])(
       />
     ));
     try {
-      fireEvent.click(screen.getByRole("button", { name: "Select added text" }));
+      fireEvent.click(screen.getByRole("button", { name: "Select additions" }));
       const hit = await screen.findByRole("button", { name: "Edit added text: Saved" });
       hit.focus();
       fireEvent.click(hit);

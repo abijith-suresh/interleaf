@@ -1,4 +1,5 @@
 import type { PageState } from "../types/interfaces";
+import { copyAddedCheckmarks } from "./editor-checkmark-state";
 import { copyAddedTexts } from "./editor-text-state";
 
 export type DeletionAction = "mark" | "restore";
@@ -35,6 +36,7 @@ export function duplicatePageState(page: PageState): PageState {
     ...page,
     id: `copy-${createPageBatchId()}`,
     addedText: copyAddedTexts(page.addedText),
+    addedCheckmarks: copyAddedCheckmarks(page.addedCheckmarks),
     markedForDeletion: false,
   };
 }

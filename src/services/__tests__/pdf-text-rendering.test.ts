@@ -12,7 +12,7 @@ vi.mock("../pdf-operations-service", () => ({
   },
 }));
 
-const page: PageState = {
+const textPage: PageState = {
   id: "page",
   sourceFile: new File(["source"], "source.pdf"),
   sourcePageNumber: 1,
@@ -23,7 +23,15 @@ const page: PageState = {
 
 afterEach(() => vi.restoreAllMocks());
 
-describe("temporary edited-page rendering", () => {
+describe.each(["text", "checkmark"])("temporary edited-page rendering with %s", (kind) => {
+  const page: PageState =
+    kind === "text"
+      ? textPage
+      : {
+          ...textPage,
+          addedText: undefined,
+          addedCheckmarks: [{ id: "tick", x: 10, y: 40, size: 16, rotation: 0 }],
+        };
   it.each(["interrupt", "release", "reset", "dispose"] as const)(
     "settles cancellation and cleanup before document destruction on %s",
     async (operation) => {
@@ -97,6 +105,7 @@ describe("temporary edited-page rendering", () => {
         sourceFile: page.sourceFile,
         rotation: 0,
         addedText: page.addedText,
+        ...(page.addedCheckmarks ? { addedCheckmarks: page.addedCheckmarks } : {}),
       });
       await Effect.runPromise(service.dispose());
       expect(destroy).toHaveBeenCalledOnce();

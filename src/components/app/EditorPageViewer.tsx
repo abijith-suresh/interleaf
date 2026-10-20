@@ -9,11 +9,12 @@ import {
   Show,
   untrack,
 } from "solid-js";
+import { hasPageAdditions } from "../../controllers/editor-additions-state";
 import { copyOrganizationPages } from "../../controllers/editor-history";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
-import type { AddedText, PageState } from "../../types/interfaces";
+import type { AddedCheckmark, AddedText, PageState } from "../../types/interfaces";
+import EditorAdditionsEditor, { type AdditionsGesture } from "./EditorAdditionsEditor";
 import EditorPageCanvas from "./EditorPageCanvas";
-import EditorTextEditor, { type TextGesture } from "./EditorTextEditor";
 import EditorButton from "./ui/EditorButton";
 
 const VIEWER_MAX_PIXELS = 16_000_000;
@@ -31,6 +32,7 @@ interface Props {
   activePageId: string | null;
   runtime: PDFRuntime;
   disabled?: boolean;
+  onCheckmarksChange?: (pageId: string, marks: readonly AddedCheckmark[], label: string) => void;
   onTextChange?: (pageId: string, texts: readonly AddedText[], label: string) => void;
   onActivePageChange: (pageId: string) => void;
 }
@@ -44,7 +46,7 @@ export default function EditorPageViewer(props: Props) {
 
   const [toolsMounted, setToolsMounted] = createSignal(false);
   const [editingTextId, setEditingTextId] = createSignal<string | null>(null);
-  let textGesture: TextGesture | null = null;
+  let textGesture: AdditionsGesture | null = null;
   let pageTap: ((event: PointerEvent) => void) | null = null;
   let tapStart: { x: number; y: number; pointer: number } | null = null;
   let previousPageKey = "";
@@ -341,11 +343,14 @@ export default function EditorPageViewer(props: Props) {
                   pageSize.width,
                   pageSize.height
                 );
-                if (page.addedText?.length) {
+                if (hasPageAdditions(page)) {
                   yield* service.renderPageState(
                     {
                       ...page,
-                      addedText: page.addedText.filter((text) => text.id !== omittedTextId),
+                      addedText: page.addedText?.filter((text) => text.id !== omittedTextId),
+                      addedCheckmarks: page.addedCheckmarks?.filter(
+                        (mark) => mark.id !== omittedTextId
+                      ),
                     },
                     staging,
                     renderScale,
@@ -471,7 +476,7 @@ export default function EditorPageViewer(props: Props) {
   createEffect(() => {
     const page = currentPage();
     const rotation = page?.rotation;
-    const savedText = JSON.stringify(page?.addedText ?? []);
+    const savedText = JSON.stringify([page?.addedText ?? [], page?.addedCheckmarks ?? []]);
     const editing = editingTextId();
     void savedText;
     void editing;
@@ -651,7 +656,7 @@ export default function EditorPageViewer(props: Props) {
             {(onChange) => (
               <Show when={currentPage()}>
                 {(page) => (
-                  <EditorTextEditor
+                  <EditorAdditionsEditor
                     page={page()}
                     runtime={props.runtime}
                     toolbar={textToolbar}
@@ -660,6 +665,7 @@ export default function EditorPageViewer(props: Props) {
                     ready={hasFrame() && !props.disabled}
                     disabled={props.disabled}
                     onChange={onChange()}
+                    onCheckmarksChange={props.onCheckmarksChange}
                     onEditing={setEditingTextId}
                     registerGesture={(handler) => {
                       textGesture = handler;

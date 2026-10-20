@@ -1955,3 +1955,13 @@ body:has([data-page="editor"]) {
     max-height: none;
   }
 }
+
+.editor-checkmark {
+  width: 1em;
+  height: 1em;
+}
+.editor-checkmark-shape {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

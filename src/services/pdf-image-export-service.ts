@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import { Zip, ZipPassThrough } from "fflate";
+import { hasPageAdditions } from "../controllers/editor-additions-state";
 import type { PageState, PDFError, PDFImageExportResult } from "../types/interfaces";
 import { PDFNoPagesError, PDFProcessingError } from "../types/interfaces";
 import { processingError } from "./pdf-errors";
@@ -122,13 +123,13 @@ export class PDFImageExportService {
               page.sourceFile,
               page.sourcePageNumber
             );
-            if (page.addedText?.length) {
+            if (hasPageAdditions(page)) {
               if (!this.pdfService.renderPageState)
                 return yield* Effect.fail(
                   processingError(
                     "draw-text",
                     page.sourceFile,
-                    new Error("Text rendering is unavailable.")
+                    new Error("Saved additions could not be rendered.")
                   )
                 );
               yield* this.pdfService.renderPageState(

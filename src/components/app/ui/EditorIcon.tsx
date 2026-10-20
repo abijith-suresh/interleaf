@@ -1,4 +1,5 @@
 import ArrowLeft from "lucide-solid/icons/arrow-left";
+import Check from "lucide-solid/icons/check";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import ChevronLeft from "lucide-solid/icons/chevron-left";
 import ChevronRight from "lucide-solid/icons/chevron-right";
@@ -21,6 +22,7 @@ import { Dynamic } from "solid-js/web";
 
 const editorIcons = {
   text: Type,
+  checkmark: Check,
   back: ArrowLeft,
   undo: Undo2,
   redo: Redo2,

@@ -35,7 +35,7 @@ async function point(page: Page, x = 0.35, y = 0.55) {
   return { x: frame.x + frame.width * x, y: frame.y + frame.height * y };
 }
 async function place(page: Page, text = "Added text") {
-  const disclosure = page.getByRole("button", { name: "Text tools", exact: true });
+  const disclosure = page.getByRole("button", { name: "Tools", exact: true });
   if (await disclosure.isVisible()) await disclosure.click();
   await page.getByRole("button", { name: "Add text", exact: true }).click();
   // Geometry is measured independently of bitmap rendering.
@@ -56,7 +56,7 @@ for (const [width, height] of [
   test(`keyboard movement keeps the draft visible at ${width}x${height}`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     await open(page);
-    const disclosure = page.getByRole("button", { name: "Text tools", exact: true });
+    const disclosure = page.getByRole("button", { name: "Tools", exact: true });
     await disclosure.click();
     await page.getByRole("button", { name: "Add text", exact: true }).press("Enter");
     await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
@@ -66,7 +66,7 @@ for (const [width, height] of [
     await input.fill("Landscape move");
     await expect(disclosure).toHaveAttribute("aria-expanded", "true");
     // Follow the actual reverse tab order from the input through the toolbar.
-    for (let step = 0; step < 4; step++) await page.keyboard.press("Shift+Tab");
+    for (let step = 0; step < 5; step++) await page.keyboard.press("Shift+Tab");
     const draft = page.getByRole("button", { name: "Drag text to move it" });
     await expect(draft).toBeFocused();
     const unobscured = () =>
@@ -130,7 +130,7 @@ for (const width of [1280, 390]) {
     await page.getByRole("button", { name: "Delete added text" }).press("Enter");
     const fallback =
       width === 390
-        ? page.getByRole("button", { name: "Text tools", exact: true })
+        ? page.getByRole("button", { name: "Tools", exact: true })
         : page.getByRole("button", { name: "Add text", exact: true });
     await expect(fallback).toBeFocused();
   });
@@ -144,7 +144,7 @@ for (const width of [1280, 390]) {
     const stage = page.locator(".editor-review-stage");
     await stage.press("ArrowRight");
     await stage.press("ArrowDown");
-    const disclosure = page.getByRole("button", { name: "Text tools", exact: true });
+    const disclosure = page.getByRole("button", { name: "Tools", exact: true });
     if (await disclosure.isVisible()) await disclosure.click();
     await page.getByRole("button", { name: "Add text", exact: true }).press("Enter");
     await expect(stage).toBeFocused();
@@ -294,7 +294,7 @@ test("point placement, validation, editing, movement, rotation and history retai
   await page.getByTestId("editor-pages-view-button").click();
   await page.getByRole("button", { name: "Duplicate page 1", exact: true }).click();
   await page.getByTestId("editor-document-view-button").click();
-  await page.getByRole("button", { name: "Select added text" }).click();
+  await page.getByRole("button", { name: "Select additions" }).click();
   await page.getByRole("button", { name: "Edit added text: Changed", exact: true }).click();
   await page.getByLabel("Added text", { exact: true }).fill("Copy");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
@@ -304,7 +304,7 @@ test("point placement, validation, editing, movement, rotation and history retai
   await page.getByTestId("editor-document-view-button").click();
   await page.getByRole("button", { name: "Previous page", exact: true }).click();
   await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 1");
-  await page.getByRole("button", { name: "Select added text" }).click();
+  await page.getByRole("button", { name: "Select additions" }).click();
   await expect(
     page.getByRole("button", { name: "Edit added text: Changed", exact: true })
   ).toBeVisible();
@@ -336,12 +336,12 @@ test("cancel, deletion, compression after undo, source restoration, and input sh
   await expect(page.getByRole("menuitem", { name: /Compress/ })).toBeEnabled();
   await page.keyboard.press("Escape");
   await page.getByTestId("editor-redo-button").click();
-  await page.getByRole("button", { name: "Select added text" }).click();
+  await page.getByRole("button", { name: "Select additions" }).click();
   await page.getByRole("button", { name: "Edit added text: Added text", exact: true }).click();
   await page.getByRole("button", { name: "Delete added text" }).click();
   await expect(page.getByRole("button", { name: /Edit added text:/ })).toHaveCount(0);
   await page.getByTestId("editor-undo-button").click();
-  await page.getByRole("button", { name: "Select added text" }).click();
+  await page.getByRole("button", { name: "Select additions" }).click();
   await expect(
     page.getByRole("button", { name: "Edit added text: Added text", exact: true })
   ).toBeVisible();
@@ -351,7 +351,7 @@ test("cancel, deletion, compression after undo, source restoration, and input sh
     .click();
   await page.getByTestId("editor-undo-button").click();
   await page.getByTestId("editor-document-view-button").click();
-  await page.getByRole("button", { name: "Select added text" }).click();
+  await page.getByRole("button", { name: "Select additions" }).click();
   await expect(
     page.getByRole("button", { name: "Edit added text: Added text", exact: true })
   ).toBeVisible();
@@ -403,7 +403,7 @@ test.describe("touch text placement", () => {
     browserName,
   }) => {
     await open(page);
-    await page.getByRole("button", { name: "Text tools", exact: true }).tap();
+    await page.getByRole("button", { name: "Tools", exact: true }).tap();
     await page.getByRole("button", { name: "Add text", exact: true }).tap();
     await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
     const stage = page.locator(".editor-review-stage");

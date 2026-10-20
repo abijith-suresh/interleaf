@@ -1,6 +1,7 @@
 import { createRoot } from "solid-js";
 import { createStore } from "solid-js/store";
 import { describe, expect, it } from "vitest";
+import type { PageState } from "../../types/interfaces";
 import {
   copyOrganizationPages,
   emptyOrganizationHistory,
@@ -34,6 +35,7 @@ describe("page organization history", () => {
       expect(after.pages[1].rotation).toBe(90);
       expect(restored[0].sourceFile).toBe(file);
       expect(Object.keys(before.pages[0]).sort()).toEqual([
+        "addedCheckmarks",
         "addedText",
         "id",
         "markedForDeletion",
@@ -292,4 +294,47 @@ it("copies saved text independently across history, duplicates, and source resto
       snapshotOrganization(copyOrganizationPages(duplicated.pages), new Set(), null)
     )
   ).toBe(history);
+});
+
+it("copies checkmarks independently through duplication, history and source restoration", () => {
+  const source = new File(["source bytes"], "marked.pdf");
+  const page: PageState = {
+    id: "marked",
+    sourceFile: source,
+    sourcePageNumber: 1,
+    rotation: 0,
+    markedForDeletion: false,
+    addedText: [{ id: "text", text: "Name", x: 20, y: 40, fontSize: 16, rotation: 0 }],
+    addedCheckmarks: [{ id: "tick", x: 40, y: 60, size: 16, rotation: 90 }],
+  };
+  const before = snapshotOrganization([page], new Set(), page.id);
+  const copy = duplicatePageState(page);
+  expect(copy.sourceFile).toBe(source);
+  expect(copy.addedCheckmarks).not.toBe(page.addedCheckmarks);
+  expect(copy.addedCheckmarks?.[0]).not.toBe(page.addedCheckmarks?.[0]);
+  copy.addedCheckmarks = copy.addedCheckmarks?.map((mark) => ({ ...mark, size: 24, x: 80 }));
+  copy.addedText = copy.addedText?.map((text) => ({ ...text, text: "Copy" }));
+  const after = snapshotOrganization([page, copy], new Set(), copy.id);
+  let history = recordOrganization(emptyOrganizationHistory(), "Duplicate page", before, after);
+  expect(history.undo).toHaveLength(1);
+  const removed = snapshotOrganization([], new Set(), null);
+  history = recordOrganization(history, "Remove source", after, removed);
+  const restored = copyOrganizationPages(history.undo.at(-1)?.before.pages ?? []);
+  expect(restored.every((item) => item.sourceFile === source)).toBe(true);
+  expect(restored.map((item) => item.addedCheckmarks?.[0].size)).toEqual([16, 24]);
+  expect(restored.map((item) => item.addedText?.[0].text)).toEqual(["Name", "Copy"]);
+  restored[0].addedCheckmarks = restored[0].addedCheckmarks?.map((mark) => ({ ...mark, size: 30 }));
+  expect(before.pages[0].addedCheckmarks?.[0].size).toBe(16);
+  expect(history.undo.at(-1)?.before.pages[0].addedCheckmarks?.[0].size).toBe(16);
+  // Checkmark-only changes must be recorded, while equal copies add no history.
+  expect(
+    recordOrganization(
+      history,
+      "Unchanged",
+      after,
+      snapshotOrganization(after.pages, new Set(), copy.id)
+    )
+  ).toBe(history);
+  const changed = snapshotOrganization(restored, new Set(), copy.id);
+  expect(recordOrganization(history, "Resize checkmark", after, changed).undo).toHaveLength(3);
 });

@@ -1,6 +1,7 @@
 import { Cause, Deferred, Effect, Exit, Fiber, Option, Semaphore } from "effect";
 import type * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { hasPageAdditions } from "../controllers/editor-additions-state";
 import {
   type PageGeometry,
   type PageState,
@@ -196,7 +197,7 @@ export class PDFService {
     rotation: number,
     maxRasterPixels?: number
   ): Effect.Effect<void, PDFError> {
-    if (!page.addedText?.length)
+    if (!hasPageAdditions(page))
       return this.renderPage(page.sourceFile, page.sourcePageNumber, canvas, scale, rotation);
     // No derived-document cache. The temporary file lives until render cancellation
     // and page cleanup settle, then its loading task is destroyed.

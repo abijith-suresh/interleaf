@@ -1,4 +1,5 @@
 import type { PageState } from "../types/interfaces";
+import { copyAddedCheckmarks, equalAddedCheckmarks } from "./editor-checkmark-state";
 import { copyAddedTexts, equalAddedTexts } from "./editor-text-state";
 
 export const PAGE_HISTORY_LIMIT = 32;
@@ -31,6 +32,7 @@ export function copyOrganizationPages(pages: readonly PageState[]): PageState[] 
     rotation: page.rotation,
     markedForDeletion: page.markedForDeletion,
     addedText: copyAddedTexts(page.addedText),
+    addedCheckmarks: copyAddedCheckmarks(page.addedCheckmarks),
   }));
 }
 
@@ -66,7 +68,8 @@ export function recordOrganization(
         page.sourcePageNumber === next.sourcePageNumber &&
         page.rotation === next.rotation &&
         page.markedForDeletion === next.markedForDeletion &&
-        equalAddedTexts(page.addedText, next.addedText)
+        equalAddedTexts(page.addedText, next.addedText) &&
+        equalAddedCheckmarks(page.addedCheckmarks, next.addedCheckmarks)
       );
     });
   if (unchanged) return history;
