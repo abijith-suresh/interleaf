@@ -193,7 +193,8 @@ export class PDFService {
     page: PageState,
     canvas: HTMLCanvasElement,
     scale: number,
-    rotation: number
+    rotation: number,
+    maxRasterPixels?: number
   ): Effect.Effect<void, PDFError> {
     if (!page.addedText?.length)
       return this.renderPage(page.sourceFile, page.sourcePageNumber, canvas, scale, rotation);
@@ -218,7 +219,7 @@ export class PDFService {
                 const result = yield* Effect.acquireUseRelease(
                   Effect.forkChild(
                     operations.buildPDF([{ ...page, rotation: 0, markedForDeletion: false }], {
-                      maxRasterPixels: 4_000_000,
+                      maxRasterPixels,
                     })
                   ),
                   Fiber.join,

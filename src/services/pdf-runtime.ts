@@ -38,7 +38,8 @@ export interface PDFProcessingShape {
     page: PageState,
     canvas: HTMLCanvasElement,
     scale: number,
-    rotation: number
+    rotation: number,
+    maxRasterPixels?: number
   ) => Effect.Effect<void, PDFError>;
   readonly getPageGeometry: (
     file: File,
@@ -157,8 +158,8 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
             scale?: number,
             rotation?: number
           ) => pdfService.renderPage(file, pageNumber, canvas, scale, rotation),
-          renderPageState: (page, canvas, scale, rotation) =>
-            pdfService.renderPageState(page, canvas, scale, rotation),
+          renderPageState: (page, canvas, scale, rotation, maxRasterPixels) =>
+            pdfService.renderPageState(page, canvas, scale, rotation, maxRasterPixels),
           getPageGeometry: (file, pageNumber) => pdfService.getPageGeometry(file, pageNumber),
           getPageRotation: (file: File, pageNumber: number) =>
             pdfService.getPageRotation(file, pageNumber),

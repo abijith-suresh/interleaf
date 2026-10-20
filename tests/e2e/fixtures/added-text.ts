@@ -192,3 +192,53 @@ export async function checkAddedText(encrypted = false, unitIndex = 0) {
     await Effect.runPromise(service.dispose());
   }
 }
+
+export async function checkLargeProtectedPNG() {
+  // Same first page as added-text-encrypted.b64, rewritten with pypdf 6.21.1
+  // UserUnit 5 and the same RC4-128 password. Its 2x raster exceeds 4M pixels.
+  const encoded = (
+    await (await fetch("/tests/e2e/fixtures/added-text-large-encrypted.b64")).text()
+  ).trim();
+  const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+  const file = new File([bytes], "large-protected.pdf", { type: "application/pdf" });
+  const service = new PDFService();
+  const operations = new PDFOperationsService(service);
+  const images = new PDFImageExportService(service);
+  let task: ReturnType<typeof getDocument> | undefined;
+  let actual: HTMLCanvasElement | undefined;
+  let expected: HTMLCanvasElement | undefined;
+  try {
+    await Effect.runPromise(service.loadPDFWithPassword(file, "623"));
+    const page: PageState = {
+      id: "large",
+      sourceFile: file,
+      sourcePageNumber: 1,
+      rotation: 90,
+      markedForDeletion: false,
+      addedText: [{ id: "text", text: "Added 123", x: 80, y: 90, fontSize: 16, rotation: 90 }],
+    };
+    const output = await Effect.runPromise(operations.buildPDF([page]));
+    task = getDocument({ data: output.data.slice() });
+    const reference = await task.promise;
+    expected = await renderReference(reference, 1, 2);
+    const archive = await Effect.runPromise(images.exportImages([page]));
+    const png = Object.values(unzipSync(new Uint8Array(await archive.data.arrayBuffer())))[0];
+    const bitmap = await createImageBitmap(new Blob([new Uint8Array(png)], { type: "image/png" }));
+    actual = document.createElement("canvas");
+    actual.width = bitmap.width;
+    actual.height = bitmap.height;
+    context(actual).drawImage(bitmap, 0, 0);
+    bitmap.close();
+    return {
+      difference: pixelDifference(actual, expected),
+      size: [actual.width, actual.height],
+      area: actual.width * actual.height,
+    };
+  } finally {
+    if (actual) actual.width = actual.height = 0;
+    if (expected) expected.width = expected.height = 0;
+    await task?.destroy();
+    await Effect.runPromise(operations.dispose());
+    await Effect.runPromise(service.dispose());
+  }
+}

@@ -102,7 +102,8 @@ export default function EditorPageCanvas(props: Props) {
                 { ...props.page, addedText: props.page.addedText.map((text) => ({ ...text })) },
                 canvas,
                 THUMBNAIL_SCALE,
-                sourceRotation
+                sourceRotation,
+                4_000_000
               );
             } else
               yield* service.renderPage(

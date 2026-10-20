@@ -62,3 +62,16 @@ for (const unitIndex of [0, 1, 2])
       expect(result.pngDifferences.every((difference) => difference === 0)).toBe(true);
       expect(errors).toEqual([]);
     });
+
+test("protected PNG exports retain full source resolution above the preview raster budget", async ({
+  page,
+}) => {
+  await page.goto(`${url}text-test`);
+  const result = await page.evaluate(async () => {
+    const path = "/tests/e2e/fixtures/added-text.ts";
+    return (await import(path)).checkLargeProtectedPNG();
+  });
+  expect(result.size).toEqual([2400, 2000]);
+  expect(result.area).toBeGreaterThan(4_000_000);
+  expect(result.difference).toBe(0);
+});

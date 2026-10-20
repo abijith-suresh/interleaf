@@ -135,6 +135,7 @@ export default function EditorPageViewer(props: Props) {
   ): {
     cssScale: number;
     renderScale: number;
+    pixelBudget: number;
   } {
     const devicePixelRatio = Math.min(
       Math.max(window.devicePixelRatio || 1, 1),
@@ -162,6 +163,7 @@ export default function EditorPageViewer(props: Props) {
     return {
       cssScale,
       renderScale: Math.min(cssScale * devicePixelRatio, pixelSafeRenderScale),
+      pixelBudget,
     };
   }
 
@@ -335,7 +337,10 @@ export default function EditorPageViewer(props: Props) {
                 );
                 pageDimensions = pageSize;
                 layoutPage();
-                const { renderScale } = getViewerScale(pageSize.width, pageSize.height);
+                const { renderScale, pixelBudget } = getViewerScale(
+                  pageSize.width,
+                  pageSize.height
+                );
                 if (page.addedText?.length) {
                   yield* service.renderPageState(
                     {
@@ -344,7 +349,8 @@ export default function EditorPageViewer(props: Props) {
                     },
                     staging,
                     renderScale,
-                    rotation
+                    rotation,
+                    pixelBudget
                   );
                 } else
                   yield* service.renderPage(
