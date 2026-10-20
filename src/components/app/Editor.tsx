@@ -2,6 +2,7 @@ import { Effect, Exit, Fiber } from "effect";
 import { batch, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
 import { ROTATION_STEP, TOAST_DISMISS_TIMEOUT_MS } from "../../constants";
+import { hasPageAdditions } from "../../controllers/editor-additions-state";
 import {
   copyOrganizationPages,
   emptyOrganizationHistory,
@@ -338,7 +339,7 @@ export default function Editor() {
         page.sourcePageNumber === index + 1 &&
         page.rotation === 0 &&
         !page.markedForDeletion &&
-        !page.addedText?.length
+        !hasPageAdditions(page)
     );
 
     return isUnmodified ? sourceFile : null;
@@ -1368,6 +1369,17 @@ export default function Editor() {
                     activePageId={activePageId()}
                     runtime={pdfRuntime}
                     onActivePageChange={(pageId) => setActivePageId(pageId)}
+                    onCheckmarksChange={(pageId, marks, label) =>
+                      organize(label, () => {
+                        const index = pages.findIndex((page) => page.id === pageId);
+                        if (index >= 0)
+                          setPages(
+                            index,
+                            "addedCheckmarks",
+                            marks.map((mark) => ({ ...mark }))
+                          );
+                      })
+                    }
                     onTextChange={(pageId, texts, label) =>
                       organize(label, () => {
                         const index = pages.findIndex((page) => page.id === pageId);

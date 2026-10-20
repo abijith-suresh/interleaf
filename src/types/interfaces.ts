@@ -43,6 +43,15 @@ export interface AddedText {
   readonly rotation: number;
 }
 
+// Anchor and rotation use source PDF coordinates. Size is physical points.
+export interface AddedCheckmark {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly size: number;
+  readonly rotation: number;
+}
+
 export interface PageGeometry {
   readonly bounds: readonly [number, number, number, number];
   readonly userUnit: number;
@@ -58,6 +67,7 @@ export interface PageState {
   rotation: number;
   markedForDeletion: boolean;
   addedText?: readonly AddedText[];
+  addedCheckmarks?: readonly AddedCheckmark[];
 }
 
 export interface PDFOperationResult {

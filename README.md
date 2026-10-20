@@ -23,7 +23,8 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Unlock password-protected PDFs with an in-browser prompt
 - Switch between Pages to organize and Document to read with navigation, zoom, and a compact filmstrip
 - Add one-line text in Document view, using Helvetica. Place, drag, resize, rotate, edit, or delete your added text.
-- Saved text appears in previews, thumbnails, PDF downloads, and PNG exports. Use session undo and redo for saved text changes.
+- Add manual checkmarks to flat or scanned forms in Document view. Move, resize, rotate, or delete each checkmark.
+- Saved text and checkmarks appear in previews, thumbnails, PDF downloads, and PNG exports. Use session undo and redo for saved text and checkmark changes.
 - Keep page selection and export scope when switching views
 - Zoom previews up to 4 times their fitted size. Pan with touch, drag, scrollbars, or arrow keys in the preview.
 - Losslessly compress one untouched PDF

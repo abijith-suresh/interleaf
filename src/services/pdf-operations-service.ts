@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import { degrees, PageSizes, PDFDocument } from "pdf-lib";
 import { IMAGES_TO_PDF_FILENAME, OUTPUT_FILENAME } from "../constants";
+import { hasPageAdditions } from "../controllers/editor-additions-state";
 import type {
   PageState,
   PDFBuildProgress,
@@ -10,9 +11,9 @@ import type {
 import { PDFNoPagesError, PDFProcessingError } from "../types/interfaces";
 import { getSupportedFileKind } from "../utils/file-types";
 import { type DocumentKey, type DocumentStore, makeDocumentStore } from "./document-store";
+import { drawPageAdditions } from "./pdf-additions";
 import { processingError } from "./pdf-errors";
 import type { PDFService } from "./pdf-service";
-import { drawAddedText } from "./pdf-text";
 
 const ENCRYPTED_PAGE_RENDER_SCALE = 2;
 
@@ -328,7 +329,7 @@ export class PDFOperationsService {
             try: () => outputDoc.copyPages(sourceDoc, [page.sourcePageNumber - 1]),
             catch: (cause) => processingError("copy-page", page.sourceFile, cause),
           });
-          if (page.addedText?.length) {
+          if (hasPageAdditions(page)) {
             if (!this.pdfService.getPageGeometry)
               return yield* Effect.fail(
                 processingError(
@@ -342,7 +343,7 @@ export class PDFOperationsService {
               page.sourcePageNumber
             );
             yield* Effect.tryPromise({
-              try: () => drawAddedText(outputDoc, copiedPage, page.addedText ?? [], geometry),
+              try: () => drawPageAdditions(outputDoc, copiedPage, page, geometry),
               catch: (cause) => processingError("draw-text", page.sourceFile, cause),
             });
           }
@@ -392,7 +393,7 @@ export class PDFOperationsService {
       const geometry = this.pdfService.getPageGeometry
         ? yield* this.pdfService.getPageGeometry(page.sourceFile, page.sourcePageNumber)
         : undefined;
-      if (page.addedText?.length && !geometry) {
+      if (hasPageAdditions(page) && !geometry) {
         return yield* Effect.fail(
           processingError("draw-text", page.sourceFile, new Error("Page geometry is unavailable."))
         );
@@ -440,10 +441,9 @@ export class PDFOperationsService {
               },
               catch: (cause) => processingError("add-page", page.sourceFile, cause),
             });
-            if (page.addedText?.length && geometry) {
+            if (hasPageAdditions(page) && geometry) {
               yield* Effect.tryPromise({
-                try: () =>
-                  drawAddedText(outputDoc, outputPage, page.addedText ?? [], geometry, true),
+                try: () => drawPageAdditions(outputDoc, outputPage, page, geometry, true),
                 catch: (cause) => processingError("draw-text", page.sourceFile, cause),
               });
             }

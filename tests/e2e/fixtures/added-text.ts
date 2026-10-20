@@ -1,6 +1,16 @@
 import { Effect } from "effect";
 import { unzipSync } from "fflate";
-import { degrees, PDFDocument, PDFName, PDFNumber, rgb, StandardFonts } from "pdf-lib";
+import {
+  decodePDFRawStream,
+  degrees,
+  PDFArray,
+  PDFDocument,
+  PDFName,
+  PDFNumber,
+  PDFRawStream,
+  rgb,
+  StandardFonts,
+} from "pdf-lib";
 import { getDocument, type PDFDocumentProxy } from "pdfjs-dist";
 import { pdfToViewport, viewportToPDF } from "../../../src/controllers/text-geometry";
 import { PDFImageExportService } from "../../../src/services/pdf-image-export-service";
@@ -39,7 +49,12 @@ async function renderReference(
   return canvas;
 }
 
-export async function checkAddedText(encrypted = false, unitIndex = 0, intrinsicIndex = 0) {
+export async function checkAddedText(
+  encrypted = false,
+  unitIndex = 0,
+  intrinsicIndex = 0,
+  checkmarks = false
+) {
   const source = await PDFDocument.create();
   const font = await source.embedFont(StandardFonts.Helvetica);
   for (const unit of [1, 1.5, 2])
@@ -107,6 +122,17 @@ export async function checkAddedText(encrypted = false, unitIndex = 0, intrinsic
           rotation: workspace,
           markedForDeletion: false,
           addedText: [{ id: "text", text: "Added 123", x, y, fontSize: 16, rotation }],
+          addedCheckmarks: checkmarks
+            ? [
+                {
+                  id: "tick",
+                  x: x - 30 / geometry.userUnit,
+                  y: y - 30 / geometry.userUnit,
+                  size: 20,
+                  rotation,
+                },
+              ]
+            : undefined,
         });
       }
       reference.cleanup();
@@ -114,6 +140,7 @@ export async function checkAddedText(encrypted = false, unitIndex = 0, intrinsic
     const output = await Effect.runPromise(operations.buildPDF(pages));
     outputTask = getDocument({ data: output.data.slice() });
     const document = await outputTask.promise;
+    const reopened = await PDFDocument.load(output.data.slice());
     const results = [];
     for (const [index, page] of pages.entries()) {
       const proxy = await document.getPage(index + 1);
@@ -153,7 +180,62 @@ export async function checkAddedText(encrypted = false, unitIndex = 0, intrinsic
       const thumbnail = window.document.createElement("canvas");
       await Effect.runPromise(service.renderPageState(page, thumbnail, 0.35, rotation));
       const expectedThumbnail = await renderReference(document, index + 1, 0.35);
+      let nativeStrokeError = 0;
+      let nativeStrokeCount = 0;
+      let addedInk = 0;
+      if (checkmarks) {
+        // Inspect reopened native PDF path operators, independently of the drawing helper.
+        const contents = reopened.getPage(index).node.Contents();
+        if (!(contents instanceof PDFArray)) throw new Error("Missing checkmark content");
+        let operators = "";
+        for (let streamIndex = 0; streamIndex < contents.size(); streamIndex++)
+          operators += new TextDecoder().decode(
+            decodePDFRawStream(contents.lookup(streamIndex, PDFRawStream)).decode()
+          );
+        const segments = [
+          ...operators.matchAll(/([-\d.]+) ([-\d.]+) m\n([-\d.]+) ([-\d.]+) l\nS/g),
+        ].map((match) => match.slice(1).map(Number));
+        nativeStrokeCount = segments.length;
+        const tick = page.addedCheckmarks?.[0];
+        if (!tick) throw new Error("Missing saved checkmark");
+        const radians = (tick.rotation * Math.PI) / 180;
+        const points = [
+          [0.12, 0.5],
+          [0.38, 0.22],
+          [0.88, 0.85],
+        ].map(([x, y]) => {
+          const rawX =
+            tick.x +
+            (tick.size / geometry.userUnit) * (x * Math.cos(radians) - y * Math.sin(radians));
+          const rawY =
+            tick.y +
+            (tick.size / geometry.userUnit) * (x * Math.sin(radians) + y * Math.cos(radians));
+          return encrypted
+            ? [
+                (rawX - geometry.bounds[0]) * geometry.userUnit,
+                (rawY - geometry.bounds[1]) * geometry.userUnit,
+              ]
+            : [rawX, rawY];
+        });
+        for (const [segmentIndex, segment] of segments.entries()) {
+          const expected = [...points[segmentIndex], ...points[segmentIndex + 1]];
+          nativeStrokeError = Math.max(
+            nativeStrokeError,
+            ...segment.map((value, i) => Math.abs(value - expected[i]))
+          );
+        }
+        // Ensure a real PDF.js bitmap contains new ink beyond the original and text.
+        const withoutMark = window.document.createElement("canvas");
+        await Effect.runPromise(
+          service.renderPageState({ ...page, addedCheckmarks: undefined }, withoutMark, 1, rotation)
+        );
+        addedInk = pixelDifference(actual, withoutMark);
+        withoutMark.width = withoutMark.height = 0;
+      }
       results.push({
+        nativeStrokeError,
+        nativeStrokeCount,
+        addedInk,
         strings,
         physicalSize,
         placementError,

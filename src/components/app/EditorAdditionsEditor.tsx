@@ -3,16 +3,42 @@ import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "so
 import { Portal } from "solid-js/web";
 import { MAX_TEXT_SIZE, MIN_TEXT_SIZE } from "../../constants";
 import {
+  CHECKMARK_POINTS,
+  CHECKMARK_STROKE,
+  MAX_CHECKMARK_SIZE,
+  MIN_CHECKMARK_SIZE,
+  measureAddedCheckmark,
+} from "../../controllers/checkmark-geometry";
+import {
   normalizeQuarterTurn,
   offsetPDFPoint,
   pdfToViewport,
   viewportToPDF,
 } from "../../controllers/text-geometry";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
-import type { AddedText, PageGeometry, PageState } from "../../types/interfaces";
+import type { AddedCheckmark, AddedText, PageGeometry, PageState } from "../../types/interfaces";
 import EditorButton from "./ui/EditorButton";
 
-export interface TextGesture {
+type Addition = AddedText | AddedCheckmark;
+const isText = (item: Addition): item is AddedText => "text" in item;
+const additionSize = (item: Addition) => (isText(item) ? item.fontSize : item.size);
+
+function CheckmarkShape() {
+  return (
+    <svg viewBox="0 0 1 1" aria-hidden="true" class="editor-checkmark-shape">
+      <polyline
+        points={CHECKMARK_POINTS.map(([x, y]) => `${x},${1 - y}`).join(" ")}
+        fill="none"
+        stroke="currentColor"
+        stroke-width={CHECKMARK_STROKE}
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  );
+}
+
+export interface AdditionsGesture {
   key: (event: KeyboardEvent) => boolean;
   move: (event: PointerEvent) => boolean;
   end: (event: PointerEvent) => boolean;
@@ -27,18 +53,20 @@ interface Props {
   stage: HTMLElement;
   ready: boolean;
   disabled?: boolean;
+  onCheckmarksChange?: (pageId: string, marks: readonly AddedCheckmark[], label: string) => void;
   onChange: (pageId: string, texts: readonly AddedText[], label: string) => void;
-  registerGesture: (gesture: TextGesture | null) => void;
+  registerGesture: (gesture: AdditionsGesture | null) => void;
   registerTap: (handler: ((event: PointerEvent) => void) | null) => void;
   onEditing: (id: string | null) => void;
 }
 
-export default function EditorTextEditor(props: Props) {
+export default function EditorAdditionsEditor(props: Props) {
   const [toolsOpen, setToolsOpen] = createSignal(false);
   const [mode, setMode] = createSignal<"read" | "place" | "edit">("read");
   const [geometry, setGeometry] = createSignal<PageGeometry>();
   const [rotation, setRotation] = createSignal(0);
-  const [draft, setDraft] = createSignal<AddedText>();
+  const [draft, setDraft] = createSignal<Addition>();
+  const [tool, setTool] = createSignal<"text" | "checkmark">("text");
   const [error, setError] = createSignal("");
   const [saving, setSaving] = createSignal(false);
   const [settings, setSettings] = createSignal(true);
@@ -54,15 +82,25 @@ export default function EditorTextEditor(props: Props) {
   let disposed = false;
   let generation = 0;
   let drag:
-    | { pointer: number; x: number; y: number; original: AddedText; moved: boolean }
+    | { pointer: number; x: number; y: number; original: Addition; moved: boolean }
     | undefined;
 
   const texts = () => props.page.addedText ?? [];
+  const marks = () => props.page.addedCheckmarks ?? [];
+  const additions = (): readonly Addition[] => [...texts(), ...marks()];
+  const checkmark = () => {
+    const current = draft();
+    return current ? !isText(current) : tool() === "checkmark";
+  };
+  const noun = () => (checkmark() ? "checkmark" : "text");
+  const minimumSize = () => (checkmark() ? MIN_CHECKMARK_SIZE : MIN_TEXT_SIZE);
+  const maximumSize = () => (checkmark() ? MAX_CHECKMARK_SIZE : MAX_TEXT_SIZE);
   const textMode = createMemo(() => mode() !== "read");
   const invalidSize = () => {
-    const size = draft()?.fontSize;
+    const current = draft();
+    const size = current ? additionSize(current) : undefined;
     return (
-      size === undefined || !Number.isFinite(size) || size < MIN_TEXT_SIZE || size > MAX_TEXT_SIZE
+      size === undefined || !Number.isFinite(size) || size < minimumSize() || size > maximumSize()
     );
   };
   const visibleSize = createMemo(() => {
@@ -100,6 +138,26 @@ export default function EditorTextEditor(props: Props) {
     );
   }
 
+  function focusElement(element: HTMLElement) {
+    element.focus({ preventScroll: true });
+    if (
+      document.activeElement !== element ||
+      !visible(disclosure) ||
+      !props.toolbar.contains(element)
+    )
+      return;
+    // Reveal compact settings without scrolling the document or page preview.
+    for (const container of [element.closest<HTMLElement>(".editor-text-content"), props.toolbar]) {
+      if (!container || container.scrollHeight <= container.clientHeight) continue;
+      const viewport = container.getBoundingClientRect();
+      const field = element.getBoundingClientRect();
+      const top = viewport.top + container.clientTop + 4;
+      const bottom = viewport.top + container.clientTop + container.clientHeight - 4;
+      if (field.top < top) container.scrollTop += field.top - top;
+      else if (field.bottom > bottom) container.scrollTop += field.bottom - bottom;
+    }
+  }
+
   function focusLater(target: () => HTMLElement | undefined, ticket = focusTicket()) {
     const version = generation;
     queueMicrotask(() => {
@@ -112,7 +170,7 @@ export default function EditorTextEditor(props: Props) {
       )
         return;
       const element = target();
-      if (visible(element)) element.focus({ preventScroll: true });
+      if (visible(element)) focusElement(element);
     });
   }
 
@@ -144,7 +202,7 @@ export default function EditorTextEditor(props: Props) {
 
   createEffect(() => {
     const pageId = props.page.id;
-    const saved = JSON.stringify(props.page.addedText ?? []);
+    const saved = JSON.stringify([props.page.addedText ?? [], props.page.addedCheckmarks ?? []]);
     const turn = props.page.rotation;
     void pageId;
     void saved;
@@ -220,19 +278,20 @@ export default function EditorTextEditor(props: Props) {
     );
   }
 
-  function startEdit(text: AddedText) {
+  function startEdit(text: Addition) {
     if (saving()) return;
     const ticket = focusTicket();
     cancel();
     setMode("edit");
     setDraft({ ...text });
+    setTool(isText(text) ? "text" : "checkmark");
     setSettings(true);
     setToolsOpen(true);
     props.onEditing(text.id);
-    focusLater(() => input, ticket);
+    focusLater(() => (isText(text) ? input : sizeInput), ticket);
   }
 
-  function patch(change: Partial<AddedText>) {
+  function patch(change: Partial<AddedText & AddedCheckmark>) {
     setError("");
     setDraft((current) => (current ? { ...current, ...change } : current));
   }
@@ -246,25 +305,31 @@ export default function EditorTextEditor(props: Props) {
     setSaving(true);
     setError("");
     try {
-      const { validateAddedText } = await import("../../services/pdf-text");
-      await validateAddedText(text, g);
+      if (isText(text)) {
+        const { validateAddedText } = await import("../../services/pdf-text");
+        await validateAddedText(text, g);
+      } else measureAddedCheckmark(text, g);
       if (disposed || version !== generation) return;
-      const existed = texts().some((item) => item.id === text.id);
+      const items = isText(text) ? texts() : marks();
+      const existed = items.some((item) => item.id === text.id);
       const next = existed
-        ? texts().map((item) => (item.id === text.id ? { ...text } : { ...item }))
-        : [...texts(), { ...text }];
-      props.onChange(props.page.id, next, existed ? "Edit text" : "Add text");
+        ? items.map((item) => (item.id === text.id ? { ...text } : { ...item }))
+        : [...items, { ...text }];
+      const label = `${existed ? "Edit" : "Add"} ${isText(text) ? "text" : "checkmark"}`;
+      if (isText(text)) props.onChange(props.page.id, next as AddedText[], label);
+      else props.onCheckmarksChange?.(props.page.id, next as AddedCheckmark[], label);
       cancel();
       setMode("edit");
       setToolsOpen(false);
       focusLater(() => completionTarget(text.id), ticket);
     } catch (cause) {
       if (!disposed && version === generation) {
-        setError(cause instanceof Error ? cause.message : "Could not save text. Try again.");
+        setError(cause instanceof Error ? cause.message : `Could not save ${noun()}. Try again.`);
         // Re-enable the field before restoring focus lost to disabled controls.
         setSaving(false);
         focusLater(
           () =>
+            !isText(text) ||
             !Number.isFinite(text.fontSize) ||
             text.fontSize < MIN_TEXT_SIZE ||
             text.fontSize > MAX_TEXT_SIZE
@@ -318,7 +383,7 @@ export default function EditorTextEditor(props: Props) {
       const target = document
         .elementFromPoint(event.clientX, event.clientY)
         ?.closest<HTMLButtonElement>(".editor-text-hit");
-      const text = texts().find((text) => target?.dataset.textId === text.id);
+      const text = additions().find((text) => target?.dataset.textId === text.id);
       if (text) startEdit(text);
       return;
     }
@@ -337,12 +402,17 @@ export default function EditorTextEditor(props: Props) {
   }
 
   function createDraft(point: { x: number; y: number }) {
-    setDraft({ id: crypto.randomUUID(), text: "", ...point, fontSize: 16, rotation: rotation() });
+    const g = geometry();
+    // Center the checkmark on the chosen checkbox or visible keyboard target.
+    const anchor =
+      tool() === "checkmark" && g ? offsetPDFPoint(g, rotation(), point, -8, 8) : point;
+    const base = { id: crypto.randomUUID(), ...anchor, rotation: rotation() };
+    setDraft(tool() === "text" ? { ...base, text: "", fontSize: 16 } : { ...base, size: 16 });
     setMode("edit");
     setSettings(true);
     setToolsOpen(true);
     setError("");
-    focusLater(() => input);
+    focusLater(() => (tool() === "text" ? input : sizeInput));
   }
 
   function previewKey(event: KeyboardEvent) {
@@ -399,7 +469,7 @@ export default function EditorTextEditor(props: Props) {
     );
   }
 
-  function style(text: AddedText) {
+  function style(text: Addition) {
     const g = geometry();
     if (!g) return {};
     const p = pdfToViewport(g, rotation(), text.x, text.y);
@@ -408,8 +478,8 @@ export default function EditorTextEditor(props: Props) {
     return {
       left: `${(100 * p.x) / size.width}%`,
       top: `${(100 * p.y) / size.height}%`,
-      "font-size": `${(100 * text.fontSize) / size.width}cqw`,
-      transform: `rotate(${rotation() - text.rotation}deg) translateY(-78%)`,
+      "font-size": `${(100 * additionSize(text)) / size.width}cqw`,
+      transform: `rotate(${rotation() - text.rotation}deg) translateY(${isText(text) ? "-78%" : "-100%"})`,
     };
   }
 
@@ -429,13 +499,14 @@ export default function EditorTextEditor(props: Props) {
           </EditorButton>
           <EditorButton
             ref={disclosure}
-            icon="text"
-            aria-label="Text tools"
+            aria-label="Tools"
             aria-pressed={mode() !== "read"}
             class="editor-text-disclosure"
             aria-expanded={toolsOpen()}
             onClick={() => setToolsOpen(!toolsOpen())}
-          ></EditorButton>
+          >
+            Tools
+          </EditorButton>
         </fieldset>
       </Portal>
       <Portal mount={props.toolbar}>
@@ -445,8 +516,8 @@ export default function EditorTextEditor(props: Props) {
               Tap the page or press Enter in the preview.
             </span>
           </Show>
-          <div class="editor-text-content" classList={{ "is-open": toolsOpen() }}>
-            <div class="editor-text-toolbar" role="toolbar" aria-label="Text tools">
+          <div class="editor-text-content" tabIndex={-1} classList={{ "is-open": toolsOpen() }}>
+            <div class="editor-text-toolbar" role="toolbar" aria-label="Page tools">
               <EditorButton
                 aria-pressed={mode() === "read"}
                 onClick={() => {
@@ -459,11 +530,12 @@ export default function EditorTextEditor(props: Props) {
               <EditorButton
                 ref={addButton}
                 icon="text"
-                aria-pressed={mode() === "place"}
+                aria-pressed={mode() === "place" && tool() === "text"}
                 disabled={!props.ready || saving()}
                 onClick={() => {
                   const ticket = focusTicket();
                   cancel();
+                  setTool("text");
                   setMode("place");
                   setToolsOpen(false);
                   focusLater(() => props.stage, ticket);
@@ -471,10 +543,25 @@ export default function EditorTextEditor(props: Props) {
               >
                 Add text
               </EditorButton>
-              <Show when={texts().length > 0}>
+              <EditorButton
+                icon="checkmark"
+                aria-pressed={mode() === "place" && tool() === "checkmark"}
+                disabled={!props.ready || saving() || !props.onCheckmarksChange}
+                onClick={() => {
+                  const ticket = focusTicket();
+                  cancel();
+                  setTool("checkmark");
+                  setMode("place");
+                  setToolsOpen(false);
+                  focusLater(() => props.stage, ticket);
+                }}
+              >
+                Checkmark
+              </EditorButton>
+              <Show when={additions().length > 0}>
                 <EditorButton
                   icon="page-actions"
-                  aria-label="Select added text"
+                  aria-label="Select additions"
                   aria-pressed={mode() === "edit"}
                   disabled={saving()}
                   onClick={() => {
@@ -482,7 +569,7 @@ export default function EditorTextEditor(props: Props) {
                     setMode("edit");
                   }}
                 >
-                  Edit text
+                  Edit additions
                 </EditorButton>
               </Show>
               <Show when={mode() === "place"}>
@@ -492,7 +579,7 @@ export default function EditorTextEditor(props: Props) {
               </Show>
               <Show when={draft()}>
                 <EditorButton aria-expanded={settings()} onClick={() => setSettings(!settings())}>
-                  Text settings
+                  {checkmark() ? "Checkmark settings" : "Text settings"}
                 </EditorButton>
               </Show>
             </div>
@@ -511,68 +598,95 @@ export default function EditorTextEditor(props: Props) {
                   }
                 }}
               >
-                <label class="editor-text-value">
-                  Text{" "}
-                  <input
-                    ref={input}
-                    aria-label="Added text"
-                    aria-invalid={Boolean(error()) && !invalidSize()}
-                    aria-describedby={error() && !invalidSize() ? "editor-text-error" : undefined}
-                    onPaste={(event) => {
-                      if (/[\r\n]/.test(event.clipboardData?.getData("text/plain") ?? "")) {
-                        event.preventDefault();
-                        setError("Use one line of text.");
-                      }
-                    }}
-                    value={draft()?.text ?? ""}
-                    disabled={saving()}
-                    onInput={(event) => patch({ text: event.currentTarget.value })}
-                  />
-                </label>
+                <span class="editor-text-font" role="status">
+                  {additions().some((item) => item.id === draft()?.id) ? "Editing saved" : "Draft"}{" "}
+                  {noun()}
+                </span>
+                <Show when={!checkmark()}>
+                  <label class="editor-text-value">
+                    Text{" "}
+                    <input
+                      ref={input}
+                      aria-label="Added text"
+                      aria-invalid={Boolean(error()) && !invalidSize()}
+                      aria-describedby={error() && !invalidSize() ? "editor-text-error" : undefined}
+                      onPaste={(event) => {
+                        if (/[\r\n]/.test(event.clipboardData?.getData("text/plain") ?? "")) {
+                          event.preventDefault();
+                          setError("Use one line of text.");
+                        }
+                      }}
+                      value={(() => {
+                        const item = draft();
+                        return item && isText(item) ? item.text : "";
+                      })()}
+                      disabled={saving()}
+                      onInput={(event) => patch({ text: event.currentTarget.value })}
+                    />
+                  </label>
+                </Show>
                 <label>
                   Size{" "}
                   <input
                     ref={sizeInput}
                     type="number"
-                    aria-label="Text size in points"
-                    aria-invalid={Boolean(error()) && invalidSize()}
-                    aria-describedby={error() && invalidSize() ? "editor-text-error" : undefined}
-                    min={MIN_TEXT_SIZE}
-                    max={MAX_TEXT_SIZE}
-                    value={draft()?.fontSize}
+                    aria-label={checkmark() ? "Checkmark size in points" : "Text size in points"}
+                    aria-invalid={Boolean(error()) && (checkmark() || invalidSize())}
+                    aria-describedby={
+                      error() && (checkmark() || invalidSize()) ? "editor-text-error" : undefined
+                    }
+                    min={minimumSize()}
+                    max={maximumSize()}
+                    value={(() => {
+                      const current = draft();
+                      return current ? additionSize(current) : undefined;
+                    })()}
                     disabled={saving()}
-                    onInput={(event) => patch({ fontSize: event.currentTarget.valueAsNumber })}
+                    onInput={(event) =>
+                      patch(
+                        checkmark()
+                          ? { size: event.currentTarget.valueAsNumber }
+                          : { fontSize: event.currentTarget.valueAsNumber }
+                      )
+                    }
                   />
                 </label>
-                <span class="editor-text-font">Helvetica · pt</span>
+                <span class="editor-text-font">{checkmark() ? "pt" : "Helvetica · pt"}</span>
                 <EditorButton
                   icon="rotate"
-                  aria-label="Rotate text 90 degrees"
+                  aria-label={`Rotate ${noun()} 90 degrees`}
                   disabled={saving()}
                   onClick={() =>
                     patch({ rotation: normalizeQuarterTurn((draft()?.rotation ?? 0) - 90) })
                   }
                 />
                 <EditorButton type="submit" variant="primary" disabled={saving()}>
-                  {saving() ? "Saving…" : "Save text"}
+                  {saving() ? "Saving…" : `Save ${noun()}`}
                 </EditorButton>
                 <EditorButton disabled={saving()} onClick={finishDraft}>
                   Cancel
                 </EditorButton>
-                <Show when={texts().some((text) => text.id === draft()?.id)}>
+                <Show when={additions().some((text) => text.id === draft()?.id)}>
                   <EditorButton
                     icon="delete"
-                    aria-label="Delete added text"
+                    aria-label={`Delete added ${noun()}`}
                     variant="danger"
                     disabled={saving()}
                     onClick={() => {
                       const ticket = focusTicket();
                       const id = draft()?.id;
-                      props.onChange(
-                        props.page.id,
-                        texts().filter((text) => text.id !== id),
-                        "Delete text"
-                      );
+                      if (checkmark())
+                        props.onCheckmarksChange?.(
+                          props.page.id,
+                          marks().filter((mark) => mark.id !== id),
+                          "Delete checkmark"
+                        );
+                      else
+                        props.onChange(
+                          props.page.id,
+                          texts().filter((text) => text.id !== id),
+                          "Delete text"
+                        );
                       cancel();
                       setToolsOpen(false);
                       focusLater(() => completionTarget(), ticket);
@@ -606,27 +720,29 @@ export default function EditorTextEditor(props: Props) {
       >
         <p id="editor-text-placement-help" class="sr-only">
           {mode() === "place"
-            ? "Press Enter or Space to place text at the visible page center. Escape cancels placement."
-            : "Use arrow keys to pan. Choose added text to edit."}
+            ? `Press Enter or Space to place ${tool() === "text" ? "text" : "a checkmark"} at the visible page center. Escape cancels placement.`
+            : "Use arrow keys to pan. Choose an addition to edit."}
         </p>
         <p id="editor-text-move-help" class="sr-only">
-          Arrow keys move text by 1 point. Shift moves 10 points. Enter edits text. Escape cancels.
+          Arrow keys move the draft by 1 point. Shift moves 10 points. Enter opens settings. Escape
+          cancels.
         </p>
         <Show when={mode() === "edit" && geometry()}>
-          <For each={texts().filter((text) => text.id !== draft()?.id)}>
+          <For each={additions().filter((text) => text.id !== draft()?.id)}>
             {(text) => (
               <button
                 type="button"
                 class="editor-text-hit"
+                classList={{ "editor-checkmark": !isText(text) }}
                 data-text-id={text.id}
                 style={style(text)}
-                aria-label={`Edit added text: ${text.text}`}
+                aria-label={isText(text) ? `Edit added text: ${text.text}` : "Edit added checkmark"}
                 onClick={(event) => {
                   event.stopPropagation();
                   startEdit(text);
                 }}
               >
-                {text.text}
+                {isText(text) ? text.text : <CheckmarkShape />}
               </button>
             )}
           </For>
@@ -635,7 +751,8 @@ export default function EditorTextEditor(props: Props) {
               <button
                 type="button"
                 class="editor-text-draft"
-                aria-label="Drag text to move it"
+                classList={{ "editor-checkmark": !isText(text()) }}
+                aria-label={`Drag ${noun()} to move it`}
                 aria-describedby="editor-text-move-help"
                 onFocus={(event) => {
                   // The compact popup must not cover keyboard movement.
@@ -647,10 +764,11 @@ export default function EditorTextEditor(props: Props) {
                 onClick={() => {
                   setToolsOpen(true);
                   setSettings(true);
-                  input?.focus({ preventScroll: true });
+                  const field = checkmark() ? sizeInput : input;
+                  if (visible(field)) focusElement(field);
                 }}
               >
-                {text().text || "Type text"}
+                {isText(text()) ? (text() as AddedText).text || "Type text" : <CheckmarkShape />}
               </button>
             )}
           </Show>

@@ -32,6 +32,8 @@ The active product supports:
 - adding, selecting, editing, dragging, rotating, and deleting one-line printable basic Latin text in Document view, using Helvetica
 - undoing and redoing saved text changes within the same session history
 - including saved text in page previews, thumbnails, PDF downloads, and PNG exports
+- manually adding, selecting, moving, resizing, rotating, and deleting vector checkmarks in Document view for flat or scanned forms
+- undoing and redoing saved checkmark changes, and including saved checkmarks in page previews, thumbnails, PDF downloads, and PNG exports
 - zooming page previews up to 4 times their fitted size, with pinch, drag, scroll, and keyboard panning
 - losslessly compressing an untouched, single uploaded PDF in the browser
 - exporting selected or active PDF pages as PNG images in a local ZIP archive
@@ -47,6 +49,7 @@ The product does not include, and must not gain without this section changing fi
 
 - server-side PDF processing or uploads of any kind
 - accounts, signups, sync, or collaboration
+- automatic form detection, OCR, original text replacement, or filling native PDF form fields
 - ads, tracking, analytics, cookies, or fingerprinting
 - unapproved speculative code kept only for possible future expansion
 - public promises for features that are not implemented
