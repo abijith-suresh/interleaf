@@ -39,7 +39,7 @@ async function renderReference(
   return canvas;
 }
 
-export async function checkAddedText(encrypted = false, unitIndex = 0) {
+export async function checkAddedText(encrypted = false, unitIndex = 0, intrinsicIndex = 0) {
   const source = await PDFDocument.create();
   const font = await source.embedFont(StandardFonts.Helvetica);
   for (const unit of [1, 1.5, 2])
@@ -82,7 +82,7 @@ export async function checkAddedText(encrypted = false, unitIndex = 0) {
   try {
     const pages: PageState[] = [];
     let maxRoundtripError = 0;
-    for (let number = unitIndex * 4 + 1; number <= unitIndex * 4 + 4; number++) {
+    for (const number of [unitIndex * 4 + intrinsicIndex + 1]) {
       const geometry = await Effect.runPromise(service.getPageGeometry(file, number));
       const reference = await referenceSource.getPage(number);
       for (const workspace of [0, 90, 180, 270]) {
@@ -165,7 +165,7 @@ export async function checkAddedText(encrypted = false, unitIndex = 0) {
         canvas.width = canvas.height = 0;
     }
     // PNG uses the same actual generated-PDF renderer at its export scale.
-    const selected = [0, 5, 10, 15];
+    const selected = [0, 1, 2, 3];
     const archive = await Effect.runPromise(
       images.exportImages(pages, { selectedIndices: selected })
     );

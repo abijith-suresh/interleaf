@@ -34,34 +34,35 @@ test.afterAll(async () => {
 
 for (const unitIndex of [0, 1, 2])
   for (const encrypted of [false, true])
-    test(`unit=${[1, 1.5, 2][unitIndex]} saved preview, thumbnail, PDF and PNG share real PDF geometry and pixels, encrypted=${encrypted}`, async ({
-      page,
-    }) => {
-      const errors: string[] = [];
-      page.on("pageerror", (error) => errors.push(error.message));
-      await page.goto(`${url}text-test`);
-      const result: Awaited<ReturnType<typeof checkAddedText>> = await page.evaluate(
-        async ({ encrypted, unitIndex }) => {
-          const path = "/tests/e2e/fixtures/added-text.ts";
-          return (await import(path)).checkAddedText(encrypted, unitIndex);
-        },
-        { encrypted, unitIndex }
-      );
-      expect(result.maxRoundtripError).toBeLessThan(0.000001);
-      expect(result.results).toHaveLength(16);
-      for (const entry of result.results) {
-        if (!encrypted) expect(entry.strings).toContain("Original");
-        expect(entry.strings).toContain("Added 123");
-        expect(entry.physicalSize).toBeCloseTo(16);
-        expect(entry.placementError).toBeLessThan(0.000001);
-        expect(entry.directionError).toBeLessThan(0.000001);
-        expect(entry.pixels).toBe(0);
-        expect(entry.thumbnail).toBe(0);
-      }
-      expect(result.pngDifferences).toHaveLength(4);
-      expect(result.pngDifferences.every((difference) => difference === 0)).toBe(true);
-      expect(errors).toEqual([]);
-    });
+    for (const intrinsicIndex of [0, 1, 2, 3])
+      test(`unit=${[1, 1.5, 2][unitIndex]} intrinsic=${intrinsicIndex * 90} saved preview, thumbnail, PDF and PNG share real PDF geometry and pixels, encrypted=${encrypted}`, async ({
+        page,
+      }) => {
+        const errors: string[] = [];
+        page.on("pageerror", (error) => errors.push(error.message));
+        await page.goto(`${url}text-test`);
+        const result: Awaited<ReturnType<typeof checkAddedText>> = await page.evaluate(
+          async ({ encrypted, unitIndex, intrinsicIndex }) => {
+            const path = "/tests/e2e/fixtures/added-text.ts";
+            return (await import(path)).checkAddedText(encrypted, unitIndex, intrinsicIndex);
+          },
+          { encrypted, unitIndex, intrinsicIndex }
+        );
+        expect(result.maxRoundtripError).toBeLessThan(0.000001);
+        expect(result.results).toHaveLength(4);
+        for (const entry of result.results) {
+          if (!encrypted) expect(entry.strings).toContain("Original");
+          expect(entry.strings).toContain("Added 123");
+          expect(entry.physicalSize).toBeCloseTo(16);
+          expect(entry.placementError).toBeLessThan(0.000001);
+          expect(entry.directionError).toBeLessThan(0.000001);
+          expect(entry.pixels).toBe(0);
+          expect(entry.thumbnail).toBe(0);
+        }
+        expect(result.pngDifferences).toHaveLength(4);
+        expect(result.pngDifferences.every((difference) => difference === 0)).toBe(true);
+        expect(errors).toEqual([]);
+      });
 
 test("protected PNG exports retain full source resolution above the preview raster budget", async ({
   page,
