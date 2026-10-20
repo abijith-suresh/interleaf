@@ -8,6 +8,7 @@ import {
   PDFNumber,
   type PDFObject,
   type PDFPage,
+  PDFPageLeaf,
   PDFRef,
   PDFStream,
   PDFString,
@@ -38,7 +39,7 @@ function objects(doc: PDFDocument, roots: PDFObject[]): Set<PDFObject> {
   }
   return seen;
 }
-function resolvedName(dict: PDFDict, key: PDFName, required = false): PDFName | undefined {
+function resolvedValue(dict: PDFDict, key: PDFName, required = false): PDFObject | undefined {
   let value = dict.get(key, true);
   if (value === undefined && !required) return undefined;
   const seen = new Set<PDFRef>();
@@ -49,7 +50,11 @@ function resolvedName(dict: PDFDict, key: PDFName, required = false): PDFName | 
     value = dict.context.lookup(value);
   }
   if (value === undefined) throw Error(`Missing PDF name ${key}`);
-  if (!(value instanceof PDFName)) throw Error(`Invalid PDF name ${key}`);
+  return value;
+}
+function resolvedName(dict: PDFDict, key: PDFName, required = false): PDFName | undefined {
+  const value = resolvedValue(dict, key, required);
+  if (value !== undefined && !(value instanceof PDFName)) throw Error(`Invalid PDF name ${key}`);
   return value;
 }
 
@@ -57,7 +62,11 @@ function resolvedName(dict: PDFDict, key: PDFName, required = false): PDFName | 
 // filtered library page list until its refs match the actual source page tree.
 export function validatePDFSourcePages(doc: PDFDocument, file: File): void {
   try {
-    const stack = [{ raw: doc.catalog.get(N("Pages")), depth: 0 }];
+    type Branch = { declared: number; total: number; parent?: Branch };
+    const branches: Branch[] = [];
+    const stack: { raw: PDFObject | undefined; depth: number; parent?: Branch }[] = [
+      { raw: doc.catalog.get(N("Pages")), depth: 0 },
+    ];
     const seen = new Set<PDFDict>(),
       refs: PDFRef[] = [];
     while (stack.length) {
@@ -73,11 +82,29 @@ export function validatePDFSourcePages(doc: PDFDocument, file: File): void {
         if (!(entry.raw instanceof PDFRef))
           throw Error("Unsupported direct source Page dictionary");
         refs.push(entry.raw);
+        if (entry.parent) entry.parent.total++;
       } else if (role === N("Pages")) {
+        const count = resolvedValue(node, N("Count"), true);
+        if (
+          !(count instanceof PDFNumber) ||
+          !Number.isSafeInteger(count.asNumber()) ||
+          count.asNumber() < 0
+        )
+          throw Error("Invalid source Pages Count");
+        const branch: Branch = { declared: count.asNumber(), total: 0, parent: entry.parent };
+        branches.push(branch);
         const kids = node.lookup(N("Kids"), PDFArray);
         for (let index = kids.size() - 1; index >= 0; index--)
-          stack.push({ raw: kids.get(index), depth: entry.depth + 1 });
+          stack.push({ raw: kids.get(index), depth: entry.depth + 1, parent: branch });
       } else throw Error("Invalid source page-tree role");
+    }
+    // Count must agree at every subtree: PDF.js uses it to skip branches.
+    // Compute totals from actual leaves only, never from declared counts.
+    for (let index = branches.length - 1; index >= 0; index--) {
+      const branch = branches[index];
+      if (!Number.isSafeInteger(branch.total) || branch.total !== branch.declared)
+        throw Error("Source Pages Count differs from actual descendant pages");
+      if (branch.parent) branch.parent.total += branch.total;
     }
     const indexed = doc.getPages();
     if (refs.length !== indexed.length || refs.some((ref, index) => ref !== indexed[index].ref))
@@ -151,6 +178,13 @@ export class PDFExportCopy {
       const file = this.owner.get(dict)?.file;
       throw file ? processingError("reconcile-export", file, cause) : cause;
     }
+  }
+  private isPage(dict: PDFDict): boolean {
+    if (dict instanceof PDFPageLeaf || dict.has(this.key))
+      return this.name(dict, N("Type"), true) === N("Page");
+    // A resource/state lookup map may itself have a key named Type. Only a
+    // resolved Page name identifies an otherwise unknown dictionary as a Page.
+    return resolvedValue(dict, N("Type")) === N("Page");
   }
   private named(source: PDFExportSource, name: string): PDFObject | undefined {
     const legacy = source.doc.catalog.lookupMaybe(N("Dests"), PDFDict)?.get(N(name));
@@ -301,6 +335,26 @@ export class PDFExportCopy {
       this.output,
       Object.values(this.output.context.trailerInfo).filter((v): v is PDFObject => !!v)
     );
+    // Actions start at known page/annotation/field entries. Resource and AP
+    // lookup maps can have arbitrary keys, including S, A, Type and Next.
+    const pendingActions: PDFObject[] = [];
+    for (const semantic of new Set([...actualSet, ...annotationOwners.keys(), ...keep])) {
+      const action = annotationOwners.has(semantic) ? semantic.get(N("A")) : undefined;
+      if (action) pendingActions.push(action);
+      const additional = semantic.lookupMaybe(N("AA"), PDFDict);
+      if (additional) pendingActions.push(...additional.values());
+    }
+    const actions = new Set<PDFDict>();
+    while (pendingActions.length) {
+      const action = this.output.context.lookup(pendingActions.pop());
+      if (!(action instanceof PDFDict)) throw Error("Invalid PDF action dictionary");
+      if (actions.has(action)) continue;
+      actions.add(action);
+      this.name(action, N("S"), true);
+      const next = this.output.context.lookup(action.get(N("Next")));
+      if (next instanceof PDFArray) pendingActions.push(...next.asArray());
+      else if (next) pendingActions.push(next);
+    }
     const removeActions = new Set<PDFDict>();
     for (const o of reachable) {
       if (!(o instanceof PDFDict)) continue;
@@ -309,7 +363,7 @@ export class PDFExportCopy {
         if (d) o.set(N("Dest"), d);
         else o.delete(N("Dest"));
       }
-      if (this.name(o, N("S")) === N("GoTo")) {
+      if (actions.has(o) && this.name(o, N("S"), true) === N("GoTo")) {
         const d = this.destination(o, o.get(N("D")));
         if (d) o.set(N("D"), d);
         else {
@@ -333,11 +387,7 @@ export class PDFExportCopy {
     );
     const replacement = (value: PDFObject, key: string): PDFObject => {
       const target = this.output.context.lookup(value);
-      if (
-        !(target instanceof PDFDict) ||
-        this.name(target, N("Type")) !== N("Page") ||
-        actualSet.has(target)
-      )
+      if (!(target instanceof PDFDict) || !this.isPage(target) || actualSet.has(target))
         return value;
       const id = target.lookupMaybe(this.key, PDFNumber)?.asNumber();
       const page = id === undefined ? undefined : this.first.get(id);
@@ -364,7 +414,7 @@ export class PDFExportCopy {
       Object.values(this.output.context.trailerInfo).filter((v): v is PDFObject => !!v)
     );
     for (const o of reachable)
-      if (o instanceof PDFDict && this.name(o, N("Type")) === N("Page") && !actualSet.has(o))
+      if (o instanceof PDFDict && this.isPage(o) && !actualSet.has(o))
         throw Error("Unreconciled orphan Page");
     // pdf-lib serializes every registered object, including unreachable ones.
     for (const [ref] of this.output.context.enumerateIndirectObjects())

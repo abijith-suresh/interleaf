@@ -3,13 +3,16 @@ import { degrees, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFStri
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import worker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
+  COUNT_PAGE_TEXT,
   type DestinationKind,
   exportCrossPageButtonFixture,
   exportFormFixture,
   exportIndirectPageFixture,
   exportIndirectWidgetFixture,
   exportLinkFixture,
+  exportPageCountFixture,
   exportPageIndexFixture,
+  exportResourceNameFixture,
   INDEX_PAGE_TEXT,
   INDIRECT_OMITTED_ANSWER,
   OMITTED_ANSWER,
@@ -472,5 +475,98 @@ export async function checkIndirectRoles() {
     return { widgets, pages, indexing };
   } finally {
     await Effect.runPromise(operations.dispose());
+  }
+}
+
+export async function checkCountsAndResourceNames() {
+  const service = new PDFService(),
+    operations = new PDFOperationsService(service);
+  try {
+    const counts = [];
+    for (const indirect of [false, true])
+      for (const correct of [false, true]) {
+        const input = await exportPageCountFixture(indirect, correct),
+          source = file(input);
+        const sourceOrders = [];
+        for (const order of ["p2-only", "sequential", "concurrent"]) {
+          const task = getDocument({ data: input.slice() });
+          try {
+            const doc = await task.promise;
+            const text = async (n: number) =>
+              (await (await doc.getPage(n)).getTextContent()).items
+                .map((i) => ("str" in i ? i.str : ""))
+                .join(" ");
+            if (order === "sequential") for (let n = 1; n <= 4; n++) await text(n);
+            if (order === "concurrent") await Promise.all([1, 2, 3, 4].map(text));
+            sourceOrders.push({ order, text: await text(2), pages: doc.numPages });
+          } finally {
+            await task.destroy();
+          }
+        }
+        for (const layout of [[2], [1], [1, 2, 3, 4], [4, 2, 1]]) {
+          let output: number[] | undefined,
+            text: string[][] | undefined,
+            error: { operation: string; sourceMatches: boolean; message: string } | undefined;
+          try {
+            const bytes = (
+              await Effect.runPromise(
+                operations.buildPDF(layout.map((n, i) => state(source, n, i)))
+              )
+            ).data;
+            output = Array.from(bytes);
+            text = (await reopenWithPDFjs(bytes)).map((p) => p.text);
+          } catch (cause) {
+            if (!(cause instanceof PDFProcessingError)) throw cause;
+            error = {
+              operation: cause.operation,
+              sourceMatches: cause.file === source,
+              message: cause.message,
+            };
+          }
+          counts.push({ indirect, correct, layout, sourceOrders, output, text, error });
+        }
+      }
+    const resources = [];
+    for (const checkbox of [false, true])
+      for (const key of ["S", "Type", "Control"]) {
+        const input = await exportResourceNameFixture(key, checkbox),
+          source = file(input),
+          pages = [state(source, 1, 0)];
+        const before = await baseline(pages, service),
+          after = (await Effect.runPromise(operations.buildPDF(pages))).data;
+        const beforeEvidence: RenderEvidence = { images: [], metadata: [] },
+          afterEvidence: RenderEvidence = { images: [], metadata: [] };
+        const beforeJs = await reopenWithPDFjs(before, beforeEvidence),
+          afterJs = await reopenWithPDFjs(after, afterEvidence);
+        const pixelsEqual =
+          beforeEvidence.images.length === afterEvidence.images.length &&
+          beforeEvidence.images.every(
+            (image, i) =>
+              image.data.length === afterEvidence.images[i].data.length &&
+              image.data.every((value, j) => value === afterEvidence.images[i].data[j])
+          );
+        const nativeBefore = await inspectExport(before),
+          nativeAfter = await inspectExport(after);
+        resources.push({
+          checkbox,
+          key,
+          input: Array.from(input),
+          before: Array.from(before),
+          after: Array.from(after),
+          metadataEqual:
+            JSON.stringify(retainedMetadata(nativeBefore)) ===
+            JSON.stringify(retainedMetadata(nativeAfter)),
+          jsEqual: JSON.stringify(beforeJs) === JSON.stringify(afterJs),
+          pixelsEqual,
+          text: afterJs[0].text,
+          values: afterJs[0].annotations.map((a) => a.value),
+          pages: nativeAfter.pageObjects,
+          orphanKids: nativeAfter.orphanKids,
+        });
+      }
+    return { counts, resources, countText: COUNT_PAGE_TEXT };
+  } finally {
+    await Effect.runPromise(operations.dispose());
+    await Effect.runPromise(service.dispose());
   }
 }

@@ -6,6 +6,7 @@ import { exportCrossPageButtonFixture } from "../../src/services/__tests__/pdf-e
 import type {
   checkAdditions,
   checkButtonFailure,
+  checkCountsAndResourceNames,
   checkDestinations,
   checkFormExports,
   checkIndirectRoles,
@@ -264,6 +265,57 @@ test("indirect role names cannot bypass omitted widget/page reconciliation", asy
       );
       const path = info.outputPath(`index-direct-${item.layout.join("-")}-output.pdf`);
       await writeFile(path, new Uint8Array(item.output!));
+      await info.attach(path, { path, contentType: "application/pdf" });
+    }
+  }
+});
+
+test("subtree Counts cannot substitute workspace pages and resource/AP lookup names preserve pixels", async ({
+  page,
+}, info) => {
+  await page.goto(`${url}boundary-test`);
+  const result: Awaited<ReturnType<typeof checkCountsAndResourceNames>> = await page.evaluate(
+    async () => {
+      const path = "/tests/e2e/fixtures/export-boundary.ts";
+      return (await import(path)).checkCountsAndResourceNames();
+    }
+  );
+  for (const entry of result.counts) {
+    expect(entry.sourceOrders).toHaveLength(3);
+    for (const order of entry.sourceOrders) {
+      expect(order.pages).toBe(4);
+      expect(order.text).toBe(result.countText[entry.correct ? 1 : 2]);
+    }
+    if (entry.correct) {
+      expect(entry.error).toBeUndefined();
+      expect(entry.text).toEqual(entry.layout.map((n) => [result.countText[n - 1]]));
+      const path = info.outputPath(
+        `count-${entry.indirect ? "indirect" : "direct"}-${entry.layout.join("-")}.pdf`
+      );
+      await writeFile(path, new Uint8Array(entry.output!));
+      await info.attach(path, { path, contentType: "application/pdf" });
+    } else {
+      expect(entry.output).toBeUndefined();
+      expect(entry.error).toEqual({
+        operation: "reconcile-export",
+        sourceMatches: true,
+        message: "This PDF's page order cannot be safely copied.",
+      });
+    }
+  }
+  for (const entry of result.resources) {
+    expect(entry.metadataEqual).toBe(true);
+    expect(entry.jsEqual).toBe(true);
+    expect(entry.pixelsEqual).toBe(true);
+    expect(entry.pages).toBe(1);
+    expect(entry.orphanKids).toBe(false);
+    if (entry.checkbox) expect(entry.values).toEqual([entry.key]);
+    else expect(entry.text).toEqual([`Valid font resource ${entry.key}`]);
+    for (const kind of ["input", "before", "after"] as const) {
+      const path = info.outputPath(
+        `${entry.checkbox ? "checkbox" : "font"}-${entry.key}-${kind}.pdf`
+      );
+      await writeFile(path, new Uint8Array(entry[kind]));
       await info.attach(path, { path, contentType: "application/pdf" });
     }
   }

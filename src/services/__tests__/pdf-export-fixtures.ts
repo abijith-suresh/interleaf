@@ -1,5 +1,6 @@
 import {
   degrees,
+  PDFArray,
   PDFDict,
   PDFDocument,
   PDFName,
@@ -190,4 +191,76 @@ export async function exportPageIndexFixture(indirect: boolean) {
   if (indirect)
     doc.getPage(1).node.set(PDFName.of("Type"), doc.context.register(PDFName.of("Page")));
   return doc.save();
+}
+
+export const COUNT_PAGE_TEXT = [
+  "ONE",
+  "HIDDEN_NATIVE_PAGE_TWO_51ad",
+  "VISIBLE_REQUESTED_PAGE_THREE_51ad",
+  "LAST_PAGE_FOUR_51ad",
+];
+export async function exportPageCountFixture(indirect: boolean, correct: boolean) {
+  const doc = await PDFDocument.create(),
+    N = PDFName.of;
+  const pages = COUNT_PAGE_TEXT.map((text, index) => {
+    const page = doc.addPage([400 + index * 10, 500]);
+    page.drawText(text, { size: 10, x: 10, y: 30 });
+    return page;
+  });
+  const root = doc.catalog.lookup(N("Pages"), PDFDict),
+    rootRef = doc.catalog.get(N("Pages"));
+  const number = (value: number) =>
+    indirect ? doc.context.register(PDFNumber.of(value)) : PDFNumber.of(value);
+  const branch = (indices: number[], count: number) => {
+    const node = doc.context.obj({
+      Type: "Pages",
+      Parent: rootRef,
+      Count: number(count),
+      Kids: indices.map((i) => pages[i].ref),
+    });
+    const ref = doc.context.register(node);
+    for (const index of indices) pages[index].node.set(N("Parent"), ref);
+    return ref;
+  };
+  root.set(
+    N("Kids"),
+    doc.context.obj([branch([0, 1], correct ? 2 : 1), branch([2], correct ? 1 : 2), pages[3].ref])
+  );
+  root.set(N("Count"), number(4));
+  return doc.save({ updateFieldAppearances: false });
+}
+export async function exportResourceNameFixture(key: string, checkbox: boolean) {
+  const doc = await PDFDocument.create(),
+    N = PDFName.of;
+  const page = doc.addPage([320, 180]);
+  if (checkbox) {
+    page.drawText("Retained checked box", { x: 20, y: 120, size: 12 });
+    const field = doc.getForm().createCheckBox("accepted");
+    field.addToPage(page, { x: 20, y: 50, width: 24, height: 24 });
+    field.check();
+    doc.getForm().updateFieldAppearances();
+    const widget = page.node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict),
+      ap = widget.lookup(N("AP"), PDFDict);
+    for (const kind of ["N", "D"]) {
+      const states = ap.lookupMaybe(N(kind), PDFDict);
+      if (states?.has(N("Yes"))) {
+        states.set(N(key), states.get(N("Yes"))!);
+        states.delete(N("Yes"));
+      }
+    }
+    widget.set(N("AS"), N(key));
+    widget.lookup(N("Parent"), PDFDict).set(N("V"), N(key));
+  } else {
+    const font = await doc.embedFont(StandardFonts.Helvetica),
+      fonts = doc.context.obj({});
+    fonts.set(N(key), font.ref);
+    page.node.set(N("Resources"), doc.context.obj({ Font: fonts }));
+    page.node.set(
+      N("Contents"),
+      doc.context.register(
+        doc.context.flateStream(`BT /${key} 18 Tf 20 100 Td (Valid font resource ${key}) Tj ET`)
+      )
+    );
+  }
+  return doc.save({ updateFieldAppearances: false });
 }

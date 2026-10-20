@@ -17,7 +17,9 @@ import {
   exportCrossPageButtonFixture,
   exportFormFixture,
   exportLinkFixture,
+  exportPageCountFixture,
   exportPageIndexFixture,
+  exportResourceNameFixture,
   INDEX_PAGE_TEXT,
   OMITTED_ANSWER,
   OMITTED_CONTENT,
@@ -685,8 +687,9 @@ describe("source page indexing boundary", () => {
       if (kind === "order") vi.spyOn(doc, "getPages").mockReturnValue([p2, p1]);
       if (kind === "count") vi.spyOn(doc, "getPages").mockReturnValue([p1]);
       if (kind === "deep") {
-        let branch = doc.context.obj({ Type: "Pages", Kids: [p2.ref] });
-        for (let i = 0; i < 33; i++) branch = doc.context.obj({ Type: "Pages", Kids: [branch] });
+        let branch = doc.context.obj({ Type: "Pages", Count: 1, Kids: [p2.ref] });
+        for (let i = 0; i < 33; i++)
+          branch = doc.context.obj({ Type: "Pages", Count: 1, Kids: [branch] });
         kids.set(1, branch);
       }
       const source = file(new Uint8Array());
@@ -695,4 +698,191 @@ describe("source page indexing boundary", () => {
       );
     }
   );
+});
+
+describe("source subtree Counts", () => {
+  for (const indirect of [false, true]) {
+    it.each([[2], [1], [1, 2, 3, 4], [4, 2, 1]])(
+      `rejects compensating indirect=${indirect} Counts before any indexed copy for %j`,
+      async (...layout) => {
+        const bytes = await exportPageCountFixture(indirect, false),
+          source = file(bytes);
+        const loaded = await PDFDocument.load(bytes);
+        expect(loaded.getPages()).toHaveLength(4);
+        // Old copyPages indexes the native second leaf, hidden in PDF.js's workspace.
+        const before = await inspectExport(await baseline([createPageState(source, 2)]));
+        expect(before.serialized).toContain(
+          "48494444454E5F4E41544956455F504147455F54574F5F35316164"
+        );
+        const copy = vi.spyOn(PDFDocument.prototype, "copyPages");
+        try {
+          await expect(build(layout.map((n) => createPageState(source, n)))).rejects.toMatchObject({
+            operation: "reconcile-export",
+            file: source,
+            message: "This PDF's page order cannot be safely copied.",
+          });
+          expect(copy).not.toHaveBeenCalled();
+          expect(new Uint8Array(await source.arrayBuffer())).toEqual(bytes);
+        } finally {
+          copy.mockRestore();
+        }
+      }
+    );
+    it(`preserves valid indirect=${indirect} root/subtree Count controls`, async () => {
+      const bytes = await exportPageCountFixture(indirect, true),
+        source = file(bytes),
+        doc = await PDFDocument.load(bytes);
+      const objects = doc.context.enumerateIndirectObjects().map(([, o]) => o.toString());
+      validatePDFSourcePages(doc, source);
+      expect(doc.context.enumerateIndirectObjects().map(([, o]) => o.toString())).toEqual(objects);
+      const output = await PDFDocument.load(
+        await build([4, 2, 1].map((n) => createPageState(source, n)))
+      );
+      expect(output.getPages().map((p) => p.getWidth())).toEqual([430, 410, 400]);
+    });
+  }
+  for (const root of [false, true])
+    it.each([
+      "missing",
+      "wrong-type",
+      "negative",
+      "fractional",
+      "unsafe",
+      "cycle",
+      "missing-ref",
+      "excessive",
+      "mismatch",
+    ])(`rejects root=${root} Count %s before getPages`, async (kind) => {
+      const doc = await PDFDocument.load(await exportPageCountFixture(false, true));
+      const pages = doc.catalog.lookup(N("Pages"), PDFDict),
+        target = root ? pages : pages.lookup(N("Kids"), PDFArray).lookup(0, PDFDict);
+      if (kind === "missing") target.delete(N("Count"));
+      else if (kind === "wrong-type") target.set(N("Count"), PDFString.of("2"));
+      else if (kind === "cycle" || kind === "missing-ref") {
+        const ref = doc.context.nextRef();
+        if (kind === "cycle") doc.context.assign(ref, ref);
+        target.set(N("Count"), ref);
+      } else if (kind === "excessive") {
+        let raw = doc.context.register(PDFNumber.of(2));
+        for (let i = 0; i < 32; i++) raw = doc.context.register(raw);
+        target.set(N("Count"), raw);
+      } else
+        target.set(
+          N("Count"),
+          PDFNumber.of(
+            kind === "negative" ? -1 : kind === "fractional" ? 1.5 : kind === "unsafe" ? 2 ** 53 : 0
+          )
+        );
+      const indexed = vi.spyOn(doc, "getPages"),
+        objects = doc.context.enumerateIndirectObjects().map(([, o]) => o.toString());
+      expect(() => validatePDFSourcePages(doc, file(new Uint8Array()))).toThrowError(
+        "This PDF's page order cannot be safely copied."
+      );
+      expect(indexed).not.toHaveBeenCalled();
+      expect(doc.context.enumerateIndirectObjects().map(([, o]) => o.toString())).toEqual(objects);
+    });
+  it("rejects bad Count in encrypted preparation before rotation/geometry/render", async () => {
+    const bytes = await exportPageCountFixture(true, false),
+      source = file(bytes),
+      doc = await PDFDocument.load(bytes);
+    Object.defineProperty(doc, "isEncrypted", { value: true });
+    const load = vi.spyOn(PDFDocument, "load").mockResolvedValueOnce(doc),
+      indexed = vi.spyOn(doc, "getPage"),
+      renderPage = vi.fn(() => Effect.void),
+      getPageGeometry = vi.fn();
+    const service = new PDFOperationsService({ renderPage, getPageGeometry });
+    try {
+      await expect(
+        Effect.runPromise(service.buildPDF([createPageState(source, 2, { rotation: 90 })]))
+      ).rejects.toMatchObject({ operation: "reconcile-export", file: source });
+      expect(indexed).not.toHaveBeenCalled();
+      expect(getPageGeometry).not.toHaveBeenCalled();
+      expect(renderPage).not.toHaveBeenCalled();
+    } finally {
+      load.mockRestore();
+      await Effect.runPromise(service.dispose());
+    }
+  });
+});
+describe("resource and appearance lookup names are not roles", () => {
+  for (const checkbox of [false, true])
+    it.each(["S", "Type", "Control"])(
+      `preserves checkbox=${checkbox} lookup key %s`,
+      async (key) => {
+        const bytes = await exportResourceNameFixture(key, checkbox),
+          source = file(bytes),
+          pages = [createPageState(source, 1)];
+        const before = await inspectExport(await baseline(pages)),
+          output = await build(pages),
+          after = await inspectExport(output);
+        expect(retainedMetadata(after)).toEqual(retainedMetadata(before));
+        expect(after.pageObjects).toBe(1);
+        expect(after.orphanKids).toBe(false);
+        const doc = await PDFDocument.load(output),
+          page = doc.getPage(0);
+        if (checkbox) {
+          const widget = page.node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict);
+          expect(widget.lookup(N("AS"))).toBe(N(key));
+          expect(widget.lookup(N("Parent"), PDFDict).lookup(N("V"))).toBe(N(key));
+          expect(widget.lookup(N("AP"), PDFDict).lookup(N("N"), PDFDict).has(N(key))).toBe(true);
+        } else
+          expect(
+            page.node
+              .lookup(N("Resources"), PDFDict)
+              .lookup(N("Font"), PDFDict)
+              .lookup(N(key), PDFDict)
+              .lookup(N("Type"))
+          ).toBe(N("Font"));
+        expect(new Uint8Array(await source.arrayBuffer())).toEqual(bytes);
+      }
+    );
+  it("keeps strict malformed action names in field AA and Next contexts", async () => {
+    for (const context of ["AA", "Next"]) {
+      const doc = await PDFDocument.load(await exportFormFixture()),
+        widget = doc.getPage(0).node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict),
+        action = doc.context.obj({ S: PDFString.of("GoTo") });
+      if (context === "AA")
+        widget.lookup(N("Parent"), PDFDict).set(N("AA"), doc.context.obj({ K: action }));
+      else
+        widget.set(
+          N("A"),
+          doc.context.obj({ S: "URI", URI: PDFString.of("https://example.com/"), Next: [action] })
+        );
+      await expect(
+        build([createPageState(file(await doc.save({ updateFieldAppearances: false })), 1)])
+      ).rejects.toMatchObject({ operation: "reconcile-export", message: "Invalid PDF name /S" });
+    }
+  });
+});
+
+it("preserves and remaps known Next/additional actions without changing URI/remote/JS behavior", async () => {
+  const doc = await PDFDocument.load(await exportLinkFixture("goto")),
+    link = doc.getPage(0).node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict);
+  link.lookup(N("A"), PDFDict).set(
+    N("Next"),
+    doc.context.obj([
+      { S: "URI", URI: PDFString.of("https://example.com/next") },
+      { S: "GoToR", F: PDFString.of("remote.pdf"), D: PDFString.of("remote-target") },
+      { S: "JavaScript", JS: PDFString.of("app.alert('keep');") },
+      { S: doc.context.register(N("GoTo")), D: [doc.getPage(1).ref, "Fit"] },
+    ])
+  );
+  link.set(N("AA"), doc.context.obj({ E: { S: "GoTo", D: [doc.getPage(0).ref, "Fit"] } }));
+  const source = file(await doc.save()),
+    output = await PDFDocument.load(await build([2, 1, 2].map((n) => createPageState(source, n))));
+  const saved = output.getPage(1).node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict),
+    action = saved.lookup(N("A"), PDFDict),
+    next = action.lookup(N("Next"), PDFArray);
+  expect(action.lookup(N("D"), PDFArray).get(0)).toBe(output.getPage(0).ref);
+  expect(next.lookup(0, PDFDict).lookup(N("URI"), PDFString).decodeText()).toBe(
+    "https://example.com/next"
+  );
+  expect(next.lookup(1, PDFDict).lookup(N("D"), PDFString).decodeText()).toBe("remote-target");
+  expect(next.lookup(2, PDFDict).lookup(N("JS"), PDFString).decodeText()).toBe(
+    "app.alert('keep');"
+  );
+  expect(next.lookup(3, PDFDict).lookup(N("D"), PDFArray).get(0)).toBe(output.getPage(0).ref);
+  expect(
+    saved.lookup(N("AA"), PDFDict).lookup(N("E"), PDFDict).lookup(N("D"), PDFArray).get(0)
+  ).toBe(output.getPage(1).ref);
 });
