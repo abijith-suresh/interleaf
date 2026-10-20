@@ -1,0 +1,309 @@
+import {
+  PDFArray,
+  PDFDict,
+  type PDFDocument,
+  PDFHexString,
+  PDFInvalidObject,
+  PDFName,
+  PDFNumber,
+  type PDFObject,
+  type PDFPage,
+  PDFRef,
+  PDFStream,
+  PDFString,
+} from "pdf-lib";
+
+import { processingError } from "./pdf-errors";
+
+const N = PDFName.of;
+// Walk native objects only. Identity sets bound cycles without interpreting PDF syntax.
+function objects(doc: PDFDocument, roots: PDFObject[]): Set<PDFObject> {
+  const seen = new Set<PDFObject>();
+  const stack = [...roots];
+  while (stack.length) {
+    const o = stack.pop();
+    if (!o) break;
+    if (seen.has(o)) continue;
+    seen.add(o);
+    if (o instanceof PDFRef) {
+      const target = doc.context.lookup(o);
+      if (target) stack.push(target);
+      else throw Error(`Missing PDF reference ${o}`);
+    } else if (o instanceof PDFDict) stack.push(...o.values());
+    else if (o instanceof PDFArray) stack.push(...o.asArray());
+    else if (o instanceof PDFStream) stack.push(o.dict);
+    else if (o instanceof PDFInvalidObject)
+      throw Error("Opaque invalid PDF object cannot be reconciled");
+  }
+  return seen;
+}
+export interface PDFExportSource {
+  file: File;
+  doc: PDFDocument;
+}
+// One instance owns one output. Each copyPages call keeps a separate copier namespace.
+// Only fresh private source documents may be passed in: tagging must never touch the cache.
+export class PDFExportCopy {
+  private readonly sources = new Map<File, PDFExportSource>();
+  private readonly first = new Map<number, PDFPage>();
+  private readonly owner = new Map<PDFDict, PDFExportSource>();
+  private readonly identities = new Map<number, { file: File; ref: PDFRef }>();
+  private readonly key: PDFName;
+  constructor(
+    private readonly output: PDFDocument,
+    sources: PDFExportSource[]
+  ) {
+    const dicts = sources.flatMap((s) =>
+      [
+        ...objects(
+          s.doc,
+          s.doc.context.enumerateIndirectObjects().map(([, o]) => o)
+        ),
+      ].filter((o): o is PDFDict => o instanceof PDFDict)
+    );
+    let suffix = 0;
+    while (dicts.some((d) => d.get(N(`InterleafExportPage${suffix}`), true) !== undefined))
+      suffix++;
+    this.key = N(`InterleafExportPage${suffix}`);
+    let id = 1_000_000_000_000;
+    for (const source of sources) {
+      this.sources.set(source.file, source);
+      for (const page of source.doc.getPages()) {
+        page.node.set(this.key, PDFNumber.of(id));
+        this.identities.set(id++, { file: source.file, ref: page.ref });
+      }
+    }
+  }
+  async copy(file: File, pageNumber: number) {
+    const source = this.sources.get(file);
+    if (!source) throw Error("The export source is unavailable.");
+    const [page] = await this.output.copyPages(source.doc, [pageNumber - 1]);
+    for (const o of objects(this.output, [page.node]))
+      if (o instanceof PDFDict) this.owner.set(o, source);
+    const id = page.node.lookup(this.key, PDFNumber).asNumber();
+    if (!this.first.has(id)) this.first.set(id, page);
+    return page;
+  }
+  private reject(file: File | undefined, message: string): never {
+    const cause = new Error(message);
+    throw file ? processingError("reconcile-export", file, cause) : cause;
+  }
+  private named(source: PDFExportSource, name: string): PDFObject | undefined {
+    const legacy = source.doc.catalog.lookupMaybe(N("Dests"), PDFDict)?.get(N(name));
+    if (legacy) return legacy;
+    const root = source.doc.catalog.lookupMaybe(N("Names"), PDFDict)?.get(N("Dests"));
+    if (!root) return undefined;
+    const seen = new Set<PDFDict>();
+    const stack = [root];
+    while (stack.length) {
+      const node = source.doc.context.lookup(stack.pop());
+      if (!(node instanceof PDFDict)) this.reject(source.file, "Invalid destination name tree");
+      if (seen.has(node)) this.reject(source.file, "Cyclic destination name tree");
+      seen.add(node);
+      const names = node.lookupMaybe(N("Names"), PDFArray);
+      if (names) {
+        if (names.size() % 2) this.reject(source.file, "Invalid destination names");
+        for (let i = 0; i < names.size(); i += 2) {
+          const key = names.lookup(i);
+          if (!(key instanceof PDFString || key instanceof PDFHexString))
+            this.reject(source.file, "Invalid destination name");
+          if (key.decodeText() === name) return names.get(i + 1);
+        }
+      }
+      const kids = node.lookupMaybe(N("Kids"), PDFArray);
+      if (kids) stack.push(...kids.asArray());
+    }
+    return undefined;
+  }
+  private destination(dict: PDFDict, raw: PDFObject | undefined): PDFArray | undefined {
+    const source = this.owner.get(dict);
+    if (!source) throw Error("The internal destination has no source identity.");
+    let value = this.output.context.lookup(raw);
+    const seen = new Set<PDFObject>();
+    const names = new Set<string>();
+    let foreign = false;
+    for (;;) {
+      if (!value) this.reject(source.file, "Missing internal destination");
+      if (seen.has(value)) this.reject(source.file, "Cyclic internal destination");
+      seen.add(value);
+      if (value instanceof PDFName || value instanceof PDFString || value instanceof PDFHexString) {
+        const name = value.decodeText();
+        if (names.has(name)) this.reject(source.file, "Cyclic named destination");
+        names.add(name);
+        const named = this.named(source, name);
+        if (!named) this.reject(source.file, `Unresolved named destination ${name}`);
+        value = source.doc.context.lookup(named);
+        foreign = true;
+        continue;
+      }
+      if (value instanceof PDFDict) {
+        value = (foreign ? source.doc.context : this.output.context).lookup(value.get(N("D")));
+        continue;
+      }
+      if (!(value instanceof PDFArray) || value.size() < 2)
+        this.reject(source.file, "Unsupported internal destination");
+      const target = (foreign ? source.doc.context : this.output.context).lookup(value.get(0));
+      if (!(target instanceof PDFDict))
+        this.reject(source.file, "Internal destination has no source Page");
+      const id = target.lookupMaybe(this.key, PDFNumber)?.asNumber();
+      if (id === undefined || !this.identities.has(id))
+        this.reject(source.file, "Unrecognized internal destination Page");
+      const page = this.first.get(id);
+      if (!page) return undefined;
+      const context = foreign ? source.doc.context : this.output.context;
+      const tail = value
+        .asArray()
+        .slice(1)
+        .map((item) => context.lookup(item));
+      if (
+        tail.some(
+          (v) => !(v instanceof PDFName || v instanceof PDFNumber || v?.toString() === "null")
+        )
+      )
+        this.reject(source.file, "Unsupported internal destination operands");
+      return this.output.context.obj([
+        page.ref,
+        ...tail.map((o) => {
+          if (!o) this.reject(source.file, "Missing internal destination operand");
+          return o.clone();
+        }),
+      ]);
+    }
+  }
+  async finish() {
+    // Embedded fonts/images may reserve references until flush completes.
+    await this.output.flush();
+    const actualPages = this.output.getPages();
+    const actualSet = new Set<PDFDict>(actualPages.map((p) => p.node));
+    // Build one ownership union before modifying any shared field dictionary.
+    const keep = new Set<PDFDict>();
+    const fields = new Set<PDFDict>();
+    const annotationOwners = new Map<PDFDict, PDFPage>();
+    for (const page of actualPages) {
+      for (const raw of page.node.Annots()?.asArray() ?? []) {
+        const annot = this.output.context.lookup(raw, PDFDict);
+        const previous = annotationOwners.get(annot);
+        if (previous && previous !== page)
+          throw Error("One annotation belongs to multiple output pages");
+        annotationOwners.set(annot, page);
+        annot.set(N("P"), page.ref);
+        if (annot.get(N("Subtype")) !== N("Widget")) continue;
+        const seen = new Set<PDFDict>();
+        let field: PDFDict | undefined = annot;
+        while (field) {
+          if (seen.has(field)) this.reject(this.owner.get(annot)?.file, "Cyclic PDF field parent");
+          seen.add(field);
+          keep.add(field);
+          if (field.has(N("Kids"))) fields.add(field);
+          const parent: PDFDict | undefined = field.lookupMaybe(N("Parent"), PDFDict);
+          if (parent) {
+            const siblings = parent.lookupMaybe(N("Kids"), PDFArray);
+            if (!siblings?.asArray().some((kid) => this.output.context.lookup(kid) === field))
+              throw Error("This PDF has inconsistent linked fields that cannot be preserved.");
+          }
+          field = parent;
+        }
+      }
+    }
+    for (const field of fields) {
+      const kids = field.lookup(N("Kids"), PDFArray);
+      const retained = kids
+        .asArray()
+        .filter((kid) => keep.has(this.output.context.lookup(kid, PDFDict)));
+      for (const kid of retained) {
+        if (this.output.context.lookup(kid, PDFDict).lookupMaybe(N("Parent"), PDFDict) !== field)
+          throw Error("This PDF has inconsistent linked fields that cannot be preserved.");
+      }
+      if (retained.length !== kids.size()) {
+        let type: PDFObject | undefined;
+        let opt: PDFObject | undefined;
+        let ancestor: PDFDict | undefined = field;
+        while (ancestor) {
+          type ??= ancestor.lookup(N("FT"));
+          opt ??= ancestor.has(N("Opt")) ? ancestor.lookup(N("Opt")) : undefined;
+          ancestor = ancestor.lookupMaybe(N("Parent"), PDFDict);
+        }
+        // Button /Opt entries correspond positionally to Kids. Pruning alone can
+        // change a retained answer while leaving V, AS and AP bytes unchanged.
+        if (type === N("Btn") && opt)
+          this.reject(
+            this.owner.get(field)?.file,
+            "This PDF has linked choice fields that cannot be preserved in this export."
+          );
+        field.set(N("Kids"), this.output.context.obj(retained));
+      }
+    }
+    let reachable = objects(
+      this.output,
+      Object.values(this.output.context.trailerInfo).filter((v): v is PDFObject => !!v)
+    );
+    const removeActions = new Set<PDFDict>();
+    for (const o of reachable) {
+      if (!(o instanceof PDFDict)) continue;
+      if (annotationOwners.has(o) && o.has(N("Dest"))) {
+        const d = this.destination(o, o.get(N("Dest")));
+        if (d) o.set(N("Dest"), d);
+        else o.delete(N("Dest"));
+      }
+      if (o.get(N("S")) === N("GoTo")) {
+        const d = this.destination(o, o.get(N("D")));
+        if (d) o.set(N("D"), d);
+        else {
+          if (o.has(N("Next"))) throw Error("Omitted-target GoTo with Next actions is unsupported");
+          removeActions.add(o);
+        }
+      }
+    }
+    for (const o of reachable) {
+      if (o instanceof PDFDict) {
+        for (const [k, v] of o.entries())
+          if (removeActions.has(this.output.context.lookup(v) as PDFDict)) o.delete(k);
+      } else if (o instanceof PDFArray) {
+        for (let i = o.size() - 1; i >= 0; i--)
+          if (removeActions.has(this.output.context.lookup(o.get(i)) as PDFDict)) o.remove(i);
+      }
+    }
+    reachable = objects(
+      this.output,
+      Object.values(this.output.context.trailerInfo).filter((v): v is PDFObject => !!v)
+    );
+    const replacement = (value: PDFObject, key: string): PDFObject => {
+      const target = this.output.context.lookup(value);
+      if (
+        !(target instanceof PDFDict) ||
+        target.get(N("Type")) !== N("Page") ||
+        actualSet.has(target)
+      )
+        return value;
+      const id = target.lookupMaybe(this.key, PDFNumber)?.asNumber();
+      const page = id === undefined ? undefined : this.first.get(id);
+      if (!page)
+        this.reject(this.owner.get(target)?.file, `Unsupported omitted Page reference at ${key}`);
+      return page.ref;
+    };
+    for (const o of reachable) {
+      if (o instanceof PDFDict) {
+        for (const [k, v] of o.entries()) o.set(k, replacement(v, k.toString()));
+      } else if (o instanceof PDFArray) {
+        for (let i = 0; i < o.size(); i++) o.set(i, replacement(o.get(i), `array[${i}]`));
+      }
+    }
+    // Remove provenance even from dictionaries that are about to become unreachable.
+    const all = objects(
+      this.output,
+      this.output.context.enumerateIndirectObjects().map(([, o]) => o)
+    );
+    for (const o of all) if (o instanceof PDFDict) o.delete(this.key);
+    await this.output.flush();
+    reachable = objects(
+      this.output,
+      Object.values(this.output.context.trailerInfo).filter((v): v is PDFObject => !!v)
+    );
+    for (const o of reachable)
+      if (o instanceof PDFDict && o.get(N("Type")) === N("Page") && !actualSet.has(o))
+        throw Error("Unreconciled orphan Page");
+    // pdf-lib serializes every registered object, including unreachable ones.
+    for (const [ref] of this.output.context.enumerateIndirectObjects())
+      if (!reachable.has(ref)) this.output.context.delete(ref);
+  }
+}

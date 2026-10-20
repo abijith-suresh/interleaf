@@ -276,14 +276,15 @@ describe("PDFOperationsService", () => {
 
       await Effect.runPromise(service.buildPDF(pages));
       await Effect.runPromise(service.buildPDF(pages));
-      expect(load).toHaveBeenCalledTimes(2);
+      // Two cached originals, plus a fresh private document per File per export.
+      expect(load).toHaveBeenCalledTimes(6);
 
       await Effect.runPromise(
         operation === "clearCache" ? service.clearCache() : service.releaseFile(file)
       );
       await Effect.runPromise(service.buildPDF(pages));
 
-      expect(load).toHaveBeenCalledTimes(operation === "clearCache" ? 4 : 3);
+      expect(load).toHaveBeenCalledTimes(operation === "clearCache" ? 10 : 9);
     }
   );
 
@@ -304,7 +305,7 @@ describe("PDFOperationsService", () => {
       expect(await build).toMatchObject({ operation: "release-source", file });
 
       const result = await Effect.runPromise(service.buildPDF(pages));
-      expect(load).toHaveBeenCalledTimes(2);
+      expect(load).toHaveBeenCalledTimes(3);
       expect((await PDFDocument.load(result.data)).getPageCount()).toBe(1);
     }
   );
@@ -327,7 +328,7 @@ describe("PDFOperationsService", () => {
       expect(await build).toMatchObject({ operation: "release-source", file });
 
       await Effect.runPromise(service.buildPDF(pages));
-      expect(load).toHaveBeenCalledTimes(2);
+      expect(load).toHaveBeenCalledTimes(3);
     }
   );
 });

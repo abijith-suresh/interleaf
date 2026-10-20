@@ -955,10 +955,12 @@ export default function Editor() {
       if (disposed) return;
       downloadPDF(result);
       setStatusMessage("Export started.");
-    } catch (_err) {
+    } catch (error) {
       if (disposed) return;
-      dispatchToast("Failed to export the PDF.", "error");
-      setStatusMessage("Export failed. Try again.");
+      const exportConstraint =
+        error instanceof PDFProcessingError && error.operation === "reconcile-export";
+      dispatchToast(exportConstraint ? error.message : "Failed to export the PDF.", "error");
+      setStatusMessage(exportConstraint ? error.message : "Export failed. Try again.");
     } finally {
       if (!disposed) setOperation("idle");
     }
