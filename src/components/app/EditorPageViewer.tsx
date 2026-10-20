@@ -698,7 +698,7 @@ export default function EditorPageViewer(props: Props) {
         </Show>
       </section>
 
-      <div ref={textToolbar} class="editor-document-tools" />
+      <div ref={textToolbar} class="editor-document-tools" tabIndex={-1} />
       <footer class="editor-review-bottom">
         <EditorButton
           data-testid="editor-page-viewer-previous"

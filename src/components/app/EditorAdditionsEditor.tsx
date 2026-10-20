@@ -496,7 +496,7 @@ export default function EditorAdditionsEditor(props: Props) {
               Tap the page or press Enter in the preview.
             </span>
           </Show>
-          <div class="editor-text-content" classList={{ "is-open": toolsOpen() }}>
+          <div class="editor-text-content" tabIndex={-1} classList={{ "is-open": toolsOpen() }}>
             <div class="editor-text-toolbar" role="toolbar" aria-label="Page tools">
               <EditorButton
                 aria-pressed={mode() === "read"}

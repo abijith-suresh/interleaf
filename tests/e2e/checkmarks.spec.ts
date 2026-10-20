@@ -85,7 +85,9 @@ for (const [width, height] of [
       "points",
       "0.12,0.5 0.38,0.78 0.88,0.15000000000000002"
     );
-    await draft.focus();
+    // Use real keyboard navigation so focus-visible follows each browser's modality rules.
+    for (let step = 0; step < 5; step++) await page.keyboard.press("Shift+Tab");
+    await expect(draft).toBeFocused();
     const before = await draft.evaluate((element) => [
       parseFloat(element.style.left),
       parseFloat(element.style.top),
