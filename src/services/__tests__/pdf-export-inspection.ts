@@ -80,10 +80,10 @@ export async function inspectExport(bytes: Uint8Array) {
     )
     .join("\n");
   const widgetObjects = objects.filter(
-    ([, object]) => object instanceof PDFDict && object.get(N("Subtype")) === N("Widget")
+    ([, object]) => object instanceof PDFDict && object.lookup(N("Subtype")) === N("Widget")
   ).length;
   const pageObjects = objects.filter(
-    ([, object]) => object instanceof PDFDict && object.get(N("Type")) === N("Page")
+    ([, object]) => object instanceof PDFDict && object.lookup(N("Type")) === N("Page")
   ).length;
   const orphanKids = pages.flatMap((p) => p.annotations).some((a) => a.siblings?.includes(-1));
   return {

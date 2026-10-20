@@ -10,13 +10,15 @@ import {
 } from "pdf-lib";
 import { describe, expect, it, vi } from "vitest";
 import type { PageState } from "../../types/interfaces";
-import { PDFExportCopy } from "../pdf-export-copy";
+import { PDFExportCopy, validatePDFSourcePages } from "../pdf-export-copy";
 import { PDFOperationsService } from "../pdf-operations-service";
 import {
   type DestinationKind,
   exportCrossPageButtonFixture,
   exportFormFixture,
   exportLinkFixture,
+  exportPageIndexFixture,
+  INDEX_PAGE_TEXT,
   OMITTED_ANSWER,
   OMITTED_CONTENT,
 } from "./pdf-export-fixtures";
@@ -422,3 +424,275 @@ it.each(["absent", "wrong"])(
     expectAbsent(result.serialized, OMITTED_CONTENT);
   }
 );
+
+describe("resolved PDF role names", () => {
+  it.each([false, true])(
+    "prunes nested omitted answers with P absent and indirect Subtype=%s",
+    async (indirect) => {
+      const doc = await PDFDocument.create(),
+        p1 = doc.addPage(),
+        p2 = doc.addPage();
+      const keep = doc.getForm().createTextField("group.keep"),
+        omit = doc.getForm().createTextField("group.omit");
+      keep.setText("Retained answer");
+      keep.addToPage(p1, { x: 10, y: 20, width: 150, height: 30 });
+      omit.setText("INDEPENDENT_OMITTED_ANSWER_83ec532");
+      omit.addToPage(p2, { x: 10, y: 20, width: 300, height: 30 });
+      doc.getForm().updateFieldAppearances();
+      for (const p of [p1, p2])
+        for (const raw of p.node.lookup(N("Annots"), PDFArray).asArray()) {
+          const widget = doc.context.lookup(raw, PDFDict);
+          widget.delete(N("P"));
+          if (indirect) widget.set(N("Subtype"), doc.context.register(N("Widget")));
+        }
+      const output = await build([
+        createPageState(file(await doc.save({ updateFieldAppearances: false })), 1),
+      ]);
+      const saved = await inspectExport(output);
+      expectAbsent(saved.serialized, "INDEPENDENT_OMITTED_ANSWER_83ec532");
+      expect(saved.pages[0].annotations).toHaveLength(1);
+      expect(saved.pages[0].annotations[0]).toMatchObject({
+        name: "group.keep",
+        value: "Retained answer",
+        ownerCorrect: true,
+      });
+      expect(saved.pageObjects).toBe(1);
+      expect(saved.widgetObjects).toBe(1);
+      expect(saved.orphanKids).toBe(false);
+    }
+  );
+  it.each([false, true])(
+    "rejects an omitted CustomPage with an untagged indirect Type=%s",
+    async (indirect) => {
+      const doc = await PDFDocument.create(),
+        p1 = doc.addPage(),
+        p2 = doc.addPage();
+      p1.drawText("Retained page");
+      p2.drawText("INDEPENDENT_OMITTED_PAGE_7cd6532");
+      p1.node.set(N("CustomPage"), p2.ref);
+      doc.removePage(1);
+      if (indirect) p2.node.set(N("Type"), doc.context.register(N("Page")));
+      const source = file(await doc.save());
+      await expect(build([createPageState(source, 1)])).rejects.toMatchObject({
+        operation: "reconcile-export",
+        file: source,
+        message: "Unsupported omitted Page reference at /CustomPage",
+      });
+    }
+  );
+  it.each([[1], [1, 2], [2, 1]])(
+    "resolves indirect GoTo S with named destination for %j",
+    async (...layout) => {
+      const doc = await PDFDocument.load(await exportLinkFixture("names"));
+      const link = doc.getPage(0).node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict);
+      link.delete(N("Dest"));
+      link.set(
+        N("A"),
+        doc.context.obj({ S: doc.context.register(N("GoTo")), D: PDFString.of("target") })
+      );
+      const source = file(await doc.save()),
+        saved = await PDFDocument.load(await build(layout.map((n) => createPageState(source, n))));
+      const action = saved
+        .getPage(layout.indexOf(1))
+        .node.lookup(N("Annots"), PDFArray)
+        .lookup(0, PDFDict)
+        .lookupMaybe(N("A"), PDFDict);
+      if (layout.includes(2))
+        expect(action?.lookup(N("D"), PDFArray).get(0)).toBe(saved.getPage(layout.indexOf(2)).ref);
+      else expect(action).toBeUndefined();
+    }
+  );
+  it("retains the Opt rejection for an inherited indirect FT name", async () => {
+    const doc = await PDFDocument.load(await exportCrossPageButtonFixture());
+    const field = doc
+      .getPage(1)
+      .node.lookup(N("Annots"), PDFArray)
+      .lookup(0, PDFDict)
+      .lookup(N("Parent"), PDFDict);
+    field.set(N("FT"), doc.context.register(N("Btn")));
+    const source = file(await doc.save({ updateFieldAppearances: false }));
+    await expect(build([createPageState(source, 2)])).rejects.toMatchObject({
+      operation: "reconcile-export",
+      file: source,
+      message: "This PDF has linked choice fields that cannot be preserved in this export.",
+    });
+  });
+  for (const role of ["Subtype", "Type", "S", "FT"]) {
+    it.each(["wrong-type", "cycle", "missing"])(
+      `rejects ${role} role with %s name instead of bypassing reconciliation`,
+      async (malformed) => {
+        const doc = await PDFDocument.load(await exportFormFixture());
+        const widget = doc.getPage(0).node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict);
+        let target = widget;
+        if (role === "Type") {
+          target = doc.getPage(1).node;
+          doc.getPage(0).node.set(N("CustomPage"), doc.getPage(1).ref);
+        }
+        if (role === "S") {
+          target = doc.context.obj({ D: doc.context.obj([doc.getPage(1).ref, "Fit"]) });
+          widget.set(N("A"), target);
+        }
+        if (role === "FT") target = widget.lookup(N("Parent"), PDFDict);
+        if (malformed === "wrong-type")
+          target.set(
+            N(role),
+            PDFString.of(
+              role === "Type"
+                ? "Page"
+                : role === "Subtype"
+                  ? "Widget"
+                  : role === "S"
+                    ? "GoTo"
+                    : "Btn"
+            )
+          );
+        else {
+          const ref = doc.context.nextRef();
+          if (malformed === "cycle") doc.context.assign(ref, ref);
+          target.set(N(role), ref);
+        }
+        const source = file(await doc.save({ updateFieldAppearances: false }));
+        await expect(build([createPageState(source, 1)])).rejects.toMatchObject({
+          _tag: "PDFProcessingError",
+        });
+      }
+    );
+  }
+  it("rejects missing required annotation Subtype", async () => {
+    const doc = await PDFDocument.load(await exportFormFixture());
+    doc.getPage(0).node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict).delete(N("Subtype"));
+    await expect(
+      build([createPageState(file(await doc.save({ updateFieldAppearances: false })), 1)])
+    ).rejects.toMatchObject({
+      operation: "reconcile-export",
+      message: "Missing PDF name /Subtype",
+    });
+  });
+});
+
+describe("source page indexing boundary", () => {
+  it("records the saved-byte wrong-page baseline for an indirect Page role", async () => {
+    const bytes = await exportPageIndexFixture(true),
+      source = file(bytes);
+    const library = await PDFDocument.load(bytes);
+    expect(library.getPages()).toHaveLength(2);
+    const before = await inspectExport(await baseline([createPageState(source, 2)]));
+    expect(before.serialized).toContain(
+      Array.from(new TextEncoder().encode(INDEX_PAGE_TEXT[2]), (b) =>
+        b.toString(16).padStart(2, "0")
+      )
+        .join("")
+        .toUpperCase()
+    );
+    expectAbsent(before.serialized, INDEX_PAGE_TEXT[1]);
+    await expect(build([createPageState(source, 2)])).rejects.toMatchObject({
+      operation: "reconcile-export",
+      file: source,
+      message: "This PDF's page order cannot be safely copied.",
+    });
+  });
+  it.each([[1], [2], [1, 2, 3]])(
+    "rejects inconsistent source indexing before any copy for %j",
+    async (...layout) => {
+      const bytes = await exportPageIndexFixture(true),
+        source = file(bytes, "inconsistent.pdf");
+      const safe = file(await exportFormFixture(), "safe.pdf");
+      const cached = await PDFDocument.load(bytes),
+        objects = cached.context.enumerateIndirectObjects().map(([, o]) => o.toString());
+      const load = PDFDocument.load.bind(PDFDocument);
+      const loadSpy = vi
+        .spyOn(PDFDocument, "load")
+        .mockImplementation((data, options) =>
+          data instanceof ArrayBuffer &&
+          data.byteLength === bytes.byteLength &&
+          options?.ignoreEncryption
+            ? Promise.resolve(cached)
+            : load(data, options)
+        );
+      const copy = vi.spyOn(PDFDocument.prototype, "copyPages");
+      const service = new PDFOperationsService({ renderPage: () => Effect.void });
+      try {
+        await expect(
+          Effect.runPromise(
+            service.buildPDF([
+              createPageState(safe, 1),
+              ...layout.map((n) => createPageState(source, n)),
+            ])
+          )
+        ).rejects.toMatchObject({
+          operation: "reconcile-export",
+          file: source,
+          message: "This PDF's page order cannot be safely copied.",
+        });
+        expect(copy).not.toHaveBeenCalled();
+        expect(new Uint8Array(await source.arrayBuffer())).toEqual(bytes);
+        expect(cached.context.enumerateIndirectObjects().map(([, o]) => o.toString())).toEqual(
+          objects
+        );
+      } finally {
+        loadSpy.mockRestore();
+        copy.mockRestore();
+        await Effect.runPromise(service.dispose());
+      }
+    }
+  );
+  it("rejects inconsistent encrypted preparation before rendering or indexed geometry", async () => {
+    const bytes = await exportPageIndexFixture(true),
+      source = file(bytes),
+      cached = await PDFDocument.load(bytes);
+    Object.defineProperty(cached, "isEncrypted", { value: true });
+    const load = vi.spyOn(PDFDocument, "load").mockResolvedValueOnce(cached);
+    const renderPage = vi.fn(() => Effect.void),
+      getPageGeometry = vi.fn();
+    const getPage = vi.spyOn(cached, "getPage"),
+      service = new PDFOperationsService({ renderPage, getPageGeometry });
+    try {
+      await expect(
+        Effect.runPromise(service.buildPDF([createPageState(source, 2, { rotation: 90 })]))
+      ).rejects.toMatchObject({ operation: "reconcile-export", file: source });
+      expect(getPage).not.toHaveBeenCalled();
+      expect(getPageGeometry).not.toHaveBeenCalled();
+      expect(renderPage).not.toHaveBeenCalled();
+    } finally {
+      load.mockRestore();
+      await Effect.runPromise(service.dispose());
+    }
+  });
+  it.each([[2], [1], [3, 2, 1], [1, 2, 3]])(
+    "preserves direct Page source indexing for %j",
+    async (...layout) => {
+      const bytes = await exportPageIndexFixture(false),
+        source = file(bytes);
+      const output = await inspectExport(
+        await build(layout.map((n) => createPageState(source, n)))
+      );
+      expect(output.pages.map((p) => p.media.width)).toEqual(layout.map((n) => 390 + n * 10));
+      expect(new Uint8Array(await source.arrayBuffer())).toEqual(bytes);
+    }
+  );
+  it.each(["cycle", "missing-role", "direct-page", "wrong-role", "order", "count", "deep"])(
+    "rejects unsupported native page-tree %s",
+    async (kind) => {
+      const doc = await PDFDocument.create(),
+        p1 = doc.addPage(),
+        p2 = doc.addPage();
+      const root = doc.catalog.lookup(N("Pages"), PDFDict),
+        kids = root.lookup(N("Kids"), PDFArray);
+      if (kind === "cycle") kids.push(doc.catalog.get(N("Pages"))!);
+      if (kind === "missing-role") p2.node.delete(N("Type"));
+      if (kind === "direct-page") kids.set(1, p2.node);
+      if (kind === "wrong-role") p2.node.set(N("Type"), N("Other"));
+      if (kind === "order") vi.spyOn(doc, "getPages").mockReturnValue([p2, p1]);
+      if (kind === "count") vi.spyOn(doc, "getPages").mockReturnValue([p1]);
+      if (kind === "deep") {
+        let branch = doc.context.obj({ Type: "Pages", Kids: [p2.ref] });
+        for (let i = 0; i < 33; i++) branch = doc.context.obj({ Type: "Pages", Kids: [branch] });
+        kids.set(1, branch);
+      }
+      const source = file(new Uint8Array());
+      expect(() => validatePDFSourcePages(doc, source)).toThrowError(
+        "This PDF's page order cannot be safely copied."
+      );
+    }
+  );
+});

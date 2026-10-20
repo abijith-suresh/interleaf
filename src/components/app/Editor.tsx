@@ -959,8 +959,11 @@ export default function Editor() {
       if (disposed) return;
       const exportConstraint =
         error instanceof PDFProcessingError && error.operation === "reconcile-export";
-      dispatchToast(exportConstraint ? error.message : "Failed to export the PDF.", "error");
-      setStatusMessage(exportConstraint ? error.message : "Export failed. Try again.");
+      const constraintMessage = exportConstraint
+        ? `${error.file ? `${error.file.name}: ` : ""}${error.message} Select pages from other files or remove this file, then try again.`
+        : undefined;
+      dispatchToast(constraintMessage ?? "Failed to export the PDF.", "error");
+      setStatusMessage(constraintMessage ?? "Export failed. Try again.");
     } finally {
       if (!disposed) setOperation("idle");
     }

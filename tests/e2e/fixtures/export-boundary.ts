@@ -1,12 +1,17 @@
 import { Effect } from "effect";
-import { degrees, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName } from "pdf-lib";
+import { degrees, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFString } from "pdf-lib";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import worker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
   type DestinationKind,
   exportCrossPageButtonFixture,
   exportFormFixture,
+  exportIndirectPageFixture,
+  exportIndirectWidgetFixture,
   exportLinkFixture,
+  exportPageIndexFixture,
+  INDEX_PAGE_TEXT,
+  INDIRECT_OMITTED_ANSWER,
   OMITTED_ANSWER,
   OMITTED_CONTENT,
 } from "../../../src/services/__tests__/pdf-export-fixtures";
@@ -42,7 +47,30 @@ function contains(serialized: string, text: string) {
     )
   );
 }
-export async function reopenWithPDFjs(bytes: Uint8Array) {
+interface RenderEvidence {
+  images: ImageData[];
+  metadata: {
+    width: number;
+    height: number;
+    fontStatus: string;
+    userAgent: string;
+    devicePixelRatio: number;
+  }[];
+}
+function encodedImages(images: ImageData[]) {
+  return images.map((image) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext("2d");
+    if (!context) throw Error("No diagnostic canvas context");
+    context.putImageData(image, 0, 0);
+    const png = canvas.toDataURL("image/png");
+    canvas.width = canvas.height = 0;
+    return png;
+  });
+}
+export async function reopenWithPDFjs(bytes: Uint8Array, evidence?: RenderEvidence) {
   const task = getDocument({ data: bytes.slice() });
   try {
     const doc = await task.promise;
@@ -66,10 +94,21 @@ export async function reopenWithPDFjs(bytes: Uint8Array) {
         button: a.buttonValue,
         options: a.options,
       }));
+      const image = context.getImageData(0, 0, canvas.width, canvas.height);
+      if (evidence) {
+        evidence.images.push(image);
+        evidence.metadata.push({
+          width: canvas.width,
+          height: canvas.height,
+          fontStatus: document.fonts.status,
+          userAgent: navigator.userAgent,
+          devicePixelRatio,
+        });
+      }
       pages.push({
         annotations,
         text: (await page.getTextContent()).items.map((item) => ("str" in item ? item.str : "")),
-        pixels: hash(context.getImageData(0, 0, canvas.width, canvas.height).data),
+        pixels: hash(image.data),
       });
       canvas.width = canvas.height = 0;
       page.cleanup();
@@ -193,9 +232,29 @@ export async function checkDestinations() {
     operations = new PDFOperationsService(service);
   try {
     const results = [];
-    for (const kind of ["direct", "goto", "legacy", "names"] as DestinationKind[])
+    for (const kind of ["direct", "goto", "legacy", "names", "indirect-goto"] as (
+      | DestinationKind
+      | "indirect-goto"
+    )[])
       for (const layout of [[1], [2], [1, 2], [2, 1], [1, 2, 1, 2]]) {
-        const source = file(await exportLinkFixture(kind));
+        let input = await exportLinkFixture(kind === "indirect-goto" ? "names" : kind);
+        if (kind === "indirect-goto") {
+          const doc = await PDFDocument.load(input);
+          const link = doc
+            .getPage(0)
+            .node.lookup(PDFName.of("Annots"), PDFArray)
+            .lookup(0, PDFDict);
+          link.delete(PDFName.of("Dest"));
+          link.set(
+            PDFName.of("A"),
+            doc.context.obj({
+              S: doc.context.register(PDFName.of("GoTo")),
+              D: PDFString.of("target"),
+            })
+          );
+          input = await doc.save();
+        }
+        const source = file(input);
         const bytes = (
           await Effect.runPromise(operations.buildPDF(layout.map((n, i) => state(source, n, i))))
         ).data;
@@ -290,13 +349,128 @@ export async function checkAdditions() {
     const pages = [state(f, 1, 1), page, state(f, 2, 2)];
     const beforeBytes = await baseline(pages, service),
       afterBytes = (await Effect.runPromise(operations.buildPDF(pages))).data;
+    const beforeEvidence: RenderEvidence = { images: [], metadata: [] },
+      afterEvidence: RenderEvidence = { images: [], metadata: [] };
+    const before = await reopenWithPDFjs(beforeBytes, beforeEvidence),
+      after = await reopenWithPDFjs(afterBytes, afterEvidence);
+    const nativeBefore = await inspectExport(beforeBytes),
+      native = await inspectExport(afterBytes);
+    const nativeMatches =
+      JSON.stringify(retainedMetadata(nativeBefore)) === JSON.stringify(retainedMetadata(native));
+    // Retain the exact buffers already hashed. Encode only after a mismatch, so
+    // diagnostic PNG generation cannot change the render being compared.
+    const mismatch = JSON.stringify(before) !== JSON.stringify(after) || !nativeMatches;
     return {
-      before: await reopenWithPDFjs(beforeBytes),
-      after: await reopenWithPDFjs(afterBytes),
-      native: await inspectExport(afterBytes),
+      before,
+      after,
+      native,
+      nativeMatches,
+      diagnostics: mismatch
+        ? {
+            sourceBytes: Array.from(new Uint8Array(await f.arrayBuffer())),
+            beforeBytes: Array.from(beforeBytes),
+            afterBytes: Array.from(afterBytes),
+            beforePngs: encodedImages(beforeEvidence.images),
+            afterPngs: encodedImages(afterEvidence.images),
+            renderMetadata: { before: beforeEvidence.metadata, after: afterEvidence.metadata },
+            nativeBefore,
+            nativeAfter: native,
+          }
+        : undefined,
     };
   } finally {
     await Effect.runPromise(operations.dispose());
     await Effect.runPromise(service.dispose());
+  }
+}
+
+export async function checkIndirectRoles() {
+  const operations = new PDFOperationsService({ renderPage: () => Effect.void });
+  try {
+    const widgets = [];
+    for (const indirect of [false, true]) {
+      const input = await exportIndirectWidgetFixture(indirect),
+        source = file(input);
+      const output = (await Effect.runPromise(operations.buildPDF([state(source, 1, 0)]))).data;
+      const before = await reopenWithPDFjs(input),
+        after = await reopenWithPDFjs(output),
+        native = await inspectExport(output);
+      widgets.push({
+        indirect,
+        retainedMatches: JSON.stringify(before[0]) === JSON.stringify(after[0]),
+        values: after[0].annotations.map((a) => ({ name: a.name, value: a.value })),
+        pages: native.pageObjects,
+        widgets: native.widgetObjects,
+        orphanKids: native.orphanKids,
+        answerRecovered: contains(native.serialized, INDIRECT_OMITTED_ANSWER),
+        input: Array.from(input),
+        output: Array.from(output),
+      });
+    }
+    const pages = [];
+    for (const indirect of [false, true]) {
+      const input = await exportIndirectPageFixture(indirect, true),
+        source = file(input),
+        before = await reopenWithPDFjs(input);
+      let error: { operation: string; message: string } | undefined,
+        emitted = false;
+      try {
+        await Effect.runPromise(operations.buildPDF([state(source, 1, 0)]));
+        emitted = true;
+      } catch (cause) {
+        if (!(cause instanceof PDFProcessingError)) throw cause;
+        error = { operation: cause.operation, message: cause.message };
+      }
+      pages.push({
+        indirect,
+        input: Array.from(input),
+        sourcePages: before.length,
+        sourceRetainedText: before[0].text.includes("Retained page"),
+        emitted,
+        error,
+      });
+    }
+    const indexing = [];
+    for (const indirect of [false, true]) {
+      const input = await exportPageIndexFixture(indirect),
+        source = file(input),
+        before = await reopenWithPDFjs(input),
+        original = Array.from(new Uint8Array(await source.arrayBuffer()));
+      for (const layout of [[2], [1], [1, 2, 3]]) {
+        let error: { operation: string; message: string; sourceMatches: boolean } | undefined,
+          output: number[] | undefined,
+          text: string[][] | undefined;
+        try {
+          const bytes = (
+            await Effect.runPromise(operations.buildPDF(layout.map((n, i) => state(source, n, i))))
+          ).data;
+          output = Array.from(bytes);
+          text = (await reopenWithPDFjs(bytes)).map((page) => page.text);
+        } catch (cause) {
+          if (!(cause instanceof PDFProcessingError)) throw cause;
+          error = {
+            operation: cause.operation,
+            message: cause.message,
+            sourceMatches: cause.file === source,
+          };
+        }
+        indexing.push({
+          indirect,
+          layout,
+          input: Array.from(input),
+          output,
+          text,
+          error,
+          sourceTextMatches:
+            before.length === 3 && before.every((p, i) => p.text.includes(INDEX_PAGE_TEXT[i])),
+          unchanged:
+            JSON.stringify(original) ===
+            JSON.stringify(Array.from(new Uint8Array(await source.arrayBuffer()))),
+        });
+      }
+    }
+    return { widgets, pages, indexing };
+  } finally {
+    await Effect.runPromise(operations.dispose());
   }
 }

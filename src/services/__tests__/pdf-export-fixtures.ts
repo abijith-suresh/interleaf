@@ -146,3 +146,48 @@ export async function exportCrossPageButtonFixture() {
   radio.select("Second");
   return doc.save();
 }
+
+export const INDIRECT_OMITTED_ANSWER = "INDEPENDENT_OMITTED_ANSWER_83ec532";
+export const INDIRECT_OMITTED_CONTENT = "INDEPENDENT_OMITTED_PAGE_7cd6532";
+export async function exportIndirectWidgetFixture(indirect: boolean) {
+  const doc = await PDFDocument.create(),
+    p1 = doc.addPage(),
+    p2 = doc.addPage();
+  p1.drawText("Retained page");
+  p2.drawText("Omitted page");
+  const keep = doc.getForm().createTextField("group.keep"),
+    omit = doc.getForm().createTextField("group.omit");
+  keep.setText("Retained answer");
+  keep.addToPage(p1, { x: 10, y: 20, width: 150, height: 30 });
+  omit.setText(INDIRECT_OMITTED_ANSWER);
+  omit.addToPage(p2, { x: 10, y: 20, width: 300, height: 30 });
+  doc.getForm().updateFieldAppearances();
+  for (const p of [p1, p2])
+    for (const raw of p.node.Annots()?.asArray() ?? []) {
+      const widget = doc.context.lookup(raw, PDFDict);
+      widget.delete(PDFName.of("P"));
+      if (indirect) widget.set(PDFName.of("Subtype"), doc.context.register(PDFName.of("Widget")));
+    }
+  return doc.save({ updateFieldAppearances: false });
+}
+export async function exportIndirectPageFixture(indirect: boolean, orphan = false) {
+  const doc = await PDFDocument.create(),
+    p1 = doc.addPage(),
+    p2 = doc.addPage();
+  p1.drawText("Retained page");
+  p2.drawText(INDIRECT_OMITTED_CONTENT);
+  p1.node.set(PDFName.of("CustomPage"), p2.ref);
+  if (orphan) doc.removePage(1);
+  if (indirect) p2.node.set(PDFName.of("Type"), doc.context.register(PDFName.of("Page")));
+  return doc.save();
+}
+
+export const INDEX_PAGE_TEXT = ["ONE", "REQUESTED_PAGE_TWO_37e2", "OMITTED_PAGE_THREE_912ab"];
+export async function exportPageIndexFixture(indirect: boolean) {
+  const doc = await PDFDocument.create();
+  for (const [index, text] of INDEX_PAGE_TEXT.entries())
+    doc.addPage([400 + index * 10, 500]).drawText(text);
+  if (indirect)
+    doc.getPage(1).node.set(PDFName.of("Type"), doc.context.register(PDFName.of("Page")));
+  return doc.save();
+}

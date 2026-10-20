@@ -13,6 +13,7 @@ import {
   PDFString,
 } from "pdf-lib";
 
+import { PDFProcessingError } from "../types/interfaces";
 import { processingError } from "./pdf-errors";
 
 const N = PDFName.of;
@@ -37,6 +38,60 @@ function objects(doc: PDFDocument, roots: PDFObject[]): Set<PDFObject> {
   }
   return seen;
 }
+function resolvedName(dict: PDFDict, key: PDFName, required = false): PDFName | undefined {
+  let value = dict.get(key, true);
+  if (value === undefined && !required) return undefined;
+  const seen = new Set<PDFRef>();
+  while (value instanceof PDFRef) {
+    if (seen.has(value) || seen.size >= 32)
+      throw Error(`Cyclic or excessive PDF name references at ${key}`);
+    seen.add(value);
+    value = dict.context.lookup(value);
+  }
+  if (value === undefined) throw Error(`Missing PDF name ${key}`);
+  if (!(value instanceof PDFName)) throw Error(`Invalid PDF name ${key}`);
+  return value;
+}
+
+// PDF.js can recognize page roles that pdf-lib's parser omits. Never index a
+// filtered library page list until its refs match the actual source page tree.
+export function validatePDFSourcePages(doc: PDFDocument, file: File): void {
+  try {
+    const stack = [{ raw: doc.catalog.get(N("Pages")), depth: 0 }];
+    const seen = new Set<PDFDict>(),
+      refs: PDFRef[] = [];
+    while (stack.length) {
+      const entry = stack.pop();
+      if (!entry) break;
+      if (entry.depth > 32) throw Error("Excessive source page-tree depth");
+      const node = doc.context.lookup(entry.raw);
+      if (!(node instanceof PDFDict)) throw Error("Invalid source page-tree node");
+      if (seen.has(node)) throw Error("Repeated or cyclic source page-tree node");
+      seen.add(node);
+      const role = resolvedName(node, N("Type"), true);
+      if (role === N("Page")) {
+        if (!(entry.raw instanceof PDFRef))
+          throw Error("Unsupported direct source Page dictionary");
+        refs.push(entry.raw);
+      } else if (role === N("Pages")) {
+        const kids = node.lookup(N("Kids"), PDFArray);
+        for (let index = kids.size() - 1; index >= 0; index--)
+          stack.push({ raw: kids.get(index), depth: entry.depth + 1 });
+      } else throw Error("Invalid source page-tree role");
+    }
+    const indexed = doc.getPages();
+    if (refs.length !== indexed.length || refs.some((ref, index) => ref !== indexed[index].ref))
+      throw Error("Source page-tree refs differ from pdf-lib indexed page order");
+  } catch (cause) {
+    throw new PDFProcessingError({
+      operation: "reconcile-export",
+      file,
+      cause,
+      message: "This PDF's page order cannot be safely copied.",
+    });
+  }
+}
+
 export interface PDFExportSource {
   file: File;
   doc: PDFDocument;
@@ -53,6 +108,7 @@ export class PDFExportCopy {
     private readonly output: PDFDocument,
     sources: PDFExportSource[]
   ) {
+    for (const source of sources) validatePDFSourcePages(source.doc, source.file);
     const dicts = sources.flatMap((s) =>
       [
         ...objects(
@@ -87,6 +143,14 @@ export class PDFExportCopy {
   private reject(file: File | undefined, message: string): never {
     const cause = new Error(message);
     throw file ? processingError("reconcile-export", file, cause) : cause;
+  }
+  private name(dict: PDFDict, key: PDFName, required = false): PDFName | undefined {
+    try {
+      return resolvedName(dict, key, required);
+    } catch (cause) {
+      const file = this.owner.get(dict)?.file;
+      throw file ? processingError("reconcile-export", file, cause) : cause;
+    }
   }
   private named(source: PDFExportSource, name: string): PDFObject | undefined {
     const legacy = source.doc.catalog.lookupMaybe(N("Dests"), PDFDict)?.get(N(name));
@@ -187,7 +251,7 @@ export class PDFExportCopy {
           throw Error("One annotation belongs to multiple output pages");
         annotationOwners.set(annot, page);
         annot.set(N("P"), page.ref);
-        if (annot.get(N("Subtype")) !== N("Widget")) continue;
+        if (this.name(annot, N("Subtype"), true) !== N("Widget")) continue;
         const seen = new Set<PDFDict>();
         let field: PDFDict | undefined = annot;
         while (field) {
@@ -215,11 +279,11 @@ export class PDFExportCopy {
           throw Error("This PDF has inconsistent linked fields that cannot be preserved.");
       }
       if (retained.length !== kids.size()) {
-        let type: PDFObject | undefined;
+        let type: PDFName | undefined;
         let opt: PDFObject | undefined;
         let ancestor: PDFDict | undefined = field;
         while (ancestor) {
-          type ??= ancestor.lookup(N("FT"));
+          type ??= this.name(ancestor, N("FT"));
           opt ??= ancestor.has(N("Opt")) ? ancestor.lookup(N("Opt")) : undefined;
           ancestor = ancestor.lookupMaybe(N("Parent"), PDFDict);
         }
@@ -245,7 +309,7 @@ export class PDFExportCopy {
         if (d) o.set(N("Dest"), d);
         else o.delete(N("Dest"));
       }
-      if (o.get(N("S")) === N("GoTo")) {
+      if (this.name(o, N("S")) === N("GoTo")) {
         const d = this.destination(o, o.get(N("D")));
         if (d) o.set(N("D"), d);
         else {
@@ -271,7 +335,7 @@ export class PDFExportCopy {
       const target = this.output.context.lookup(value);
       if (
         !(target instanceof PDFDict) ||
-        target.get(N("Type")) !== N("Page") ||
+        this.name(target, N("Type")) !== N("Page") ||
         actualSet.has(target)
       )
         return value;
@@ -300,7 +364,7 @@ export class PDFExportCopy {
       Object.values(this.output.context.trailerInfo).filter((v): v is PDFObject => !!v)
     );
     for (const o of reachable)
-      if (o instanceof PDFDict && o.get(N("Type")) === N("Page") && !actualSet.has(o))
+      if (o instanceof PDFDict && this.name(o, N("Type")) === N("Page") && !actualSet.has(o))
         throw Error("Unreconciled orphan Page");
     // pdf-lib serializes every registered object, including unreachable ones.
     for (const [ref] of this.output.context.enumerateIndirectObjects())

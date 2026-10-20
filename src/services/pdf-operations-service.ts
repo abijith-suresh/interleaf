@@ -13,7 +13,7 @@ import { getSupportedFileKind } from "../utils/file-types";
 import { type DocumentKey, type DocumentStore, makeDocumentStore } from "./document-store";
 import { drawPageAdditions } from "./pdf-additions";
 import { processingError } from "./pdf-errors";
-import { PDFExportCopy, type PDFExportSource } from "./pdf-export-copy";
+import { PDFExportCopy, type PDFExportSource, validatePDFSourcePages } from "./pdf-export-copy";
 import type { PDFService } from "./pdf-service";
 
 const ENCRYPTED_PAGE_RENDER_SCALE = 2;
@@ -321,6 +321,13 @@ export class PDFOperationsService {
       for (const { sourceFile } of pagesToBuild) {
         if (sourceDocuments.has(sourceFile)) continue;
         const source = yield* this.store.acquire(sourceDocumentKey(sourceFile));
+        yield* Effect.try({
+          try: () => validatePDFSourcePages(source, sourceFile),
+          catch: (cause) =>
+            cause instanceof PDFProcessingError
+              ? cause
+              : processingError("inspect-source", sourceFile, cause),
+        });
         sourceDocuments.set(sourceFile, source);
         if (!source.isEncrypted) {
           // Provenance is scoped to this export. Cached documents and File bytes stay untouched.
@@ -333,7 +340,10 @@ export class PDFOperationsService {
       }
       const exportCopy = yield* Effect.try({
         try: () => new PDFExportCopy(outputDoc, privateSources),
-        catch: (cause) => processingError("prepare-export", pagesToBuild[0].sourceFile, cause),
+        catch: (cause) =>
+          cause instanceof PDFProcessingError
+            ? cause
+            : processingError("prepare-export", pagesToBuild[0].sourceFile, cause),
       });
 
       for (const [index, page] of pagesToBuild.entries()) {
