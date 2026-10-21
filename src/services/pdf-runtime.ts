@@ -190,10 +190,12 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
           compressPDF: (file: File) =>
             compressionService.compressPDF(file, pdfService.getPassword(file)),
           releaseFile: (file: File) =>
-            collectFirstError([
-              pdfService.releaseFile(file),
-              operationsService?.releaseFile(file) ?? Effect.void,
-            ]),
+            Effect.suspend(() =>
+              collectFirstError([
+                pdfService.releaseFile(file),
+                operationsService?.releaseFile(file) ?? Effect.void,
+              ])
+            ),
           reset: Effect.suspend(() => pdfService.reset()),
           clearCache: Effect.suspend(() => operationsService?.clearCache() ?? Effect.void),
           dispose: () =>

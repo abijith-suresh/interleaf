@@ -181,6 +181,54 @@ it("releases a file from each initialized service even when PDF.js cleanup fails
   expect(operationsServiceMock.releaseFile).toHaveBeenCalledExactlyOnceWith(file);
 });
 
+it.each(["pdf", "operations", "both"] as const)(
+  "waits for PDF cleanup, attempts operations cleanup, and reports the first %s error",
+  async (failure) => {
+    const file = new File(["plain"], "document.pdf", { type: "application/pdf" });
+    const started = Deferred.makeUnsafe<void>();
+    const finishPDF = Deferred.makeUnsafe<void>();
+    const attempts: string[] = [];
+    const pdfError = new PDFProcessingError({
+      operation: "cleanup-pdf-js",
+      file,
+      cause: new Error("PDF cleanup failed"),
+      message: "PDF cleanup failed",
+    });
+    const operationsError = new PDFProcessingError({
+      operation: "release-source",
+      file,
+      cause: new Error("Operations cleanup failed"),
+      message: "Operations cleanup failed",
+    });
+    pdfServiceMock.releaseFile.mockReturnValue(
+      Effect.sync(() => attempts.push("pdf")).pipe(
+        Effect.andThen(Deferred.succeed(started, undefined)),
+        Effect.andThen(Deferred.await(finishPDF)),
+        Effect.andThen(failure === "operations" ? Effect.void : Effect.fail(pdfError))
+      )
+    );
+    operationsServiceMock.releaseFile.mockReturnValue(
+      Effect.sync(() => attempts.push("operations")).pipe(
+        Effect.andThen(failure === "pdf" ? Effect.void : Effect.fail(operationsError))
+      )
+    );
+    const release = await runtime.runPromise(
+      Effect.map(PDFProcessing, (service) => service.releaseFile(file))
+    );
+    await runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([])));
+    const fiber = runtime.runFork(release);
+    try {
+      await Effect.runPromise(Deferred.await(started));
+      expect(attempts).toEqual(["pdf"]);
+    } finally {
+      await Effect.runPromise(Deferred.succeed(finishPDF, undefined));
+    }
+    const error: PDFProcessingError = await Effect.runPromise(Effect.flip(Fiber.join(fiber)));
+    expect(error).toBe(failure === "operations" ? operationsError : pdfError);
+    expect(attempts).toEqual(["pdf", "operations"]);
+  }
+);
+
 it("shares lazy editing support across concurrent exports without serializing them", async () => {
   const release = Deferred.makeUnsafe<void>();
   operationsServiceMock.buildPDF.mockReturnValue(
