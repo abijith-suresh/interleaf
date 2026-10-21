@@ -109,6 +109,32 @@ Run `bun run test:e2e` to reuse an existing build.
 
 CI runs the suite in Chromium, Firefox, and WebKit.
 
+### Draft PDFium regression checks
+
+On draft PR #303, `/pdfium/` hosts the isolated experiment. `/app/` remains the default editor.
+Build the app and run the experimental browser smoke check against a local server.
+The smoke check uses the same Playwright installation.
+
+```sh
+bunx playwright install chromium
+bun run build
+python3 -m http.server 4873 --bind 127.0.0.1 --directory dist
+```
+
+In a second terminal:
+
+```sh
+bun tools/pdfium-wasm/browser-smoke.mjs http://127.0.0.1:4873
+```
+
+The runner checks editing, form values, exports, mixed inputs, source removal, passwords,
+compression, mobile touch and pinch controls, keyboard-sized and landscape layouts,
+and the absence of uploads or third-party requests. Keyboard-sized checks emulate viewport
+height; they do not open an operating system keyboard.
+
+Set `INTERLEAF_BROWSER=firefox` or `INTERLEAF_BROWSER=webkit` to use an installed Playwright
+browser. `INTERLEAF_BROWSER_EXECUTABLE` can select a compatible local browser executable.
+
 ### Styling
 
 - Tailwind CSS v4 with CSS-first `@theme` tokens in `global.css`.
