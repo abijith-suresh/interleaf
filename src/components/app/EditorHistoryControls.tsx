@@ -1,34 +1,34 @@
 import EditorButton from "./ui/EditorButton";
 
-export interface EditorHistoryActions {
+interface Props {
   undoLabel?: string;
   redoLabel?: string;
-  busy?: boolean;
+  unavailable: boolean;
   onUndo: () => void;
   onRedo: () => void;
 }
 
-export default function EditorHistoryControls(props: EditorHistoryActions) {
+export default function EditorHistoryControls(props: Props) {
   return (
-    <fieldset class="editor-history-controls" aria-label="Edit history">
+    <fieldset class="editor-history-controls" aria-label="Workspace history">
       <EditorButton
+        data-testid="editor-undo-button"
         variant="plain"
         icon="undo"
-        iconOnly
-        aria-label={props.undoLabel ? `Undo ${props.undoLabel}` : "Undo"}
+        aria-label={props.undoLabel ? `Undo ${props.undoLabel}` : "Nothing to undo"}
         aria-keyshortcuts="Control+Z Meta+Z"
         title={props.undoLabel ? `Undo ${props.undoLabel}` : "Nothing to undo"}
-        disabled={props.busy || !props.undoLabel}
+        aria-disabled={props.unavailable || !props.undoLabel}
         onClick={props.onUndo}
       />
       <EditorButton
+        data-testid="editor-redo-button"
         variant="plain"
         icon="redo"
-        iconOnly
-        aria-label={props.redoLabel ? `Redo ${props.redoLabel}` : "Redo"}
+        aria-label={props.redoLabel ? `Redo ${props.redoLabel}` : "Nothing to redo"}
         aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y"
         title={props.redoLabel ? `Redo ${props.redoLabel}` : "Nothing to redo"}
-        disabled={props.busy || !props.redoLabel}
+        aria-disabled={props.unavailable || !props.redoLabel}
         onClick={props.onRedo}
       />
     </fieldset>

@@ -9,7 +9,7 @@ interface Props {
   files: WorkspaceFile[];
   onClose: () => void;
   onSelectFile: (file: File) => void;
-  onRemoveFile: (file: File) => void;
+  onRemoveFile: (file: File) => void | Promise<void>;
 }
 
 function formatPageCount(pageCount: number) {
@@ -21,8 +21,11 @@ export default function EditorFilesDialog(props: Props) {
   let closeButton!: HTMLButtonElement;
   let list!: HTMLUListElement;
 
-  function focusAfterRemoval(removedIndex: number): void {
+  function focusAfterRemoval(removedIndex: number, removedControl: HTMLElement): void {
     requestAnimationFrame(() => {
+      if (!props.open) return;
+      if (document.activeElement !== document.body && document.activeElement !== removedControl)
+        return;
       const items = list?.querySelectorAll<HTMLButtonElement>('[data-testid="editor-file-item"]');
       const target = items?.[Math.min(removedIndex, (items.length ?? 1) - 1)];
       (target ?? closeButton)?.focus();
@@ -71,7 +74,7 @@ export default function EditorFilesDialog(props: Props) {
       id="editor-files-dialog"
       data-testid="editor-files-dialog"
       class="editor-files-layer"
-      aria-modal="true"
+      aria-modal={props.open ? "true" : undefined}
       aria-labelledby="editor-files-title"
       onCancel={(event) => {
         event.preventDefault();
@@ -91,16 +94,13 @@ export default function EditorFilesDialog(props: Props) {
             <h2 id="editor-files-title">Files</h2>
           </div>
           <EditorButton
-            variant="plain"
             ref={closeButton}
-            type="button"
             data-testid="editor-files-close-button"
             class="editor-files-close"
             aria-label="Close files"
             onClick={requestClose}
-          >
-            <EditorIcon name="close" />
-          </EditorButton>
+            icon="close"
+          />
         </header>
 
         <div class="editor-files-dialog-body">
@@ -109,8 +109,7 @@ export default function EditorFilesDialog(props: Props) {
               {(workspaceFile, index) => {
                 return (
                   <li class="editor-file-row">
-                    <EditorButton
-                      variant="plain"
+                    <button
                       type="button"
                       data-testid="editor-file-item"
                       class="editor-file-item"
@@ -125,22 +124,23 @@ export default function EditorFilesDialog(props: Props) {
                         <strong>{workspaceFile.file.name}</strong>
                         <span>{formatPageCount(workspaceFile.pageCount)}</span>
                       </span>
-                    </EditorButton>
+                    </button>
                     <EditorButton
-                      variant="danger"
-                      type="button"
                       data-testid="editor-file-remove"
                       class="editor-file-remove"
                       aria-label={`Remove ${workspaceFile.file.name} and its ${formatPageCount(workspaceFile.pageCount)} from the workspace`}
                       title={`Remove ${workspaceFile.file.name}`}
                       disabled={props.busy}
-                      onClick={() => {
-                        focusAfterRemoval(index());
-                        props.onRemoveFile(workspaceFile.file);
+                      onClick={(event) => {
+                        const removedControl = event.currentTarget;
+                        const removedIndex = index();
+                        void Promise.resolve(props.onRemoveFile(workspaceFile.file)).then(() =>
+                          focusAfterRemoval(removedIndex, removedControl)
+                        );
                       }}
-                    >
-                      <EditorIcon name="delete" />
-                    </EditorButton>{" "}
+                      variant="danger"
+                      icon="delete"
+                    />
                   </li>
                 );
               }}

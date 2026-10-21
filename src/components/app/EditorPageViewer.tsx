@@ -1,15 +1,21 @@
 import { Effect, Fiber } from "effect";
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import type { PDFDocumentCheckpoint } from "../../services/pdf-checkpoint";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+  untrack,
+} from "solid-js";
+import { hasPageAdditions } from "../../controllers/editor-additions-state";
+import { copyOrganizationPages } from "../../controllers/editor-history";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
-import type { PageState } from "../../types/interfaces";
-import EditorContentPanel from "./EditorContentPanel";
-import EditorHistoryControls, { type EditorHistoryActions } from "./EditorHistoryControls";
+import type { AddedCheckmark, AddedText, PageState } from "../../types/interfaces";
+import EditorAdditionsEditor, { type AdditionsGesture } from "./EditorAdditionsEditor";
 import EditorPageCanvas from "./EditorPageCanvas";
-import EditorToolRail, { type EditorWorkspaceTool } from "./EditorToolRail";
-import { boxStyle, type PageBox } from "./pdf-page-geometry";
 import EditorButton from "./ui/EditorButton";
-import EditorIcon from "./ui/EditorIcon";
 
 const VIEWER_MAX_PIXELS = 16_000_000;
 const VIEWER_MOBILE_MAX_PIXELS = 4_000_000;
@@ -25,58 +31,42 @@ interface Props {
   navigationPageIds: string[];
   activePageId: string | null;
   runtime: PDFRuntime;
+  disabled?: boolean;
+  onCheckmarksChange?: (pageId: string, marks: readonly AddedCheckmark[], label: string) => void;
+  onFieldChange?: (pageId: string, fieldRef: string, value: string) => void;
+  onTextChange?: (pageId: string, texts: readonly AddedText[], label: string) => void;
   onActivePageChange: (pageId: string) => void;
-  onClose: () => void;
-  tool?: Exclude<EditorWorkspaceTool, "pages">;
-  onChooseTool?: (tool: EditorWorkspaceTool) => void;
-  onAddFiles?: () => void;
-  onDownload?: () => void;
-  downloadBusy?: boolean;
-  downloadAvailable?: boolean;
-  exportPageCount?: number;
-  onContentChange?: (file: File, pageNumber?: number) => void;
-  history?: EditorHistoryActions;
-  onCheckpoint?: (file: File, checkpoint: PDFDocumentCheckpoint, label: string) => void;
-  onEditBusy?: (busy: boolean) => void;
-  onDraftChange?: (draft: boolean) => void;
 }
 
 export default function EditorPageViewer(props: Props) {
   const [renderState, setRenderState] = createSignal<"loading" | "ready" | "error">("loading");
-  const editing = () => !!props.onContentChange;
-  const [workspaceTool, setWorkspaceTool] = createSignal<Exclude<EditorWorkspaceTool, "pages">>(
-    props.tool ?? "read"
-  );
-  createEffect(() => {
-    if (props.tool) setWorkspaceTool(props.tool);
-  });
-  const [showPages, setShowPages] = createSignal(false);
-  const [composerHeight, setComposerHeight] = createSignal(160);
-  const [pageFit, setPageFit] = createSignal<"width" | "page">(
-    props.onContentChange ? "width" : "page"
-  );
-  const [draft, setDraft] = createSignal(false);
-  createEffect(() => props.onDraftChange?.(draft()));
-  const [selection, setSelection] = createSignal(false);
   const [zoom, setZoom] = createSignal(1);
-  const [displayRotation, setDisplayRotation] = createSignal(0);
-  let pageDimensions: { width: number; height: number } | undefined;
-  let previousView: { zoom: number; left: number; top: number } | undefined;
-  const [frameSize, setFrameSize] = createSignal({ width: 0, height: 0 });
-  const [viewport, setViewport] = createSignal<{ height: number; top: number }>();
-  let frame!: HTMLElement;
-  let pinchDistance = 0,
-    pinchZoom = 1;
-  let pinchAnchor = { x: 0.5, y: 0.5 };
-  const [editBusy, setEditBusy] = createSignal(false);
-  createEffect(() => props.onEditBusy?.(editBusy()));
+  const [panning, setPanning] = createSignal(false);
+  const [hasFrame, setHasFrame] = createSignal(false);
   const [filmstripWindowStart, setFilmstripWindowStart] = createSignal(0);
 
-  let pane!: HTMLElement;
-  let closeButton!: HTMLButtonElement;
-  let stage!: HTMLDivElement;
+  const [toolsMounted, setToolsMounted] = createSignal(false);
+  const [editingTextId, setEditingTextId] = createSignal<string | null>(null);
+  let textGesture: AdditionsGesture | null = null;
+  let pageTap: ((event: PointerEvent) => void) | null = null;
+  let tapStart: { x: number; y: number; pointer: number } | null = null;
+  let previousPageKey = "";
+  let textHeader!: HTMLDivElement;
+  let textToolbar!: HTMLDivElement;
+  let fitButton!: HTMLButtonElement;
+  let zoomInButton!: HTMLButtonElement;
+  let zoomOutButton!: HTMLButtonElement;
+  let stage!: HTMLElement;
   let filmstrip!: HTMLElement;
   let canvas!: HTMLCanvasElement;
+  let frame!: HTMLDivElement;
+  // PDF.js owns this canvas until its render and cancellation finalizers settle.
+  // The visible canvas retains the last complete frame. Each has the same pixel cap.
+  const staging = document.createElement("canvas");
+  staging.width = staging.height = 0;
+  let pageDimensions: { width: number; height: number } | null = null;
+  const pointers = new Map<number, { x: number; y: number }>();
+  let gesture: { distance: number; zoom: number; x: number; y: number } | null = null;
   let mounted = false;
   let disposed = false;
   let renderQueued = false;
@@ -84,7 +74,7 @@ export default function EditorPageViewer(props: Props) {
   let renderFiber: Fiber.Fiber<unknown, unknown> | null = null;
   let resizeObserver: ResizeObserver | null = null;
   let resizeTimer: number | null = null;
-  let reviewBackgrounds: HTMLElement[] = [];
+  let renderNeeded = false;
 
   const navigationPages = createMemo(() =>
     props.navigationPageIds
@@ -148,18 +138,15 @@ export default function EditorPageViewer(props: Props) {
   ): {
     cssScale: number;
     renderScale: number;
+    pixelBudget: number;
   } {
     const devicePixelRatio = Math.min(
       Math.max(window.devicePixelRatio || 1, 1),
       VIEWER_MAX_DEVICE_PIXEL_RATIO
     );
-    const compact = window.innerWidth <= 700 || window.matchMedia?.("(pointer: coarse)")?.matches;
+    const compact = window.innerWidth <= 700 || window.matchMedia?.("(pointer: coarse)").matches;
     const pixelBudget = compact ? VIEWER_MOBILE_MAX_PIXELS : VIEWER_MAX_PIXELS;
-    // Leave room for PDFium's integer pixel rounding at the native allocation limit.
-    const pixelSafeRenderScale = Math.min(
-      Math.sqrt(pixelBudget / (pageWidth * pageHeight)) * 0.999,
-      32767 / Math.max(pageWidth, pageHeight)
-    );
+    const pixelSafeRenderScale = Math.sqrt(pixelBudget / (pageWidth * pageHeight));
     const stageStyle = getComputedStyle(stage);
     const horizontalPadding =
       (Number.parseFloat(stageStyle.paddingLeft) || 0) +
@@ -170,18 +157,150 @@ export default function EditorPageViewer(props: Props) {
     const fitScale =
       stage.clientWidth === 0 || stage.clientHeight === 0
         ? VIEWER_MAX_SCALE
-        : pageFit() === "width"
-          ? Math.max(stage.clientWidth - horizontalPadding, 1) / pageWidth
-          : Math.min(
-              Math.max(stage.clientWidth - horizontalPadding, 1) / pageWidth,
-              Math.max(stage.clientHeight - verticalPadding, 1) / pageHeight
-            );
-    const cssScale = Math.min(VIEWER_MAX_SCALE, fitScale) * zoom();
+        : Math.min(
+            Math.max(stage.clientWidth - horizontalPadding, 1) / pageWidth,
+            Math.max(stage.clientHeight - verticalPadding, 1) / pageHeight
+          );
+    const cssScale = Math.min(VIEWER_MAX_SCALE, fitScale) * untrack(zoom);
 
     return {
       cssScale,
       renderScale: Math.min(cssScale * devicePixelRatio, pixelSafeRenderScale),
+      pixelBudget,
     };
+  }
+
+  function layoutPage(): void {
+    if (!pageDimensions) return;
+    const { width, height } = pageDimensions;
+    const { cssScale } = getViewerScale(width, height);
+    frame.style.width = canvas.style.width = `${width * cssScale}px`;
+    frame.style.height = canvas.style.height = `${height * cssScale}px`;
+  }
+
+  function setViewZoom(value: number): void {
+    const next = Math.max(1, Math.min(4, value));
+    const focused = document.activeElement;
+    // Move focus before disabling an action, otherwise browsers can send it to body.
+    if ((next >= 4 && focused === zoomInButton) || (next <= 1 && focused === zoomOutButton)) {
+      fitButton.focus({ preventScroll: true });
+    }
+    if (next !== untrack(zoom)) renderNeeded = true;
+    setZoom(next);
+  }
+
+  function changeZoom(value: number, clientX?: number, clientY?: number): void {
+    if (!pageDimensions) return;
+    const stageRect = stage.getBoundingClientRect();
+    const rect = frame.getBoundingClientRect();
+    const x = clientX ?? stageRect.left + stage.clientWidth / 2;
+    const y = clientY ?? stageRect.top + stage.clientHeight / 2;
+    const anchorX = rect.width ? (x - rect.left) / rect.width : 0.5;
+    const anchorY = rect.height ? (y - rect.top) / rect.height : 0.5;
+    setViewZoom(value);
+    layoutPage();
+    const nextRect = frame.getBoundingClientRect();
+    stage.scrollLeft += nextRect.left + nextRect.width * anchorX - x;
+    stage.scrollTop += nextRect.top + nextRect.height * anchorY - y;
+    if (untrack(zoom) === 1) stage.scrollLeft = stage.scrollTop = 0;
+    if (!pointers.size && renderNeeded) requestResizeRender();
+  }
+
+  function resetView(): void {
+    endGesture();
+    setViewZoom(1);
+    stage.scrollLeft = stage.scrollTop = 0;
+    layoutPage();
+  }
+
+  function rebaseGesture(): void {
+    const points = [...pointers.values()];
+    const first = points[0];
+    const second = points[1] ?? first;
+    gesture = first
+      ? {
+          distance: Math.hypot(first.x - second.x, first.y - second.y),
+          zoom: untrack(zoom),
+          x: (first.x + second.x) / 2,
+          y: (first.y + second.y) / 2,
+        }
+      : null;
+    setPanning(pointers.size > 0);
+  }
+
+  function endGesture(): void {
+    tapStart = null;
+    textGesture?.cancel();
+    const ids = [...pointers.keys()];
+    pointers.clear();
+    gesture = null;
+    setPanning(false);
+    for (const id of ids) {
+      if (stage.hasPointerCapture?.(id)) stage.releasePointerCapture(id);
+    }
+  }
+
+  function pointerDown(event: PointerEvent): void {
+    if (
+      event.button !== 0 ||
+      !pageDimensions ||
+      !untrack(hasFrame) ||
+      (event.target instanceof Element &&
+        event.target.closest("button, a") &&
+        !event.target.closest(".editor-text-layer")) ||
+      (event.pointerType !== "touch" && untrack(zoom) === 1 && !pageTap)
+    )
+      return;
+    event.preventDefault();
+    stage.focus({ preventScroll: true });
+    if (pointers.size > 0) textGesture?.cancel();
+    tapStart =
+      pointers.size === 0 ? { x: event.clientX, y: event.clientY, pointer: event.pointerId } : null;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    stage.setPointerCapture?.(event.pointerId);
+    if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+    resizeTimer = null;
+    rebaseGesture();
+  }
+
+  function pointerMove(event: PointerEvent): void {
+    if (!pointers.has(event.pointerId) || !gesture) return;
+    if (tapStart && Math.hypot(event.clientX - tapStart.x, event.clientY - tapStart.y) > 5)
+      tapStart = null;
+    event.preventDefault();
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 1 && textGesture?.move(event)) {
+      rebaseGesture();
+      return;
+    }
+    const points = [...pointers.values()];
+    const first = points[0];
+    const second = points[1] ?? first;
+    const x = (first.x + second.x) / 2;
+    const y = (first.y + second.y) / 2;
+    if (points.length >= 2 && gesture.distance > 0) {
+      const distance = Math.hypot(first.x - second.x, first.y - second.y);
+      changeZoom((gesture.zoom * distance) / gesture.distance, gesture.x, gesture.y);
+    }
+    stage.scrollLeft -= x - gesture.x;
+    stage.scrollTop -= y - gesture.y;
+    rebaseGesture();
+  }
+
+  function pointerEnd(event: PointerEvent): void {
+    if (!pointers.delete(event.pointerId)) return;
+    const tap = tapStart?.pointer === event.pointerId;
+    tapStart = null;
+    const dragged = textGesture?.end(event);
+    if (tap && !dragged) pageTap?.(event);
+    if (stage.hasPointerCapture?.(event.pointerId)) stage.releasePointerCapture(event.pointerId);
+    rebaseGesture();
+    if (!pointers.size && renderNeeded) requestResizeRender();
+  }
+
+  function cancelGesture(): void {
+    endGesture();
+    if (renderNeeded) requestResizeRender();
   }
 
   async function renderLoop(): Promise<void> {
@@ -191,7 +310,9 @@ export default function EditorPageViewer(props: Props) {
     try {
       while (renderQueued && !disposed) {
         renderQueued = false;
-        const page = currentPage();
+        const current = currentPage();
+        const page = current ? copyOrganizationPages([current])[0] : null;
+        const omittedTextId = editingTextId();
 
         if (!page) {
           setRenderState("loading");
@@ -199,6 +320,8 @@ export default function EditorPageViewer(props: Props) {
         }
 
         setRenderState("loading");
+        staging.width = 0;
+        staging.height = 0;
 
         let fiber: Fiber.Fiber<unknown, unknown>;
         try {
@@ -210,25 +333,39 @@ export default function EditorPageViewer(props: Props) {
                   page.sourcePageNumber
                 );
                 const rotation = (sourceRotation + page.rotation) % 360;
-                setDisplayRotation(rotation);
                 const pageSize = yield* service.getPageSize(
                   page.sourceFile,
                   page.sourcePageNumber,
                   rotation
                 );
                 pageDimensions = pageSize;
-                const { cssScale, renderScale } = getViewerScale(pageSize.width, pageSize.height);
-                setFrameSize({
-                  width: (pageSize.width * cssScale) / zoom(),
-                  height: (pageSize.height * cssScale) / zoom(),
-                });
-                yield* service.renderPage(
-                  page.sourceFile,
-                  page.sourcePageNumber,
-                  canvas,
-                  renderScale,
-                  rotation
+                layoutPage();
+                const { renderScale, pixelBudget } = getViewerScale(
+                  pageSize.width,
+                  pageSize.height
                 );
+                if (hasPageAdditions(page)) {
+                  yield* service.renderPageState(
+                    {
+                      ...page,
+                      addedText: page.addedText?.filter((text) => text.id !== omittedTextId),
+                      addedCheckmarks: page.addedCheckmarks?.filter(
+                        (mark) => mark.id !== omittedTextId
+                      ),
+                    },
+                    staging,
+                    renderScale,
+                    rotation,
+                    pixelBudget
+                  );
+                } else
+                  yield* service.renderPage(
+                    page.sourceFile,
+                    page.sourcePageNumber,
+                    staging,
+                    renderScale,
+                    rotation
+                  );
               })
             )
           );
@@ -239,13 +376,25 @@ export default function EditorPageViewer(props: Props) {
 
         renderFiber = fiber;
         try {
-          await props.runtime.runPromise(Fiber.join(fiber));
-          if (canUpdateRenderState()) setRenderState("ready");
+          // This completion observer must outlive managed-runtime disposal too.
+          // Only the rendering fiber's settled exit permits staging reuse/release.
+          await Effect.runPromise(Fiber.join(fiber));
+          if (canUpdateRenderState() && !renderQueued) {
+            canvas.width = canvas.height = 0;
+            canvas.width = staging.width;
+            canvas.height = staging.height;
+            const context = canvas.getContext("2d");
+            if (!context) throw new Error("Could not get preview canvas context");
+            context.drawImage(staging, 0, 0);
+            setHasFrame(true);
+            setRenderState("ready");
+          }
         } catch {
           // Navigation and resizing interrupt the current render on purpose. The queued
           // request will render the latest page or fit when this fiber settles.
           if (canUpdateRenderState() && !renderQueued) setRenderState("error");
         } finally {
+          staging.width = staging.height = 0;
           if (renderFiber === fiber) renderFiber = null;
         }
       }
@@ -257,6 +406,9 @@ export default function EditorPageViewer(props: Props) {
 
   function requestRender(): void {
     if (disposed || !mounted) return;
+    renderNeeded = false;
+    if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+    resizeTimer = null;
     renderQueued = true;
     interruptRender();
     if (!renderLoopRunning) void renderLoop();
@@ -264,22 +416,21 @@ export default function EditorPageViewer(props: Props) {
 
   function requestResizeRender(): void {
     if (disposed || !mounted) return;
-    if (pageDimensions) {
-      const { cssScale } = getViewerScale(pageDimensions.width, pageDimensions.height);
-      setFrameSize({
-        width: (pageDimensions.width * cssScale) / zoom(),
-        height: (pageDimensions.height * cssScale) / zoom(),
-      });
-    }
+    renderNeeded = true;
     if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+    if (pointers.size) return;
     resizeTimer = window.setTimeout(() => {
       resizeTimer = null;
       requestRender();
     }, VIEWER_RESIZE_DEBOUNCE_MS);
   }
 
+  function handleResize(): void {
+    resetView();
+    requestResizeRender();
+  }
+
   function selectPage(pageId: string): void {
-    if (editBusy() || draft()) return;
     if (navigationPages().some((page) => page.id === pageId)) {
       props.onActivePageChange(pageId);
     }
@@ -297,62 +448,26 @@ export default function EditorPageViewer(props: Props) {
   }
 
   function handleKeyDown(event: KeyboardEvent): void {
-    if (event.key === "Escape") {
-      if (editBusy() || draft()) {
-        event.preventDefault();
-        return;
-      }
-      event.preventDefault();
-      props.onClose();
+    if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select"))
       return;
-    }
-
-    if (event.key === "Tab") {
-      const focusable = Array.from(
-        pane.querySelectorAll<HTMLElement>(
-          "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex='-1'])"
-        )
-      ).filter((element) => {
-        if (element.closest("[inert], [hidden]")) return false;
-        for (
-          let ancestor: HTMLElement | null = element;
-          ancestor && ancestor !== pane;
-          ancestor = ancestor.parentElement
-        ) {
-          const style = getComputedStyle(ancestor);
-          if (style.display === "none" || style.visibility === "hidden") return false;
-          if (
-            ancestor instanceof HTMLDetailsElement &&
-            !ancestor.open &&
-            !ancestor.querySelector("summary")?.contains(element)
-          )
-            return false;
-        }
-        return true;
-      });
-      const first = focusable[0];
-      const last = focusable.at(-1);
-
-      if (!first || !last) {
-        event.preventDefault();
-        return;
-      }
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-      return;
-    }
-
+    // Keep browser zoom and modified navigation shortcuts native.
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (textGesture?.key(event)) return;
     if (
-      event.target instanceof HTMLElement &&
-      event.target.closest("input, textarea, select, [contenteditable]")
-    )
+      event.target === stage &&
+      ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)
+    ) {
+      event.preventDefault();
+      if (event.key === "Home") stage.scrollLeft = stage.scrollTop = 0;
+      else if (event.key === "End") {
+        stage.scrollLeft = stage.scrollWidth;
+        stage.scrollTop = stage.scrollHeight;
+      } else {
+        stage.scrollLeft += event.key === "ArrowLeft" ? -60 : event.key === "ArrowRight" ? 60 : 0;
+        stage.scrollTop += event.key === "ArrowUp" ? -60 : event.key === "ArrowDown" ? 60 : 0;
+      }
       return;
+    }
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
       moveBy(event.key === "ArrowLeft" ? -1 : 1);
@@ -362,18 +477,32 @@ export default function EditorPageViewer(props: Props) {
   createEffect(() => {
     const page = currentPage();
     const rotation = page?.rotation;
-    void page?.contentRevision;
+    const savedText = JSON.stringify([
+      page?.addedText ?? [],
+      page?.addedCheckmarks ?? [],
+      page?.fieldAnswers ?? [],
+    ]);
+    const editing = editingTextId();
+    void savedText;
+    void editing;
     if (page && page.id !== props.activePageId) {
       props.onActivePageChange(page.id);
     }
     void rotation;
-    pageFit();
-    if (mounted) requestRender();
-  });
-
-  createEffect(() => {
-    zoom();
-    if (mounted) requestResizeRender();
+    navigationPages();
+    if (mounted) {
+      const key = `${page?.id}:${rotation}`;
+      if (key !== previousPageKey) {
+        resetView();
+        pageDimensions = null;
+        setHasFrame(false);
+        previousPageKey = key;
+      }
+      if (document.activeElement === zoomInButton || document.activeElement === zoomOutButton) {
+        fitButton.focus({ preventScroll: true });
+      }
+      requestRender();
+    }
   });
 
   createEffect(() => {
@@ -404,355 +533,198 @@ export default function EditorPageViewer(props: Props) {
     });
   });
 
-  function focusBounds(bounds: PageBox, width: number, height: number) {
-    if (stage && !previousView)
-      previousView = { zoom: zoom(), left: stage.scrollLeft, top: stage.scrollTop };
-    if (window.innerWidth > 700 || !frame) return;
-    const style = boxStyle(bounds, width, height, displayRotation());
-    const w = (Number.parseFloat(style.width) / 100) * frame.clientWidth,
-      h = (Number.parseFloat(style.height) / 100) * frame.clientHeight;
-    if (w <= 0 || h <= 0) return;
-    const factor = Math.min(
-      (stage.clientWidth - 40) / w,
-      (stage.clientHeight - 40) / h,
-      24 / Math.min(w, h)
-    );
-    if (factor > 1.05) setZoom(Math.min(4, zoom() * factor));
-  }
-
-  function selectContent(next: boolean) {
-    if (disposed) return;
-    if (next && !previousView)
-      previousView = { zoom: zoom(), left: stage.scrollLeft, top: stage.scrollTop };
-    setSelection(next);
-    if (!next && previousView) {
-      const view = previousView;
-      previousView = undefined;
-      setZoom(view.zoom);
-      requestAnimationFrame(() => {
-        if (!disposed && !selection()) {
-          stage.scrollTo?.({ top: view.top, left: view.left, behavior: "instant" });
-          frame.focus({ preventScroll: true });
-        }
-      });
-    }
-  }
-
-  function startPinch(event: TouchEvent): void {
-    if (event.touches.length !== 2) return;
-    event.preventDefault();
-    const [first, second] = Array.from(event.touches);
-    pinchDistance = Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
-    pinchZoom = zoom();
-    const rect = frame.getBoundingClientRect();
-    pinchAnchor = {
-      x: ((first.clientX + second.clientX) / 2 - rect.left) / rect.width,
-      y: ((first.clientY + second.clientY) / 2 - rect.top) / rect.height,
-    };
-  }
-  function movePinch(event: TouchEvent): void {
-    if (event.touches.length !== 2 || !pinchDistance) return;
-    event.preventDefault();
-    const [first, second] = Array.from(event.touches);
-    const distance = Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
-    setZoom(Math.max(1, Math.min(4, (pinchZoom * distance) / pinchDistance)));
-    const rect = stage.getBoundingClientRect();
-    stage.scrollLeft =
-      frame.offsetLeft +
-      frame.clientWidth * pinchAnchor.x -
-      ((first.clientX + second.clientX) / 2 - rect.left);
-    stage.scrollTop =
-      frame.offsetTop +
-      frame.clientHeight * pinchAnchor.y -
-      ((first.clientY + second.clientY) / 2 - rect.top);
-  }
-  function endPinch(): void {
-    pinchDistance = 0;
-  }
-
   onMount(() => {
     mounted = true;
-    // Overlay controls are portaled into the page. Native listeners follow the physical
-    // DOM path, whereas Solid delegated events follow the portal's ownership tree.
-    stage.addEventListener("touchstart", startPinch, { passive: false });
-    stage.addEventListener("touchmove", movePinch, { passive: false });
-    stage.addEventListener("touchend", endPinch);
-    stage.addEventListener("touchcancel", endPinch);
-    reviewBackgrounds = Array.from(
-      (pane.closest(".editor-app") ?? pane.parentElement)?.querySelectorAll<HTMLElement>(
-        ".editor-header, .editor-workspace-main, .editor-tool-rail"
-      ) ?? []
-    );
-    reviewBackgrounds = reviewBackgrounds.filter((background) => !pane.contains(background));
-    for (const background of reviewBackgrounds) background.setAttribute("inert", "");
-    window.addEventListener("resize", requestResizeRender);
-    const updateViewport = () => {
-      const v = window.visualViewport;
-      if (v) setViewport({ height: v.height, top: v.offsetTop });
-    };
-    updateViewport();
-    window.visualViewport?.addEventListener("resize", updateViewport);
-    window.visualViewport?.addEventListener("scroll", updateViewport);
-    onCleanup(() => {
-      window.visualViewport?.removeEventListener("resize", updateViewport);
-      window.visualViewport?.removeEventListener("scroll", updateViewport);
-    });
-    queueMicrotask(() => pane?.focus());
+    setToolsMounted(true);
+    window.addEventListener("resize", handleResize);
     requestRender();
 
     if (typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(requestResizeRender);
+      let observedBounds = stage.getBoundingClientRect();
+      resizeObserver = new ResizeObserver(() => {
+        const bounds = stage.getBoundingClientRect();
+        // Initial delivery and scrollbar changes need no new bitmap. Window resize
+        // remains unconditional to account for DPR and same-size padding changes.
+        if (bounds.width === observedBounds.width && bounds.height === observedBounds.height)
+          return;
+        observedBounds = bounds;
+        handleResize();
+      });
       resizeObserver.observe(stage);
     }
   });
 
   onCleanup(() => {
     disposed = true;
-    stage.removeEventListener("touchstart", startPinch);
-    stage.removeEventListener("touchmove", movePinch);
-    stage.removeEventListener("touchend", endPinch);
-    stage.removeEventListener("touchcancel", endPinch);
     renderQueued = false;
+    endGesture();
     if (resizeTimer !== null) {
       window.clearTimeout(resizeTimer);
       resizeTimer = null;
     }
     resizeObserver?.disconnect();
     resizeObserver = null;
-    window.removeEventListener("resize", requestResizeRender);
-    for (const background of reviewBackgrounds) background.removeAttribute("inert");
-    reviewBackgrounds = [];
+    window.removeEventListener("resize", handleResize);
     const fiber = renderFiber;
-    renderFiber = null;
     if (fiber) {
       void Effect.runPromise(Fiber.interrupt(fiber)).catch(() => undefined);
+    } else {
+      staging.width = staging.height = 0;
     }
     canvas.width = 0;
     canvas.height = 0;
   });
 
   return (
-    <aside
-      ref={pane}
-      id="editor-page-review"
+    <section
+      id="editor-document"
       data-testid="editor-page-viewer"
       class="editor-review-pane"
-      classList={{
-        "is-editing": editing(),
-        "has-composer": selection(),
-        "has-filmstrip": showPages(),
-      }}
-      style={
-        viewport()
-          ? { height: `${viewport()?.height}px`, top: `${viewport()?.top}px`, bottom: "auto" }
-          : undefined
-      }
-      role="dialog"
-      tabIndex={-1}
-      aria-modal="true"
-      aria-labelledby="editor-review-title"
+      aria-label="Document preview"
       onKeyDown={handleKeyDown}
     >
-      <Show when={props.onContentChange}>
-        <EditorToolRail
-          activeTool={workspaceTool()}
-          busy={draft() || editBusy() || props.downloadBusy}
-          onChooseTool={(tool) => {
-            if (tool === "pages") props.onClose();
-            else {
-              setWorkspaceTool(tool);
-              props.onChooseTool?.(tool);
-            }
-          }}
-        />
-      </Show>
       <header class="editor-review-header">
-        <EditorButton
-          variant="plain"
-          ref={closeButton}
-          type="button"
-          data-testid="editor-page-viewer-close-button"
-          class="editor-review-close"
-          aria-label="Back to pages"
-          disabled={editBusy() || draft() || props.downloadBusy}
-          onClick={props.onClose}
-        >
-          <EditorIcon name="back" />
-          <span>Pages</span>
-        </EditorButton>
         <div class="editor-review-heading">
-          <span class="editor-review-source" title={currentPage()?.sourceFile.name}>
-            {currentPage()?.sourceFile.name}
-          </span>
-          <h2
-            id="editor-review-title"
-            data-testid="editor-viewer-title"
-            aria-label={`Page ${currentWorkspaceIndex() + 1}`}
-          >
+          <h2 id="editor-review-title" data-testid="editor-viewer-title">
             Page {currentWorkspaceIndex() + 1}
-            <span class="editor-review-position">
-              {" "}
-              · {currentNavigationIndex() + 1} of {navigationPages().length}
-            </span>
           </h2>
+          <span class="editor-review-position" aria-live="polite">
+            {currentNavigationIndex() + 1} of {navigationPages().length}
+            <Show when={currentPage()?.markedForDeletion}> · Marked for deletion</Show>
+          </span>
         </div>
-        <Show when={props.history}>
-          {(history) => (
-            <EditorHistoryControls {...history()} busy={history().busy || editBusy() || draft()} />
-          )}
-        </Show>
-        <Show when={props.onAddFiles}>
+        <div ref={textHeader} class="editor-text-header-tools" />
+        <fieldset class="editor-review-zoom" aria-label="Page zoom">
           <EditorButton
-            variant="plain"
-            type="button"
-            class="editor-review-add-files"
-            aria-label="Add PDFs or images"
-            title="Add files"
-            disabled={editBusy() || draft() || props.downloadBusy}
-            onClick={props.onAddFiles}
-          >
-            <EditorIcon name="plus" />
-          </EditorButton>
-        </Show>
-        <Show when={props.onDownload}>
+            ref={zoomOutButton}
+            aria-label="Zoom out"
+            title="Zoom out"
+            icon="minus"
+            disabled={!hasFrame() || zoom() <= 1}
+            onClick={() => changeZoom(zoom() / 1.4)}
+          />
           <EditorButton
-            variant="primary"
-            type="button"
-            class="editor-review-download"
-            disabled={
-              editBusy() || draft() || props.downloadBusy || props.downloadAvailable === false
-            }
-            onClick={props.onDownload}
-          >
-            <span>{props.downloadBusy ? "Preparing…" : "Download PDF"}</span>
-            <Show when={props.exportPageCount !== undefined}>
-              <small>
-                All {props.exportPageCount} {props.exportPageCount === 1 ? "page" : "pages"}
-              </small>
-            </Show>
-          </EditorButton>
-        </Show>
-      </header>
-
-      <Show when={currentPage()?.markedForDeletion}>
-        <p class="editor-review-deleted-notice" role="status">
-          This page is marked for deletion and excluded from downloads.
-        </p>
-      </Show>
-
-      <div
-        class="editor-review-body"
-        classList={{ "has-selection": selection(), "has-tool": workspaceTool() !== "read" }}
-        style={{ "--composer-height": `${composerHeight()}px` }}
-      >
-        <div
-          ref={stage}
-          class="editor-review-stage"
-          data-render-state={renderState()}
-          aria-busy={renderState() === "loading"}
-        >
-          <section
-            ref={frame}
-            class="editor-review-page"
-            aria-label={`Page ${currentWorkspaceIndex() + 1}`}
-            tabIndex={-1}
-            style={{
-              width: `${frameSize().width * zoom()}px`,
-              height: `${frameSize().height * zoom()}px`,
+            ref={fitButton}
+            aria-label="Fit page"
+            title="Fit page"
+            onClick={() => {
+              resetView();
+              requestResizeRender();
             }}
           >
-            <canvas
-              ref={canvas}
-              class="editor-review-canvas"
-              role="img"
-              aria-label={`Preview of page ${currentWorkspaceIndex() + 1}`}
-            >
-              Page preview.
-            </canvas>
-          </section>
-          <Show when={renderState() === "loading"}>
-            <p class="editor-review-state" role="status" aria-live="polite">
-              Loading page…
-            </p>
-          </Show>
-          <Show when={renderState() === "error"}>
-            <div class="editor-review-state editor-review-error" role="alert">
-              <span>Preview unavailable.</span>
-              <EditorButton
-                variant="plain"
-                type="button"
-                data-testid="editor-page-viewer-retry"
-                class="editor-review-retry"
-                onClick={retryRender}
-              >
-                Retry
-              </EditorButton>
-            </div>
+            Fit
+          </EditorButton>
+          <EditorButton
+            ref={zoomInButton}
+            aria-label="Zoom in"
+            title="Zoom in"
+            icon="plus"
+            disabled={!hasFrame() || zoom() >= 4}
+            onClick={() => changeZoom(zoom() * 1.4)}
+          />
+        </fieldset>
+      </header>
+
+      <section
+        ref={stage}
+        class="editor-review-stage"
+        classList={{ "is-panning": panning(), "is-zoomed": zoom() > 1 }}
+        data-zoom={zoom()}
+        aria-label="Page preview, use arrow keys to pan"
+        aria-describedby={props.onTextChange ? "editor-text-placement-help" : undefined}
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: The scroll region supports keyboard panning.
+        tabIndex={0}
+        onPointerDown={pointerDown}
+        onPointerMove={pointerMove}
+        onPointerUp={pointerEnd}
+        onPointerCancel={cancelGesture}
+        onLostPointerCapture={(event) => {
+          if (pointers.has(event.pointerId)) {
+            cancelGesture();
+          }
+        }}
+        data-render-state={renderState()}
+        aria-busy={renderState() === "loading"}
+      >
+        <div ref={frame} class="editor-review-page" style={{ opacity: hasFrame() ? 1 : 0 }}>
+          <canvas
+            ref={canvas}
+            width={0}
+            height={0}
+            class="editor-review-canvas"
+            role="img"
+            aria-label={`Preview of page ${currentWorkspaceIndex() + 1}`}
+          >
+            Page preview.
+          </canvas>
+          <Show when={toolsMounted() && props.onTextChange}>
+            {(onChange) => (
+              <Show when={currentPage()}>
+                {(page) => (
+                  <EditorAdditionsEditor
+                    page={page()}
+                    groupPageNumbers={props.pages
+                      .filter(
+                        (candidate) =>
+                          candidate.sourceFile === page().sourceFile &&
+                          candidate.fieldGroupId === page().fieldGroupId
+                      )
+                      .map((candidate) => candidate.sourcePageNumber)}
+                    onFieldChange={props.onFieldChange}
+                    runtime={props.runtime}
+                    toolbar={textToolbar}
+                    header={textHeader}
+                    stage={stage}
+                    ready={hasFrame() && !props.disabled}
+                    disabled={props.disabled}
+                    onChange={onChange()}
+                    onCheckmarksChange={props.onCheckmarksChange}
+                    onEditing={setEditingTextId}
+                    registerGesture={(handler) => {
+                      textGesture = handler;
+                    }}
+                    registerTap={(handler) => {
+                      pageTap = handler;
+                    }}
+                  />
+                )}
+              </Show>
+            )}
           </Show>
         </div>
-
-        <Show when={editing() && currentPage() && props.onContentChange}>
-          <EditorContentPanel
-            page={currentPage() as PageState}
-            runtime={props.runtime}
-            mode={workspaceTool()}
-            locked={props.downloadBusy}
-            onComposerHeight={setComposerHeight}
-            onFocusBounds={focusBounds}
-            onChange={(file, pageNumber) => props.onContentChange?.(file, pageNumber)}
-            onCheckpoint={props.onCheckpoint}
-            onBusy={setEditBusy}
-            onDraft={setDraft}
-            onSelection={selectContent}
-            overlayRoot={frame}
-            rotation={displayRotation()}
-          />
+        <Show when={renderState() === "loading" && !hasFrame()}>
+          <p class="editor-review-state" role="status" aria-live="polite">
+            Loading page…
+          </p>
         </Show>
-      </div>
+        <Show when={renderState() === "error"}>
+          <div class="editor-review-state editor-review-error" role="alert">
+            <span>Preview unavailable.</span>
+            <EditorButton
+              data-testid="editor-page-viewer-retry"
+              class="editor-review-retry"
+              onClick={retryRender}
+            >
+              Retry
+            </EditorButton>
+          </div>
+        </Show>
+      </section>
+
+      <div ref={textToolbar} class="editor-document-tools" tabIndex={-1} />
       <footer class="editor-review-bottom">
         <EditorButton
-          variant="plain"
-          type="button"
-          class="editor-review-pages-toggle"
-          aria-label="Show page thumbnails"
-          aria-expanded={showPages()}
-          onClick={() => setShowPages(!showPages())}
-          disabled={draft() || editBusy()}
-        >
-          <EditorIcon name="pages" />
-        </EditorButton>
-        <EditorButton
-          variant="plain"
-          type="button"
           data-testid="editor-page-viewer-previous"
           class="editor-review-nav"
           aria-label="Previous page"
-          disabled={editBusy() || draft() || currentNavigationIndex() <= 0}
+          disabled={currentNavigationIndex() <= 0}
           onClick={() => moveBy(-1)}
-        >
-          <EditorIcon name="previous" />
-        </EditorButton>
-        <label class="editor-review-page-jump">
-          <span class="sr-only">Go to page</span>
-          <select
-            aria-label="Go to page"
-            value={currentPage()?.id ?? ""}
-            disabled={draft() || editBusy() || props.downloadBusy}
-            onChange={(event) => selectPage(event.currentTarget.value)}
-          >
-            <For each={navigationPages()}>
-              {(page) => (
-                <option value={page.id}>
-                  {props.pages.findIndex((candidate) => candidate.id === page.id) + 1}
-                </option>
-              )}
-            </For>
-          </select>
-        </label>
+          icon="previous"
+        />
         <nav
           ref={filmstrip}
           class="editor-review-filmstrip"
-          aria-label="Page thumbnails"
+          aria-label="Document pages"
           onScroll={updateFilmstripWindow}
         >
           <span
@@ -764,8 +736,6 @@ export default function EditorPageViewer(props: Props) {
             {(page) => {
               const workspaceIndex = () =>
                 props.pages.findIndex((candidate) => candidate.id === page.id);
-              const navigationIndex = () =>
-                navigationPages().findIndex((candidate) => candidate.id === page.id);
 
               return (
                 <button
@@ -773,7 +743,7 @@ export default function EditorPageViewer(props: Props) {
                   class="editor-review-filmstrip-item"
                   classList={{ "is-active": currentPage()?.id === page.id }}
                   aria-current={currentPage()?.id === page.id ? "page" : undefined}
-                  aria-label={`Go to page ${workspaceIndex() + 1}`}
+                  aria-label={`View page ${workspaceIndex() + 1}`}
                   tabIndex={currentPage()?.id === page.id ? 0 : -1}
                   title={`Page ${workspaceIndex() + 1}`}
                   onClick={() => selectPage(page.id)}
@@ -785,7 +755,7 @@ export default function EditorPageViewer(props: Props) {
                     scrollRoot={filmstrip}
                     showRetry={false}
                   />
-                  <span>{navigationIndex() + 1}</span>
+                  <span>{workspaceIndex() + 1}</span>
                 </button>
               );
             }}
@@ -797,51 +767,14 @@ export default function EditorPageViewer(props: Props) {
           />
         </nav>
         <EditorButton
-          variant="plain"
-          type="button"
           data-testid="editor-page-viewer-next"
           class="editor-review-nav"
           aria-label="Next page"
-          disabled={
-            editBusy() || draft() || currentNavigationIndex() >= navigationPages().length - 1
-          }
+          disabled={currentNavigationIndex() >= navigationPages().length - 1}
           onClick={() => moveBy(1)}
-        >
-          <EditorIcon name="next" />
-        </EditorButton>
-        <fieldset class="editor-review-zoom" aria-label="Page zoom">
-          <EditorButton
-            variant="plain"
-            type="button"
-            aria-label="Zoom out"
-            disabled={zoom() <= 1}
-            onClick={() => setZoom(Math.max(1, zoom() / 1.4))}
-          >
-            <EditorIcon name="minus" />
-          </EditorButton>
-          <EditorButton
-            variant="plain"
-            type="button"
-            aria-label="Fit page"
-            onClick={() => {
-              setPageFit(pageFit() === "page" ? "width" : "page");
-              setZoom(1);
-              stage.scrollTo?.({ top: 0, left: 0 });
-            }}
-          >
-            {pageFit() === "page" ? "Width" : "Fit"}
-          </EditorButton>
-          <EditorButton
-            variant="plain"
-            type="button"
-            aria-label="Zoom in"
-            disabled={zoom() >= 4}
-            onClick={() => setZoom(Math.min(4, zoom() * 1.4))}
-          >
-            <EditorIcon name="plus" />
-          </EditorButton>
-        </fieldset>
+          icon="next"
+        />
       </footer>
-    </aside>
+    </section>
   );
 }

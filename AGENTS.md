@@ -19,26 +19,37 @@ The active product supports:
 - merging multiple PDFs into one working set
 - extracting selected pages into a new PDF
 - reordering pages with drag and drop
+- duplicating a page in the workspace, with independent rotation, deletion marking, and ordering
 - rotating pages in 90-degree steps, individually or by selection
 - marking pages for deletion before export
-- duplicating a supported page as an independently editable copy in the workspace
+- undoing and redoing up to 32 changes in the current session: rotation, deletion marking or restoration, reordering, duplication, and source additions or removals after the first successful open
+- retaining source history within a 48 MiB limit on unique inactive files, while keeping the newest change if it alone exceeds that limit
+- keeping undo and redo available when the last source is removed
 - unlocking password-protected PDFs with an in-browser prompt
 - locally rendered page thumbnails for inspection before export
+- organizing and reading in persistent Pages and Document views within one workspace
 - reviewing pages one at a time with previous/next navigation and a compact filmstrip
-- zooming and panning page previews, with direct placement of text and selection of supported text or form fields
+- adding, selecting, editing, dragging, rotating, and deleting one-line printable basic Latin text in Document view, using Helvetica
+- undoing and redoing saved text changes within the same session history
+- including saved text in page previews, thumbnails, PDF downloads, and PNG exports
+- filling supported visible, printable, embedded, unencrypted, single-line PDF text fields in Document view with printable basic Latin answers and Helvetica appearances
+- keeping linked original text widgets on one answer, while duplicated logical pages have independent answers
+- saving and clearing field answers, with session undo and redo, and including them in page previews, thumbnails, PDF downloads, and PNG exports
+- enforcing inherited text length limits and rejecting answers that do not fit every linked widget
+- manually adding, selecting, moving, resizing, rotating, and deleting vector checkmarks in Document view for flat or scanned forms
+- undoing and redoing saved checkmark changes, and including saved checkmarks in page previews, thumbnails, PDF downloads, and PNG exports
+- zooming page previews up to 4 times their fitted size, with pinch, drag, scroll, and keyboard panning
 - losslessly compressing an untouched, single uploaded PDF in the browser
 - exporting selected or active PDF pages as PNG images in a local ZIP archive
 - opening one or more PDFs and PNG or JPEG images together at initial upload, with images converted to PDF pages in the browser
 - adding one or more PDFs and PNG or JPEG images to an existing workspace, with images converted to PDF pages in the browser
 - removing a source file and its pages from the workspace
-- filling supported existing PDF text, checkbox, radio, and single-choice form fields in the browser
-- filling flat or scanned forms by manually placing basic Latin text and X marks on the page, then downloading the completed PDF
-- suggesting supported blank vector boxes and underlines as text or checkbox placement targets, with manual placement available on every page
-- undoing and redoing saved text and form edits, page organization changes, and added or removed sources within the current browser session
-- adding one line of basic Latin text to PDF pages in the browser with an explicit Helvetica font fallback and draggable draft placement and rotation
-- replacing supported original PDF text runs within their original width, with explicit Helvetica font fallback and overflow rejection
 
 These are the only current public product promises.
+
+### Draft PDFium experiment
+
+Draft PR #303 preserves an isolated PDFium workspace at `/pdfium/` for evaluation only. It is not part of the active product or a shipping migration. The default `/app/` editor and the public promises above remain the production baseline. Original text replacement, suggested form targets, and broader form editing belong only to that draft experiment. Do not link the experiment from public navigation or marketing.
 
 ### Non-Goals
 
@@ -46,6 +57,9 @@ The product does not include, and must not gain without this section changing fi
 
 - server-side PDF processing or uploads of any kind
 - accounts, signups, sync, or collaboration
+- automatic box detection, OCR, or original text replacement
+- filling encrypted, multiline, password, file-selection, combed, rich-text, read-only, scripted, XFA, or signed forms, or non-text field types
+- repairing exported AcroForm trees, validating form submission requirements, or promising that removing pages erases every associated answer
 - ads, tracking, analytics, cookies, or fingerprinting
 - unapproved speculative code kept only for possible future expansion
 - public promises for features that are not implemented

@@ -1,24 +1,45 @@
 import { Effect } from "effect";
+import { degrees, PageSizes, PDFDocument } from "pdf-lib";
 import { IMAGES_TO_PDF_FILENAME, OUTPUT_FILENAME } from "../constants";
 import type {
+  FieldAnswer,
   PageState,
   PDFBuildProgress,
   PDFError,
+  PDFFields,
   PDFOperationResult,
 } from "../types/interfaces";
 import { PDFNoPagesError, PDFProcessingError } from "../types/interfaces";
 import { getSupportedFileKind } from "../utils/file-types";
+import { type DocumentKey, type DocumentStore, makeDocumentStore } from "./document-store";
+import { drawPageAdditions } from "./pdf-additions";
 import { processingError } from "./pdf-errors";
+import { PDFExportCopy, type PDFExportSource, validatePDFSourcePages } from "./pdf-export-copy";
+import { applyFieldAnswers, inspectPDFFields } from "./pdf-fields";
 import type { PDFService } from "./pdf-service";
-import type { PDFiumImage } from "./pdfium/protocol";
+
+const ENCRYPTED_PAGE_RENDER_SCALE = 2;
 
 export interface PDFBuildOptions {
   readonly selectedIndices?: readonly number[];
+  readonly maxRasterPixels?: number;
   readonly onProgress?: (progress: PDFBuildProgress) => void;
 }
+
 export interface PDFImagesToPDFOptions {
   readonly onProgress?: (progress: PDFBuildProgress) => void;
 }
+
+function normalizeRotation(rotation: number): number {
+  const normalized = rotation % 360;
+  return normalized < 0 ? normalized + 360 : normalized;
+}
+
+function isSupportedImageFile(file: File): boolean {
+  const kind = getSupportedFileKind(file);
+  return kind === "png" || kind === "jpeg";
+}
+
 type JPEGOrientation = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 function readJpegOrientation(data: ArrayBuffer): JPEGOrientation {
@@ -77,50 +98,229 @@ function readJpegOrientation(data: ArrayBuffer): JPEGOrientation {
   return 1;
 }
 
+const SOURCE_DOCUMENT_VARIANT = "source";
+
+const sourceDocumentKey = (file: File): DocumentKey => ({
+  file,
+  variant: SOURCE_DOCUMENT_VARIANT,
+});
+
 export class PDFOperationsService {
-  constructor(private readonly pdfService: PDFService) {}
+  private readonly store: DocumentStore<PDFDocument>;
+
+  constructor(
+    private readonly pdfService: Pick<PDFService, "renderPage"> &
+      Partial<Pick<PDFService, "getPageGeometry">>
+  ) {
+    this.store = makeDocumentStore<PDFDocument>({
+      load: (key) => {
+        const file = key.file;
+        return Effect.tryPromise({
+          try: async () => {
+            const buffer = await file.arrayBuffer();
+            // ignoreEncryption allows pdf-lib to read the page tree. Encrypted page
+            // content is rasterized through the already-unlocked PDF.js document.
+            return PDFDocument.load(buffer, { ignoreEncryption: true });
+          },
+          catch: (cause) => processingError("load-source", file, cause),
+        });
+      },
+      cleanup: () => Effect.void,
+      releaseError: (file) =>
+        new PDFProcessingError({
+          operation: "release-source",
+          file,
+          cause: new Error("The source PDF was released before loading completed."),
+          message: "The source PDF was released before loading completed.",
+        }),
+    });
+  }
+
   clearCache(): Effect.Effect<void> {
-    return Effect.void;
+    return this.store.clear.pipe(Effect.catch((error) => Effect.logWarning(error)));
   }
-  releaseFile(_file: File): Effect.Effect<void> {
-    return Effect.void;
+
+  releaseFile(file: File): Effect.Effect<void> {
+    return this.store.releaseFile(file).pipe(Effect.catch((error) => Effect.logWarning(error)));
   }
+
   dispose(): Effect.Effect<void> {
-    return Effect.void;
+    return this.store.dispose();
   }
 
   imagesToPDF(
     files: readonly File[],
     options: PDFImagesToPDFOptions = {}
   ): Effect.Effect<PDFOperationResult, PDFProcessingError> {
-    if (
-      !files.length ||
-      files.some((file) => !["png", "jpeg"].includes(getSupportedFileKind(file) ?? ""))
-    )
+    const firstFile = files[0];
+    if (files.length === 0) {
       return Effect.fail(
         new PDFProcessingError({
           operation: "images-to-pdf",
-          cause: new Error("Unsupported image type"),
+          cause: new Error("No images selected"),
           message: "Choose at least one PNG or JPEG image.",
         })
       );
+    }
+
+    if (files.some((file) => !isSupportedImageFile(file))) {
+      return Effect.fail(
+        new PDFProcessingError({
+          operation: "images-to-pdf",
+          file: firstFile,
+          cause: new Error("Unsupported image type"),
+          message: "Only PNG and JPEG images can be converted to PDF.",
+        })
+      );
+    }
+
     return Effect.gen({ self: this }, function* () {
-      const images: PDFiumImage[] = [];
-      for (const file of files) {
-        const buffer = yield* Effect.tryPromise({
+      const outputDoc = yield* Effect.tryPromise({
+        try: () => PDFDocument.create(),
+        catch: (cause) => processingError("create-image-pdf", firstFile, cause),
+      });
+
+      for (const [index, file] of files.entries()) {
+        const bytes = yield* Effect.tryPromise({
           try: () => file.arrayBuffer(),
           catch: (cause) => processingError("read-image", file, cause),
         });
-        const kind = getSupportedFileKind(file) === "png" ? "png" : "jpeg";
-        images.push({
-          bytes: new Uint8Array(buffer),
-          kind,
-          orientation: kind === "jpeg" ? readJpegOrientation(buffer) : 1,
+        const image = yield* Effect.tryPromise({
+          try: () =>
+            getSupportedFileKind(file) === "png"
+              ? outputDoc.embedPng(bytes)
+              : outputDoc.embedJpg(bytes),
+          catch: (cause) => processingError("embed-image", file, cause),
+        });
+
+        yield* Effect.try({
+          try: () => {
+            const dimensions = image.scale(1);
+            const imageOrientation =
+              getSupportedFileKind(file) === "jpeg" ? readJpegOrientation(bytes) : 1;
+            const isQuarterTurn = imageOrientation >= 5;
+            const imageWidth = isQuarterTurn ? dimensions.height : dimensions.width;
+            const imageHeight = isQuarterTurn ? dimensions.width : dimensions.height;
+            const [a4Width, a4Height] = PageSizes.A4;
+            const pageWidth = imageWidth > imageHeight ? a4Height : a4Width;
+            const pageHeight = imageWidth > imageHeight ? a4Width : a4Height;
+            const scale = Math.min(pageWidth / imageWidth, pageHeight / imageHeight);
+            const drawWidth = dimensions.width * scale;
+            const drawHeight = dimensions.height * scale;
+            const x = (pageWidth - imageWidth * scale) / 2;
+            const y = (pageHeight - imageHeight * scale) / 2;
+            const page = outputDoc.addPage([pageWidth, pageHeight]);
+
+            switch (imageOrientation) {
+              case 2:
+                page.drawImage(image, {
+                  x: x + drawWidth,
+                  y,
+                  width: -drawWidth,
+                  height: drawHeight,
+                });
+                break;
+              case 3:
+                page.drawImage(image, {
+                  x: x + drawWidth,
+                  y: y + drawHeight,
+                  width: -drawWidth,
+                  height: -drawHeight,
+                });
+                break;
+              case 4:
+                page.drawImage(image, {
+                  x,
+                  y: y + drawHeight,
+                  width: drawWidth,
+                  height: -drawHeight,
+                });
+                break;
+              case 5:
+                page.drawImage(image, {
+                  x,
+                  y,
+                  width: drawWidth,
+                  height: -drawHeight,
+                  rotate: degrees(90),
+                });
+                break;
+              case 6:
+                page.drawImage(image, {
+                  x,
+                  y: y + drawWidth,
+                  width: drawWidth,
+                  height: drawHeight,
+                  rotate: degrees(-90),
+                });
+                break;
+              case 7:
+                page.drawImage(image, {
+                  x: x + drawHeight,
+                  y: y + drawWidth,
+                  width: -drawWidth,
+                  height: drawHeight,
+                  rotate: degrees(90),
+                });
+                break;
+              case 8:
+                page.drawImage(image, {
+                  x: x + drawHeight,
+                  y,
+                  width: drawWidth,
+                  height: drawHeight,
+                  rotate: degrees(90),
+                });
+                break;
+              default:
+                page.drawImage(image, {
+                  x,
+                  y,
+                  width: drawWidth,
+                  height: drawHeight,
+                });
+            }
+            options.onProgress?.({ completed: index + 1, total: files.length });
+          },
+          catch: (cause) => processingError("add-image-page", file, cause),
         });
       }
-      const data = yield* this.pdfService.imagesToPDF(images, files[0]);
-      options.onProgress?.({ completed: files.length, total: files.length });
-      return { data, suggestedFileName: IMAGES_TO_PDF_FILENAME };
+
+      const data = yield* Effect.tryPromise({
+        try: () => outputDoc.save(),
+        catch: (cause) => processingError("save-image-pdf", firstFile, cause),
+      });
+
+      return {
+        data,
+        suggestedFileName: IMAGES_TO_PDF_FILENAME,
+      };
+    });
+  }
+
+  getFields(file: File): Effect.Effect<PDFFields, PDFProcessingError> {
+    return Effect.tryPromise({
+      try: async () => {
+        const doc = await PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
+        if (!doc.isEncrypted) validatePDFSourcePages(doc, file);
+        return inspectPDFFields(doc);
+      },
+      catch: (cause) => processingError("read-fields", file, cause),
+    });
+  }
+
+  validateFieldAnswer(
+    file: File,
+    answer: FieldAnswer,
+    pageNumbers: readonly number[]
+  ): Effect.Effect<void, PDFProcessingError> {
+    return Effect.tryPromise({
+      try: async () => {
+        const doc = await PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
+        validatePDFSourcePages(doc, file);
+        await applyFieldAnswers(doc, [answer], pageNumbers);
+      },
+      catch: (cause) => processingError("fill-field", file, cause),
     });
   }
 
@@ -128,18 +328,250 @@ export class PDFOperationsService {
     pages: readonly PageState[],
     options: PDFBuildOptions = {}
   ): Effect.Effect<PDFOperationResult, PDFError> {
-    const selected = options.selectedIndices
+    const pagesToBuild = options.selectedIndices
       ? options.selectedIndices
           .map((index) => pages[index])
           .filter((page): page is PageState => Boolean(page) && !page.markedForDeletion)
       : pages.filter((page) => !page.markedForDeletion);
-    if (!selected.length)
+
+    if (pagesToBuild.length === 0) {
       return Effect.fail(new PDFNoPagesError({ message: "No pages to include in the PDF" }));
-    return this.pdfService.buildPages(selected).pipe(
-      Effect.map((data) => {
-        options.onProgress?.({ completed: selected.length, total: selected.length });
-        return { data, suggestedFileName: OUTPUT_FILENAME };
-      })
-    );
+    }
+
+    return Effect.gen({ self: this }, function* () {
+      const outputDoc = yield* Effect.tryPromise({
+        try: () => PDFDocument.create(),
+        catch: (cause) => processingError("create-output", pagesToBuild[0].sourceFile, cause),
+      });
+
+      const sourceDocuments = new Map<File, PDFDocument>();
+      const privateSources: PDFExportSource[] = [];
+      const scopes = new Map<File, Set<string>>();
+      for (const page of pagesToBuild) {
+        const sourceFile = page.sourceFile;
+        let source = sourceDocuments.get(sourceFile);
+        if (!source) {
+          source = yield* this.store.acquire(sourceDocumentKey(sourceFile));
+          const validatedSource = source;
+          yield* Effect.try({
+            try: () => validatePDFSourcePages(validatedSource, sourceFile),
+            catch: (cause) =>
+              cause instanceof PDFProcessingError
+                ? cause
+                : processingError("inspect-source", sourceFile, cause),
+          });
+          sourceDocuments.set(sourceFile, source);
+        }
+        if (source.isEncrypted) {
+          if (page.fieldAnswers?.length)
+            return yield* Effect.fail(
+              processingError(
+                "fill-field",
+                sourceFile,
+                new Error("Embedded filling is unavailable for protected PDFs.")
+              )
+            );
+          continue;
+        }
+        const scope = page.fieldAnswers?.length ? (page.fieldGroupId ?? "") : "";
+        const prepared = scopes.get(sourceFile) ?? new Set<string>();
+        if (prepared.has(scope)) continue;
+        prepared.add(scope);
+        scopes.set(sourceFile, prepared);
+        // Private per-build scopes never replace original Files or the cached source.
+        const doc = yield* Effect.tryPromise({
+          try: async () => {
+            const doc = await PDFDocument.load(await sourceFile.arrayBuffer());
+            const group = pages.filter(
+              (candidate) =>
+                candidate.sourceFile === sourceFile && candidate.fieldGroupId === page.fieldGroupId
+            );
+            if (
+              group.some(
+                (candidate) =>
+                  JSON.stringify(candidate.fieldAnswers ?? []) !==
+                  JSON.stringify(page.fieldAnswers ?? [])
+              )
+            )
+              throw new Error("Linked field answers differ.");
+            await applyFieldAnswers(
+              doc,
+              page.fieldAnswers ?? [],
+              group.map((candidate) => candidate.sourcePageNumber)
+            );
+            await doc.flush();
+            return doc;
+          },
+          catch: (cause) => processingError("prepare-export", sourceFile, cause),
+        });
+        privateSources.push({ file: sourceFile, doc, scope });
+      }
+      const exportCopy = yield* Effect.try({
+        try: () => new PDFExportCopy(outputDoc, privateSources),
+        catch: (cause) =>
+          cause instanceof PDFProcessingError
+            ? cause
+            : processingError("prepare-export", pagesToBuild[0].sourceFile, cause),
+      });
+
+      for (const [index, page] of pagesToBuild.entries()) {
+        const sourceDoc = sourceDocuments.get(page.sourceFile);
+        if (!sourceDoc)
+          return yield* Effect.fail(
+            processingError(
+              "prepare-export",
+              page.sourceFile,
+              new Error("The export source is unavailable.")
+            )
+          );
+        const isEncrypted = yield* Effect.try({
+          try: () => sourceDoc.isEncrypted,
+          catch: (cause) => processingError("inspect-source", page.sourceFile, cause),
+        });
+
+        if (isEncrypted) {
+          yield* this.addEncryptedPage(outputDoc, sourceDoc, page, options.maxRasterPixels);
+        } else {
+          const copiedPage = yield* Effect.tryPromise({
+            try: () =>
+              exportCopy.copy(
+                page.sourceFile,
+                page.sourcePageNumber,
+                page.fieldAnswers?.length ? (page.fieldGroupId ?? "") : ""
+              ),
+            catch: (cause) => processingError("copy-page", page.sourceFile, cause),
+          });
+          if (page.addedText?.length || page.addedCheckmarks?.length) {
+            if (!this.pdfService.getPageGeometry)
+              return yield* Effect.fail(
+                processingError(
+                  "draw-text",
+                  page.sourceFile,
+                  new Error("Page geometry is unavailable.")
+                )
+              );
+            const geometry = yield* this.pdfService.getPageGeometry(
+              page.sourceFile,
+              page.sourcePageNumber
+            );
+            yield* Effect.tryPromise({
+              try: () => drawPageAdditions(outputDoc, copiedPage, page, geometry),
+              catch: (cause) => processingError("draw-text", page.sourceFile, cause),
+            });
+          }
+          yield* Effect.try({
+            try: () => {
+              if (!copiedPage) {
+                throw new Error("PDF source page was not returned");
+              }
+
+              const sourceRotation = normalizeRotation(copiedPage.getRotation().angle);
+              const combinedRotation = normalizeRotation(sourceRotation + page.rotation);
+
+              if (combinedRotation !== sourceRotation) {
+                copiedPage.setRotation(degrees(combinedRotation));
+              }
+
+              outputDoc.addPage(copiedPage);
+            },
+            catch: (cause) => processingError("add-page", page.sourceFile, cause),
+          });
+        }
+
+        yield* Effect.try({
+          try: () => {
+            options.onProgress?.({ completed: index + 1, total: pagesToBuild.length });
+          },
+          catch: (cause) => processingError("report-progress", page.sourceFile, cause),
+        });
+      }
+
+      yield* Effect.tryPromise({
+        try: () => exportCopy.finish(),
+        catch: (cause) =>
+          cause instanceof PDFProcessingError
+            ? cause
+            : processingError("reconcile-export", pagesToBuild[0].sourceFile, cause),
+      });
+      const data = yield* Effect.tryPromise({
+        try: () => outputDoc.save(),
+        catch: (cause) => processingError("save-output", pagesToBuild[0].sourceFile, cause),
+      });
+
+      return { data, suggestedFileName: OUTPUT_FILENAME };
+    });
+  }
+
+  private addEncryptedPage(
+    outputDoc: PDFDocument,
+    sourceDoc: PDFDocument,
+    page: PageState,
+    maxRasterPixels?: number
+  ): Effect.Effect<void, PDFError> {
+    return Effect.gen({ self: this }, function* () {
+      const geometry = this.pdfService.getPageGeometry
+        ? yield* this.pdfService.getPageGeometry(page.sourceFile, page.sourcePageNumber)
+        : undefined;
+      if ((page.addedText?.length || page.addedCheckmarks?.length) && !geometry) {
+        return yield* Effect.fail(
+          processingError("draw-text", page.sourceFile, new Error("Page geometry is unavailable."))
+        );
+      }
+      const { combinedRotation, height, width } = yield* Effect.try({
+        try: () => {
+          const sourcePage = sourceDoc.getPage(page.sourcePageNumber - 1);
+          return {
+            combinedRotation: normalizeRotation(sourcePage.getRotation().angle + page.rotation),
+            height: geometry?.height ?? sourcePage.getHeight(),
+            width: geometry?.width ?? sourcePage.getWidth(),
+          };
+        },
+        catch: (cause) => processingError("prepare-page", page.sourceFile, cause),
+      });
+      return yield* Effect.acquireUseRelease(
+        Effect.try({
+          try: () => document.createElement("canvas"),
+          catch: (cause) => processingError("prepare-page", page.sourceFile, cause),
+        }),
+        (canvas) =>
+          Effect.gen({ self: this }, function* () {
+            yield* this.pdfService.renderPage(
+              page.sourceFile,
+              page.sourcePageNumber,
+              canvas,
+              maxRasterPixels === undefined
+                ? ENCRYPTED_PAGE_RENDER_SCALE
+                : Math.min(
+                    ENCRYPTED_PAGE_RENDER_SCALE,
+                    Math.sqrt(maxRasterPixels / (width * height))
+                  ),
+              0
+            );
+            const image = yield* Effect.tryPromise({
+              try: () => outputDoc.embedPng(canvas.toDataURL("image/png")),
+              catch: (cause) => processingError("embed-page", page.sourceFile, cause),
+            });
+            const outputPage = yield* Effect.try({
+              try: () => {
+                const outputPage = outputDoc.addPage([width, height]);
+                outputPage.drawImage(image, { x: 0, y: 0, width, height });
+                outputPage.setRotation(degrees(combinedRotation));
+                return outputPage;
+              },
+              catch: (cause) => processingError("add-page", page.sourceFile, cause),
+            });
+            if ((page.addedText?.length || page.addedCheckmarks?.length) && geometry) {
+              yield* Effect.tryPromise({
+                try: () => drawPageAdditions(outputDoc, outputPage, page, geometry, true),
+                catch: (cause) => processingError("draw-text", page.sourceFile, cause),
+              });
+            }
+          }),
+        (canvas) =>
+          Effect.sync(() => {
+            canvas.width = canvas.height = 0;
+          })
+      );
+    });
   }
 }

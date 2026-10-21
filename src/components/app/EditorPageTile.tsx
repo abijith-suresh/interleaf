@@ -3,7 +3,6 @@ import type { PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
 import EditorPageCanvas from "./EditorPageCanvas";
 import EditorButton from "./ui/EditorButton";
-import EditorIcon from "./ui/EditorIcon";
 
 const TOUCH_DRAG_DELAY_MS = 220;
 const TOUCH_DRAG_SLOP_PX = 8;
@@ -20,9 +19,8 @@ interface Props {
   onClick: () => void;
   onKeyDown: (e: KeyboardEvent) => void;
   onRotate: (e: MouseEvent) => void;
-  onDuplicate?: (event: MouseEvent) => void;
-  onOpen?: () => void;
   onDelete: (e: MouseEvent) => void;
+  onDuplicate: (e: MouseEvent) => void;
   onDragStart: (e: DragEvent) => void;
   onDragOver: (e: DragEvent) => void;
   onDragEnter: (e: DragEvent) => void;
@@ -128,6 +126,11 @@ export default function EditorPageTile(props: Props) {
     });
   });
 
+  const preventActionDrag = (event: DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
   const tileClass = () => {
     const classes = ["editor-page"];
     if (props.selected) classes.push("selected");
@@ -178,7 +181,6 @@ export default function EditorPageTile(props: Props) {
           aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
           disabled={props.busy}
           onClick={props.onClick}
-          onDblClick={props.onOpen}
           onKeyDown={props.onKeyDown}
         />
       </div>
@@ -188,19 +190,18 @@ export default function EditorPageTile(props: Props) {
         </span>
         <span class="page-action-buttons">
           <EditorButton
-            variant="plain"
-            type="button"
+            data-testid="editor-page-duplicate-button"
             class="btn-page-duplicate"
             title="Duplicate page"
             aria-label={`Duplicate page ${props.index + 1}`}
             disabled={props.busy}
+            draggable={false}
+            onDragStart={preventActionDrag}
             onClick={props.onDuplicate}
-          >
-            <EditorIcon name="copy" />
-          </EditorButton>
+            variant="plain"
+            icon="copy"
+          />
           <EditorButton
-            variant={props.page.markedForDeletion ? "plain" : "danger"}
-            type="button"
             data-testid="editor-page-delete-button"
             class="btn-page-delete"
             classList={{ "is-marked": props.page.markedForDeletion }}
@@ -213,23 +214,23 @@ export default function EditorPageTile(props: Props) {
             aria-pressed={props.page.markedForDeletion}
             disabled={props.busy}
             draggable={false}
+            onDragStart={preventActionDrag}
             onClick={props.onDelete}
-          >
-            <EditorIcon name={props.page.markedForDeletion ? "restore" : "delete"} />
-          </EditorButton>
+            variant="danger"
+            icon={props.page.markedForDeletion ? "restore" : "delete"}
+          />
           <EditorButton
-            variant="plain"
-            type="button"
             data-testid="editor-page-rotate-button"
             class="btn-page-rotate"
             title="Rotate 90°"
             aria-label={`Rotate page ${props.index + 1} 90 degrees`}
             disabled={props.busy}
             draggable={false}
+            onDragStart={preventActionDrag}
             onClick={props.onRotate}
-          >
-            <EditorIcon name="rotate" />
-          </EditorButton>
+            variant="plain"
+            icon="rotate"
+          />
         </span>
       </div>
     </li>

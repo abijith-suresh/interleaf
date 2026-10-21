@@ -5,7 +5,7 @@ import { defineConfig } from "astro/config";
 
 // https://astro.build/config
 export default defineConfig({
-  integrations: [solid(), sitemap()],
+  integrations: [solid(), sitemap({ filter: (page) => new URL(page).pathname !== "/pdfium/" })],
   site: "https://www.interleaf.cc",
   vite: {
     plugins: [tailwindcss()],

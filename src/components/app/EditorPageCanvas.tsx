@@ -1,6 +1,8 @@
 import { Effect, Fiber } from "effect";
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { THUMBNAIL_INTERSECTION_MARGIN, THUMBNAIL_SCALE } from "../../constants";
+import { hasPageAdditions } from "../../controllers/editor-additions-state";
+import { copyOrganizationPages } from "../../controllers/editor-history";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
 
@@ -25,7 +27,8 @@ export default function EditorPageCanvas(props: Props) {
   let renderFiber: Fiber.Fiber<unknown, unknown> | null = null;
   let disposed = false;
   let intersecting = false;
-  let dirty = true;
+  let needsRender = true;
+  let renderCancelled = false;
   let releaseTimer: ReturnType<typeof setTimeout> | undefined;
 
   const frameStyle = () => {
@@ -54,26 +57,38 @@ export default function EditorPageCanvas(props: Props) {
 
   const canUpdateRenderState = () => !disposed && container.isConnected;
 
-  const cancelPendingRender = () => {
-    const fiber = renderFiber;
-    if (!fiber) return;
-    renderFiber = null;
-    dirty = true;
-    void Effect.runPromise(Fiber.interrupt(fiber)).catch(() => undefined);
-  };
-
   const clearReleaseTimer = () => {
-    if (releaseTimer === undefined) return;
     clearTimeout(releaseTimer);
     releaseTimer = undefined;
   };
 
-  const renderThumbnail = () => {
-    if (disposed || !intersecting || !dirty || renderFiber !== null) return;
+  const releaseBitmap = () => {
+    canvas.width = 0;
+    canvas.height = 0;
+    if (renderState() !== "error") {
+      needsRender = true;
+      if (canUpdateRenderState()) setRenderState("loading");
+    }
+  };
 
-    dirty = false;
-    // Leave the last frame visible while a revision renders. Clearing it here causes flashes.
-    if (canvas.width === 0 || canvas.height === 0) setRenderState("loading");
+  const cancelPendingRender = () => {
+    if (!renderFiber || renderCancelled) return;
+    renderCancelled = true;
+    needsRender = true;
+    // Keep the fiber until PDF.js cancellation and page cleanup finish. Reentry must
+    // not resize or reuse a canvas that PDF.js can still write into.
+    void Effect.runPromise(Fiber.interrupt(renderFiber)).catch(() => undefined);
+  };
+
+  const renderThumbnail = () => {
+    if (disposed || !intersecting || !needsRender || renderFiber !== null) return;
+
+    needsRender = false;
+    renderCancelled = false;
+
+    canvas.width = 0;
+    canvas.height = 0;
+    setRenderState("loading");
 
     let fiber: Fiber.Fiber<unknown, unknown>;
     try {
@@ -84,13 +99,22 @@ export default function EditorPageCanvas(props: Props) {
               props.page.sourceFile,
               props.page.sourcePageNumber
             );
-            yield* service.renderPage(
-              props.page.sourceFile,
-              props.page.sourcePageNumber,
-              canvas,
-              THUMBNAIL_SCALE,
-              sourceRotation
-            );
+            if (hasPageAdditions(props.page)) {
+              yield* service.renderPageState(
+                copyOrganizationPages([props.page])[0],
+                canvas,
+                THUMBNAIL_SCALE,
+                sourceRotation,
+                4_000_000
+              );
+            } else
+              yield* service.renderPage(
+                props.page.sourceFile,
+                props.page.sourcePageNumber,
+                canvas,
+                THUMBNAIL_SCALE,
+                sourceRotation
+              );
           })
         )
       );
@@ -102,18 +126,19 @@ export default function EditorPageCanvas(props: Props) {
     }
     renderFiber = fiber;
 
-    void props.runtime
-      .runPromise(Fiber.join(fiber))
+    // Observe completion outside the managed runtime so runtime disposal cannot
+    // interrupt this wait before the renderer's finalizers finish.
+    void Effect.runPromise(Fiber.join(fiber))
       .then(
         () => {
-          if (!canUpdateRenderState() || renderFiber !== fiber) return;
+          if (!canUpdateRenderState() || renderCancelled) return;
           if (canvas.width > 0 && canvas.height > 0) {
             setBaseAspectRatio(canvas.width / canvas.height);
           }
           setRenderState("ready");
         },
         () => {
-          if (canUpdateRenderState() && renderFiber === fiber) {
+          if (canUpdateRenderState() && !renderCancelled) {
             setRenderState("error");
           }
         }
@@ -121,6 +146,9 @@ export default function EditorPageCanvas(props: Props) {
       .finally(() => {
         if (renderFiber === fiber) {
           renderFiber = null;
+          // Interrupted canvases may contain partial pixels. Clear them only once
+          // the renderer has settled, including after disposal or a quick reentry.
+          if (renderCancelled || disposed) releaseBitmap();
           renderThumbnail();
         }
       });
@@ -133,28 +161,23 @@ export default function EditorPageCanvas(props: Props) {
     let nextObserver!: IntersectionObserver;
     nextObserver = new IntersectionObserver(
       (entries) => {
-        if (observer !== nextObserver) return;
-        const entry = entries.find((entry) => entry.target === container);
+        if (disposed || observer !== nextObserver) return;
+        const entry = entries.filter((entry) => entry.target === container).at(-1);
         if (!entry) return;
+
         intersecting = entry.isIntersecting;
         if (intersecting) {
           clearReleaseTimer();
+          renderThumbnail();
         } else {
           cancelPendingRender();
           if (releaseTimer === undefined && (canvas.width > 0 || canvas.height > 0)) {
             releaseTimer = setTimeout(() => {
               releaseTimer = undefined;
-              if (!canUpdateRenderState() || intersecting) return;
-              // The service keeps a bounded cache, so page canvases need not retain every
-              // bitmap ever visited. A short grace period avoids churn on quick scrolls.
-              canvas.width = 0;
-              canvas.height = 0;
-              dirty = true;
-              if (renderState() !== "error") setRenderState("loading");
+              if (!disposed && !intersecting && renderFiber === null) releaseBitmap();
             }, OFFSCREEN_RELEASE_DELAY);
           }
         }
-        renderThumbnail();
       },
       {
         root: props.scrollRoot,
@@ -173,14 +196,21 @@ export default function EditorPageCanvas(props: Props) {
 
     if (renderState() !== "error" || disposed) return;
     setRenderState("loading");
-    dirty = true;
+    needsRender = true;
     renderThumbnail();
   };
 
   createEffect(() => {
-    void props.page.contentRevision;
-    dirty = true;
-    renderThumbnail();
+    JSON.stringify([
+      props.page.addedText ?? [],
+      props.page.addedCheckmarks ?? [],
+      props.page.fieldAnswers ?? [],
+    ]);
+    needsRender = true;
+    if (observer) {
+      cancelPendingRender();
+      renderThumbnail();
+    }
   });
 
   onMount(() => {
@@ -190,8 +220,7 @@ export default function EditorPageCanvas(props: Props) {
       disposed = true;
       clearReleaseTimer();
       cancelPendingRender();
-      canvas.width = 0;
-      canvas.height = 0;
+      if (renderFiber === null) releaseBitmap();
       observer?.disconnect();
       observer = null;
     });

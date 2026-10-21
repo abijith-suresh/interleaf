@@ -8,24 +8,23 @@ export interface WorkspaceFile {
 
 /**
  * Build the source-file index used by the workspace file drawer and selection
- * actions. Derived page files retain their original source group. File identity
- * is intentional: two uploaded files with the same name remain separate sources.
+ * actions. File identity is intentional: two files with the same name remain
+ * separate sources.
  */
 export function groupWorkspaceFiles(
-  pages: readonly Pick<PageState, "sourceFile" | "sourceOrigin">[]
+  pages: readonly Pick<PageState, "sourceFile">[]
 ): WorkspaceFile[] {
   const groups = new Map<File, { file: File; pageIndices: number[] }>();
 
   pages.forEach((page, index) => {
-    const source = page.sourceOrigin ?? page.sourceFile;
-    const group = groups.get(source);
+    const group = groups.get(page.sourceFile);
     if (group) {
       group.pageIndices.push(index);
       return;
     }
 
-    groups.set(source, {
-      file: source,
+    groups.set(page.sourceFile, {
+      file: page.sourceFile,
       pageIndices: [index],
     });
   });

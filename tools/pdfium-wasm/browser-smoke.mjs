@@ -12,8 +12,8 @@ import {
   createPngFile,
   formBytes,
   sharedFormBytes,
-} from "../../src/services/__tests__/pdf-fixtures.ts";
-import { PDFiumEngine } from "../../src/services/pdfium/engine.ts";
+} from "../../src/experimental/pdfium/services/__tests__/pdf-fixtures.ts";
+import { PDFiumEngine } from "../../src/experimental/pdfium/services/pdfium/engine.ts";
 
 // The runner is a development tool. Its optional dependency is separate from application dependencies.
 const runnerPath = process.argv[3];
@@ -49,8 +49,63 @@ function observe(context, page) {
 }
 observe(context, page);
 
-async function openFiles(files) {
+async function assertRouteIsolation() {
+  const appearance = () =>
+    page.evaluate(() => {
+      const selectors = ["body", ".editor-header", ".editor-dropzone"];
+      return selectors.map((selector) => {
+        const style = getComputedStyle(document.querySelector(selector));
+        return [style.backgroundColor, style.padding, style.fontSize, style.height];
+      });
+    });
+  const navigate = async (path) => {
+    await page.evaluate((href) => {
+      const link = document.createElement("a");
+      link.href = href;
+      link.textContent = "Route isolation check";
+      link.id = "route-isolation-check";
+      link.style.cssText = "position:fixed;top:0;left:0;z-index:9999;background:white";
+      document.body.append(link);
+    }, path);
+    await page.locator("#route-isolation-check").click();
+    await page.waitForURL(`${origin}${path}`);
+    await page.getByTestId("editor-upload-input").waitFor({ state: "attached" });
+  };
+
   await page.goto(`${origin}/app/`);
+  await page.getByTestId("editor-upload-input").waitFor({ state: "attached" });
+  assert.equal(await page.locator('a[href*="pdfium"]').count(), 0);
+  const baseline = await appearance();
+  await page.evaluate(() => {
+    window.__pdfiumRouteIsolation = true;
+  });
+  await navigate("/pdfium/");
+  assert.equal(await page.title(), "Experimental PDFium workspace — Interleaf");
+  assert.equal(
+    await page.locator('meta[name="robots"]').getAttribute("content"),
+    "noindex, nofollow"
+  );
+  await page.getByText("Experimental", { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => window.__pdfiumRouteIsolation), true);
+  const css = await page.evaluate(() =>
+    Array.from(document.styleSheets)
+      .flatMap((sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText))
+      .filter((rule) => rule.includes("pdfium-experiment"))
+      .join("\n")
+  );
+  assert.ok(css.includes("@scope"));
+  await navigate("/app/");
+  assert.equal(await page.evaluate(() => window.__pdfiumRouteIsolation), true);
+  // Also verify a retained experimental stylesheet cannot change the default editor.
+  await page.addStyleTag({ content: css });
+  assert.deepEqual(await appearance(), baseline);
+  assert.equal(await page.getByText("Experimental", { exact: true }).count(), 0);
+  const sitemap = await (await page.request.get(`${origin}/sitemap-0.xml`)).text();
+  assert.equal(sitemap.includes("/pdfium/"), false);
+}
+
+async function openFiles(files) {
+  await page.goto(`${origin}/pdfium/`);
   await page.locator("input[type=file]").first().setInputFiles(files);
   await page.locator("[data-testid=editor-page-canvas][data-render-state=ready]").first().waitFor();
 }
@@ -332,6 +387,7 @@ async function pinchWithoutPlacing(context) {
 }
 
 try {
+  await assertRouteIsolation();
   const formPath = join(directory, "forms.pdf");
   await writeFile(formPath, formBytes());
   await openFiles([formPath]);
@@ -586,8 +642,15 @@ try {
     "base64"
   );
   await writeFile(encryptedPath, encrypted);
-  await page.goto(`${origin}/app/`);
+  await page.goto(`${origin}/pdfium/`);
   await page.locator("input[type=file]").first().setInputFiles(encryptedPath);
+  await page.getByLabel("PDF password").waitFor();
+  assert.equal(
+    await page
+      .locator(".password-modal-backdrop")
+      .evaluate((node) => getComputedStyle(node).position),
+    "fixed"
+  );
   await page.getByLabel("PDF password").fill("wwwww");
   await page.getByRole("button", { name: "Unlock", exact: true }).click();
   await page.locator("[data-testid=editor-page-canvas][data-render-state=ready]").first().waitFor();

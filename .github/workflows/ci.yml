@@ -13,7 +13,7 @@ concurrency:
 jobs:
   ci:
     name: CI
-    uses: abijith-suresh/workflows/.github/workflows/ci.yml@9c9e55ab629eafe5b5edbae9857b1d66fb384f8c # 0.8.1
+    uses: ./.github/workflows/verify.yml
     permissions:
       contents: read
 
@@ -31,21 +31,19 @@ jobs:
 
   pdfium-browser:
     name: pdfium-browser
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          node-version: 24
+          persist-credentials: false
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.1
+      - name: Install tools from mise.toml
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
 
       - name: Install and build application
         run: |
@@ -59,7 +57,7 @@ jobs:
         run: |
           python3 -m http.server 4873 --bind 127.0.0.1 --directory dist >/tmp/interleaf-http.log 2>&1 &
           for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:4873/app/ >/dev/null; then break; fi
+            if curl --fail --silent http://127.0.0.1:4873/pdfium/ >/dev/null; then break; fi
             sleep 1
           done
           bun tools/pdfium-wasm/browser-smoke.mjs http://127.0.0.1:4873
@@ -70,7 +68,6 @@ jobs:
     if: ${{ !cancelled() }}
     needs: [ci, dependency-review, qpdf, pdfium-browser]
     permissions: {}
-
 
     steps:
       - name: Require checks to pass
@@ -87,6 +84,5 @@ jobs:
             echo "dependency-review: $DEPENDENCY_REVIEW_RESULT" >&2
             echo "qpdf: $QPDF_RESULT" >&2
             echo "pdfium-browser: $PDFIUM_BROWSER_RESULT" >&2
-
             exit 1
           fi

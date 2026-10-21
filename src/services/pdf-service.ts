@@ -1,131 +1,86 @@
-import { Effect, Option } from "effect";
+import { Cause, Deferred, Effect, Exit, Fiber, Option, Semaphore } from "effect";
+import type * as pdfjsLib from "pdfjs-dist";
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { hasPageAdditions } from "../controllers/editor-additions-state";
 import {
+  type PageGeometry,
+  type PageState,
   type PDFError,
   PDFPasswordRequiredError,
   type PDFProcessingError,
 } from "../types/interfaces";
 import { type DocumentKey, makeDocumentStore } from "./document-store";
-import type { PDFDocumentCheckpoint } from "./pdf-checkpoint";
-import { processingError } from "./pdf-errors";
-import { PDFReadCache } from "./pdfium/cache";
-import { PDFiumClient, PDFiumClientError } from "./pdfium/client";
-import type { PDFContentEdit, PDFiumCommands, PDFiumImage, PDFiumPageRef } from "./pdfium/protocol";
+import { PageRenderer } from "./page-renderer";
+import { PageResources } from "./page-resources";
+import { collectFirstError, processingError } from "./pdf-errors";
 
-type LoadedPDF = { file: File; id: number; count: number; revision: number };
-type PageInfo = PDFiumCommands["info"]["output"];
-type RenderedPage = PDFiumCommands["render"]["output"];
-type PageContent = PDFiumCommands["content"]["output"];
+let pdfjsModule: Promise<typeof pdfjsLib> | null = null;
+
+function loadPdfjs(): Promise<typeof pdfjsLib> {
+  pdfjsModule ??= import("pdfjs-dist").then((module) => {
+    module.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+    return module;
+  });
+  return pdfjsModule;
+}
+
+interface PageMetadata extends PageGeometry {
+  readonly rotation: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+// Adapt the prototype's entry cap per loaded document, retaining only scalars.
+const PAGE_METADATA_LIMIT = 512;
+
+interface LoadedPDFRecord {
+  // PDF.js is enough for page counts, password handling, and thumbnails. The
+  // export service loads pdf-lib only when it needs to build a new document.
+  readonly file: File;
+  readonly pdfjsDocument: pdfjsLib.PDFDocumentProxy;
+  readonly loadingTask: ReturnType<typeof pdfjsLib.getDocument>;
+  readonly pageMetadata: Map<number, PageMetadata>;
+  readonly measuring: Map<number, Deferred.Deferred<Exit.Exit<PageMetadata, PDFProcessingError>>>;
+}
+
+function isPasswordException(cause: unknown): boolean {
+  return (
+    typeof cause === "object" &&
+    cause !== null &&
+    "name" in cause &&
+    cause.name === "PasswordException"
+  );
+}
+
+const AUTO_VARIANT = "auto";
+const PASSWORD_VARIANT_PREFIX = "password:";
 
 export class PDFService {
   private activeFile: File | null = null;
-  private passwords = new Map<File, string>();
-  private readonly loadOverrides = new Map<File, PDFDocumentCheckpoint>();
-  private readonly infoCache = new PDFReadCache<PageInfo>(64 * 1024, 512);
-  private readonly contentCache = new PDFReadCache<PageContent>(2 * 1024 * 1024, 24);
-  private readonly renderCache = new PDFReadCache<RenderedPage>(24 * 1024 * 1024, 48);
-  private readonly inspecting = new Map<string, Promise<PageContent>>();
-  private readonly measuring = new Map<string, Promise<PageInfo>>();
-  private readonly documents = makeDocumentStore<LoadedPDF>({
-    load: (key) => this.loadRecord(key),
-    cleanup: (record) =>
-      this.command(record.file, "close", async () => {
-        this.invalidate(record);
-        this.infoCache.invalidate(record.id);
-        await this.client.request("close", { id: record.id });
-      }),
+  private passwordRegistry = new Map<File, string>();
+  private readonly documents = makeDocumentStore<LoadedPDFRecord>({
+    load: (key) => this.loadDocumentRecord(key),
+    cleanup: (record) => this.cleanupRecord(record),
+    drain: (file) => this.pageResources.drain(file),
   });
-
-  constructor(
-    readonly client: Pick<PDFiumClient, "request" | "dispose"> &
-      Partial<Pick<PDFiumClient, "preload">> = new PDFiumClient()
-  ) {}
-
-  preload(): Effect.Effect<void> {
-    // Background initialization errors remain visible on the next user operation.
-    return Effect.sync(() => {
-      try {
-        this.client.preload?.();
-      } catch {
-        /* surfaced by the next command */
-      }
-    });
-  }
-
-  private invalidate(doc: LoadedPDF): void {
-    doc.revision++;
-    this.infoCache.invalidate(doc.id);
-    this.contentCache.invalidate(doc.id);
-    this.renderCache.invalidate(doc.id);
-  }
-
-  private info(doc: LoadedPDF, page: number): Promise<PageInfo> {
-    const key = `${doc.id}:${page}:${doc.revision}`;
-    const cached = this.infoCache.get(key);
-    if (cached) return Promise.resolve(cached);
-    const pending = this.measuring.get(key);
-    if (pending) return pending;
-    const revision = doc.revision;
-    const request = this.client
-      .request("info", { id: doc.id, page, rotation: 0 })
-      .then((info) => {
-        if (doc.revision === revision) this.infoCache.set(key, info, 48);
-        return info;
-      })
-      .finally(() => this.measuring.delete(key));
-    this.measuring.set(key, request);
-    return request;
-  }
-
-  private command<A>(
-    file: File,
-    operation: string,
-    run: (signal: AbortSignal) => Promise<A>
-  ): Effect.Effect<A, PDFProcessingError> {
-    return Effect.tryPromise({
-      try: run,
-      catch: (cause) => processingError(operation, file, cause),
-    });
-  }
-
-  private loadRecord(key: DocumentKey): Effect.Effect<LoadedPDF, PDFError> {
-    const checkpoint = this.loadOverrides.get(key.file);
-    const password = checkpoint
-      ? undefined
-      : key.variant.startsWith("password:")
-        ? key.variant.slice(9)
-        : this.passwords.get(key.file);
-    return Effect.tryPromise({
-      try: async (signal) => {
-        const buffer = checkpoint ? checkpoint.bytes.slice().buffer : await key.file.arrayBuffer();
-        if (signal.aborted) throw new Error("PDF loading was cancelled.");
-        const result = await this.client.request(
-          "open",
-          { bytes: new Uint8Array(buffer), password },
-          [buffer]
-        );
-        if (signal.aborted) {
-          await this.client.request("close", { id: result.id });
-          throw new Error("PDF loading was cancelled.");
-        }
-        return { ...result, file: key.file, revision: 0 };
-      },
-      catch: (cause) =>
-        cause instanceof PDFiumClientError && cause.password
-          ? new PDFPasswordRequiredError(key.file, password ? "wrong-password" : "needs-password")
-          : processingError("load-pdf", key.file, cause),
-    });
-  }
+  private readonly pageResources = new PageResources();
+  private readonly pageRenderer = new PageRenderer();
+  // Bound source reads and PDF generation too, before the shared bitmap permit.
+  private readonly editedRenders = Semaphore.makeUnsafe(2);
 
   loadPDF(file: File): Effect.Effect<void, PDFError> {
     const version = this.documents.version(file);
+
     return this.documents.gate(
       file,
       "load-pdf"
     )(
-      this.documents.acquire({ file, variant: "auto" }).pipe(
+      this.documents.acquire({ file, variant: AUTO_VARIANT }).pipe(
         Effect.tap(() =>
           Effect.sync(() => {
-            if (this.documents.isCurrent(file, version)) this.activeFile = file;
+            if (this.documents.isCurrent(file, version)) {
+              this.activeFile = file;
+            }
           })
         ),
         Effect.asVoid
@@ -135,25 +90,29 @@ export class PDFService {
 
   loadPDFWithPassword(file: File, password: string): Effect.Effect<void, PDFError> {
     const version = this.documents.version(file);
+
     return this.documents.gate(
       file,
       "load-pdf-with-password"
     )(
       Effect.suspend(() => {
-        const previous = this.passwords.get(file);
-        if (previous !== undefined && previous !== password)
+        const storedPassword = this.passwordRegistry.get(file);
+        if (storedPassword !== undefined && storedPassword !== password) {
           return Effect.fail(new PDFPasswordRequiredError(file, "wrong-password"));
-        return this.documents.acquire({ file, variant: `password:${password}` }).pipe(
-          Effect.tap(() =>
-            Effect.sync(() => {
-              if (this.documents.isCurrent(file, version)) {
-                this.passwords.set(file, password);
+        }
+
+        return this.documents
+          .acquire({ file, variant: `${PASSWORD_VARIANT_PREFIX}${password}` })
+          .pipe(
+            Effect.tap(() =>
+              Effect.sync(() => {
+                if (!this.documents.isCurrent(file, version)) return;
+                this.passwordRegistry.set(file, password);
                 this.activeFile = file;
-              }
-            })
-          ),
-          Effect.asVoid
-        );
+              })
+            ),
+            Effect.asVoid
+          );
       })
     );
   }
@@ -162,46 +121,217 @@ export class PDFService {
     if (!this.activeFile) return 0;
     return Option.match(this.documents.peek(this.activeFile), {
       onNone: () => 0,
-      onSome: (doc) => doc.count,
+      onSome: (record) => record.pdfjsDocument.numPages,
     });
   }
 
   getPassword(file: File): string | undefined {
-    return this.passwords.get(file);
+    return this.passwordRegistry.get(file);
   }
 
-  private withDocument<A>(
-    file: File,
-    operation: string,
-    use: (record: LoadedPDF, signal: AbortSignal) => Promise<A>
-  ): Effect.Effect<A, PDFError> {
+  getPageRotation(file: File, pageNumber: number): Effect.Effect<number, PDFError> {
     return this.documents.track(
       file,
-      operation
+      "get-page-rotation"
     )(
-      Effect.flatMap(this.documents.acquire({ file, variant: "auto" }), (record) =>
-        this.command(file, operation, (signal) => use(record, signal))
+      Effect.gen({ self: this }, function* () {
+        const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
+        const metadata = yield* this.getPageMetadata(record, pageNumber, "get-page-rotation");
+        return metadata.rotation;
+      })
+    );
+  }
+
+  getPageSize(
+    file: File,
+    pageNumber: number,
+    rotation = 0
+  ): Effect.Effect<{ readonly width: number; readonly height: number }, PDFError> {
+    return this.documents.track(
+      file,
+      "get-page-size"
+    )(
+      Effect.gen({ self: this }, function* () {
+        const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
+        const metadata = yield* this.getPageMetadata(record, pageNumber, "get-page-size");
+        return yield* Effect.try({
+          try: () => {
+            // PDF.js normalizes requested rotations before accepting quarter-turns.
+            let normalized = rotation % 360;
+            if (normalized < 0) normalized += 360;
+            switch (normalized) {
+              case 0:
+              case 180:
+                return { width: metadata.width, height: metadata.height };
+              case 90:
+              case 270:
+                return { width: metadata.height, height: metadata.width };
+              default:
+                throw new Error(
+                  "PageViewport: Invalid rotation, must be a multiple of 90 degrees."
+                );
+            }
+          },
+          catch: (cause) => processingError("get-page-size", file, cause),
+        });
+      })
+    );
+  }
+
+  getPageGeometry(file: File, pageNumber: number): Effect.Effect<PageGeometry, PDFError> {
+    return this.documents.track(
+      file,
+      "get-page-geometry"
+    )(
+      Effect.gen({ self: this }, function* () {
+        const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
+        return yield* this.getPageMetadata(record, pageNumber, "get-page-geometry");
+      })
+    );
+  }
+
+  renderPageState(
+    page: PageState,
+    canvas: HTMLCanvasElement,
+    scale: number,
+    rotation: number,
+    maxRasterPixels?: number
+  ): Effect.Effect<void, PDFError> {
+    if (!hasPageAdditions(page))
+      return this.renderPage(page.sourceFile, page.sourcePageNumber, canvas, scale, rotation);
+    // No derived-document cache. The temporary file lives until render cancellation
+    // and page cleanup settle, then its loading task is destroyed.
+    return this.documents.track(
+      page.sourceFile,
+      "render-edited-page"
+    )(
+      this.editedRenders.withPermit(
+        Effect.gen({ self: this }, function* () {
+          const { PDFOperationsService } = yield* Effect.tryPromise({
+            try: () => import("./pdf-operations-service"),
+            catch: (cause) => processingError("load-text-renderer", page.sourceFile, cause),
+          });
+          return yield* Effect.acquireUseRelease(
+            Effect.sync(() => new PDFOperationsService(this)),
+            (operations) =>
+              Effect.gen({ self: this }, function* () {
+                // Source metadata/render calls track their own fiber. Keep this
+                // outer source operation registered until derived cleanup completes.
+                const result = yield* Effect.acquireUseRelease(
+                  Effect.forkChild(
+                    operations.buildPDF([{ ...page, rotation: 0, markedForDeletion: false }], {
+                      maxRasterPixels,
+                    })
+                  ),
+                  Fiber.join,
+                  (fiber) => Fiber.interrupt(fiber).pipe(Effect.asVoid)
+                );
+                const temporary = new File([new Uint8Array(result.data)], "edited-page.pdf", {
+                  type: "application/pdf",
+                });
+                // This store must be separate from the source store. A source reset
+                // waits for this fiber; its finalizer must not await that reset barrier.
+                yield* Effect.acquireUseRelease(
+                  Effect.sync(() => new PDFService()),
+                  (derived) =>
+                    this.pageRenderer.withPermit(
+                      derived.renderPage(temporary, 1, canvas, scale, rotation)
+                    ),
+                  (derived) => derived.dispose()
+                );
+              }),
+            (operations) => operations.dispose()
+          );
+        })
       )
     );
   }
 
-  getPageRotation(file: File, pageNumber: number): Effect.Effect<number, PDFError> {
-    return this.withDocument(
-      file,
-      "get-page-rotation",
-      async (doc) => (await this.info(doc, pageNumber)).rotation
-    );
-  }
+  private getPageMetadata(
+    record: LoadedPDFRecord,
+    pageNumber: number,
+    operation: string
+  ): Effect.Effect<PageMetadata, PDFProcessingError> {
+    const file = record.file;
+    return Effect.suspend(() => {
+      const cached = record.pageMetadata.get(pageNumber);
+      if (cached) {
+        record.pageMetadata.delete(pageNumber);
+        record.pageMetadata.set(pageNumber, cached);
+        return Effect.succeed(cached);
+      }
+      const pending = record.measuring.get(pageNumber);
+      if (pending) {
+        return Deferred.await(pending).pipe(
+          Effect.flatMap((exit) => {
+            if (Exit.isSuccess(exit)) return Effect.succeed(exit.value);
+            // Only the owner was cancelled. An independent live caller can take
+            // over after its cleanup, unless release/reset retired this load.
+            if (exit.cause.reasons.every(Cause.isInterruptReason)) {
+              const resident = this.documents.peek(file);
+              if (Option.isSome(resident) && resident.value === record) {
+                return this.getPageMetadata(record, pageNumber, operation);
+              }
+            }
+            return Effect.failCause(
+              Cause.map(exit.cause, (error) => processingError(operation, file, error.cause))
+            );
+          })
+        );
+      }
 
-  getPageSize(file: File, pageNumber: number, rotation = 0) {
-    return this.withDocument(file, "get-page-size", async (doc) => {
-      const info = await this.info(doc, pageNumber);
-      const swap = Math.abs(rotation) % 180 !== 0;
-      return {
-        width: swap ? info.height : info.width,
-        height: swap ? info.width : info.height,
-        rotation: info.rotation,
-      };
+      const completion = Deferred.makeUnsafe<Exit.Exit<PageMetadata, PDFProcessingError>>();
+      record.measuring.set(pageNumber, completion);
+      return this.pageResources
+        .withPageCleanup(
+          file,
+          pageNumber,
+          this.pageResources.getPage(record.pdfjsDocument, file, pageNumber, operation),
+          (page) =>
+            Effect.try({
+              try: () => {
+                // An explicit zero rotation gives CropBox/UserUnit dimensions without
+                // applying the intrinsic rotation that getPageRotation reports.
+                const viewport = page.getViewport({ scale: 1, rotation: 0 });
+                return {
+                  rotation: page.rotate,
+                  width: viewport.width,
+                  height: viewport.height,
+                  bounds: [...page.view] as [number, number, number, number],
+                  userUnit: page.userUnit,
+                  transform: [...viewport.transform] as [
+                    number,
+                    number,
+                    number,
+                    number,
+                    number,
+                    number,
+                  ],
+                };
+              },
+              catch: (cause) => processingError(operation, file, cause),
+            })
+        )
+        .pipe(
+          Effect.tap((metadata) =>
+            Effect.sync(() => {
+              // Release/reset removes the resident before interrupting operations.
+              // Only publish after page cleanup and while this exact load is resident.
+              const resident = this.documents.peek(file);
+              if (Option.isNone(resident) || resident.value !== record) return;
+              record.pageMetadata.set(pageNumber, metadata);
+              if (record.pageMetadata.size > PAGE_METADATA_LIMIT) {
+                const oldest = record.pageMetadata.keys().next().value;
+                if (oldest !== undefined) record.pageMetadata.delete(oldest);
+              }
+            })
+          ),
+          Effect.onExit((exit) =>
+            Effect.sync(() => record.measuring.delete(pageNumber)).pipe(
+              Effect.andThen(Deferred.succeed(completion, exit))
+            )
+          )
+        );
     });
   }
 
@@ -212,176 +342,43 @@ export class PDFService {
     scale = 1.5,
     rotation = 0
   ): Effect.Effect<void, PDFError> {
-    return this.withDocument(file, "render-page", async (doc, signal) => {
-      const key = `${doc.id}:${pageNumber}:${rotation}:${scale}`;
-      const revision = doc.revision;
-      let rendered = this.renderCache.get(key);
-      if (!rendered) {
-        rendered = await this.client.request(
-          "render",
-          {
-            id: doc.id,
-            page: pageNumber,
-            scale,
-            rotation,
-          },
-          [],
-          { signal, priority: Math.min(scale, 1) }
-        );
-        if (!signal.aborted && doc.revision === revision)
-          this.renderCache.set(key, rendered, rendered.pixels.byteLength);
-      }
-      if (signal.aborted || doc.revision !== revision) return;
-      canvas.width = rendered.width;
-      canvas.height = rendered.height;
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("Could not get canvas context.");
-      context.putImageData(new ImageData(rendered.pixels, rendered.width, rendered.height), 0, 0);
-    });
-  }
+    return this.documents.track(
+      file,
+      "render-page"
+    )(
+      Effect.gen({ self: this }, function* () {
+        const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
+        yield* this.pageRenderer.withPermit(
+          this.pageResources.withPageCleanup(
+            file,
+            pageNumber,
+            this.pageResources.getPage(record.pdfjsDocument, file, pageNumber, "render-page"),
+            (page) =>
+              Effect.gen({ self: this }, function* () {
+                const { context, viewport } = yield* Effect.try({
+                  try: () => {
+                    const nextViewport = page.getViewport({ scale, rotation });
+                    canvas.width = nextViewport.width;
+                    canvas.height = nextViewport.height;
 
-  getPageContent(file: File, pageNumber: number) {
-    return this.withDocument(file, "inspect-page", (doc) => {
-      const key = `${doc.id}:${pageNumber}:${doc.revision}`;
-      const cached = this.contentCache.get(key);
-      if (cached) return Promise.resolve(cached);
-      const pending = this.inspecting.get(key);
-      if (pending) return pending;
-      const revision = doc.revision;
-      const request = this.client
-        .request("content", { id: doc.id, page: pageNumber })
-        .then((content) => {
-          if (doc.revision === revision)
-            this.contentCache.set(key, content, JSON.stringify(content).length * 2);
-          return content;
-        })
-        .finally(() => this.inspecting.delete(key));
-      this.inspecting.set(key, request);
-      return request;
-    });
-  }
+                    // Choose this on the first context creation. WebKit can lose
+                    // vector widget ink across PDF.js animation-frame yields on
+                    // its default canvas backend; later calls cannot change it.
+                    const nextContext = canvas.getContext("2d", { willReadFrequently: true });
+                    if (!nextContext) {
+                      throw new Error("Could not get canvas context");
+                    }
 
-  editPage(file: File, pageNumber: number, edit: PDFContentEdit) {
-    // Mutations complete before releasing a file. Cancellation cannot undo an already dispatched edit.
-    return Effect.uninterruptible(
-      this.withDocument(file, "edit-page", async (doc) => {
-        this.invalidate(doc);
-        try {
-          await this.client.request("edit", { id: doc.id, page: pageNumber, edit });
-        } finally {
-          // Also discard reads dispatched while a mutation was in progress.
-          this.invalidate(doc);
-        }
-      })
-    );
-  }
+                    return { context: nextContext, viewport: nextViewport };
+                  },
+                  catch: (cause) => processingError("render-page", file, cause),
+                });
 
-  snapshotDocument(file: File): Effect.Effect<PDFDocumentCheckpoint, PDFError> {
-    return this.withDocument(file, "snapshot-document", async (doc) => {
-      const password = this.passwords.get(file);
-      return { bytes: await this.client.request("snapshot", { id: doc.id }), password };
-    });
-  }
-
-  editPageUndoable(
-    file: File,
-    pageNumber: number,
-    edit: PDFContentEdit
-  ): Effect.Effect<PDFDocumentCheckpoint, PDFError> {
-    return Effect.uninterruptible(
-      this.withDocument(file, "edit-page", async (doc) => {
-        const password = this.passwords.get(file);
-        this.invalidate(doc);
-        try {
-          const bytes = await this.client.request("editUndoable", {
-            id: doc.id,
-            page: pageNumber,
-            edit,
-          });
-          return { bytes, password };
-        } finally {
-          this.invalidate(doc);
-        }
-      })
-    );
-  }
-
-  restoreDocument(
-    file: File,
-    checkpoint: PDFDocumentCheckpoint
-  ): Effect.Effect<PDFDocumentCheckpoint | undefined, PDFError> {
-    return Effect.uninterruptible(
-      this.documents.track(
-        file,
-        "restore-document"
-      )(
-        Effect.suspend(() => {
-          const resident = this.documents.peek(file);
-          if (Option.isSome(resident)) {
-            return this.command(file, "restore-document", async () => {
-              const doc = resident.value;
-              const password = this.passwords.get(file);
-              this.invalidate(doc);
-              try {
-                // Worker transfers cannot detach the checkpoint retained by history.
-                const bytes = checkpoint.bytes.slice();
-                const previous = await this.client.request("restore", { id: doc.id, bytes }, [
-                  bytes.buffer,
-                ]);
-                this.restorePassword(file, checkpoint);
-                return { bytes: previous, password };
-              } finally {
-                this.invalidate(doc);
-              }
-            });
-          }
-          this.loadOverrides.set(file, checkpoint);
-          return this.documents.acquire({ file, variant: "checkpoint" }).pipe(
-            Effect.tap(() =>
-              Effect.sync(() => {
-                this.restorePassword(file, checkpoint);
-                this.activeFile = file;
+                yield* this.pageRenderer.render(file, page, canvas, context, viewport);
               })
-            ),
-            Effect.as(undefined),
-            Effect.ensuring(Effect.sync(() => this.loadOverrides.delete(file)))
-          );
-        })
-      )
-    );
-  }
-
-  private restorePassword(file: File, checkpoint: PDFDocumentCheckpoint): void {
-    if (checkpoint.password === undefined) this.passwords.delete(file);
-    else this.passwords.set(file, checkpoint.password);
-  }
-
-  buildPages(
-    pages: readonly { sourceFile: File; sourcePageNumber: number; rotation: number }[]
-  ): Effect.Effect<Uint8Array, PDFError> {
-    const build = Effect.gen({ self: this }, function* () {
-      const refs: PDFiumPageRef[] = [];
-      for (const page of pages) {
-        const doc = yield* this.documents.acquire({ file: page.sourceFile, variant: "auto" });
-        refs.push({ document: doc.id, page: page.sourcePageNumber, rotation: page.rotation });
-      }
-      return yield* this.command(pages[0].sourceFile, "build-pdf", () =>
-        this.client.request("build", { pages: refs })
-      );
-    });
-    return [...new Set(pages.map((page) => page.sourceFile))].reduceRight(
-      (effect, file) => this.documents.track(file, "build-pdf")(effect),
-      build
-    );
-  }
-
-  imagesToPDF(images: PDFiumImage[], file: File) {
-    return this.command(file, "images-to-pdf", () =>
-      this.client.request(
-        "images",
-        { images },
-        images.map((image) => image.bytes.buffer)
-      )
+          )
+        );
+      })
     );
   }
 
@@ -389,16 +386,8 @@ export class PDFService {
     return Effect.uninterruptible(
       Effect.suspend(() => {
         if (this.activeFile === file) this.activeFile = null;
-        this.passwords.delete(file);
-        return this.documents.releaseFile(file).pipe(
-          Effect.ensuring(
-            Effect.sync(() => {
-              if (this.activeFile === file) this.activeFile = null;
-              this.passwords.delete(file);
-              this.loadOverrides.delete(file);
-            })
-          )
-        );
+        this.passwordRegistry.delete(file);
+        return this.documents.releaseFile(file);
       })
     );
   }
@@ -407,39 +396,173 @@ export class PDFService {
     return Effect.uninterruptible(
       Effect.suspend(() => {
         this.activeFile = null;
-        this.passwords.clear();
-        this.infoCache.clear();
-        this.contentCache.clear();
-        this.renderCache.clear();
-        return this.documents.reset.pipe(
-          Effect.ensuring(
-            Effect.sync(() => {
-              this.activeFile = null;
-              this.passwords.clear();
-              this.loadOverrides.clear();
-              this.infoCache.clear();
-              this.contentCache.clear();
-              this.renderCache.clear();
-            })
-          )
-        );
+        this.passwordRegistry.clear();
+        return this.documents.reset;
       })
     );
   }
 
   dispose(): Effect.Effect<void> {
-    return this.documents.dispose().pipe(
-      Effect.ensuring(
-        Effect.sync(() => {
-          this.activeFile = null;
-          this.passwords.clear();
-          this.loadOverrides.clear();
-          this.infoCache.clear();
-          this.contentCache.clear();
-          this.renderCache.clear();
-          this.client.dispose();
-        })
-      )
-    );
+    return this.documents.dispose();
+  }
+
+  private cleanupRecord(record: LoadedPDFRecord): Effect.Effect<void, PDFProcessingError> {
+    return collectFirstError([
+      Effect.sync(() => record.pageMetadata.clear()),
+      Effect.tryPromise({
+        try: () => Promise.resolve(record.pdfjsDocument.cleanup()),
+        catch: (cause) => processingError("cleanup-pdf-js", record.file, cause),
+      }),
+      this.destroyLoadingTaskForFile(record.file, record.loadingTask),
+    ]);
+  }
+
+  private destroyLoadingTaskForFile(
+    file: File,
+    loadingTask: ReturnType<typeof pdfjsLib.getDocument>
+  ): Effect.Effect<void, PDFProcessingError> {
+    return Effect.tryPromise({
+      try: () => loadingTask.destroy(),
+      catch: (cause) => processingError("destroy-pdf-js", file, cause),
+    });
+  }
+
+  private loadDocumentRecord(key: DocumentKey): Effect.Effect<LoadedPDFRecord, PDFError> {
+    const file = key.file;
+    const explicitPassword = key.variant.startsWith(PASSWORD_VARIANT_PREFIX)
+      ? key.variant.slice(PASSWORD_VARIANT_PREFIX.length)
+      : undefined;
+
+    return Effect.suspend(() => {
+      let loadingTask: ReturnType<typeof pdfjsLib.getDocument> | undefined;
+      let documentResolution: Deferred.Deferred<void, PDFProcessingError> | undefined;
+      let resolvedRecord: LoadedPDFRecord | undefined;
+      let cleanupError: PDFProcessingError | undefined;
+      let cancelled = false;
+
+      const cleanupPartial = (): Effect.Effect<void, PDFProcessingError> =>
+        Effect.suspend(() => {
+          cancelled = true;
+          const resolution = documentResolution;
+          const record = resolvedRecord;
+          const cleanupResolvedDocument = record
+            ? Effect.tryPromise({
+                try: () => Promise.resolve(record.pdfjsDocument.cleanup()),
+                catch: (cause) => processingError("cleanup-pdf-js", file, cause),
+              })
+            : Effect.void;
+
+          return collectFirstError([
+            cleanupResolvedDocument,
+            loadingTask ? this.destroyLoadingTaskForFile(file, loadingTask) : Effect.void,
+          ]).pipe(
+            Effect.andThen(
+              Effect.suspend(() => {
+                if (!resolution) return Effect.void;
+                return Deferred.await(resolution);
+              })
+            )
+          );
+        });
+
+      const load = Effect.gen({ self: this }, function* () {
+        const pdfjs = yield* Effect.tryPromise({
+          try: () => loadPdfjs(),
+          catch: (cause) => processingError("load-pdf-js", file, cause),
+        });
+        const buffer = yield* Effect.tryPromise({
+          try: () => file.arrayBuffer(),
+          catch: (cause) => processingError("read-file", file, cause),
+        });
+        const data = new Uint8Array(buffer);
+        const password = explicitPassword ?? this.passwordRegistry.get(file);
+        const task = yield* Effect.try({
+          try: () =>
+            password === undefined
+              ? pdfjs.getDocument({ data })
+              : pdfjs.getDocument({ data, password }),
+          catch: (cause) => processingError("load-pdf-js", file, cause),
+        });
+        loadingTask = task;
+        const resolution = Deferred.makeUnsafe<void, PDFProcessingError>();
+        documentResolution = resolution;
+
+        return yield* Effect.tryPromise({
+          try: () =>
+            task.promise.then(
+              async (pdfjsDocument) => {
+                try {
+                  if (cancelled) {
+                    try {
+                      await Promise.resolve(pdfjsDocument.cleanup());
+                    } catch (cause) {
+                      cleanupError ??= processingError("cleanup-pdf-js", file, cause);
+                      throw cleanupError;
+                    }
+                    throw new Error("The PDF.js document resolved after its load was released.");
+                  }
+
+                  const loadedRecord = {
+                    file,
+                    pdfjsDocument,
+                    loadingTask: task,
+                    pageMetadata: new Map(),
+                    measuring: new Map(),
+                  } satisfies LoadedPDFRecord;
+                  resolvedRecord = loadedRecord;
+                  return loadedRecord;
+                } finally {
+                  Deferred.doneUnsafe(
+                    resolution,
+                    cleanupError ? Effect.fail(cleanupError) : Effect.void
+                  );
+                }
+              },
+              (cause) => {
+                Deferred.doneUnsafe(resolution, Effect.void);
+                return Promise.reject(cause);
+              }
+            ),
+          catch: (cause) => {
+            if (isPasswordException(cause)) {
+              return new PDFPasswordRequiredError(
+                file,
+                password === undefined || password === "" ? "needs-password" : "wrong-password"
+              );
+            }
+            return cleanupError ?? processingError("load-pdf-js", file, cause);
+          },
+        });
+      });
+
+      // Keep cleanup error handling masked so a pending interruption cannot
+      // replace the combined load and finalizer cause with interruption alone.
+      return Effect.uninterruptibleMask((restore) =>
+        restore(load).pipe(
+          Effect.onExit((exit) => {
+            if (Exit.isSuccess(exit)) return Effect.void;
+            const cleanup = cleanupPartial();
+            if (exit.cause.reasons.some(Cause.isInterruptReason)) {
+              // Interrupted loads finish their partial cleanup in the fiber exit so
+              // release/reset can report a failed loading-task destruction.
+              return Effect.uninterruptible(cleanup);
+            }
+            return Effect.uninterruptible(
+              cleanup.pipe(
+                Effect.catch((error) =>
+                  Effect.sync(() => {
+                    cleanupError = error;
+                  })
+                )
+              )
+            );
+          }),
+          Effect.catchCause((cause) => {
+            const error = cleanupError;
+            return Effect.failCause(error ? Cause.map(cause, () => error) : cause);
+          })
+        )
+      );
+    });
   }
 }

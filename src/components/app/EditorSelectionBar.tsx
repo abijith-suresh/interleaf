@@ -1,8 +1,9 @@
-import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
 import EditorButton from "./ui/EditorButton";
 import EditorIcon from "./ui/EditorIcon";
 
 interface Props {
+  documentView?: boolean;
   busy: boolean;
   busyLabel: string;
   selectedCount: number;
@@ -31,16 +32,16 @@ export default function EditorSelectionBar(props: Props) {
   let downloadMenuTrigger!: HTMLButtonElement;
   const [openMenu, setOpenMenu] = createSignal<OpenMenu>(null);
 
-  const hasSelection = () => props.selectedCount > 0;
-  const selectionLabel = () => {
-    if (!hasSelection()) return "No pages selected";
+  createEffect(() => {
+    void props.documentView;
+    setOpenMenu(null);
+  });
 
-    const activeLabel =
-      props.selectedActiveCount === props.selectedCount
-        ? ""
-        : ` · ${props.selectedActiveCount} exportable`;
-    return `${props.selectedCount} selected${activeLabel}`;
-  };
+  const hasSelection = () => props.selectedCount > 0;
+  const selectionLabel = () =>
+    hasSelection()
+      ? `${props.selectedCount} selected`
+      : `All ${props.selectedActiveCount} exportable`;
   const downloadAriaLabel = () => {
     if (props.busy) return props.busyLabel;
     if (props.selectedActiveCount === 0) {
@@ -71,6 +72,10 @@ export default function EditorSelectionBar(props: Props) {
   const selectAllLabel = () => (props.allPagesSelected ? "All pages selected" : "Select all pages");
   const clearSelectionLabel = () =>
     hasSelection() ? "Clear page selection" : "No pages selected to clear";
+  const rotateLabel = () =>
+    hasSelection() ? "Rotate selected pages 90 degrees" : "Select pages to rotate";
+  const deletionMenuLabel = () =>
+    hasSelection() ? props.deletionAriaLabel : "Select pages to mark or restore";
   const compressionDisabled = () =>
     props.busy || props.selectedActiveCount === 0 || !props.compressionAvailable;
   const compressionLabel = () =>
@@ -189,120 +194,147 @@ export default function EditorSelectionBar(props: Props) {
   });
 
   return (
-    <section
-      ref={bar}
-      class="editor-selection-bar"
-      classList={{ "has-selection": hasSelection() }}
-      aria-label="Page selection and export"
-    >
+    <section ref={bar} class="editor-selection-bar" aria-label="Page selection and export">
       <div class="editor-selection-summary">
         <strong id="editor-selection-title" data-testid="editor-selection-title">
           {selectionLabel()}
+          <Show when={hasSelection() && props.selectedActiveCount !== props.selectedCount}>
+            <span class="editor-selection-separator"> · </span>
+            <span class="editor-selection-exportable">{props.selectedActiveCount} exportable</span>
+          </Show>
         </strong>
       </div>
 
-      <Show when={hasSelection()}>
-        <fieldset class="editor-selection-quick-actions" aria-label="Selected page actions">
+      <Show
+        when={!props.documentView}
+        fallback={
+          <Show when={hasSelection()}>
+            <EditorButton
+              aria-label="Clear page selection"
+              title="Clear page selection"
+              class="editor-document-clear"
+              icon="close"
+              disabled={props.busy}
+              onClick={() => {
+                closeMenu();
+                // The clear action disappears when selection becomes empty.
+                downloadMenuTrigger.focus({ preventScroll: true });
+                props.onClearSelection();
+              }}
+            />
+          </Show>
+        }
+      >
+        <div class="editor-menu-group editor-edit-menu-group">
           <EditorButton
-            variant="plain"
-            type="button"
-            aria-label="Rotate selection 90 degrees"
-            title="Rotate selected pages 90 degrees"
-            disabled={props.busy}
-            onClick={props.onRotate}
+            ref={editMenuTrigger}
+            data-testid="editor-edit-menu-button"
+            class="editor-toolbar-action editor-menu-trigger"
+            aria-haspopup="menu"
+            aria-label="Edit pages"
+            aria-controls="editor-edit-menu"
+            aria-expanded={openMenu() === "edit"}
+            aria-disabled={props.busy}
+            title={props.busy ? props.busyLabel : "Open page editing options"}
+            onClick={() => toggleMenu("edit")}
+            onKeyDown={(event) => handleTriggerKeyDown("edit", event)}
+            icon="page-actions"
           >
-            <EditorIcon name="rotate" />
+            <span class="editor-menu-trigger-label">Edit pages</span>
+            <EditorIcon name="chevron-down" />
           </EditorButton>
-          <EditorButton
-            variant={props.deletionLabel === "Restore" ? "secondary" : "danger"}
-            type="button"
-            aria-label={props.deletionAriaLabel}
-            title={props.deletionAriaLabel}
-            disabled={props.busy}
-            onClick={props.onDelete}
-          >
-            <EditorIcon name={props.deletionLabel === "Restore" ? "restore" : "delete"} />
-          </EditorButton>
-        </fieldset>
+
+          <Show when={openMenu() === "edit"}>
+            <div
+              ref={editMenu}
+              id="editor-edit-menu"
+              data-testid="editor-edit-menu"
+              class="editor-menu-panel"
+              role="menu"
+              aria-label="Page editing options"
+              onKeyDown={(event) => handleMenuKeyDown("edit", event)}
+            >
+              <EditorButton
+                role="menuitem"
+                tabindex="-1"
+                data-testid="editor-select-all-button"
+                aria-disabled={props.busy || props.allPagesSelected}
+                aria-label={selectAllLabel()}
+                title={selectAllLabel()}
+                class="editor-menu-item"
+                onClick={() =>
+                  runMenuAction(props.onSelectAll, props.busy || props.allPagesSelected)
+                }
+                variant="plain"
+              >
+                <span class="editor-menu-item-copy">
+                  <span>Select all pages</span>
+                  <Show when={props.allPagesSelected}>
+                    <span class="editor-menu-item-hint">All pages already selected</span>
+                  </Show>
+                </span>
+              </EditorButton>
+              <EditorButton
+                role="menuitem"
+                tabindex="-1"
+                data-testid="editor-clear-selection-button"
+                aria-disabled={props.busy || !hasSelection()}
+                aria-label={clearSelectionLabel()}
+                title={clearSelectionLabel()}
+                class="editor-menu-item"
+                onClick={() => runMenuAction(props.onClearSelection, props.busy || !hasSelection())}
+                variant="plain"
+              >
+                <span class="editor-menu-item-copy">
+                  <span>Clear selection</span>
+                  <Show when={!hasSelection()}>
+                    <span class="editor-menu-item-hint">No pages selected</span>
+                  </Show>
+                </span>
+              </EditorButton>
+              <EditorButton
+                role="menuitem"
+                tabindex="-1"
+                data-testid="editor-rotate-button"
+                aria-disabled={props.busy || !hasSelection()}
+                aria-label={rotateLabel()}
+                title={rotateLabel()}
+                class="editor-menu-item"
+                onClick={() => runMenuAction(props.onRotate, props.busy || !hasSelection())}
+                variant="plain"
+              >
+                <span class="editor-menu-item-copy">
+                  <span>Rotate selected pages</span>
+                  <Show when={!hasSelection()}>
+                    <span class="editor-menu-item-hint">Select pages to rotate</span>
+                  </Show>
+                </span>
+              </EditorButton>
+              <EditorButton
+                role="menuitem"
+                tabindex="-1"
+                data-testid="editor-delete-button"
+                aria-disabled={props.busy || !hasSelection()}
+                aria-label={deletionMenuLabel()}
+                title={deletionMenuLabel()}
+                class="editor-menu-item editor-menu-item-danger"
+                onClick={() => runMenuAction(props.onDelete, props.busy || !hasSelection())}
+                variant="danger"
+              >
+                <span class="editor-menu-item-copy">
+                  <span>{props.deletionLabel}</span>
+                  <Show when={!hasSelection()}>
+                    <span class="editor-menu-item-hint">Select pages to mark or restore</span>
+                  </Show>
+                </span>
+              </EditorButton>
+            </div>
+          </Show>
+        </div>
       </Show>
-
-      <div class="editor-menu-group editor-edit-menu-group">
-        <EditorButton
-          variant="plain"
-          ref={editMenuTrigger}
-          type="button"
-          data-testid="editor-edit-menu-button"
-          class="editor-toolbar-action editor-menu-trigger"
-          aria-haspopup="menu"
-          aria-label="Select pages"
-          aria-controls="editor-edit-menu"
-          aria-expanded={openMenu() === "edit"}
-          aria-disabled={props.busy}
-          title={props.busy ? props.busyLabel : "Select pages"}
-          onClick={() => toggleMenu("edit")}
-          onKeyDown={(event) => handleTriggerKeyDown("edit", event)}
-        >
-          <EditorIcon name="select" class="editor-menu-trigger-icon" />
-          <span class="editor-menu-trigger-label">Select pages</span>
-          <EditorIcon name="chevron-down" class="editor-menu-trigger-chevron" />
-        </EditorButton>
-
-        <Show when={openMenu() === "edit"}>
-          <div
-            ref={editMenu}
-            id="editor-edit-menu"
-            data-testid="editor-edit-menu"
-            class="editor-menu-panel"
-            role="menu"
-            aria-label="Page selection options"
-            onKeyDown={(event) => handleMenuKeyDown("edit", event)}
-          >
-            <EditorButton
-              variant="plain"
-              type="button"
-              role="menuitem"
-              tabindex="-1"
-              data-testid="editor-select-all-button"
-              aria-disabled={props.busy || props.allPagesSelected}
-              aria-label={selectAllLabel()}
-              title={selectAllLabel()}
-              class="editor-menu-item"
-              onClick={() => runMenuAction(props.onSelectAll, props.busy || props.allPagesSelected)}
-            >
-              <span class="editor-menu-item-copy">
-                <span>Select all pages</span>
-                <Show when={props.allPagesSelected}>
-                  <span class="editor-menu-item-hint">All pages already selected</span>
-                </Show>
-              </span>
-            </EditorButton>
-            <EditorButton
-              variant="plain"
-              type="button"
-              role="menuitem"
-              tabindex="-1"
-              data-testid="editor-clear-selection-button"
-              aria-disabled={props.busy || !hasSelection()}
-              aria-label={clearSelectionLabel()}
-              title={clearSelectionLabel()}
-              class="editor-menu-item"
-              onClick={() => runMenuAction(props.onClearSelection, props.busy || !hasSelection())}
-            >
-              <span class="editor-menu-item-copy">
-                <span>Clear selection</span>
-                <Show when={!hasSelection()}>
-                  <span class="editor-menu-item-hint">No pages selected</span>
-                </Show>
-              </span>
-            </EditorButton>
-          </div>
-        </Show>
-      </div>
 
       <div class="editor-download-group">
         <EditorButton
-          variant="primary"
-          type="button"
           data-testid="editor-download-button"
           disabled={props.selectedActiveCount === 0}
           aria-disabled={props.busy || props.selectedActiveCount === 0}
@@ -313,13 +345,12 @@ export default function EditorSelectionBar(props: Props) {
           }}
           aria-label={downloadAriaLabel()}
           class="editor-download-action"
+          variant="primary"
         >
           Download PDF
         </EditorButton>
         <EditorButton
-          variant="plain"
           ref={downloadMenuTrigger}
-          type="button"
           data-testid="editor-download-options-button"
           class="editor-download-options-trigger"
           aria-label="More download options"
@@ -330,9 +361,9 @@ export default function EditorSelectionBar(props: Props) {
           title={props.busy ? props.busyLabel : "More download options"}
           onClick={() => toggleMenu("download")}
           onKeyDown={(event) => handleTriggerKeyDown("download", event)}
-        >
-          <EditorIcon name="chevron-down" class="editor-menu-trigger-chevron" />
-        </EditorButton>
+          variant="primary"
+          icon="chevron-down"
+        />
 
         <Show when={openMenu() === "download"}>
           <div
@@ -345,8 +376,6 @@ export default function EditorSelectionBar(props: Props) {
             onKeyDown={(event) => handleMenuKeyDown("download", event)}
           >
             <EditorButton
-              variant="plain"
-              type="button"
               role="menuitem"
               tabindex="-1"
               data-testid="editor-export-images-button"
@@ -355,6 +384,7 @@ export default function EditorSelectionBar(props: Props) {
               aria-label={imageExportAriaLabel()}
               title={imageExportAriaLabel()}
               class="editor-menu-item"
+              variant="plain"
             >
               <span class="editor-menu-item-copy">
                 <span>Export PNG images</span>
@@ -364,8 +394,6 @@ export default function EditorSelectionBar(props: Props) {
               </span>
             </EditorButton>
             <EditorButton
-              variant="plain"
-              type="button"
               role="menuitem"
               tabindex="-1"
               data-testid="editor-compress-button"
@@ -374,6 +402,7 @@ export default function EditorSelectionBar(props: Props) {
               aria-label={compressionLabel()}
               title={compressionLabel()}
               class="editor-menu-item"
+              variant="plain"
             >
               <span class="editor-menu-item-copy">
                 <span>Compress original PDF</span>

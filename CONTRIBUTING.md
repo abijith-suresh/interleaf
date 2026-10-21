@@ -60,7 +60,7 @@ bun run format
 
 CI runs on every PR to `main`:
 
-- **ci**: shared Astro pipeline — type-check, lint, format:check, test, build, and Playwright browser tests
+- **ci**: type-check, lint, format:check, test, and build, followed by separate Chromium, Firefox, and WebKit browser jobs
 - **gate**: aggregates `ci`, `dependency-review`, and `qpdf`; this is the required branch-protection check
 - **pr-title**: enforces Conventional Commit format on PR titles
 - **dependency-review**: audits dependency changes
@@ -109,10 +109,11 @@ Run `bun run test:e2e` to reuse an existing build.
 
 CI runs the suite in Chromium, Firefox, and WebKit.
 
-### Browser regression checks
+### Draft PDFium regression checks
 
-After PDF engine changes, build the app and run the browser smoke check against a local server.
-The engine smoke check uses the same Playwright installation.
+On draft PR #303, `/pdfium/` hosts the isolated experiment. `/app/` remains the default editor.
+Build the app and run the experimental browser smoke check against a local server.
+The smoke check uses the same Playwright installation.
 
 ```sh
 bunx playwright install chromium
@@ -133,7 +134,6 @@ height; they do not open an operating system keyboard.
 
 Set `INTERLEAF_BROWSER=firefox` or `INTERLEAF_BROWSER=webkit` to use an installed Playwright
 browser. `INTERLEAF_BROWSER_EXECUTABLE` can select a compatible local browser executable.
-
 
 ### Styling
 

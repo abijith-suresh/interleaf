@@ -1,10 +1,12 @@
 import { createSignal } from "solid-js";
+import EditorButton from "./ui/EditorButton";
 import EditorIcon from "./ui/EditorIcon";
 
 interface Props {
   busy: boolean;
   statusMessage: string;
   onFilesSelected: (files: File[]) => void;
+  onPickerChange?: (open: boolean) => void;
 }
 
 export default function EditorUploader(props: Props) {
@@ -13,6 +15,7 @@ export default function EditorUploader(props: Props) {
 
   function pickFile() {
     if (props.busy) return;
+    props.onPickerChange?.(true);
     fileInput.click();
   }
 
@@ -38,8 +41,7 @@ export default function EditorUploader(props: Props) {
         <div class="editor-uploader-intro">
           <h2>Open or create a PDF.</h2>
         </div>
-        <button
-          type="button"
+        <EditorButton
           data-testid="editor-upload-dropzone"
           disabled={props.busy}
           aria-busy={props.busy}
@@ -68,13 +70,13 @@ export default function EditorUploader(props: Props) {
           }}
         >
           <span class="editor-dropzone-icon" aria-hidden="true">
-            <EditorIcon name="plus" size={20} />
+            <EditorIcon name="open" />
           </span>
           <span class="editor-dropzone-copy">
             <strong>{props.busy ? "Preparing PDF…" : "Choose PDFs and images"}</strong>
             <span>{props.busy ? props.statusMessage : "or drop them here"}</span>
           </span>
-        </button>
+        </EditorButton>
         <input
           ref={fileInput}
           data-testid="editor-upload-input"
@@ -85,7 +87,9 @@ export default function EditorUploader(props: Props) {
           aria-label="Choose PDF or image files"
           class="hidden"
           disabled={props.busy}
+          onCancel={() => props.onPickerChange?.(false)}
           onChange={(e) => {
+            props.onPickerChange?.(false);
             handleFiles(Array.from(e.currentTarget.files ?? []));
             e.currentTarget.value = "";
           }}

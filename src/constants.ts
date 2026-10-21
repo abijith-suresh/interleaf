@@ -18,3 +18,6 @@ export const IMAGES_TO_PDF_FILENAME = "interleaf-images.pdf";
 
 /** Title shown in the password prompt modal for encrypted PDFs */
 export const PASSWORD_MODAL_TITLE = "Password required";
+
+export const MIN_TEXT_SIZE = 6;
+export const MAX_TEXT_SIZE = 144;

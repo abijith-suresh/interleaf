@@ -3,11 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { PDFProcessingError } from "../../types/interfaces";
 
 const pdfServiceMock = vi.hoisted(() => ({
-  preload: vi.fn(),
   loadPDF: vi.fn(),
-  snapshotDocument: vi.fn(),
-  editPageUndoable: vi.fn(),
-  restoreDocument: vi.fn(),
   getPageCount: vi.fn(),
   getPassword: vi.fn(),
   releaseFile: vi.fn(),
@@ -82,11 +78,7 @@ let runtime: PDFRuntime;
 
 beforeEach(() => {
   vi.resetAllMocks();
-  pdfServiceMock.preload.mockReturnValue(Effect.void);
   pdfServiceMock.loadPDF.mockReturnValue(Effect.succeed(undefined));
-  pdfServiceMock.snapshotDocument.mockReturnValue(Effect.succeed({ bytes: new Uint8Array([1]) }));
-  pdfServiceMock.editPageUndoable.mockReturnValue(Effect.succeed({ bytes: new Uint8Array([2]) }));
-  pdfServiceMock.restoreDocument.mockReturnValue(Effect.succeed({ bytes: new Uint8Array([3]) }));
   pdfServiceMock.getPageCount.mockReturnValue(0);
   pdfServiceMock.getPassword.mockReturnValue(undefined);
   pdfServiceMock.releaseFile.mockReturnValue(Effect.succeed(undefined));
@@ -189,6 +181,54 @@ it("releases a file from each initialized service even when PDF.js cleanup fails
   expect(operationsServiceMock.releaseFile).toHaveBeenCalledExactlyOnceWith(file);
 });
 
+it.each(["pdf", "operations", "both"] as const)(
+  "waits for PDF cleanup, attempts operations cleanup, and reports the first %s error",
+  async (failure) => {
+    const file = new File(["plain"], "document.pdf", { type: "application/pdf" });
+    const started = Deferred.makeUnsafe<void>();
+    const finishPDF = Deferred.makeUnsafe<void>();
+    const attempts: string[] = [];
+    const pdfError = new PDFProcessingError({
+      operation: "cleanup-pdf-js",
+      file,
+      cause: new Error("PDF cleanup failed"),
+      message: "PDF cleanup failed",
+    });
+    const operationsError = new PDFProcessingError({
+      operation: "release-source",
+      file,
+      cause: new Error("Operations cleanup failed"),
+      message: "Operations cleanup failed",
+    });
+    pdfServiceMock.releaseFile.mockReturnValue(
+      Effect.sync(() => attempts.push("pdf")).pipe(
+        Effect.andThen(Deferred.succeed(started, undefined)),
+        Effect.andThen(Deferred.await(finishPDF)),
+        Effect.andThen(failure === "operations" ? Effect.void : Effect.fail(pdfError))
+      )
+    );
+    operationsServiceMock.releaseFile.mockReturnValue(
+      Effect.sync(() => attempts.push("operations")).pipe(
+        Effect.andThen(failure === "pdf" ? Effect.void : Effect.fail(operationsError))
+      )
+    );
+    const release = await runtime.runPromise(
+      Effect.map(PDFProcessing, (service) => service.releaseFile(file))
+    );
+    await runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([])));
+    const fiber = runtime.runFork(release);
+    try {
+      await Effect.runPromise(Deferred.await(started));
+      expect(attempts).toEqual(["pdf"]);
+    } finally {
+      await Effect.runPromise(Deferred.succeed(finishPDF, undefined));
+    }
+    const error: PDFProcessingError = await Effect.runPromise(Effect.flip(Fiber.join(fiber)));
+    expect(error).toBe(failure === "operations" ? operationsError : pdfError);
+    expect(attempts).toEqual(["pdf", "operations"]);
+  }
+);
+
 it("shares lazy editing support across concurrent exports without serializing them", async () => {
   const release = Deferred.makeUnsafe<void>();
   operationsServiceMock.buildPDF.mockReturnValue(
@@ -258,32 +298,4 @@ it("passes the unlocked source PDF to compression and closes qpdf on disposal", 
 
   await runtime.dispose();
   expect(qpdfProcessingMock.close).toHaveBeenCalledTimes(1);
-});
-
-it("can warm the PDF engine without opening a document or initializing export services", async () => {
-  await runtime.runPromise(PDFProcessing.use((service) => service.preload));
-  expect(pdfServiceMock.preload).toHaveBeenCalledOnce();
-  expect(pdfServiceMock.loadPDF).not.toHaveBeenCalled();
-  expect(PDFOperationsService).not.toHaveBeenCalled();
-});
-
-it("delegates checkpoint operations without loading export support", async () => {
-  const file = new File(["plain"], "form.pdf");
-  const edit = { kind: "form" as const, index: 0, value: "Alice" };
-  const checkpoint = await runtime.runPromise(
-    PDFProcessing.use((service) => service.snapshotDocument(file))
-  );
-  const previous = await runtime.runPromise(
-    PDFProcessing.use((service) => service.editPageUndoable(file, 1, edit))
-  );
-  const inverse = await runtime.runPromise(
-    PDFProcessing.use((service) => service.restoreDocument(file, checkpoint))
-  );
-  expect(checkpoint.bytes).toEqual(new Uint8Array([1]));
-  expect(previous.bytes).toEqual(new Uint8Array([2]));
-  expect(inverse?.bytes).toEqual(new Uint8Array([3]));
-  expect(pdfServiceMock.snapshotDocument).toHaveBeenCalledExactlyOnceWith(file);
-  expect(pdfServiceMock.editPageUndoable).toHaveBeenCalledExactlyOnceWith(file, 1, edit);
-  expect(pdfServiceMock.restoreDocument).toHaveBeenCalledExactlyOnceWith(file, checkpoint);
-  expect(PDFOperationsService).not.toHaveBeenCalled();
 });

@@ -2,19 +2,17 @@ import type { JSX } from "solid-js";
 import { Show, splitProps } from "solid-js";
 import EditorIcon, { type EditorIconName } from "./EditorIcon";
 
-export type EditorButtonVariant = "plain" | "secondary" | "primary" | "danger";
 type Props = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: EditorButtonVariant;
   icon?: EditorIconName;
-  iconOnly?: boolean;
+  variant?: "secondary" | "plain" | "primary" | "danger";
 };
 
 export default function EditorButton(props: Props) {
   const [local, rest] = splitProps(props, [
-    "variant",
     "icon",
-    "iconOnly",
+    "variant",
     "class",
+    "classList",
     "children",
     "type",
   ]);
@@ -22,7 +20,8 @@ export default function EditorButton(props: Props) {
     <button
       {...rest}
       type={local.type ?? "button"}
-      class={`editor-button editor-button-${local.variant ?? "secondary"}${local.iconOnly ? " editor-button-icon" : ""}${local.class ? ` ${local.class}` : ""}`}
+      class={`editor-button editor-button-${local.variant ?? "secondary"}${local.class ? ` ${local.class}` : ""}`}
+      classList={local.classList}
     >
       <Show when={local.icon}>{(icon) => <EditorIcon name={icon()} />}</Show>
       {local.children}
