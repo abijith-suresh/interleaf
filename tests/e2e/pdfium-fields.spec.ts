@@ -78,25 +78,41 @@ test("saved inherited fields: main baseline, successor import deficit and direct
       expect(group.reciprocal).toEqual([true, true]);
     }
   }
+  expect(result.mainControls.map((control) => control.scenario)).toEqual(
+    result.rows.map((row) => row.scenario)
+  );
+  for (const control of result.mainControls) {
+    expect(control.fields).toEqual(control.expectedFields);
+    // Main copies each page independently, then prunes off-page sibling widgets.
+    expect(control.grouping.groups).toHaveLength(control.expectedFields.length);
+    for (const group of control.grouping.groups) {
+      expect(group.fieldType).toBe("/Tx");
+      expect(group.siblings).toBe(1);
+      expect(group.visibleMembers).toHaveLength(1);
+      expect(group.reciprocal).toEqual([true]);
+    }
+    for (const image of control.appearance) {
+      expect([image.width, image.height]).toEqual([300, 400]);
+      expect(image.totalChannels).toBe(480_000);
+      expect(image.inkPixels).toBeGreaterThan(100);
+      expect(image.differingChannels).toBe(0);
+    }
+  }
   for (const row of result.rows) {
     await test.step(row.scenario, async () => {
       expect(row.lifetime.closedBeforeResponse).toBe(true);
       expect(row.lifetime.closedDocuments).toBe(row.lifetime.openedDocuments);
-      expect(row.baseline.fields).toEqual(row.expectedFields);
-      // Main calls copyPages separately per page. Its copied parents retain
-      // both Kids but each selected page receives its own parent graph.
-      expect(row.baseline.grouping.groups).toHaveLength(row.expectedFields.length * 2);
-      for (const group of row.baseline.grouping.groups) {
-        expect(group.siblings).toBe(2);
-        expect(group.visibleMembers).toHaveLength(1);
-        expect(group.reciprocal).toEqual([true]);
-      }
+      expect(row.baselineRejection).toEqual({
+        tag: "PDFProcessingError",
+        operation: "reconcile-export",
+        message: "This PDF has linked choice fields that cannot be preserved in this export.",
+      });
       for (const output of row.outputs) {
         if (output.variant === "direct-save") {
-          expect(output.fields).toEqual(row.baseline.fields);
+          expect(output.fields).toEqual(row.expectedFields);
           expect(output.grouping).toEqual(result.sourceGroups[0]);
         } else if (output.variant === "model-adoption") {
-          expect(output.fields).toEqual(row.baseline.fields);
+          expect(output.fields).toEqual(row.expectedFields);
           expect(output.grouping).toEqual(result.sourceGroups[0]);
           expect(output.diagnostics).toEqual({
             duplicateNameRejected: true,
@@ -109,10 +125,27 @@ test("saved inherited fields: main baseline, successor import deficit and direct
             expect(
               output.fields,
               `${row.scenario}/${output.variant}: inherited metadata parity`
-            ).toEqual(row.baseline.fields);
-            expect(output.grouping, `${row.scenario}/${output.variant}: grouping parity`).toEqual(
-              row.baseline.grouping
-            );
+            ).toEqual(row.expectedFields);
+            // Require the per-page parent identities and pruned Kids policy
+            // exercised by the text-only main controls, including field types.
+            expect(output.grouping, `${row.scenario}/${output.variant}: grouping parity`).toEqual({
+              widgets: row.expectedFields.map((fields, pageIndex) =>
+                fields.map((_, widgetIndex) => ({
+                  group: pageIndex * 2 + widgetIndex + 1,
+                  siblings: 1,
+                  reciprocal: true,
+                }))
+              ),
+              groups: row.expectedFields.flatMap((fields, pageIndex) =>
+                fields.map((field, widgetIndex) => ({
+                  id: pageIndex * 2 + widgetIndex + 1,
+                  fieldType: `/${field.type}`,
+                  siblings: 1,
+                  visibleMembers: [`${pageIndex + 1}:${widgetIndex + 1}`],
+                  reciprocal: [true],
+                }))
+              ),
+            });
           } else {
             expect(output.fields).toEqual(
               row.expectedFields.map((fields) =>

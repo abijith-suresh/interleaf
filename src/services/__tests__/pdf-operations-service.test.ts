@@ -226,6 +226,46 @@ describe("PDFOperationsService", () => {
     );
   });
 
+  it("bounds the encrypted preview bitmap and releases it while retaining physical page geometry", async () => {
+    const file = await createPdfFile("large-protected.pdf", [
+      { width: 1500, height: 2000, rotation: 90 },
+    ]);
+    const source = await PDFDocument.load(await file.arrayBuffer());
+    Object.defineProperty(source, "isEncrypted", { value: true });
+    vi.spyOn(PDFDocument, "load").mockResolvedValueOnce(source);
+    const png = await createPngFile().arrayBuffer();
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
+      `data:image/png;base64,${btoa(String.fromCharCode(...new Uint8Array(png)))}`
+    );
+    await Effect.runPromise(service.dispose());
+    service = new PDFOperationsService({
+      renderPage,
+      getPageGeometry: () =>
+        Effect.succeed({
+          bounds: [-40, -60, 1460, 1940],
+          userUnit: 2,
+          width: 3000,
+          height: 4000,
+          transform: [2, 0, 0, -2, 80, 3880],
+        }),
+    });
+    const result = await Effect.runPromise(
+      service.buildPDF([createPageState(file, 1, { rotation: 90 })], { maxRasterPixels: 4_000_000 })
+    );
+    const output = await PDFDocument.load(result.data);
+    expect(output.getPage(0).getSize()).toEqual({ width: 3000, height: 4000 });
+    expect(output.getPage(0).getRotation().angle).toBe(180);
+    const [, , canvas, scale] = renderPage.mock.calls[0] as unknown as [
+      File,
+      number,
+      HTMLCanvasElement,
+      number,
+    ];
+    expect(scale).toBeCloseTo(Math.sqrt(4_000_000 / (3000 * 4000)));
+    expect(canvas.width).toBe(0);
+    expect(canvas.height).toBe(0);
+  });
+
   it.each(["clearCache", "releaseFile"] as const)(
     "reloads a cached source after %s",
     async (operation) => {
@@ -236,14 +276,15 @@ describe("PDFOperationsService", () => {
 
       await Effect.runPromise(service.buildPDF(pages));
       await Effect.runPromise(service.buildPDF(pages));
-      expect(load).toHaveBeenCalledTimes(2);
+      // Two cached originals, plus a fresh private document per File per export.
+      expect(load).toHaveBeenCalledTimes(6);
 
       await Effect.runPromise(
         operation === "clearCache" ? service.clearCache() : service.releaseFile(file)
       );
       await Effect.runPromise(service.buildPDF(pages));
 
-      expect(load).toHaveBeenCalledTimes(operation === "clearCache" ? 4 : 3);
+      expect(load).toHaveBeenCalledTimes(operation === "clearCache" ? 10 : 9);
     }
   );
 
@@ -264,7 +305,7 @@ describe("PDFOperationsService", () => {
       expect(await build).toMatchObject({ operation: "release-source", file });
 
       const result = await Effect.runPromise(service.buildPDF(pages));
-      expect(load).toHaveBeenCalledTimes(2);
+      expect(load).toHaveBeenCalledTimes(3);
       expect((await PDFDocument.load(result.data)).getPageCount()).toBe(1);
     }
   );
@@ -287,7 +328,7 @@ describe("PDFOperationsService", () => {
       expect(await build).toMatchObject({ operation: "release-source", file });
 
       await Effect.runPromise(service.buildPDF(pages));
-      expect(load).toHaveBeenCalledTimes(2);
+      expect(load).toHaveBeenCalledTimes(3);
     }
   );
 });

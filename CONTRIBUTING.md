@@ -60,7 +60,7 @@ bun run format
 
 CI runs on every PR to `main`:
 
-- **ci**: shared Astro pipeline — type-check, lint, format:check, test, build, and Playwright browser tests
+- **ci**: type-check, lint, format:check, test, and build, followed by separate Chromium, Firefox, and WebKit browser jobs
 - **gate**: aggregates `ci`, `dependency-review`, and `qpdf`; this is the required branch-protection check
 - **pr-title**: enforces Conventional Commit format on PR titles
 - **dependency-review**: audits dependency changes

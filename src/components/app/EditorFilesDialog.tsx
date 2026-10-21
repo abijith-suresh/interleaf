@@ -9,7 +9,7 @@ interface Props {
   files: WorkspaceFile[];
   onClose: () => void;
   onSelectFile: (file: File) => void;
-  onRemoveFile: (file: File) => void;
+  onRemoveFile: (file: File) => void | Promise<void>;
 }
 
 function formatPageCount(pageCount: number) {
@@ -21,8 +21,11 @@ export default function EditorFilesDialog(props: Props) {
   let closeButton!: HTMLButtonElement;
   let list!: HTMLUListElement;
 
-  function focusAfterRemoval(removedIndex: number): void {
+  function focusAfterRemoval(removedIndex: number, removedControl: HTMLElement): void {
     requestAnimationFrame(() => {
+      if (!props.open) return;
+      if (document.activeElement !== document.body && document.activeElement !== removedControl)
+        return;
       const items = list?.querySelectorAll<HTMLButtonElement>('[data-testid="editor-file-item"]');
       const target = items?.[Math.min(removedIndex, (items.length ?? 1) - 1)];
       (target ?? closeButton)?.focus();
@@ -71,7 +74,7 @@ export default function EditorFilesDialog(props: Props) {
       id="editor-files-dialog"
       data-testid="editor-files-dialog"
       class="editor-files-layer"
-      aria-modal="true"
+      aria-modal={props.open ? "true" : undefined}
       aria-labelledby="editor-files-title"
       onCancel={(event) => {
         event.preventDefault();
@@ -128,9 +131,12 @@ export default function EditorFilesDialog(props: Props) {
                       aria-label={`Remove ${workspaceFile.file.name} and its ${formatPageCount(workspaceFile.pageCount)} from the workspace`}
                       title={`Remove ${workspaceFile.file.name}`}
                       disabled={props.busy}
-                      onClick={() => {
-                        focusAfterRemoval(index());
-                        props.onRemoveFile(workspaceFile.file);
+                      onClick={(event) => {
+                        const removedControl = event.currentTarget;
+                        const removedIndex = index();
+                        void Promise.resolve(props.onRemoveFile(workspaceFile.file)).then(() =>
+                          focusAfterRemoval(removedIndex, removedControl)
+                        );
                       }}
                       variant="danger"
                       icon="delete"

@@ -15,10 +15,12 @@ type LoadingTask = {
 function makePage(width = 100, height = 200) {
   return {
     rotate: 0,
+    view: [0, 0, width, height],
+    userUnit: 1,
     getViewport: vi.fn(({ scale = 1, rotation = 0 }) =>
       rotation === 90 || rotation === 270
-        ? { width: height * scale, height: width * scale }
-        : { width: width * scale, height: height * scale }
+        ? { width: height * scale, height: width * scale, transform: [1, 0, 0, -1, 0, height] }
+        : { width: width * scale, height: height * scale, transform: [1, 0, 0, -1, 0, height] }
     ),
     cleanup: vi.fn(() => true),
     render: vi.fn(() => ({ promise: Promise.resolve(), cancel: vi.fn() })),
@@ -124,9 +126,15 @@ describe("PDFService", () => {
   it("uses viewport dimensions including crop offsets and UserUnit independently of intrinsic rotation", async () => {
     // CropBox [20, 40, 120, 240], UserUnit 2.5, intrinsic rotation 90.
     page.rotate = 90;
+    page.view = [20, 40, 120, 240];
+    page.userUnit = 2.5;
     page.getViewport.mockImplementation(({ scale, rotation }) => {
       expect(rotation).toBe(0);
-      return { width: 100 * 2.5 * scale, height: 200 * 2.5 * scale };
+      return {
+        width: 100 * 2.5 * scale,
+        height: 200 * 2.5 * scale,
+        transform: [2.5, 0, 0, -2.5, -50, 600],
+      };
     });
     expect(await runPromise(service.getPageRotation(file, 1))).toBe(90);
     expect(await runPromise(service.getPageSize(file, 1))).toEqual({ width: 250, height: 500 });

@@ -1,6 +1,8 @@
 import { Effect, Fiber } from "effect";
-import { createSignal, onCleanup, onMount } from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { THUMBNAIL_INTERSECTION_MARGIN, THUMBNAIL_SCALE } from "../../constants";
+import { hasPageAdditions } from "../../controllers/editor-additions-state";
+import { copyOrganizationPages } from "../../controllers/editor-history";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
 
@@ -97,13 +99,22 @@ export default function EditorPageCanvas(props: Props) {
               props.page.sourceFile,
               props.page.sourcePageNumber
             );
-            yield* service.renderPage(
-              props.page.sourceFile,
-              props.page.sourcePageNumber,
-              canvas,
-              THUMBNAIL_SCALE,
-              sourceRotation
-            );
+            if (hasPageAdditions(props.page)) {
+              yield* service.renderPageState(
+                copyOrganizationPages([props.page])[0],
+                canvas,
+                THUMBNAIL_SCALE,
+                sourceRotation,
+                4_000_000
+              );
+            } else
+              yield* service.renderPage(
+                props.page.sourceFile,
+                props.page.sourcePageNumber,
+                canvas,
+                THUMBNAIL_SCALE,
+                sourceRotation
+              );
           })
         )
       );
@@ -188,6 +199,19 @@ export default function EditorPageCanvas(props: Props) {
     needsRender = true;
     renderThumbnail();
   };
+
+  createEffect(() => {
+    JSON.stringify([
+      props.page.addedText ?? [],
+      props.page.addedCheckmarks ?? [],
+      props.page.fieldAnswers ?? [],
+    ]);
+    needsRender = true;
+    if (observer) {
+      cancelPendingRender();
+      renderThumbnail();
+    }
+  });
 
   onMount(() => {
     observeForRender();

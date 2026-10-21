@@ -36,13 +36,13 @@
   ],
   "limits": [
     "Generated AP-backed text and radio widgets establish a concrete regression, not full PDF migration fidelity.",
-    "The baseline exercises current PDFOperationsService with its cached source documents and separate copyPages call per selected page. It retains inherited metadata and reciprocal parent/Kids membership, but copies a separate field graph per call; this is recorded, not upgraded into a new grouping promise.",
-    "Repeated import is a reference-identity diagnostic, not a duplication product feature.",
-    "All candidate outputs are saved and every native source/output handle is closed before bytes reach independent PDF.js reopening. Exact appearances and field/group metadata are asserted separately.",
+    "The baseline exercises current PDFOperationsService. Main rejects the original radio fixture because its positional /Opt entries cannot be preserved during per-page sibling pruning. Separate text-only positive controls assert inherited metadata, reciprocal parent/Kids membership with one retained widget per copied parent, and exact original AP pixels in all five scenarios.",
+    "Repeated import exercises source identity reuse; it is not a UI duplication end-to-end test.",
+    "All candidate outputs are saved and every native source/output handle is closed before bytes reach independent PDF.js reopening. Exact appearances are compared with the untouched source pages, independently of main's rejection, and field/group metadata are asserted separately.",
     "Model adoption is restricted to the generated two-field full-import case. It is a bounded counterexample, not a production repair implementation.",
     "Source-to-artifact mapping is the declared input evidence established in #316, not a reproducible final-link attestation.",
     "Complete bundled distribution notices, security-fix review, other fidelity, worker lifetime/cache and measured performance remain separate production prerequisites."
   ],
-  "parityCommand": "PDFIUM_FIELDS_REQUIRE_PARITY=1 PLAYWRIGHT_PORT=4387 bun run test:e2e tests/e2e/pdfium-fields.spec.ts --project=chromium --workers=2",
-  "parityBehavior": "Intentionally fails inherited metadata equality for full/plain on the pinned successor. Default tests assert the exact known deficit plus successful main/direct-save controls; no tests are skipped or retried."
+  "parityCommand": "PDFIUM_FIELDS_REQUIRE_PARITY=1 PLAYWRIGHT_PORT=4387 bun run test:e2e tests/e2e/pdfium-fields.spec.ts --project=chromium --workers=1",
+  "parityBehavior": "Intentionally fails inherited metadata equality for full/plain on the pinned successor. Default tests assert the exact known deficit, exact original main rejection, successful text-only main controls, and untouched direct-save control; no tests are skipped or retried."
 }

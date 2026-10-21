@@ -13,7 +13,7 @@ concurrency:
 jobs:
   ci:
     name: CI
-    uses: abijith-suresh/workflows/.github/workflows/ci.yml@9c9e55ab629eafe5b5edbae9857b1d66fb384f8c # 0.8.1
+    uses: ./.github/workflows/verify.yml
     permissions:
       contents: read
 

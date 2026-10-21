@@ -1,8 +1,11 @@
 import { Context, Effect, Exit, type Fiber, Layer, ManagedRuntime } from "effect";
 import type {
+  FieldAnswer,
+  PageGeometry,
   PageState,
   PDFCompressionResult,
   PDFError,
+  PDFFields,
   PDFImageExportResult,
   PDFOperationResult,
 } from "../types/interfaces";
@@ -23,6 +26,12 @@ import {
 } from "./qpdf-processing";
 
 export interface PDFProcessingShape {
+  readonly getFields: (file: File) => Effect.Effect<PDFFields, PDFProcessingError>;
+  readonly validateFieldAnswer: (
+    file: File,
+    answer: FieldAnswer,
+    pageNumbers: readonly number[]
+  ) => Effect.Effect<void, PDFProcessingError>;
   readonly loadPDF: (file: File) => Effect.Effect<void, PDFError>;
   readonly loadPDFWithPassword: (file: File, password: string) => Effect.Effect<void, PDFError>;
   readonly getPageCount: Effect.Effect<number>;
@@ -33,6 +42,17 @@ export interface PDFProcessingShape {
     scale?: number,
     rotation?: number
   ) => Effect.Effect<void, PDFError>;
+  readonly renderPageState: (
+    page: PageState,
+    canvas: HTMLCanvasElement,
+    scale: number,
+    rotation: number,
+    maxRasterPixels?: number
+  ) => Effect.Effect<void, PDFError>;
+  readonly getPageGeometry: (
+    file: File,
+    pageNumber: number
+  ) => Effect.Effect<PageGeometry, PDFError>;
   readonly getPageRotation: (file: File, pageNumber: number) => Effect.Effect<number, PDFError>;
   readonly getPageSize: (
     file: File,
@@ -135,6 +155,12 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
         const service: PDFProcessingShape & {
           readonly dispose: () => Effect.Effect<void, PDFProcessingError>;
         } = {
+          getFields: (file) =>
+            Effect.flatMap(getOperationsService, (service) => service.getFields(file)),
+          validateFieldAnswer: (file, answer, pageNumbers) =>
+            Effect.flatMap(getOperationsService, (service) =>
+              service.validateFieldAnswer(file, answer, pageNumbers)
+            ),
           loadPDF: (file: File) => pdfService.loadPDF(file),
           loadPDFWithPassword: (file: File, password: string) =>
             pdfService.loadPDFWithPassword(file, password),
@@ -146,6 +172,9 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
             scale?: number,
             rotation?: number
           ) => pdfService.renderPage(file, pageNumber, canvas, scale, rotation),
+          renderPageState: (page, canvas, scale, rotation, maxRasterPixels) =>
+            pdfService.renderPageState(page, canvas, scale, rotation, maxRasterPixels),
+          getPageGeometry: (file, pageNumber) => pdfService.getPageGeometry(file, pageNumber),
           getPageRotation: (file: File, pageNumber: number) =>
             pdfService.getPageRotation(file, pageNumber),
           getPageSize: (file: File, pageNumber: number, rotation?: number) =>
@@ -161,10 +190,12 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
           compressPDF: (file: File) =>
             compressionService.compressPDF(file, pdfService.getPassword(file)),
           releaseFile: (file: File) =>
-            collectFirstError([
-              pdfService.releaseFile(file),
-              operationsService?.releaseFile(file) ?? Effect.void,
-            ]),
+            Effect.suspend(() =>
+              collectFirstError([
+                pdfService.releaseFile(file),
+                operationsService?.releaseFile(file) ?? Effect.void,
+              ])
+            ),
           reset: Effect.suspend(() => pdfService.reset()),
           clearCache: Effect.suspend(() => operationsService?.clearCache() ?? Effect.void),
           dispose: () =>

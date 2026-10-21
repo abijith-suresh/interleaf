@@ -1,4 +1,7 @@
 import type { PageState } from "../types/interfaces";
+import { copyAddedCheckmarks } from "./editor-checkmark-state";
+import { copyFieldAnswers } from "./editor-field-state";
+import { copyAddedTexts } from "./editor-text-state";
 
 export type DeletionAction = "mark" | "restore";
 
@@ -23,10 +26,24 @@ export function createPageStates(
   return Array.from({ length: pageCount }, (_, index) => ({
     id: `${file.name}-${index + 1}-${createdAt}-${batchId}`,
     sourceFile: file,
+    fieldGroupId: batchId,
     sourcePageNumber: index + 1,
     rotation: 0,
     markedForDeletion: false,
   }));
+}
+
+export function duplicatePageState(page: PageState): PageState {
+  const id = `copy-${createPageBatchId()}`;
+  return {
+    ...page,
+    id,
+    fieldGroupId: id,
+    fieldAnswers: copyFieldAnswers(page.fieldAnswers),
+    addedText: copyAddedTexts(page.addedText),
+    addedCheckmarks: copyAddedCheckmarks(page.addedCheckmarks),
+    markedForDeletion: false,
+  };
 }
 
 export function toggleSelection(selectedIndices: Set<number>, index: number): Set<number> {

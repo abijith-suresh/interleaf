@@ -1,12 +1,22 @@
 import { Effect, Exit, Fiber } from "effect";
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { createStore, produce } from "solid-js/store";
+import { batch, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createStore, produce, reconcile } from "solid-js/store";
 import { ROTATION_STEP, TOAST_DISMISS_TIMEOUT_MS } from "../../constants";
+import { hasPageAdditions } from "../../controllers/editor-additions-state";
+import { answerField } from "../../controllers/editor-field-state";
+import {
+  copyOrganizationPages,
+  emptyOrganizationHistory,
+  recordOrganization,
+  snapshotOrganization,
+  trimOrganizationHistory,
+} from "../../controllers/editor-history";
 import { planUploadGroups } from "../../controllers/editor-import";
 import {
   areAllPagesSelected,
   createPageStates,
   type DeletionAction,
+  duplicatePageState,
   getDeletionAction,
   remapSelectionAfterMove,
   toggleSelectAll,
@@ -22,6 +32,7 @@ import { getSupportedFileKind } from "../../utils/file-types";
 import { promptForPassword } from "../../utils/password-prompt";
 import { showToast as dispatchToast, TOAST_EVENT_NAME, type ToastDetail } from "../../utils/toast";
 import EditorFilesDialog from "./EditorFilesDialog";
+import EditorHistoryControls from "./EditorHistoryControls";
 import EditorPageGrid from "./EditorPageGrid";
 import EditorPageViewer from "./EditorPageViewer";
 import EditorSelectionBar from "./EditorSelectionBar";
@@ -40,7 +51,9 @@ type EditorOperation =
   | "adding"
   | "building"
   | "exporting-images"
-  | "compressing";
+  | "compressing"
+  | "restoring"
+  | "removing";
 type ToastTone = "success" | "error" | "info";
 
 interface Toast {
@@ -79,12 +92,21 @@ export default function Editor() {
   const toastTimers = new Map<number, number>();
   const pdfRuntime = makePDFRuntime();
   let disposed = false;
+  let filesFocusGeneration = 0;
+  let restoreFilesAfterRemoval: (() => void) | undefined;
+
+  function invalidateFilesFocus(): void {
+    filesFocusGeneration++;
+    restoreFilesAfterRemoval = undefined;
+  }
 
   const [phase, setPhase] = createSignal<"upload" | "edit">("upload");
   const [pages, setPages] = createStore<PageState[]>([]);
   const [selectedIndices, setSelectedIndices] = createSignal<Set<number>>(new Set<number>());
   const [dragSourceIndex, setDragSourceIndex] = createSignal<number | null>(null);
   const [dragOverTarget, setDragOverTarget] = createSignal<DragOverTarget | null>(null);
+  const [history, setHistory] = createSignal(emptyOrganizationHistory());
+  const [filePickerOpen, setFilePickerOpen] = createSignal(false);
   const [filesOpen, setFilesOpen] = createSignal(false);
   const [workspaceView, setWorkspaceView] = createSignal<"pages" | "document">("pages");
   const [activePageId, setActivePageId] = createSignal<string | null>(null);
@@ -112,6 +134,200 @@ export default function Editor() {
   const selectedDeletionAction = () => getDeletionAction(pages, selectedIndices());
   const deletionCopy = () => deletionActionCopy[selectedDeletionAction()];
 
+  const historyUnavailable = () =>
+    isBusy() || dragSourceIndex() !== null || filesOpen() || filePickerOpen();
+
+  function organizationSnapshot() {
+    return snapshotOrganization(pages, selectedIndices(), activePageId());
+  }
+
+  function organize(label: string, mutation: () => void) {
+    const before = organizationSnapshot();
+    batch(() => {
+      mutation();
+      setHistory((current) => recordOrganization(current, label, before, organizationSnapshot()));
+    });
+  }
+
+  function restoreOrganization(direction: "undo" | "redo"): boolean {
+    if (disposed || phase() !== "edit" || historyUnavailable()) return false;
+    const current = history();
+    const entry = current[direction].at(-1);
+    if (!entry) return false;
+    const snapshot = direction === "undo" ? entry.before : entry.after;
+    const focused = document.activeElement;
+    const focusedInWorkspace = focused instanceof HTMLElement && editorRoot.contains(focused);
+    const focusedView = workspaceView();
+    const focusedInViewer = focused instanceof HTMLElement && !!focused.closest("#editor-document");
+    const focusedRow =
+      focused instanceof HTMLElement
+        ? focused.closest<HTMLElement>(".editor-page-grid > li[data-page-index]")
+        : null;
+    const focusedIndex = focusedRow ? Number(focusedRow.dataset.pageIndex) : -1;
+    const focusedId = pages[focusedIndex]?.id;
+    const currentFiles = new Set(pages.map((page) => page.sourceFile));
+    const targetFiles = new Set(snapshot.pages.map((page) => page.sourceFile));
+    const missing = [...targetFiles].filter((file) => !currentFiles.has(file));
+    const obsolete = [...currentFiles].filter((file) => !targetFiles.has(file));
+    const commit = () =>
+      batch(() => {
+        setPages(reconcile(copyOrganizationPages(snapshot.pages), { key: "id" }));
+        const selectedIds = new Set(snapshot.selectedIds);
+        setSelectedIndices(
+          new Set(pages.flatMap((page, index) => (selectedIds.has(page.id) ? [index] : [])))
+        );
+        const reviewIds = pages
+          .filter((page) => selectedIds.size === 0 || selectedIds.has(page.id))
+          .map((page) => page.id);
+        setActivePageId(
+          reviewIds.includes(snapshot.activePageId ?? "")
+            ? snapshot.activePageId
+            : (reviewIds[0] ?? null)
+        );
+        if (pages.length === 0) setWorkspaceView("pages");
+        setHistory(
+          trimOrganizationHistory(
+            direction === "undo"
+              ? { undo: current.undo.slice(0, -1), redo: [...current.redo, entry] }
+              : { undo: [...current.undo, entry], redo: current.redo.slice(0, -1) },
+            pages
+          )
+        );
+        setStatusMessage(`${direction === "undo" ? "Undid" : "Redid"} ${entry.label}.`);
+      });
+    // Reordering can blur a moved tile; undoing a copy can remove it entirely.
+    // Restore only focus that belonged to that page, never an unrelated control.
+    const restoreFocus = () => {
+      if (focusedInWorkspace && focused instanceof HTMLElement)
+        queueMicrotask(() => {
+          if (disposed || !editorRoot.isConnected) return;
+          if (workspaceView() !== focusedView && pages.length > 0) return;
+          if (document.activeElement !== document.body && document.activeElement !== focused)
+            return;
+          if (pages.length === 0) {
+            if (focused.isConnected && !focused.matches(":disabled") && !focusedInViewer) return;
+            editorRoot
+              .querySelector<HTMLButtonElement>(`[data-testid="editor-${direction}-button"]`)
+              ?.focus();
+            return;
+          }
+          if (!focusedRow) {
+            if (focused.isConnected && !focused.matches(":disabled")) {
+              focused.focus();
+              return;
+            }
+            const fallback = focusedInViewer
+              ? '.editor-review-filmstrip-item[aria-current="page"]'
+              : `[data-testid="editor-${direction}-button"]`;
+            editorRoot.querySelector<HTMLButtonElement>(fallback)?.focus();
+            return;
+          }
+          if (focused.isConnected) {
+            focused.focus();
+            return;
+          }
+          const logicalIndex = pages.findIndex((page) => page.id === focusedId);
+          const activeIndex = pages.findIndex((page) => page.id === activePageId());
+          const index =
+            logicalIndex >= 0
+              ? logicalIndex
+              : activeIndex >= 0
+                ? activeIndex
+                : Math.min(focusedIndex, pages.length - 1);
+          editorRoot
+            .querySelector<HTMLButtonElement>(
+              `[data-testid="editor-page-tile"][data-page-index="${index}"]`
+            )
+            ?.focus();
+        });
+    };
+    if (missing.length === 0 && obsolete.length === 0) {
+      commit();
+      restoreFocus();
+    } else {
+      // Claim the operation synchronously so accepted keyboard requests can
+      // prevent the browser's default before asynchronous loading starts.
+      setOperation("restoring");
+      setStatusMessage("Restoring files…");
+      void runPDF(
+        PDFProcessing.use((service) =>
+          Effect.suspend(() => {
+            const attempted: File[] = [];
+            let committed = false;
+            return Effect.gen(function* () {
+              for (const file of missing) {
+                attempted.push(file);
+                const count = yield* loadPdfFile(service, file);
+                if (count === null || disposed) return;
+              }
+              if (disposed) return;
+              commit();
+              committed = true;
+            }).pipe(
+              Effect.onExit(() =>
+                releaseWorkspaceFiles(
+                  service,
+                  committed ? obsolete : attempted,
+                  committed ? "Workspace restored" : "Restoration canceled"
+                )
+              ),
+              Effect.onExit(() =>
+                Effect.sync(() => {
+                  if (disposed) return;
+                  setOperation("idle");
+                  if (!committed) setStatusMessage("Files were not restored.");
+                  restoreFocus();
+                })
+              )
+            );
+          })
+        )
+      ).catch((error) => {
+        if (!disposed)
+          dispatchToast(
+            error instanceof Error ? error.message : "Could not restore files.",
+            "error"
+          );
+      });
+    }
+    return true;
+  }
+
+  function handleHistoryKeyDown(event: KeyboardEvent) {
+    if (
+      event.defaultPrevented ||
+      event.isComposing ||
+      event.altKey ||
+      !(event.ctrlKey || event.metaKey)
+    )
+      return;
+    const target = event.target;
+    if (
+      !(target instanceof HTMLElement) ||
+      (target !== document.body && !editorRoot.contains(target))
+    )
+      return;
+    if (
+      target.isContentEditable ||
+      target.closest(
+        'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="menu"], [role="dialog"], dialog'
+      )
+    )
+      return;
+    if (document.querySelector('dialog[open], [role="dialog"][aria-modal="true"], [role="menu"]'))
+      return;
+    const key = event.key.toLowerCase();
+    const direction =
+      key === "z"
+        ? event.shiftKey
+          ? "redo"
+          : "undo"
+        : key === "y" && event.ctrlKey && !event.metaKey && !event.shiftKey
+          ? "redo"
+          : null;
+    if (direction && restoreOrganization(direction)) event.preventDefault();
+  }
+
   function getUnmodifiedSourceFile(): File | null {
     if (pages.length === 0 || selectedIndices().size > 0) return null;
 
@@ -123,7 +339,8 @@ export default function Editor() {
         page.sourceFile === sourceFile &&
         page.sourcePageNumber === index + 1 &&
         page.rotation === 0 &&
-        !page.markedForDeletion
+        !page.markedForDeletion &&
+        !hasPageAdditions(page)
     );
 
     return isUnmodified ? sourceFile : null;
@@ -194,9 +411,11 @@ export default function Editor() {
         editorRoot.querySelector<HTMLButtonElement>(`[data-view="${workspaceView()}"]`)?.focus();
       }
     };
+    document.addEventListener("keydown", handleHistoryKeyDown);
     document.addEventListener("focusin", rememberFocus);
     window.addEventListener("resize", retainVisibleFocus);
     onCleanup(() => {
+      document.removeEventListener("keydown", handleHistoryKeyDown);
       document.removeEventListener("focusin", rememberFocus);
       window.removeEventListener("resize", retainVisibleFocus);
     });
@@ -204,6 +423,8 @@ export default function Editor() {
 
   onCleanup(() => {
     disposed = true;
+    invalidateFilesFocus();
+    setHistory(emptyOrganizationHistory());
     if (typeof document !== "undefined") {
       document.removeEventListener(TOAST_EVENT_NAME, handleToast);
     }
@@ -283,23 +504,49 @@ export default function Editor() {
     );
   }
 
+  function releaseWorkspaceFiles(
+    service: PDFProcessingShape,
+    files: readonly File[],
+    result: string
+  ) {
+    return Effect.forEach(
+      files,
+      (file) =>
+        Effect.suspend(() => service.releaseFile(file)).pipe(
+          Effect.catch((error) =>
+            Effect.sync(() => {
+              if (!disposed)
+                dispatchToast(
+                  `${result}, but could not release ${file.name}: ${error.message}`,
+                  "error"
+                );
+            })
+          )
+        ),
+      { discard: true }
+    );
+  }
+
   function commitWorkspaceFiles(files: LoadedWorkspaceFile[], replace: boolean): void {
     const nextPages = files.flatMap(({ file, pageCount }) => createPageStates(file, pageCount));
     if (replace) {
-      setPages(nextPages);
-      setSelectedIndices(new Set<number>());
-      setActivePageId(nextPages[0]?.id ?? null);
-      setWorkspaceView("pages");
-      setPhase("edit");
+      batch(() => {
+        setPages(nextPages);
+        setSelectedIndices(new Set<number>());
+        setActivePageId(nextPages[0]?.id ?? null);
+        setWorkspaceView("pages");
+        setPhase("edit");
+      });
       return;
     }
-
-    setPages(
-      produce((draftPages) => {
-        draftPages.push(...nextPages);
-      })
-    );
-    if (!activePageId()) setActivePageId(nextPages[0]?.id ?? null);
+    organize("source addition", () => {
+      setPages(
+        produce((draftPages) => {
+          draftPages.push(...nextPages);
+        })
+      );
+      if (!activePageId()) setActivePageId(nextPages[0]?.id ?? null);
+    });
   }
 
   function describeLoadedFiles(mode: "upload" | "add", pdfCount: number, imageCount: number) {
@@ -318,7 +565,8 @@ export default function Editor() {
   }
 
   async function loadFilesIntoWorkspace(files: File[], mode: "upload" | "add"): Promise<boolean> {
-    if (disposed || files.length === 0) return false;
+    if (disposed || isBusy() || files.length === 0) return false;
+    invalidateFilesFocus();
 
     const unsupportedFiles = files.filter((file) => getSupportedFileKind(file) === null);
     if (unsupportedFiles.length > 0) {
@@ -393,7 +641,7 @@ export default function Editor() {
               loadedFiles.push({ file: pdfFile, pageCount });
             }
 
-            commitWorkspaceFiles(loadedFiles, mode === "upload");
+            commitWorkspaceFiles(loadedFiles, phase() === "upload");
             setStatusMessage(describeLoadedFiles(mode, pdfCount, imageCount));
             return true;
           }).pipe(
@@ -423,10 +671,12 @@ export default function Editor() {
   function requestAddFiles(): void {
     if (isBusy()) return;
     setFilesOpen(false);
+    setFilePickerOpen(true);
     addPdfInput.click();
   }
 
   function handleAddFilesInput(event: Event): void {
+    setFilePickerOpen(false);
     const input = event.currentTarget as HTMLInputElement;
     const files = Array.from(input.files ?? []);
     input.value = "";
@@ -435,12 +685,47 @@ export default function Editor() {
   }
 
   function closeFilesDialog(): void {
+    invalidateFilesFocus();
+    const version = filesFocusGeneration;
+    const view = workspaceView();
+    const focused = document.activeElement;
     setFilesOpen(false);
-    queueMicrotask(() => filesButton?.focus());
+    queueMicrotask(() => {
+      if (disposed || version !== filesFocusGeneration || workspaceView() !== view) return;
+      if (
+        document.activeElement !== document.body &&
+        document.activeElement !== focused &&
+        document.activeElement !== filesButton
+      )
+        return;
+      const target = filesButton?.disabled
+        ? editorRoot.querySelector<HTMLButtonElement>('[data-testid="editor-undo-button"]')
+        : filesButton;
+      target?.focus();
+      if (operation() === "removing" && pages.length > 0 && filesButton?.disabled) {
+        const fallback = document.activeElement;
+        // Cleanup can outlive closing the dialog. Return to Files once enabled,
+        // only while focus still belongs to the fallback chosen above.
+        restoreFilesAfterRemoval = () => {
+          if (
+            !disposed &&
+            version === filesFocusGeneration &&
+            workspaceView() === view &&
+            !filesOpen() &&
+            filesButton?.isConnected &&
+            !filesButton.disabled &&
+            document.activeElement === fallback
+          )
+            filesButton.focus({ preventScroll: true });
+        };
+      }
+    });
   }
 
   function changeWorkspaceView(view: "pages" | "document"): void {
+    invalidateFilesFocus();
     if (view === "document") {
+      if (pages.length === 0) return;
       const ids = reviewPageIds();
       if (!ids.includes(activePageId() ?? "")) setActivePageId(ids[0] ?? null);
     }
@@ -454,7 +739,7 @@ export default function Editor() {
 
   async function handleInitialFiles(files: File[]): Promise<void> {
     if (disposed || isBusy() || files.length === 0) return;
-    await loadFilesIntoWorkspace(files, "upload");
+    await loadFilesIntoWorkspace(files, phase() === "upload" ? "upload" : "add");
   }
 
   // --- Selection ---
@@ -494,6 +779,7 @@ export default function Editor() {
 
     const workspaceFile = workspaceFiles().find((candidate) => candidate.file === file);
     if (!workspaceFile) return;
+    setOperation("removing");
     const removedPageCount = workspaceFile.pageCount;
     const removedFileName = file.name;
 
@@ -505,28 +791,54 @@ export default function Editor() {
       if (selection.has(oldIndex)) nextSelection.add(remainingPages.length);
       remainingPages.push(page);
     });
-    setPages(remainingPages);
-    setSelectedIndices(nextSelection);
-    setDragSourceIndex(null);
-    setDragOverTarget(null);
-    if (!remainingPages.some((page) => page.id === activePageId())) {
-      setActivePageId(remainingPages[0]?.id ?? null);
-    }
-
-    if (remainingPages.length === 0) {
-      setPhase("upload");
-      setWorkspaceView("pages");
-      setFilesOpen(false);
-      setStatusMessage(`Removed ${removedFileName}. The workspace is empty.`);
-    } else {
-      setStatusMessage(`Removed ${removedFileName} and ${formatPageCount(removedPageCount)}.`);
-    }
-
+    organize("source removal", () => {
+      setPages(copyOrganizationPages(remainingPages));
+      setSelectedIndices(nextSelection);
+      setDragSourceIndex(null);
+      setDragOverTarget(null);
+      if (!remainingPages.some((page) => page.id === activePageId())) {
+        setActivePageId(remainingPages[0]?.id ?? null);
+      }
+      if (remainingPages.length === 0) {
+        setWorkspaceView("pages");
+        setFilesOpen(false);
+      }
+    });
+    setStatusMessage(
+      remainingPages.length === 0
+        ? `Removed ${removedFileName}. The workspace is empty.`
+        : `Removed ${removedFileName} and ${formatPageCount(removedPageCount)}.`
+    );
     try {
-      await runPDF(PDFProcessing.use((service) => service.releaseFile(file)));
-    } catch {
-      // Cleanup is best effort; the runtime also releases all remaining files
-      // when the editor is disposed.
+      await runPDF(
+        PDFProcessing.use((service) => releaseWorkspaceFiles(service, [file], "Source removed"))
+      );
+    } catch (error) {
+      if (!disposed)
+        dispatchToast(
+          `Source removed, but cleanup failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+          "error"
+        );
+    } finally {
+      const restoreFiles = restoreFilesAfterRemoval;
+      restoreFilesAfterRemoval = undefined;
+      if (!disposed) {
+        setOperation("idle");
+        if (restoreFiles) queueMicrotask(restoreFiles);
+        if (
+          remainingPages.length === 0 &&
+          (document.activeElement === document.body ||
+            document.activeElement === filesButton ||
+            (document.activeElement instanceof HTMLElement &&
+              !!document.activeElement.closest("#editor-files-dialog")))
+        ) {
+          queueMicrotask(() =>
+            editorRoot
+              .querySelector<HTMLButtonElement>('[data-testid="editor-undo-button"]')
+              ?.focus()
+          );
+        }
+      }
     }
   }
 
@@ -540,12 +852,33 @@ export default function Editor() {
     );
   }
 
-  // --- Rotation ---
+  // --- Page organization ---
+
+  function handlePageDuplicate(index: number, e: MouseEvent): void {
+    e.stopPropagation();
+    if (isBusy()) return;
+    const page = pages[index];
+    if (!page) return;
+    const copy = duplicatePageState(page);
+    organize("page duplication", () => {
+      setPages(produce((draft) => draft.splice(index + 1, 0, copy)));
+      setSelectedIndices(new Set([index + 1]));
+      setActivePageId(copy.id);
+    });
+    setStatusMessage(`Duplicated page ${index + 1}. Page ${index + 2} selected.`);
+    queueMicrotask(() =>
+      editorRoot
+        .querySelector<HTMLButtonElement>(
+          `[data-testid="editor-page-tile"][data-page-index="${index + 1}"]`
+        )
+        ?.focus()
+    );
+  }
 
   function handlePageRotate(index: number, e: MouseEvent): void {
     e.stopPropagation();
-    if (isBusy()) return;
-    setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360);
+    if (isBusy() || !pages[index]) return;
+    organize("page rotation", () => setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360));
     setStatusMessage(`Rotated page ${index + 1}.`);
   }
 
@@ -553,8 +886,11 @@ export default function Editor() {
     e.stopPropagation();
     if (isBusy()) return;
 
-    const markedForDeletion = pages[index]?.markedForDeletion ?? false;
-    setPages(index, "markedForDeletion", !markedForDeletion);
+    if (!pages[index]) return;
+    const markedForDeletion = pages[index].markedForDeletion;
+    organize(markedForDeletion ? "page restoration" : "deletion marking", () =>
+      setPages(index, "markedForDeletion", !markedForDeletion)
+    );
     setStatusMessage(
       markedForDeletion ? `Restored page ${index + 1}.` : `Marked page ${index + 1} for deletion.`
     );
@@ -562,9 +898,11 @@ export default function Editor() {
 
   function handleRotateSelected(): void {
     if (isBusy() || selectedIndices().size === 0) return;
-    for (const index of selectedIndices()) {
-      setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360);
-    }
+    organize("selected page rotation", () => {
+      for (const index of selectedIndices()) {
+        setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360);
+      }
+    });
     setStatusMessage(
       `Rotated ${selectedIndices().size} selected page${selectedIndices().size === 1 ? "" : "s"}.`
     );
@@ -577,9 +915,11 @@ export default function Editor() {
     const action = selectedDeletionAction();
     const markForDeletion = action === "mark";
 
-    for (const index of selectedIndices()) {
-      setPages(index, "markedForDeletion", markForDeletion);
-    }
+    organize(markForDeletion ? "selected deletion marking" : "selected page restoration", () => {
+      for (const index of selectedIndices()) {
+        setPages(index, "markedForDeletion", markForDeletion);
+      }
+    });
     setStatusMessage(
       `${markForDeletion ? "Marked" : "Restored"} ${selectedIndices().size} selected page${
         selectedIndices().size === 1 ? "" : "s"
@@ -616,10 +956,15 @@ export default function Editor() {
       if (disposed) return;
       downloadPDF(result);
       setStatusMessage("Export started.");
-    } catch (_err) {
+    } catch (error) {
       if (disposed) return;
-      dispatchToast("Failed to export the PDF.", "error");
-      setStatusMessage("Export failed. Try again.");
+      const exportConstraint =
+        error instanceof PDFProcessingError && error.operation === "reconcile-export";
+      const constraintMessage = exportConstraint
+        ? `${error.file ? `${error.file.name}: ` : ""}${error.message} Select pages from other files or remove this file, then try again.`
+        : undefined;
+      dispatchToast(constraintMessage ?? "Failed to export the PDF.", "error");
+      setStatusMessage(constraintMessage ?? "Export failed. Try again.");
     } finally {
       if (!disposed) setOperation("idle");
     }
@@ -713,25 +1058,45 @@ export default function Editor() {
   function movePage(from: number, to: number): void {
     if (from === to || from < 0 || to < 0 || from >= pages.length || to >= pages.length) return;
 
-    setPages(
-      produce((currentPages) => {
-        const [moved] = currentPages.splice(from, 1);
-        currentPages.splice(to, 0, moved);
-      })
-    );
-    setSelectedIndices((previousSelection) => remapSelectionAfterMove(previousSelection, from, to));
+    organize("page reorder", () => {
+      setPages(
+        produce((currentPages) => {
+          const [moved] = currentPages.splice(from, 1);
+          currentPages.splice(to, 0, moved);
+        })
+      );
+      setSelectedIndices((previousSelection) =>
+        remapSelectionAfterMove(previousSelection, from, to)
+      );
+    });
     setStatusMessage(`Moved page ${from + 1} to position ${to + 1}.`);
   }
 
   function handlePageKeyDown(index: number, e: KeyboardEvent): void {
     if (isBusy() || !e.altKey) return;
 
-    if (e.key === "ArrowLeft" && index > 0) {
-      e.preventDefault();
-      movePage(index, index - 1);
-    } else if (e.key === "ArrowRight" && index < pages.length - 1) {
-      e.preventDefault();
-      movePage(index, index + 1);
+    const to = e.key === "ArrowLeft" ? index - 1 : e.key === "ArrowRight" ? index + 1 : index;
+    if (to === index || to < 0 || to >= pages.length) return;
+    const pageId = pages[index]?.id;
+    if (!pageId) return;
+    const focusedTile = e.currentTarget;
+    const restoreFocus = document.activeElement === focusedTile;
+    e.preventDefault();
+    movePage(index, to);
+
+    // Solid moves the existing row, which can blur its focused button.
+    if (restoreFocus) {
+      queueMicrotask(() => {
+        if (disposed || isBusy() || workspaceView() !== "pages" || !editorRoot.isConnected) return;
+        if (document.activeElement !== document.body && document.activeElement !== focusedTile)
+          return;
+        const currentIndex = pages.findIndex((page) => page.id === pageId);
+        editorRoot
+          .querySelector<HTMLButtonElement>(
+            `[data-testid="editor-page-tile"][data-page-index="${currentIndex}"]`
+          )
+          ?.focus();
+      });
     }
   }
 
@@ -929,6 +1294,7 @@ export default function Editor() {
                 </EditorButton>
                 <EditorButton
                   data-testid="editor-document-view-button"
+                  aria-disabled={pages.length === 0}
                   data-view="document"
                   aria-pressed={workspaceView() === "document"}
                   aria-controls="editor-workspace-content"
@@ -962,12 +1328,19 @@ export default function Editor() {
                   aria-expanded={filesOpen()}
                   title={filesButtonLabel()}
                   onClick={() => setFilesOpen(true)}
-                  disabled={isBusy()}
+                  disabled={isBusy() || pages.length === 0}
                   icon="files"
                 >
                   <span class="editor-files-button-label">Files</span>
                 </EditorButton>
               </div>
+              <EditorHistoryControls
+                undoLabel={history().undo.at(-1)?.label}
+                redoLabel={history().redo.at(-1)?.label}
+                unavailable={historyUnavailable()}
+                onUndo={() => restoreOrganization("undo")}
+                onRedo={() => restoreOrganization("redo")}
+              />
               <p class="editor-workspace-privacy">Your files never leave your device.</p>
               <a href={base} class="editor-back" aria-label="Return to Interleaf home">
                 <EditorIcon name="back" />
@@ -990,16 +1363,47 @@ export default function Editor() {
                 class="hidden"
                 disabled={isBusy()}
                 onChange={handleAddFilesInput}
+                onCancel={() => setFilePickerOpen(false)}
               />
               <Show
                 when={workspaceView() === "pages"}
                 fallback={
                   <EditorPageViewer
                     pages={pages}
+                    disabled={isBusy()}
                     navigationPageIds={reviewPageIds()}
                     activePageId={activePageId()}
                     runtime={pdfRuntime}
                     onActivePageChange={(pageId) => setActivePageId(pageId)}
+                    onCheckmarksChange={(pageId, marks, label) =>
+                      organize(label, () => {
+                        const index = pages.findIndex((page) => page.id === pageId);
+                        if (index >= 0)
+                          setPages(
+                            index,
+                            "addedCheckmarks",
+                            marks.map((mark) => ({ ...mark }))
+                          );
+                      })
+                    }
+                    onFieldChange={(pageId, fieldRef, value) =>
+                      organize("Fill text field", () =>
+                        setPages(
+                          reconcile(answerField(pages, pageId, fieldRef, value), { key: "id" })
+                        )
+                      )
+                    }
+                    onTextChange={(pageId, texts, label) =>
+                      organize(label, () => {
+                        const index = pages.findIndex((page) => page.id === pageId);
+                        if (index >= 0)
+                          setPages(
+                            index,
+                            "addedText",
+                            texts.map((text) => ({ ...text }))
+                          );
+                      })
+                    }
                   />
                 }
               >
@@ -1007,52 +1411,67 @@ export default function Editor() {
                   <h2 id="editor-pages-title">Pages</h2>
                   <span class="editor-canvas-count">{pageStatusSummary()}</span>
                 </div>
-                <EditorPageGrid
-                  busy={isBusy()}
-                  pages={pages}
-                  runtime={pdfRuntime}
-                  selectedIndices={selectedIndices()}
-                  dragSourceIndex={dragSourceIndex()}
-                  dragOverTarget={dragOverTarget()}
-                  onPageClick={handlePageClick}
-                  onClearSelection={clearSelection}
-                  onPageKeyDown={handlePageKeyDown}
-                  onPageRotate={handlePageRotate}
-                  onPageDelete={handlePageDelete}
-                  onDragStart={handleDragStart}
-                  onDragOver={handleDragOver}
-                  onDragEnter={handleDragEnter}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  onDragEnd={handleDragEnd}
-                  onTouchDragStart={handleTouchDragStart}
-                  onTouchDragMove={handleTouchDragMove}
-                  onTouchDragEnd={handleTouchDragEnd}
-                  onTouchDragCancel={handleTouchDragCancel}
-                />
+                <Show
+                  when={pages.length > 0}
+                  fallback={
+                    <EditorUploader
+                      busy={isBusy()}
+                      statusMessage={statusMessage()}
+                      onFilesSelected={handleInitialFiles}
+                      onPickerChange={setFilePickerOpen}
+                    />
+                  }
+                >
+                  <EditorPageGrid
+                    busy={isBusy()}
+                    pages={pages}
+                    runtime={pdfRuntime}
+                    selectedIndices={selectedIndices()}
+                    dragSourceIndex={dragSourceIndex()}
+                    dragOverTarget={dragOverTarget()}
+                    onPageClick={handlePageClick}
+                    onClearSelection={clearSelection}
+                    onPageKeyDown={handlePageKeyDown}
+                    onPageRotate={handlePageRotate}
+                    onPageDelete={handlePageDelete}
+                    onPageDuplicate={handlePageDuplicate}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onDragEnd={handleDragEnd}
+                    onTouchDragStart={handleTouchDragStart}
+                    onTouchDragMove={handleTouchDragMove}
+                    onTouchDragEnd={handleTouchDragEnd}
+                    onTouchDragCancel={handleTouchDragCancel}
+                  />
+                </Show>
               </Show>
 
-              <EditorSelectionBar
-                documentView={workspaceView() === "document"}
-                busy={isBusy()}
-                busyLabel={statusMessage()}
-                selectedCount={selectedIndices().size}
-                selectedActiveCount={
-                  selectedIndices().size > 0 ? selectedActivePageCount() : activePageCount()
-                }
-                allPagesSelected={allPagesSelected()}
-                deletionLabel={deletionCopy().label}
-                deletionAriaLabel={deletionCopy().ariaLabel}
-                onSelectAll={handleSelectAll}
-                onClearSelection={clearSelection}
-                onRotate={handleRotateSelected}
-                onDelete={handleDeleteSelected}
-                onDownload={handleDownload}
-                onExportImages={handleExportImages}
-                onCompress={handleCompress}
-                compressionAvailable={getUnmodifiedSourceFile() !== null}
-                compressionDisabledReason={compressionDisabledReason()}
-              />
+              <Show when={pages.length > 0}>
+                <EditorSelectionBar
+                  documentView={workspaceView() === "document"}
+                  busy={isBusy()}
+                  busyLabel={statusMessage()}
+                  selectedCount={selectedIndices().size}
+                  selectedActiveCount={
+                    selectedIndices().size > 0 ? selectedActivePageCount() : activePageCount()
+                  }
+                  allPagesSelected={allPagesSelected()}
+                  deletionLabel={deletionCopy().label}
+                  deletionAriaLabel={deletionCopy().ariaLabel}
+                  onSelectAll={handleSelectAll}
+                  onClearSelection={clearSelection}
+                  onRotate={handleRotateSelected}
+                  onDelete={handleDeleteSelected}
+                  onDownload={handleDownload}
+                  onExportImages={handleExportImages}
+                  onCompress={handleCompress}
+                  compressionAvailable={getUnmodifiedSourceFile() !== null}
+                  compressionDisabledReason={compressionDisabledReason()}
+                />
+              </Show>
 
               <div
                 role="status"

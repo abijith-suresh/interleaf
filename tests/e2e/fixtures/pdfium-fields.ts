@@ -82,7 +82,7 @@ async function inspect(bytes: Uint8Array<ArrayBuffer>) {
 }
 function appearance(
   actual: Awaited<ReturnType<typeof inspect>>,
-  expected: Awaited<ReturnType<typeof inspect>>
+  expected: Pick<Awaited<ReturnType<typeof inspect>>, "bitmaps">
 ) {
   if (actual.bitmaps.length !== expected.bitmaps.length) throw new Error("Page count differs.");
   return actual.bitmaps.map((bitmap, index) => {
@@ -162,23 +162,66 @@ export async function checkFieldImport() {
   const service = new PDFService();
   const operations = new PDFOperationsService(service);
   const sourceInspections = await Promise.all(sources.map(inspect));
-  const baselineByScenario = new Map<string, Uint8Array<ArrayBuffer>>();
+  const textSources = [
+    await sharedFieldSource("First", false),
+    await sharedFieldSource("Second", false),
+  ];
+  const textFiles = textSources.map(
+    (bytes, index) => new File([bytes], `text-fields-${index + 1}.pdf`, { type: "application/pdf" })
+  );
+  const textInspections = await Promise.all(textSources.map(inspect));
+  const build = (scenario: (typeof fieldScenarios)[number], sourceFiles: File[]) =>
+    operations.buildPDF(
+      scenario.pages.map((page, index) => ({
+        id: String(index),
+        sourceFile: sourceFiles[page.source],
+        sourcePageNumber: page.page,
+        markedForDeletion: false,
+        rotation: 0,
+      }))
+    );
+  const baselineByScenario = new Map<
+    string,
+    { tag: string; operation: string | null; message: string } | null
+  >();
+  const mainControls: (ReturnType<typeof summary> & {
+    scenario: string;
+    expectedFields: Awaited<ReturnType<typeof inspect>>["fields"];
+    appearance: ReturnType<typeof appearance>;
+  })[] = [];
   try {
     for (const scenario of fieldScenarios) {
-      // Exercise today's actual cache + per-page copyPages + save path, rather
-      // than an approximation that could accidentally preserve more than main.
-      const output = await Effect.runPromise(
-        operations.buildPDF(
-          scenario.pages.map((page, index) => ({
-            id: String(index),
-            sourceFile: files[page.source],
-            sourcePageNumber: page.page,
-            markedForDeletion: false,
-            rotation: 0,
-          }))
+      // Exercise the real production export. Since #326, positional radio /Opt
+      // plus per-page sibling pruning is rejected rather than exported.
+      baselineByScenario.set(
+        scenario.name,
+        await Effect.runPromise(
+          build(scenario, files).pipe(
+            Effect.match({
+              onFailure: (error) => ({
+                tag: error._tag,
+                operation: error._tag === "PDFProcessingError" ? error.operation : null,
+                message: error.message,
+              }),
+              onSuccess: () => null,
+            })
+          )
         )
       );
-      baselineByScenario.set(scenario.name, new Uint8Array(output.data));
+      const output = await Effect.runPromise(build(scenario, textFiles));
+      const actual = await inspect(new Uint8Array(output.data));
+      mainControls.push({
+        scenario: scenario.name,
+        expectedFields: scenario.pages.map(
+          (page) => textInspections[page.source].fields[page.page - 1]
+        ),
+        ...summary(actual),
+        appearance: appearance(actual, {
+          bitmaps: scenario.pages.map(
+            (page) => textInspections[page.source].bitmaps[page.page - 1]
+          ),
+        }),
+      });
     }
   } finally {
     await Effect.runPromise(operations.dispose());
@@ -204,19 +247,25 @@ export async function checkFieldImport() {
         throw new Error("Native document ownership did not finish before independent reopen.");
       // The worker responds only AFTER all source/output handles are closed.
       // All following metadata, grouping and pixel evidence reads saved bytes.
-      const baselineBytes = baselineByScenario.get(scenario.name);
-      if (!baselineBytes) throw new Error("Missing main baseline.");
-      const baseline = await inspect(baselineBytes);
+      const baseline = baselineByScenario.get(scenario.name);
+      if (baseline === undefined) throw new Error("Missing main baseline.");
       const expectedFields = scenario.pages.map(
         (page) => sourceInspections[page.source].fields[page.page - 1]
       );
+      // Appearance parity is against the untouched source pages, including the
+      // original radio APs. Main no longer produces bytes for this fixture.
+      const expected = {
+        bitmaps: scenario.pages.map(
+          (page) => sourceInspections[page.source].bitmaps[page.page - 1]
+        ),
+      };
       const outputs = [];
       for (const output of response.outputs) {
         const actual = await inspect(output.bytes);
         outputs.push({
           variant: output.variant,
           ...summary(actual),
-          appearance: appearance(actual, baseline),
+          appearance: appearance(actual, expected),
           diagnostics: output.diagnostics,
           bytes: output.bytes.length,
         });
@@ -225,11 +274,11 @@ export async function checkFieldImport() {
       rows.push({
         scenario: scenario.name,
         expectedFields,
-        baseline: summary(baseline),
+        baselineRejection: baseline,
         outputs,
         lifetime,
       });
     }
-    return { sourceGroups: sourceInspections.map((source) => source.grouping), rows };
+    return { sourceGroups: sourceInspections.map((source) => source.grouping), mainControls, rows };
   });
 }

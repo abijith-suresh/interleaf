@@ -20,6 +20,7 @@ interface Props {
   onKeyDown: (e: KeyboardEvent) => void;
   onRotate: (e: MouseEvent) => void;
   onDelete: (e: MouseEvent) => void;
+  onDuplicate: (e: MouseEvent) => void;
   onDragStart: (e: DragEvent) => void;
   onDragOver: (e: DragEvent) => void;
   onDragEnter: (e: DragEvent) => void;
@@ -125,6 +126,11 @@ export default function EditorPageTile(props: Props) {
     });
   });
 
+  const preventActionDrag = (event: DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
   const tileClass = () => {
     const classes = ["editor-page"];
     if (props.selected) classes.push("selected");
@@ -184,6 +190,18 @@ export default function EditorPageTile(props: Props) {
         </span>
         <span class="page-action-buttons">
           <EditorButton
+            data-testid="editor-page-duplicate-button"
+            class="btn-page-duplicate"
+            title="Duplicate page"
+            aria-label={`Duplicate page ${props.index + 1}`}
+            disabled={props.busy}
+            draggable={false}
+            onDragStart={preventActionDrag}
+            onClick={props.onDuplicate}
+            variant="plain"
+            icon="copy"
+          />
+          <EditorButton
             data-testid="editor-page-delete-button"
             class="btn-page-delete"
             classList={{ "is-marked": props.page.markedForDeletion }}
@@ -196,6 +214,7 @@ export default function EditorPageTile(props: Props) {
             aria-pressed={props.page.markedForDeletion}
             disabled={props.busy}
             draggable={false}
+            onDragStart={preventActionDrag}
             onClick={props.onDelete}
             variant="danger"
             icon={props.page.markedForDeletion ? "restore" : "delete"}
@@ -207,6 +226,7 @@ export default function EditorPageTile(props: Props) {
             aria-label={`Rotate page ${props.index + 1} 90 degrees`}
             disabled={props.busy}
             draggable={false}
+            onDragStart={preventActionDrag}
             onClick={props.onRotate}
             variant="plain"
             icon="rotate"

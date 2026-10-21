@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   areAllPagesSelected,
   createPageStates,
+  duplicatePageState,
   getDeletionAction,
   remapSelectionAfterMove,
   toggleSelectAll,
@@ -13,8 +14,10 @@ describe("editor page state controller", () => {
 
   it("creates page state entries for each source page", () => {
     const pageStates = createPageStates(file, 3, 1234);
+    expect(pageStates[0].fieldGroupId).toEqual(expect.any(String));
+    expect(new Set(pageStates.map((page) => page.fieldGroupId)).size).toBe(1);
 
-    expect(pageStates.map(({ id, ...state }) => state)).toEqual([
+    expect(pageStates.map(({ id, fieldGroupId, ...state }) => state)).toEqual([
       { sourceFile: file, sourcePageNumber: 1, rotation: 0, markedForDeletion: false },
       { sourceFile: file, sourcePageNumber: 2, rotation: 0, markedForDeletion: false },
       { sourceFile: file, sourcePageNumber: 3, rotation: 0, markedForDeletion: false },
@@ -36,6 +39,27 @@ describe("editor page state controller", () => {
   it("toggles an individual selection", () => {
     expect(toggleSelection(new Set<number>(), 1)).toEqual(new Set([1]));
     expect(toggleSelection(new Set([1, 2]), 1)).toEqual(new Set([2]));
+  });
+
+  it("creates rapid copies with unique organization state and the same immutable source", () => {
+    const original = createPageStates(file, 1)[0];
+    original.rotation = 270;
+    original.markedForDeletion = true;
+    const copies = Array.from({ length: 100 }, () => duplicatePageState(original));
+    copies.push(duplicatePageState(copies[0]));
+    expect(new Set([original, ...copies].map((page) => page.id)).size).toBe(102);
+    for (const copy of copies) {
+      expect(copy.sourceFile).toBe(file);
+      expect(copy.sourcePageNumber).toBe(1);
+      expect(copy.rotation).toBe(270);
+      expect(copy.markedForDeletion).toBe(false);
+    }
+    copies[0].rotation = 90;
+    copies[0].markedForDeletion = true;
+    expect(copies[1].rotation).toBe(270);
+    expect(copies[1].markedForDeletion).toBe(false);
+    expect(original.rotation).toBe(270);
+    expect(original.markedForDeletion).toBe(true);
   });
 
   it("toggles select-all against the total page count", () => {
