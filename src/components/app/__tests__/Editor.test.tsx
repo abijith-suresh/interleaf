@@ -791,6 +791,39 @@ describe("Editor", () => {
     await waitFor(() => expect(pdfServiceMocks.dispose).toHaveBeenCalledOnce());
   });
 
+  it("undoes and redoes exactly the latest 32 duplications after 33 copies", async () => {
+    pdfServiceMocks.getPageCount.mockReturnValue(1);
+    await openPDF();
+    const pageTiles = () => screen.getAllByTestId("editor-page-tile");
+    const undo = screen.getByTestId("editor-undo-button");
+    const redo = screen.getByTestId("editor-redo-button");
+    expect(pageTiles()).toHaveLength(1);
+    expect(undo).toHaveAttribute("aria-disabled", "true");
+
+    for (let copies = 1; copies <= 33; copies++) {
+      fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+      expect(pageTiles()).toHaveLength(copies + 1);
+    }
+
+    for (let undone = 1; undone <= 32; undone++) {
+      expect(undo).toHaveAttribute("aria-disabled", "false");
+      await step("undo");
+      expect(pageTiles()).toHaveLength(34 - undone);
+    }
+    expect(undo).toHaveAttribute("aria-disabled", "true");
+    await step("undo");
+    expect(pageTiles()).toHaveLength(2);
+
+    for (let redone = 1; redone <= 32; redone++) {
+      expect(redo).toHaveAttribute("aria-disabled", "false");
+      await step("redo");
+      expect(pageTiles()).toHaveLength(2 + redone);
+    }
+    expect(redo).toHaveAttribute("aria-disabled", "true");
+    await step("redo");
+    expect(pageTiles()).toHaveLength(34);
+  });
+
   it("evicts old steps and redoes the remaining bounded history without retaining mutable page aliases", async () => {
     const file = makeFile();
     await openPDF(file);
