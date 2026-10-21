@@ -955,10 +955,15 @@ export default function Editor() {
       if (disposed) return;
       downloadPDF(result);
       setStatusMessage("Export started.");
-    } catch (_err) {
+    } catch (error) {
       if (disposed) return;
-      dispatchToast("Failed to export the PDF.", "error");
-      setStatusMessage("Export failed. Try again.");
+      const exportConstraint =
+        error instanceof PDFProcessingError && error.operation === "reconcile-export";
+      const constraintMessage = exportConstraint
+        ? `${error.file ? `${error.file.name}: ` : ""}${error.message} Select pages from other files or remove this file, then try again.`
+        : undefined;
+      dispatchToast(constraintMessage ?? "Failed to export the PDF.", "error");
+      setStatusMessage(constraintMessage ?? "Export failed. Try again.");
     } finally {
       if (!disposed) setOperation("idle");
     }

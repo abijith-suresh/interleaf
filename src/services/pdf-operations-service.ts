@@ -13,6 +13,7 @@ import { getSupportedFileKind } from "../utils/file-types";
 import { type DocumentKey, type DocumentStore, makeDocumentStore } from "./document-store";
 import { drawPageAdditions } from "./pdf-additions";
 import { processingError } from "./pdf-errors";
+import { PDFExportCopy, type PDFExportSource, validatePDFSourcePages } from "./pdf-export-copy";
 import type { PDFService } from "./pdf-service";
 
 const ENCRYPTED_PAGE_RENDER_SCALE = 2;
@@ -315,8 +316,46 @@ export class PDFOperationsService {
         catch: (cause) => processingError("create-output", pagesToBuild[0].sourceFile, cause),
       });
 
+      const sourceDocuments = new Map<File, PDFDocument>();
+      const privateSources: PDFExportSource[] = [];
+      for (const { sourceFile } of pagesToBuild) {
+        if (sourceDocuments.has(sourceFile)) continue;
+        const source = yield* this.store.acquire(sourceDocumentKey(sourceFile));
+        yield* Effect.try({
+          try: () => validatePDFSourcePages(source, sourceFile),
+          catch: (cause) =>
+            cause instanceof PDFProcessingError
+              ? cause
+              : processingError("inspect-source", sourceFile, cause),
+        });
+        sourceDocuments.set(sourceFile, source);
+        if (!source.isEncrypted) {
+          // Provenance is scoped to this export. Cached documents and File bytes stay untouched.
+          const doc = yield* Effect.tryPromise({
+            try: async () => PDFDocument.load(await sourceFile.arrayBuffer()),
+            catch: (cause) => processingError("prepare-export", sourceFile, cause),
+          });
+          privateSources.push({ file: sourceFile, doc });
+        }
+      }
+      const exportCopy = yield* Effect.try({
+        try: () => new PDFExportCopy(outputDoc, privateSources),
+        catch: (cause) =>
+          cause instanceof PDFProcessingError
+            ? cause
+            : processingError("prepare-export", pagesToBuild[0].sourceFile, cause),
+      });
+
       for (const [index, page] of pagesToBuild.entries()) {
-        const sourceDoc = yield* this.store.acquire(sourceDocumentKey(page.sourceFile));
+        const sourceDoc = sourceDocuments.get(page.sourceFile);
+        if (!sourceDoc)
+          return yield* Effect.fail(
+            processingError(
+              "prepare-export",
+              page.sourceFile,
+              new Error("The export source is unavailable.")
+            )
+          );
         const isEncrypted = yield* Effect.try({
           try: () => sourceDoc.isEncrypted,
           catch: (cause) => processingError("inspect-source", page.sourceFile, cause),
@@ -325,8 +364,8 @@ export class PDFOperationsService {
         if (isEncrypted) {
           yield* this.addEncryptedPage(outputDoc, sourceDoc, page, options.maxRasterPixels);
         } else {
-          const [copiedPage] = yield* Effect.tryPromise({
-            try: () => outputDoc.copyPages(sourceDoc, [page.sourcePageNumber - 1]),
+          const copiedPage = yield* Effect.tryPromise({
+            try: () => exportCopy.copy(page.sourceFile, page.sourcePageNumber),
             catch: (cause) => processingError("copy-page", page.sourceFile, cause),
           });
           if (hasPageAdditions(page)) {
@@ -374,6 +413,13 @@ export class PDFOperationsService {
         });
       }
 
+      yield* Effect.tryPromise({
+        try: () => exportCopy.finish(),
+        catch: (cause) =>
+          cause instanceof PDFProcessingError
+            ? cause
+            : processingError("reconcile-export", pagesToBuild[0].sourceFile, cause),
+      });
       const data = yield* Effect.tryPromise({
         try: () => outputDoc.save(),
         catch: (cause) => processingError("save-output", pagesToBuild[0].sourceFile, cause),

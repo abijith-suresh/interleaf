@@ -1884,4 +1884,35 @@ describe("Editor", () => {
     await waitFor(() => expectLastToast("Failed to export the PDF."));
     expect(downloadPDF).not.toHaveBeenCalled();
   });
+  it("names the blocked source as escaped text, explains recovery and exports a subsequent safe selection", async () => {
+    const safe = makeFile("source.pdf"),
+      blocked = makeFile("<img src=x>.pdf");
+    pdfServiceMocks.getPageCount.mockReturnValue(2);
+    pdfOperationsMocks.buildPDF.mockReturnValueOnce(
+      Effect.fail(
+        new PDFProcessingError({
+          operation: "reconcile-export",
+          file: blocked,
+          cause: new Error("linked choice"),
+          message: "This PDF has linked choice fields that cannot be preserved in this export.",
+        })
+      )
+    );
+    const { container } = render(() => <Editor />);
+    selectFiles("upload", [safe, blocked]);
+    await waitFor(() => expect(getPages()).toHaveLength(4));
+    fireEvent.click(screen.getByTestId("editor-download-button"));
+    const message =
+      "<img src=x>.pdf: This PDF has linked choice fields that cannot be preserved in this export. Select pages from other files or remove this file, then try again.";
+    await waitFor(() => expectLastToast(message));
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(message);
+    expect(container.querySelector('img[src="x"]')).toBeNull();
+    expect(downloadPDF).not.toHaveBeenCalled();
+    fireEvent.click(getPages()[0]);
+    fireEvent.click(getPages()[1]);
+    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    expect(pdfOperationsMocks.buildPDF.mock.calls[1][1].selectedIndices).toEqual([0, 1]);
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent("Export started.");
+  });
 });
