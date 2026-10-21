@@ -33,6 +33,7 @@ interface Props {
   runtime: PDFRuntime;
   disabled?: boolean;
   onCheckmarksChange?: (pageId: string, marks: readonly AddedCheckmark[], label: string) => void;
+  onFieldChange?: (pageId: string, fieldRef: string, value: string) => void;
   onTextChange?: (pageId: string, texts: readonly AddedText[], label: string) => void;
   onActivePageChange: (pageId: string) => void;
 }
@@ -476,7 +477,11 @@ export default function EditorPageViewer(props: Props) {
   createEffect(() => {
     const page = currentPage();
     const rotation = page?.rotation;
-    const savedText = JSON.stringify([page?.addedText ?? [], page?.addedCheckmarks ?? []]);
+    const savedText = JSON.stringify([
+      page?.addedText ?? [],
+      page?.addedCheckmarks ?? [],
+      page?.fieldAnswers ?? [],
+    ]);
     const editing = editingTextId();
     void savedText;
     void editing;
@@ -658,6 +663,14 @@ export default function EditorPageViewer(props: Props) {
                 {(page) => (
                   <EditorAdditionsEditor
                     page={page()}
+                    groupPageNumbers={props.pages
+                      .filter(
+                        (candidate) =>
+                          candidate.sourceFile === page().sourceFile &&
+                          candidate.fieldGroupId === page().fieldGroupId
+                      )
+                      .map((candidate) => candidate.sourcePageNumber)}
+                    onFieldChange={props.onFieldChange}
                     runtime={props.runtime}
                     toolbar={textToolbar}
                     header={textHeader}

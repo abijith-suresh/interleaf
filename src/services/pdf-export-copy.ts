@@ -123,11 +123,12 @@ export function validatePDFSourcePages(doc: PDFDocument, file: File): void {
 export interface PDFExportSource {
   file: File;
   doc: PDFDocument;
+  scope?: string;
 }
 // One instance owns one output. Each copyPages call keeps a separate copier namespace.
 // Only fresh private source documents may be passed in: tagging must never touch the cache.
 export class PDFExportCopy {
-  private readonly sources = new Map<File, PDFExportSource>();
+  private readonly sources = new Map<File, Map<string, PDFExportSource>>();
   private readonly first = new Map<number, PDFPage>();
   private readonly owner = new Map<PDFDict, PDFExportSource>();
   private readonly identities = new Map<number, { file: File; ref: PDFRef }>();
@@ -151,21 +152,29 @@ export class PDFExportCopy {
     this.key = N(`InterleafExportPage${suffix}`);
     let id = 1_000_000_000_000;
     for (const source of sources) {
-      this.sources.set(source.file, source);
+      const scopes = this.sources.get(source.file) ?? new Map<string, PDFExportSource>();
+      scopes.set(source.scope ?? "", source);
+      this.sources.set(source.file, scopes);
       for (const page of source.doc.getPages()) {
         page.node.set(this.key, PDFNumber.of(id));
         this.identities.set(id++, { file: source.file, ref: page.ref });
       }
     }
   }
-  async copy(file: File, pageNumber: number) {
-    const source = this.sources.get(file);
+  async copy(file: File, pageNumber: number, scope = "") {
+    const source = this.sources.get(file)?.get(scope);
     if (!source) throw Error("The export source is unavailable.");
     const [page] = await this.output.copyPages(source.doc, [pageNumber - 1]);
     for (const o of objects(this.output, [page.node]))
       if (o instanceof PDFDict) this.owner.set(o, source);
     const id = page.node.lookup(this.key, PDFNumber).asNumber();
-    if (!this.first.has(id)) this.first.set(id, page);
+    // Answers have separate source scopes; simple navigation still targets the
+    // first retained logical occurrence of the original File/page reference.
+    const identity = this.identities.get(id);
+    if (!identity) throw Error("Missing export page identity.");
+    for (const [candidate, target] of this.identities)
+      if (target.file === file && target.ref === identity.ref && !this.first.has(candidate))
+        this.first.set(candidate, page);
     return page;
   }
   private reject(file: File | undefined, message: string): never {
@@ -332,8 +341,12 @@ export class PDFExportCopy {
         let opt: PDFObject | undefined;
         let ancestor: PDFDict | undefined = field;
         while (ancestor) {
-          type ??= this.name(ancestor, N("FT"));
-          opt ??= ancestor.has(N("Opt")) ? ancestor.lookup(N("Opt")) : undefined;
+          // Optional inherited null is absent; required page roles remain strict.
+          const fieldType = resolvedValue(ancestor, N("FT"));
+          if (fieldType !== undefined && fieldType !== PDFNull)
+            type ??= this.name(ancestor, N("FT"));
+          const options = resolvedValue(ancestor, N("Opt"));
+          if (options !== PDFNull) opt ??= options;
           ancestor = ancestor.lookupMaybe(N("Parent"), PDFDict);
         }
         // Button /Opt entries correspond positionally to Kids. Pruning alone can

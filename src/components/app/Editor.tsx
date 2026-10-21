@@ -3,6 +3,7 @@ import { batch, createMemo, createSignal, For, onCleanup, onMount, Show } from "
 import { createStore, produce, reconcile } from "solid-js/store";
 import { ROTATION_STEP, TOAST_DISMISS_TIMEOUT_MS } from "../../constants";
 import { hasPageAdditions } from "../../controllers/editor-additions-state";
+import { answerField } from "../../controllers/editor-field-state";
 import {
   copyOrganizationPages,
   emptyOrganizationHistory,
@@ -1384,6 +1385,13 @@ export default function Editor() {
                             marks.map((mark) => ({ ...mark }))
                           );
                       })
+                    }
+                    onFieldChange={(pageId, fieldRef, value) =>
+                      organize("Fill text field", () =>
+                        setPages(
+                          reconcile(answerField(pages, pageId, fieldRef, value), { key: "id" })
+                        )
+                      )
                     }
                     onTextChange={(pageId, texts, label) =>
                       organize(label, () => {

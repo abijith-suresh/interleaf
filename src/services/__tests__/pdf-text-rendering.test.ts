@@ -23,15 +23,22 @@ const textPage: PageState = {
 
 afterEach(() => vi.restoreAllMocks());
 
-describe.each(["text", "checkmark"])("temporary edited-page rendering with %s", (kind) => {
+describe.each(["text", "checkmark", "field"])("temporary edited-page rendering with %s", (kind) => {
   const page: PageState =
     kind === "text"
       ? textPage
-      : {
-          ...textPage,
-          addedText: undefined,
-          addedCheckmarks: [{ id: "tick", x: 10, y: 40, size: 16, rotation: 0 }],
-        };
+      : kind === "field"
+        ? {
+            ...textPage,
+            addedText: undefined,
+            fieldGroupId: "group",
+            fieldAnswers: [{ fieldRef: "12 0 R", value: "Answer" }],
+          }
+        : {
+            ...textPage,
+            addedText: undefined,
+            addedCheckmarks: [{ id: "tick", x: 10, y: 40, size: 16, rotation: 0 }],
+          };
   it.each(["interrupt", "release", "reset", "dispose"] as const)(
     "settles cancellation and cleanup before document destruction on %s",
     async (operation) => {

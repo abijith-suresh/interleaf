@@ -17,6 +17,7 @@ import {
 } from "../../controllers/text-geometry";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { AddedCheckmark, AddedText, PageGeometry, PageState } from "../../types/interfaces";
+import EditorFieldsEditor from "./EditorFieldsEditor";
 import EditorButton from "./ui/EditorButton";
 
 type Addition = AddedText | AddedCheckmark;
@@ -47,6 +48,8 @@ export interface AdditionsGesture {
 
 interface Props {
   page: PageState;
+  groupPageNumbers?: readonly number[];
+  onFieldChange?: (pageId: string, fieldRef: string, value: string) => void;
   runtime: PDFRuntime;
   toolbar: HTMLElement;
   header: HTMLElement;
@@ -62,7 +65,7 @@ interface Props {
 
 export default function EditorAdditionsEditor(props: Props) {
   const [toolsOpen, setToolsOpen] = createSignal(false);
-  const [mode, setMode] = createSignal<"read" | "place" | "edit">("read");
+  const [mode, setMode] = createSignal<"read" | "place" | "edit" | "fields">("read");
   const [geometry, setGeometry] = createSignal<PageGeometry>();
   const [rotation, setRotation] = createSignal(0);
   const [draft, setDraft] = createSignal<Addition>();
@@ -71,6 +74,7 @@ export default function EditorAdditionsEditor(props: Props) {
   const [saving, setSaving] = createSignal(false);
   const [settings, setSettings] = createSignal(true);
   let layer!: HTMLDivElement;
+  let fieldPanel!: HTMLDivElement;
   let input: HTMLInputElement | undefined;
   let sizeInput: HTMLInputElement | undefined;
   let addButton: HTMLButtonElement | undefined;
@@ -243,7 +247,7 @@ export default function EditorAdditionsEditor(props: Props) {
     });
   });
 
-  createEffect(() => props.registerTap(mode() === "read" ? null : place));
+  createEffect(() => props.registerTap(mode() === "place" || mode() === "edit" ? place : null));
   props.registerGesture({
     key: previewKey,
     move: pointerMove,
@@ -558,6 +562,18 @@ export default function EditorAdditionsEditor(props: Props) {
               >
                 Checkmark
               </EditorButton>
+              <EditorButton
+                icon="page-actions"
+                aria-pressed={mode() === "fields"}
+                disabled={!props.ready || saving() || Boolean(draft()) || !props.onFieldChange}
+                onClick={() => {
+                  cancel();
+                  setMode("fields");
+                  setToolsOpen(false);
+                }}
+              >
+                Fill fields
+              </EditorButton>
               <Show when={additions().length > 0}>
                 <EditorButton
                   icon="page-actions"
@@ -583,6 +599,7 @@ export default function EditorAdditionsEditor(props: Props) {
                 </EditorButton>
               </Show>
             </div>
+            <div ref={fieldPanel} />
             <Show when={draft() && settings()}>
               <form
                 class="editor-text-settings"
@@ -715,7 +732,10 @@ export default function EditorAdditionsEditor(props: Props) {
         ref={layer}
         data-geometry-ready={Boolean(geometry())}
         class="editor-text-layer"
-        classList={{ "is-editing": mode() !== "read", "is-placing": mode() === "place" }}
+        classList={{
+          "is-editing": mode() === "place" || mode() === "edit",
+          "is-placing": mode() === "place",
+        }}
         onPointerDown={pointerDown}
       >
         <p id="editor-text-placement-help" class="sr-only">
@@ -774,6 +794,22 @@ export default function EditorAdditionsEditor(props: Props) {
           </Show>
         </Show>
       </div>
+      <Show when={mode() === "fields" && props.onFieldChange}>
+        <EditorFieldsEditor
+          page={props.page}
+          groupPageNumbers={props.groupPageNumbers ?? [props.page.sourcePageNumber]}
+          runtime={props.runtime}
+          geometry={geometry()}
+          rotation={rotation()}
+          toolbar={fieldPanel}
+          stage={props.stage}
+          disabled={props.disabled}
+          onOpen={() => setToolsOpen(true)}
+          onClose={() => setToolsOpen(false)}
+          focusInput={focusElement}
+          onChange={(pageId, fieldRef, value) => props.onFieldChange?.(pageId, fieldRef, value)}
+        />
+      </Show>
     </>
   );
 }

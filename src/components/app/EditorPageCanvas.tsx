@@ -201,7 +201,11 @@ export default function EditorPageCanvas(props: Props) {
   };
 
   createEffect(() => {
-    JSON.stringify([props.page.addedText ?? [], props.page.addedCheckmarks ?? []]);
+    JSON.stringify([
+      props.page.addedText ?? [],
+      props.page.addedCheckmarks ?? [],
+      props.page.fieldAnswers ?? [],
+    ]);
     needsRender = true;
     if (observer) {
       cancelPendingRender();

@@ -1,9 +1,11 @@
 import { Context, Effect, Exit, type Fiber, Layer, ManagedRuntime } from "effect";
 import type {
+  FieldAnswer,
   PageGeometry,
   PageState,
   PDFCompressionResult,
   PDFError,
+  PDFFields,
   PDFImageExportResult,
   PDFOperationResult,
 } from "../types/interfaces";
@@ -24,6 +26,12 @@ import {
 } from "./qpdf-processing";
 
 export interface PDFProcessingShape {
+  readonly getFields: (file: File) => Effect.Effect<PDFFields, PDFProcessingError>;
+  readonly validateFieldAnswer: (
+    file: File,
+    answer: FieldAnswer,
+    pageNumbers: readonly number[]
+  ) => Effect.Effect<void, PDFProcessingError>;
   readonly loadPDF: (file: File) => Effect.Effect<void, PDFError>;
   readonly loadPDFWithPassword: (file: File, password: string) => Effect.Effect<void, PDFError>;
   readonly getPageCount: Effect.Effect<number>;
@@ -147,6 +155,12 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
         const service: PDFProcessingShape & {
           readonly dispose: () => Effect.Effect<void, PDFProcessingError>;
         } = {
+          getFields: (file) =>
+            Effect.flatMap(getOperationsService, (service) => service.getFields(file)),
+          validateFieldAnswer: (file, answer, pageNumbers) =>
+            Effect.flatMap(getOperationsService, (service) =>
+              service.validateFieldAnswer(file, answer, pageNumbers)
+            ),
           loadPDF: (file: File) => pdfService.loadPDF(file),
           loadPDFWithPassword: (file: File, password: string) =>
             pdfService.loadPDFWithPassword(file, password),

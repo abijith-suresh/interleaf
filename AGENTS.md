@@ -32,6 +32,10 @@ The active product supports:
 - adding, selecting, editing, dragging, rotating, and deleting one-line printable basic Latin text in Document view, using Helvetica
 - undoing and redoing saved text changes within the same session history
 - including saved text in page previews, thumbnails, PDF downloads, and PNG exports
+- filling supported visible, printable, embedded, unencrypted, single-line PDF text fields in Document view with printable basic Latin answers and Helvetica appearances
+- keeping linked original text widgets on one answer, while duplicated logical pages have independent answers
+- saving and clearing field answers, with session undo and redo, and including them in page previews, thumbnails, PDF downloads, and PNG exports
+- enforcing inherited text length limits and rejecting answers that do not fit every linked widget
 - manually adding, selecting, moving, resizing, rotating, and deleting vector checkmarks in Document view for flat or scanned forms
 - undoing and redoing saved checkmark changes, and including saved checkmarks in page previews, thumbnails, PDF downloads, and PNG exports
 - zooming page previews up to 4 times their fitted size, with pinch, drag, scroll, and keyboard panning
@@ -49,7 +53,9 @@ The product does not include, and must not gain without this section changing fi
 
 - server-side PDF processing or uploads of any kind
 - accounts, signups, sync, or collaboration
-- automatic form detection, OCR, original text replacement, or filling native PDF form fields
+- automatic box detection, OCR, or original text replacement
+- filling encrypted, multiline, password, file-selection, combed, rich-text, read-only, scripted, XFA, or signed forms, or non-text field types
+- repairing exported AcroForm trees, validating form submission requirements, or promising that removing pages erases every associated answer
 - ads, tracking, analytics, cookies, or fingerprinting
 - unapproved speculative code kept only for possible future expansion
 - public promises for features that are not implemented
