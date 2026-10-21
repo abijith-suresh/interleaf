@@ -28,6 +28,46 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await server?.close();
 });
+
+test("the actual PDF service retains checkbox ink across a pre-widget execution yield", async ({
+  page,
+}) => {
+  await page.goto(`${url}fields-test`);
+  const result = await page.evaluate(async () => {
+    const path = "/tests/e2e/fixtures/field-raster-yield.ts";
+    return (await import(path)).checkRasterYield() as ReturnType<
+      typeof import("./fixtures/field-raster-yield").checkRasterYield
+    >;
+  });
+  expect(result.native.pages).toHaveLength(1);
+  expect(result.native.pages[0].annotations).toHaveLength(4);
+  const checkbox = result.native.pages[0].annotations[3];
+  expect(checkbox).toMatchObject({ name: "accepted", type: "/Btn", value: "/Yes" });
+  expect(checkbox.ap).toBeTruthy();
+  const ink = (border: boolean) =>
+    result.reference.checkbox.filter((value, index) => {
+      const pixel = Math.floor(index / 4),
+        x = pixel % 10,
+        y = Math.floor(pixel / 10);
+      return index % 4 === 0 && value < 128 && border === (x <= 1 || x >= 8 || y <= 1 || y >= 8);
+    }).length;
+  expect(ink(true)).toBeGreaterThan(0);
+  expect(ink(false)).toBeGreaterThan(0);
+  for (const render of result.results) {
+    expect(render.operatorCount).toBe(147);
+    expect(render.executed).toEqual(Array.from({ length: 147 }, (_, i) => i));
+    expect(render.boundary).toEqual(result.expectedBoundary);
+    if (render.mode !== "unheld") expect(render.continuations).toContain(121);
+    expect(render.checkbox).toEqual(result.reference.checkbox);
+    expect(render.pixels).toEqual(result.reference.pixels);
+    expect(render.attributes.willReadFrequently).toBe(true);
+    expect(render.clearedAlpha).toBe(0);
+    expect(render.restored).toBe(true);
+  }
+  expect(result.sourceUnchanged).toBe(true);
+  expect(result.observerRestored).toBe(true);
+});
+
 for (const source of [0, 90, 180, 270])
   for (const turn of [0, 90, 180, 270]) {
     const unit = [1, 1.5, 2][((source + turn) / 90) % 3];

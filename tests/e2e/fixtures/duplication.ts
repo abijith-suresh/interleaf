@@ -32,7 +32,7 @@ export async function inspectPDF(bytes: number[]) {
       const canvas = document.createElement("canvas");
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      const canvasContext = canvas.getContext("2d");
+      const canvasContext = canvas.getContext("2d", { willReadFrequently: true });
       if (!canvasContext) throw new Error("Missing PDF context");
       await page.render({ canvas, canvasContext, viewport }).promise;
       const text = (await page.getTextContent()).items

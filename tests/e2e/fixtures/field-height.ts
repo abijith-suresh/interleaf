@@ -27,7 +27,7 @@ async function render(bytes: Uint8Array) {
     const canvas = document.createElement("canvas");
     canvas.width = viewport.width;
     canvas.height = viewport.height;
-    const context = canvas.getContext("2d");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
     if (!context) throw Error("Missing canvas context");
     await page.render({ canvas, canvasContext: context, viewport }).promise;
     // Exclude the border; compare the complete ink envelope with an unclipped reference.
@@ -124,7 +124,8 @@ export async function checkFieldHeight(height: number) {
     const canvas = document.createElement("canvas");
     canvas.width = viewport.width;
     canvas.height = viewport.height;
-    await page.render({ canvas, canvasContext: canvas.getContext("2d")!, viewport }).promise;
+    const canvasContext = canvas.getContext("2d", { willReadFrequently: true })!;
+    await page.render({ canvas, canvasContext, viewport }).promise;
     pngReference = pixels(canvas);
   } finally {
     await pngTask.destroy();

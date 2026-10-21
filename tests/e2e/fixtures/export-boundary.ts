@@ -96,7 +96,7 @@ export async function reopenWithPDFjs(bytes: Uint8Array, evidence?: RenderEviden
       const canvas = document.createElement("canvas");
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      const context = canvas.getContext("2d");
+      const context = canvas.getContext("2d", { willReadFrequently: true });
       if (!context) throw Error("No canvas context");
       await page.render({ canvas, canvasContext: context, viewport }).promise;
       const annotations = (await page.getAnnotations()).map((a) => ({

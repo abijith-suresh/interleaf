@@ -361,7 +361,10 @@ export class PDFService {
                     canvas.width = nextViewport.width;
                     canvas.height = nextViewport.height;
 
-                    const nextContext = canvas.getContext("2d");
+                    // Choose this on the first context creation. WebKit can lose
+                    // vector widget ink across PDF.js animation-frame yields on
+                    // its default canvas backend; later calls cannot change it.
+                    const nextContext = canvas.getContext("2d", { willReadFrequently: true });
                     if (!nextContext) {
                       throw new Error("Could not get canvas context");
                     }

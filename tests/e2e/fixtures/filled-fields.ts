@@ -95,7 +95,7 @@ export async function inspectFilledPDF(bytes: number[], scale = 1, evidence?: Pi
       const canvas = document.createElement("canvas");
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      const context = canvas.getContext("2d")!;
+      const context = canvas.getContext("2d", { willReadFrequently: true })!;
       await page.render({ canvas, canvasContext: context, viewport }).promise;
       const annotations = [];
       for (const annotation of await page.getAnnotations()) {
