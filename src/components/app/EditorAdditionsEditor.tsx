@@ -305,7 +305,7 @@ export default function EditorAdditionsEditor(props: Props) {
   async function save() {
     const text = draft();
     const g = geometry();
-    if (!text || !g || saving()) return;
+    if (!text || !g || saving() || props.disabled) return;
     const ticket = focusTicket();
     const version = ++generation;
     setSaving(true);
@@ -316,6 +316,10 @@ export default function EditorAdditionsEditor(props: Props) {
         await validateAddedText(text, g);
       } else measureAddedCheckmark(text, g);
       if (disposed || version !== generation) return;
+      if (props.disabled) {
+        setError(`An operation is in progress. Save your ${noun()} when it finishes.`);
+        return;
+      }
       const items = isText(text) ? texts() : marks();
       const existed = items.some((item) => item.id === text.id);
       const next = existed
