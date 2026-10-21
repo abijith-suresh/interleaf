@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.0.12](https://github.com/abijith-suresh/interleaf/compare/0.0.11...0.0.12) (2026-10-21)
+
+
+### Features
+
+* add editable text to document pages ([#324](https://github.com/abijith-suresh/interleaf/issues/324)) ([da0ecc3](https://github.com/abijith-suresh/interleaf/commit/da0ecc35cbc596eedbb8182cf9c04a21bb2b69cd))
+* add manual checkmarks for flat PDF forms ([#325](https://github.com/abijith-suresh/interleaf/issues/325)) ([7341e1f](https://github.com/abijith-suresh/interleaf/commit/7341e1fb329c9896f1975fabdcfff0aa4d2c4249))
+* add session page organization undo and redo ([#322](https://github.com/abijith-suresh/interleaf/issues/322)) ([f45af99](https://github.com/abijith-suresh/interleaf/commit/f45af99f4fecdb511ff4e62b33fff2b9d14275b1))
+* duplicate pages in the workspace ([#320](https://github.com/abijith-suresh/interleaf/issues/320)) ([a09fcbd](https://github.com/abijith-suresh/interleaf/commit/a09fcbd1a078b610efb6fca9defa7add1c09c3f0))
+* **editor:** add read-only preview zoom and pan ([#314](https://github.com/abijith-suresh/interleaf/issues/314)) ([d689ce2](https://github.com/abijith-suresh/interleaf/commit/d689ce276d6450d1d384ec65ec01e97f77e5fd39))
+* **editor:** unify Pages and Document workspace views ([#315](https://github.com/abijith-suresh/interleaf/issues/315)) ([25085ba](https://github.com/abijith-suresh/interleaf/commit/25085baa612b96478cf8161039201ca8e80657ef))
+* extend session history to source changes ([#323](https://github.com/abijith-suresh/interleaf/issues/323)) ([64edee4](https://github.com/abijith-suresh/interleaf/commit/64edee4b991e73c3b8a73f64ec421a3607047d3f))
+* fill supported embedded PDF text fields ([#327](https://github.com/abijith-suresh/interleaf/issues/327)) ([e6b9784](https://github.com/abijith-suresh/interleaf/commit/e6b978404fc2cafda6e4844b79fb213457e4bea0))
+
+
+### Bug Fixes
+
+* center hero secondary column and cap about title width ([#297](https://github.com/abijith-suresh/interleaf/issues/297)) ([e2e473d](https://github.com/abijith-suresh/interleaf/commit/e2e473ddd2cf7a7bc228abedd670bba4f3d5c1b9))
+* defer lazy PDF file release until execution ([#330](https://github.com/abijith-suresh/interleaf/issues/330)) ([fe0703c](https://github.com/abijith-suresh/interleaf/commit/fe0703c08b64bd79d3b334d9de2842e769b3cb65))
+* **editor:** fit previews independently of bitmap budget ([#313](https://github.com/abijith-suresh/interleaf/issues/313)) ([5464248](https://github.com/abijith-suresh/interleaf/commit/5464248a356a151558f7967c64704e683a7325c8))
+* **editor:** release offscreen PDF thumbnails ([#310](https://github.com/abijith-suresh/interleaf/issues/310)) ([f536414](https://github.com/abijith-suresh/interleaf/commit/f5364144c50ff18c2216ce3e45c6f46790b63af6))
+* exclude omitted page data from PDF exports ([#326](https://github.com/abijith-suresh/interleaf/issues/326)) ([58e20ea](https://github.com/abijith-suresh/interleaf/commit/58e20eafeaa1b2fc24960dedcc09de9c6731cdd7))
+* **marketing:** align FAQ intro and animate disclosure items ([#298](https://github.com/abijith-suresh/interleaf/issues/298)) ([04c7a12](https://github.com/abijith-suresh/interleaf/commit/04c7a1281269f3feb6861adddd4724d2e12a7bf2))
+* prevent manual addition saves during exports ([#329](https://github.com/abijith-suresh/interleaf/issues/329)) ([b7e93ca](https://github.com/abijith-suresh/interleaf/commit/b7e93cab85d0177208df1731ca9656c195d65312))
+* retain page focus after keyboard reorder ([#321](https://github.com/abijith-suresh/interleaf/issues/321)) ([f9bb9ab](https://github.com/abijith-suresh/interleaf/commit/f9bb9ab60e0634ba9766502134091b2f773562f3))
+* unify feature section rows ([#300](https://github.com/abijith-suresh/interleaf/issues/300)) ([aa66082](https://github.com/abijith-suresh/interleaf/commit/aa660826c628372bf76afb3ea099229099b26004))
+
 ## [0.0.11](https://github.com/abijith-suresh/interleaf/compare/0.0.10...0.0.11) (2026-10-07)
 
 
