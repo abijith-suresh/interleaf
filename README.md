@@ -25,6 +25,10 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Add one-line text in Document view, using Helvetica. Place, drag, resize, rotate, edit, or delete your added text.
 - Add manual checkmarks to flat or scanned forms in Document view. Move, resize, rotate, or delete each checkmark.
 - Saved text and checkmarks appear in previews, thumbnails, PDF downloads, and PNG exports. Use session undo and redo for saved text and checkmark changes.
+- Fill supported embedded text fields in Document view. Use one line of basic Latin text; answers use Helvetica and must fit every linked widget.
+- Linked original text widgets share an answer. Duplicated pages keep independent answers. Saved answers support session undo and redo and appear in previews, PDF downloads, and PNG exports.
+- Protected, read-only, multiline, rich-text, scripted, XFA, and signed forms are unavailable for embedded filling. Other field types remain read-only. Use manual text and checkmarks for flat or scanned forms.
+- Completed downloads keep the current export behavior; the editor does not repair editable form trees or validate submission requirements.
 - Keep page selection and export scope when switching views
 - Zoom previews up to 4 times their fitted size. Pan with touch, drag, scrollbars, or arrow keys in the preview.
 - Losslessly compress one untouched PDF

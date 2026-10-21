@@ -14,8 +14,10 @@ describe("editor page state controller", () => {
 
   it("creates page state entries for each source page", () => {
     const pageStates = createPageStates(file, 3, 1234);
+    expect(pageStates[0].fieldGroupId).toEqual(expect.any(String));
+    expect(new Set(pageStates.map((page) => page.fieldGroupId)).size).toBe(1);
 
-    expect(pageStates.map(({ id, ...state }) => state)).toEqual([
+    expect(pageStates.map(({ id, fieldGroupId, ...state }) => state)).toEqual([
       { sourceFile: file, sourcePageNumber: 1, rotation: 0, markedForDeletion: false },
       { sourceFile: file, sourcePageNumber: 2, rotation: 0, markedForDeletion: false },
       { sourceFile: file, sourcePageNumber: 3, rotation: 0, markedForDeletion: false },

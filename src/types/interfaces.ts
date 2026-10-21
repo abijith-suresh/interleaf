@@ -60,12 +60,35 @@ export interface PageGeometry {
   readonly height: number;
 }
 
+export interface FieldAnswer {
+  readonly fieldRef: string;
+  readonly value: string;
+}
+
+export interface TextFieldWidget {
+  readonly widgetRef: string;
+  readonly fieldRef: string;
+  readonly pageNumber: number;
+  readonly label: string;
+  readonly value: string;
+  readonly rect: readonly [number, number, number, number];
+  readonly maxLength?: number;
+  readonly reason?: string;
+}
+
+export interface PDFFields {
+  readonly widgets: readonly TextFieldWidget[];
+  readonly reason?: string;
+}
+
 export interface PageState {
   id: string;
   sourceFile: File;
   sourcePageNumber: number;
   rotation: number;
   markedForDeletion: boolean;
+  fieldGroupId?: string;
+  fieldAnswers?: readonly FieldAnswer[];
   addedText?: readonly AddedText[];
   addedCheckmarks?: readonly AddedCheckmark[];
 }

@@ -44,7 +44,8 @@ async function renderReference(
   const canvas = window.document.createElement("canvas");
   canvas.width = viewport.width;
   canvas.height = viewport.height;
-  await page.render({ canvas, canvasContext: context(canvas), viewport }).promise;
+  const canvasContext = canvas.getContext("2d", { willReadFrequently: true })!;
+  await page.render({ canvas, canvasContext, viewport }).promise;
   page.cleanup();
   return canvas;
 }

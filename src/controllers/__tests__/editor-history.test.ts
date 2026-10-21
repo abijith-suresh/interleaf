@@ -37,6 +37,8 @@ describe("page organization history", () => {
       expect(Object.keys(before.pages[0]).sort()).toEqual([
         "addedCheckmarks",
         "addedText",
+        "fieldAnswers",
+        "fieldGroupId",
         "id",
         "markedForDeletion",
         "rotation",

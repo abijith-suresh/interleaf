@@ -1,11 +1,12 @@
 import { Effect } from "effect";
 import { degrees, PageSizes, PDFDocument } from "pdf-lib";
 import { IMAGES_TO_PDF_FILENAME, OUTPUT_FILENAME } from "../constants";
-import { hasPageAdditions } from "../controllers/editor-additions-state";
 import type {
+  FieldAnswer,
   PageState,
   PDFBuildProgress,
   PDFError,
+  PDFFields,
   PDFOperationResult,
 } from "../types/interfaces";
 import { PDFNoPagesError, PDFProcessingError } from "../types/interfaces";
@@ -14,6 +15,7 @@ import { type DocumentKey, type DocumentStore, makeDocumentStore } from "./docum
 import { drawPageAdditions } from "./pdf-additions";
 import { processingError } from "./pdf-errors";
 import { PDFExportCopy, type PDFExportSource, validatePDFSourcePages } from "./pdf-export-copy";
+import { applyFieldAnswers, inspectPDFFields } from "./pdf-fields";
 import type { PDFService } from "./pdf-service";
 
 const ENCRYPTED_PAGE_RENDER_SCALE = 2;
@@ -296,6 +298,32 @@ export class PDFOperationsService {
     });
   }
 
+  getFields(file: File): Effect.Effect<PDFFields, PDFProcessingError> {
+    return Effect.tryPromise({
+      try: async () => {
+        const doc = await PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
+        if (!doc.isEncrypted) validatePDFSourcePages(doc, file);
+        return inspectPDFFields(doc);
+      },
+      catch: (cause) => processingError("read-fields", file, cause),
+    });
+  }
+
+  validateFieldAnswer(
+    file: File,
+    answer: FieldAnswer,
+    pageNumbers: readonly number[]
+  ): Effect.Effect<void, PDFProcessingError> {
+    return Effect.tryPromise({
+      try: async () => {
+        const doc = await PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
+        validatePDFSourcePages(doc, file);
+        await applyFieldAnswers(doc, [answer], pageNumbers);
+      },
+      catch: (cause) => processingError("fill-field", file, cause),
+    });
+  }
+
   buildPDF(
     pages: readonly PageState[],
     options: PDFBuildOptions = {}
@@ -318,25 +346,65 @@ export class PDFOperationsService {
 
       const sourceDocuments = new Map<File, PDFDocument>();
       const privateSources: PDFExportSource[] = [];
-      for (const { sourceFile } of pagesToBuild) {
-        if (sourceDocuments.has(sourceFile)) continue;
-        const source = yield* this.store.acquire(sourceDocumentKey(sourceFile));
-        yield* Effect.try({
-          try: () => validatePDFSourcePages(source, sourceFile),
-          catch: (cause) =>
-            cause instanceof PDFProcessingError
-              ? cause
-              : processingError("inspect-source", sourceFile, cause),
-        });
-        sourceDocuments.set(sourceFile, source);
-        if (!source.isEncrypted) {
-          // Provenance is scoped to this export. Cached documents and File bytes stay untouched.
-          const doc = yield* Effect.tryPromise({
-            try: async () => PDFDocument.load(await sourceFile.arrayBuffer()),
-            catch: (cause) => processingError("prepare-export", sourceFile, cause),
+      const scopes = new Map<File, Set<string>>();
+      for (const page of pagesToBuild) {
+        const sourceFile = page.sourceFile;
+        let source = sourceDocuments.get(sourceFile);
+        if (!source) {
+          source = yield* this.store.acquire(sourceDocumentKey(sourceFile));
+          const validatedSource = source;
+          yield* Effect.try({
+            try: () => validatePDFSourcePages(validatedSource, sourceFile),
+            catch: (cause) =>
+              cause instanceof PDFProcessingError
+                ? cause
+                : processingError("inspect-source", sourceFile, cause),
           });
-          privateSources.push({ file: sourceFile, doc });
+          sourceDocuments.set(sourceFile, source);
         }
+        if (source.isEncrypted) {
+          if (page.fieldAnswers?.length)
+            return yield* Effect.fail(
+              processingError(
+                "fill-field",
+                sourceFile,
+                new Error("Embedded filling is unavailable for protected PDFs.")
+              )
+            );
+          continue;
+        }
+        const scope = page.fieldAnswers?.length ? (page.fieldGroupId ?? "") : "";
+        const prepared = scopes.get(sourceFile) ?? new Set<string>();
+        if (prepared.has(scope)) continue;
+        prepared.add(scope);
+        scopes.set(sourceFile, prepared);
+        // Private per-build scopes never replace original Files or the cached source.
+        const doc = yield* Effect.tryPromise({
+          try: async () => {
+            const doc = await PDFDocument.load(await sourceFile.arrayBuffer());
+            const group = pages.filter(
+              (candidate) =>
+                candidate.sourceFile === sourceFile && candidate.fieldGroupId === page.fieldGroupId
+            );
+            if (
+              group.some(
+                (candidate) =>
+                  JSON.stringify(candidate.fieldAnswers ?? []) !==
+                  JSON.stringify(page.fieldAnswers ?? [])
+              )
+            )
+              throw new Error("Linked field answers differ.");
+            await applyFieldAnswers(
+              doc,
+              page.fieldAnswers ?? [],
+              group.map((candidate) => candidate.sourcePageNumber)
+            );
+            await doc.flush();
+            return doc;
+          },
+          catch: (cause) => processingError("prepare-export", sourceFile, cause),
+        });
+        privateSources.push({ file: sourceFile, doc, scope });
       }
       const exportCopy = yield* Effect.try({
         try: () => new PDFExportCopy(outputDoc, privateSources),
@@ -365,10 +433,15 @@ export class PDFOperationsService {
           yield* this.addEncryptedPage(outputDoc, sourceDoc, page, options.maxRasterPixels);
         } else {
           const copiedPage = yield* Effect.tryPromise({
-            try: () => exportCopy.copy(page.sourceFile, page.sourcePageNumber),
+            try: () =>
+              exportCopy.copy(
+                page.sourceFile,
+                page.sourcePageNumber,
+                page.fieldAnswers?.length ? (page.fieldGroupId ?? "") : ""
+              ),
             catch: (cause) => processingError("copy-page", page.sourceFile, cause),
           });
-          if (hasPageAdditions(page)) {
+          if (page.addedText?.length || page.addedCheckmarks?.length) {
             if (!this.pdfService.getPageGeometry)
               return yield* Effect.fail(
                 processingError(
@@ -439,7 +512,7 @@ export class PDFOperationsService {
       const geometry = this.pdfService.getPageGeometry
         ? yield* this.pdfService.getPageGeometry(page.sourceFile, page.sourcePageNumber)
         : undefined;
-      if (hasPageAdditions(page) && !geometry) {
+      if ((page.addedText?.length || page.addedCheckmarks?.length) && !geometry) {
         return yield* Effect.fail(
           processingError("draw-text", page.sourceFile, new Error("Page geometry is unavailable."))
         );
@@ -487,7 +560,7 @@ export class PDFOperationsService {
               },
               catch: (cause) => processingError("add-page", page.sourceFile, cause),
             });
-            if (hasPageAdditions(page) && geometry) {
+            if ((page.addedText?.length || page.addedCheckmarks?.length) && geometry) {
               yield* Effect.tryPromise({
                 try: () => drawPageAdditions(outputDoc, outputPage, page, geometry, true),
                 catch: (cause) => processingError("draw-text", page.sourceFile, cause),

@@ -1,5 +1,6 @@
 import type { PageState } from "../types/interfaces";
 import { copyAddedCheckmarks, equalAddedCheckmarks } from "./editor-checkmark-state";
+import { copyFieldAnswers, equalFieldAnswers } from "./editor-field-state";
 import { copyAddedTexts, equalAddedTexts } from "./editor-text-state";
 
 export const PAGE_HISTORY_LIMIT = 32;
@@ -28,6 +29,8 @@ export function copyOrganizationPages(pages: readonly PageState[]): PageState[] 
   return pages.map((page) => ({
     id: page.id,
     sourceFile: page.sourceFile,
+    fieldGroupId: page.fieldGroupId,
+    fieldAnswers: copyFieldAnswers(page.fieldAnswers),
     sourcePageNumber: page.sourcePageNumber,
     rotation: page.rotation,
     markedForDeletion: page.markedForDeletion,
@@ -67,6 +70,8 @@ export function recordOrganization(
         page.sourceFile === next.sourceFile &&
         page.sourcePageNumber === next.sourcePageNumber &&
         page.rotation === next.rotation &&
+        page.fieldGroupId === next.fieldGroupId &&
+        equalFieldAnswers(page.fieldAnswers, next.fieldAnswers) &&
         page.markedForDeletion === next.markedForDeletion &&
         equalAddedTexts(page.addedText, next.addedText) &&
         equalAddedCheckmarks(page.addedCheckmarks, next.addedCheckmarks)
