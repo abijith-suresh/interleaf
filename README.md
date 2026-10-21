@@ -18,7 +18,7 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 - Duplicate a page, then rotate, mark, or reorder each copy independently
 - Rotate individual pages or selections in 90-degree steps
 - Mark pages for deletion before export
-- Undo or redo up to 32 page and source changes after your first successful open, even in an empty workspace.
+- Undo or redo up to 32 saved changes in the current session, including page, source, text, checkmark, and supported field edits. History starts after your first successful open and remains available in an empty workspace.
 - Source history retains up to 48 MiB of unique inactive files. The newest change stays available if it alone exceeds this limit.
 - Unlock password-protected PDFs with an in-browser prompt
 - Switch between Pages to organize and Document to read with navigation, zoom, and a compact filmstrip
