@@ -18,10 +18,11 @@ async function staticPaths(directory = "dist", prefix = ""): Promise<string[]> {
   ).flat();
 }
 
-// Install before navigation. Context routing includes subframes and observable dedicated-worker
-// requests. Service workers are blocked in these fresh contexts because they can bypass routes.
-// This does not audit production service workers, browser background traffic, every input, or
-// third-party library internals. Synthetic controls live in a separate spec/context from the app flows.
+// Install before navigation. Context routing observes HTTP requests from pages, subframes and
+// dedicated workers, plus page WebSockets. Worker WebSockets bypass Playwright's routing and are
+// NOT observed or blocked here; the loopback capability control documents that gap.
+// Fresh contexts block service workers because they can bypass routes. These tests do not audit
+// production service workers, browser background traffic, every input, or third-party internals.
 export async function observePrivacy(context: BrowserContext, baseURL: string) {
   const origin = new URL(baseURL).origin;
   const assets = new Set(await staticPaths());
@@ -30,6 +31,7 @@ export async function observePrivacy(context: BrowserContext, baseURL: string) {
   const blocked = new Set<Request>();
   const sockets: string[] = [];
   const blockedSockets: string[] = [];
+  const pending = new Set<Promise<void>>();
   const allowed = (request: Request) => {
     const url = new URL(request.url());
     if (url.protocol === "blob:" || url.protocol === "data:") return true;
@@ -46,12 +48,20 @@ export async function observePrivacy(context: BrowserContext, baseURL: string) {
     if (!allowed(request)) forbidden.add(request);
   });
   await context.route("**/*", async (route) => {
-    const request = route.request();
-    if (allowed(request)) return route.continue();
-    // Keep attempts even when abort prevents any upload or third-party connection.
-    forbidden.add(request);
-    await route.abort("blockedbyclient");
-    blocked.add(request);
+    const task = (async () => {
+      const request = route.request();
+      if (allowed(request)) return route.continue();
+      // Keep attempts even when abort prevents any upload or third-party connection.
+      forbidden.add(request);
+      await route.abort("blockedbyclient");
+      blocked.add(request);
+    })();
+    pending.add(task);
+    try {
+      await task;
+    } finally {
+      pending.delete(task);
+    }
   });
   await context.routeWebSocket(/.*/, async (socket) => {
     sockets.push(socket.url());
@@ -65,11 +75,38 @@ export async function observePrivacy(context: BrowserContext, baseURL: string) {
     blocked,
     sockets,
     blockedSockets,
+    settle: async () => {
+      while (pending.size) await Promise.all(pending);
+    },
     violations: () => [
       ...Array.from(forbidden, (request) => `${request.method()} ${request.url()}`),
       ...sockets.map((url) => `WebSocket ${url}`),
     ],
   };
+}
+
+export async function finishPrivacy(
+  context: BrowserContext,
+  privacy: Awaited<ReturnType<typeof observePrivacy>>,
+  baseURL: string
+) {
+  try {
+    for (const page of context.pages()) {
+      if (page.isClosed()) continue;
+      // context.close() skips page lifecycle events. A same-origin navigation exercises the
+      // original document's beforeunload, and pagehide/unload where the browser dispatches them.
+      // about:blank navigation can discard Chromium's keepalive requests before routing sees them.
+      await page.goto(new URL("/", baseURL).href, { waitUntil: "load" });
+    }
+    await privacy.settle();
+    const cookies = await context.cookies();
+    expect(privacy.violations(), "Forbidden browser network attempts, including teardown").toEqual(
+      []
+    );
+    expect(cookies, "The editor must not set cookies").toEqual([]);
+  } finally {
+    await context.close();
+  }
 }
 
 export const test = base.extend<{ privacy: Awaited<ReturnType<typeof observePrivacy>> }>({
@@ -80,11 +117,7 @@ export const test = base.extend<{ privacy: Awaited<ReturnType<typeof observePriv
       try {
         await use(privacy);
       } finally {
-        const cookies = await context.cookies();
-        // Retain observation through page unload, including any teardown beacons.
-        await context.close();
-        expect(privacy.violations(), "Forbidden browser network attempts").toEqual([]);
-        expect(cookies, "The editor must not set cookies").toEqual([]);
+        await finishPrivacy(context, privacy, baseURL);
       }
     },
     { auto: true },

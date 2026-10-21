@@ -1,5 +1,6 @@
-import { expect, test } from "@playwright/test";
-import { observePrivacy } from "./fixtures/privacy";
+import { createServer } from "node:http";
+import { expect, type Request, test } from "@playwright/test";
+import { finishPrivacy, observePrivacy } from "./fixtures/privacy";
 
 // These deliberate violations never run in the app workflow contexts. All payloads are synthetic.
 test.use({ serviceWorkers: "block" });
@@ -9,6 +10,10 @@ for (const control of [
   { name: "same-origin PUT", method: "PUT", path: "/app" },
   { name: "same-origin PATCH", method: "PATCH", path: "/app" },
   { name: "same-origin DELETE", method: "DELETE", path: "/app" },
+  { name: "bodyless same-origin POST", method: "POST", path: "/app", bodyless: true },
+  { name: "bodyless same-origin PUT", method: "PUT", path: "/app", bodyless: true },
+  { name: "bodyless same-origin PATCH", method: "PATCH", path: "/app", bodyless: true },
+  { name: "bodyless same-origin DELETE", method: "DELETE", path: "/app", bodyless: true },
   { name: "same-origin unknown GET", method: "GET", path: "/synthetic-upload" },
   {
     name: "same-origin static query payload",
@@ -27,32 +32,145 @@ for (const control of [
     const guard = await observePrivacy(context, baseURL);
     await page.goto("/app");
     const url = new URL(control.path, baseURL).href;
-    const failed = context.waitForEvent("requestfailed", (request) => request.url() === url);
+    const failures: Request[] = [];
+    context.on("requestfailed", (request) => failures.push(request));
     const outcome = await page.evaluate(
-      async ({ url, method, upload }) => {
+      async ({ url, method, upload, bodyless }) => {
         const body = new FormData();
         body.append("file", new Blob(["synthetic-privacy-control"]), "synthetic.pdf");
         try {
           await fetch(url, {
             method,
             mode: "cors",
-            body: method === "GET" ? undefined : upload ? body : "synthetic-privacy-control",
+            body:
+              method === "GET" || bodyless
+                ? undefined
+                : upload
+                  ? body
+                  : "synthetic-privacy-control",
           });
           return "resolved";
         } catch {
           return "rejected";
         }
       },
-      { url, method: control.method, upload: "upload" in control }
+      { url, method: control.method, upload: "upload" in control, bodyless: "bodyless" in control }
     );
-    const request = await failed;
     expect(outcome).toBe("rejected");
+    await expect.poll(() => failures.some((request) => request.url() === url)).toBe(true);
+    const request = failures.find((request) => request.url() === url);
+    if (!request) throw new Error("Missing aborted control request");
     await expect.poll(() => guard.blocked.has(request)).toBe(true);
     expect(guard.forbidden.has(request)).toBe(true);
     expect(guard.violations()).toEqual([`${control.method} ${url}`]);
     if ("upload" in control) expect(request.postData()).toContain("synthetic.pdf");
+    if ("bodyless" in control) expect(request.postDataBuffer()).toBeNull();
   });
 }
+
+test("finalizer rejects a synthetic lifecycle beacon before closing the context", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  if (!baseURL) throw new Error("Missing preview baseURL");
+  const guard = await observePrivacy(context, baseURL);
+  const events: string[] = [];
+  const failures: Request[] = [];
+  page.on("console", (message) => {
+    if (message.text() === "synthetic-beforeunload") events.push(message.text());
+  });
+  context.on("requestfailed", (request) => failures.push(request));
+  await page.goto("/app");
+  await page.evaluate(() => {
+    window.addEventListener("beforeunload", () => {
+      // biome-ignore lint/suspicious/noConsole: Observe the actual browser lifecycle event in this control.
+      console.log("synthetic-beforeunload");
+      navigator.sendBeacon("/app", "synthetic-lifecycle-beacon");
+    });
+  });
+  await expect(finishPrivacy(context, guard, baseURL)).rejects.toThrow(
+    "Forbidden browser network attempts, including teardown"
+  );
+  expect(events).toEqual(["synthetic-beforeunload"]);
+  const request = [...guard.forbidden].find(
+    (request) => request.postData() === "synthetic-lifecycle-beacon"
+  );
+  if (!request) throw new Error("The real lifecycle event must initiate the beacon");
+  expect(guard.blocked.has(request), "The beacon must be aborted before cleanup").toBe(true);
+  // Chromium can omit requestfailed after document unload. The awaited abort above is the proof;
+  // terminal-event delivery is diagnostic and is not controlled by the application.
+  await test.info().attach("lifecycle-observation", {
+    contentType: "application/json",
+    body: JSON.stringify({
+      browser: test.info().project.name,
+      events,
+      beaconBody: request.postData(),
+      blockedSameRequest: guard.blocked.has(request),
+      requestFailedCount: failures.filter((failed) => failed === request).length,
+    }),
+  });
+  expect(guard.violations()).toEqual([`POST ${new URL("/app", baseURL).href}`]);
+});
+
+test("coverage limit: dedicated-worker WebSockets reach an owned loopback listener unseen by the guard", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  if (!baseURL) throw new Error("Missing preview baseURL");
+  let handshakes = 0;
+  const server = createServer();
+  server.on("upgrade", (_request, socket) => {
+    handshakes++;
+    socket.destroy();
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Missing loopback address");
+    const url = `ws://127.0.0.1:${address.port}/synthetic-worker-socket`;
+    const guard = await observePrivacy(context, baseURL);
+    await page.goto("/app");
+    await page.evaluate(async (url) => {
+      const script = URL.createObjectURL(
+        new Blob(
+          [
+            `const socket = new WebSocket(${JSON.stringify(url)});
+         socket.onclose = () => postMessage("closed");`,
+          ],
+          { type: "text/javascript" }
+        )
+      );
+      const worker = new Worker(script);
+      try {
+        await new Promise((resolve) => {
+          worker.onmessage = resolve;
+        });
+      } finally {
+        worker.terminate();
+        URL.revokeObjectURL(script);
+      }
+    }, url);
+    // This is a capability characterization, not privacy protection. No PDF or message is sent.
+    expect(handshakes).toBe(1);
+    expect(guard.sockets).toEqual([]);
+    expect(guard.violations()).toEqual([]);
+    await test.info().attach("worker-websocket-observation-limit", {
+      contentType: "application/json",
+      body: JSON.stringify({
+        browser: test.info().project.name,
+        handshakes,
+        guardSockets: guard.sockets,
+        violations: guard.violations(),
+      }),
+    });
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve()))
+    );
+  }
+});
 
 for (const path of ["/app", "https://privacy.invalid/beacon"]) {
   test(`guard detects and aborts a beacon to ${path}`, async ({ page, context, baseURL }) => {
