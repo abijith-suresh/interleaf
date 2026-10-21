@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { createServer, type ViteDevServer } from "vite";
 import type { checkFilledFields } from "./fixtures/filled-fields";
@@ -41,6 +42,53 @@ for (const source of [0, 90, 180, 270])
         },
         [unit, source, turn]
       );
+      if (result.diagnostics) {
+        const evidence = result.diagnostics;
+        const attach = async (name: string, bytes: Uint8Array, contentType: string) => {
+          const path = info.outputPath(name);
+          await writeFile(path, bytes);
+          await info.attach(name, { path, contentType });
+        };
+        for (const [index, bytes] of evidence.sourceBytes.entries())
+          await attach(`source-${index}.pdf`, new Uint8Array(bytes), "application/pdf");
+        await attach("completed.pdf", new Uint8Array(evidence.completedBytes), "application/pdf");
+        for (const [index, pair] of evidence.pairs.entries()) {
+          if (pair.derivedBytes)
+            await attach(
+              `pair-${index}-derived.pdf`,
+              new Uint8Array(pair.derivedBytes),
+              "application/pdf"
+            );
+          for (const key of ["actualImage", "referenceImage"] as const) {
+            await attach(
+              `pair-${index}-${key}.png`,
+              Buffer.from(pair[key].png.split(",")[1], "base64"),
+              "image/png"
+            );
+            await attach(
+              `pair-${index}-${key}.rgba`,
+              Buffer.from(pair[key].rgba, "base64"),
+              "application/octet-stream"
+            );
+          }
+        }
+        const { sourceBytes, completedBytes, pairs, ...metadata } = evidence;
+        await info.attach("field-render-metadata", {
+          body: JSON.stringify(
+            {
+              ...metadata,
+              pairs: pairs.map(({ derivedBytes, actualImage, referenceImage, ...pair }) => ({
+                ...pair,
+                actualImage: { width: actualImage.width, height: actualImage.height },
+                referenceImage: { width: referenceImage.width, height: referenceImage.height },
+              })),
+            },
+            null,
+            2
+          ),
+          contentType: "application/json",
+        });
+      }
       expect(result.descriptors.widgets).toHaveLength(6);
       const target = result.descriptors.widgets.filter((w) => w.fieldRef === result.fieldRef);
       expect(target).toHaveLength(3);

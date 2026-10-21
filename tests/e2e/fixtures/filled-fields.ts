@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import { unzipSync } from "fflate";
+import { PDFDict, PDFDocument, PDFName, PDFRawStream } from "pdf-lib";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import worker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { answerField } from "../../../src/controllers/editor-field-state";
@@ -16,7 +17,72 @@ function hash(data: Uint8ClampedArray) {
   for (const value of data) hash = Math.imul(hash ^ value, 16777619);
   return hash >>> 0;
 }
-export async function inspectFilledPDF(bytes: number[], scale = 1) {
+interface PixelEvidence {
+  image?: ImageData;
+  fontStatus?: string;
+}
+interface RenderResult {
+  scale: number;
+  size: number[];
+  pixels: number;
+}
+function retain(image: ImageData, evidence: PixelEvidence) {
+  evidence.image = new ImageData(image.data.slice(), image.width, image.height);
+  evidence.fontStatus = document.fonts.status;
+}
+function encode(image: ImageData) {
+  const canvas = document.createElement("canvas");
+  canvas.width = image.width;
+  canvas.height = image.height;
+  canvas.getContext("2d")!.putImageData(image, 0, 0);
+  const png = canvas.toDataURL("image/png");
+  canvas.width = canvas.height = 0;
+  let raw = "";
+  for (let offset = 0; offset < image.data.length; offset += 32768)
+    raw += String.fromCharCode(...image.data.subarray(offset, offset + 32768));
+  return { png, rgba: btoa(raw), width: image.width, height: image.height };
+}
+async function nativePage(bytes: Uint8Array, index: number) {
+  const doc = await PDFDocument.load(bytes),
+    page = doc.getPage(index),
+    N = PDFName.of;
+  const bounds = (object: unknown) =>
+    object instanceof PDFRawStream
+      ? {
+          bbox: object.dict.lookup(N("BBox"))?.toString(),
+          matrix: object.dict.lookup(N("Matrix"))?.toString(),
+          resources: object.dict.lookup(N("Resources"))?.toString(),
+        }
+      : undefined;
+  const appearances = (page.node.Annots()?.asArray() ?? []).map((raw) => {
+    const widget = doc.context.lookup(raw, PDFDict),
+      ap = widget.lookupMaybe(N("AP"), PDFDict);
+    return ap?.entries().map(([key, raw]) => {
+      const object = doc.context.lookup(raw);
+      return {
+        key: key.toString(),
+        bounds: bounds(object),
+        states:
+          object instanceof PDFDict
+            ? object.entries().map(([state, item]) => ({
+                state: state.toString(),
+                bounds: bounds(doc.context.lookup(item)),
+              }))
+            : undefined,
+      };
+    });
+  });
+  return {
+    page: index + 1,
+    media: page.getMediaBox(),
+    crop: page.getCropBox(),
+    rotation: page.getRotation(),
+    unit: page.node.lookup(N("UserUnit"))?.toString(),
+    appearances,
+    native: (await inspectExport(bytes)).pages[index],
+  };
+}
+export async function inspectFilledPDF(bytes: number[], scale = 1, evidence?: PixelEvidence) {
   const data = new Uint8Array(bytes);
   const native = await inspectExport(data);
   const task = getDocument({ data: data.slice() });
@@ -46,9 +112,11 @@ export async function inspectFilledPDF(bytes: number[], scale = 1) {
           pixels: hash(context.getImageData(x, y, w, h).data),
         });
       }
+      const image = context.getImageData(0, 0, canvas.width, canvas.height);
+      if (evidence && n === 4) retain(image, evidence);
       pages.push({
         annotations,
-        pixels: hash(context.getImageData(0, 0, canvas.width, canvas.height).data),
+        pixels: hash(image.data),
         size: [canvas.width, canvas.height],
       });
       canvas.width = canvas.height = 0;
@@ -122,19 +190,54 @@ export async function checkFilledFields(
     const geometry = await Effect.runPromise(service.getPageGeometry(file, 1));
     const canvas = document.createElement("canvas");
     const rotation = (sourceRotation + workspaceRotation) % 360;
-    const renders = [];
+    const renders: RenderResult[] = [];
+    const generatedEvidence: PixelEvidence[] = [],
+      referenceEvidence: PixelEvidence[] = [];
+    const derivedDocuments = new Map<number, Uint8Array>();
+    async function captureDerived<T>(scale: number, run: () => Promise<T>): Promise<T> {
+      const original = PDFOperationsService.prototype.buildPDF;
+      // Observe the actual private build used by this render, without replacing
+      // its result or rendering again. Each test owns an isolated browser page.
+      PDFOperationsService.prototype.buildPDF = function (
+        this: PDFOperationsService,
+        ...args: Parameters<PDFOperationsService["buildPDF"]>
+      ) {
+        return original.apply(this, args).pipe(
+          Effect.map((result) => {
+            if (
+              args[0].length === 1 &&
+              args[0][0].sourceFile === file &&
+              args[0][0].sourcePageNumber === 1
+            )
+              derivedDocuments.set(scale, result.data.slice());
+            return result;
+          })
+        );
+      };
+      try {
+        return await run();
+      } finally {
+        PDFOperationsService.prototype.buildPDF = original;
+      }
+    }
     for (const scale of [0.2, 1]) {
-      await Effect.runPromise(
-        service.renderPageState(pages[0], canvas, scale, rotation, 4_000_000)
+      await captureDerived(scale, () =>
+        Effect.runPromise(service.renderPageState(pages[0], canvas, scale, rotation, 4_000_000))
       );
+      const image = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height),
+        evidence: PixelEvidence = {};
+      retain(image, evidence);
+      generatedEvidence.push(evidence);
       renders.push({
         scale,
         size: [canvas.width, canvas.height],
-        pixels: hash(canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data),
+        pixels: hash(image.data),
       });
     }
     canvas.width = canvas.height = 0;
-    const archive = await Effect.runPromise(images.exportImages([pages[0]]));
+    const archive = await captureDerived(2, () =>
+      Effect.runPromise(images.exportImages([pages[0]]))
+    );
     const png = Object.values(unzipSync(new Uint8Array(await archive.data.arrayBuffer())))[0];
     const bitmap = await createImageBitmap(new Blob([new Uint8Array(png)], { type: "image/png" }));
     const pngCanvas = document.createElement("canvas");
@@ -142,11 +245,15 @@ export async function checkFilledFields(
     pngCanvas.height = bitmap.height;
     pngCanvas.getContext("2d")!.drawImage(bitmap, 0, 0);
     bitmap.close();
+    const pngImage = pngCanvas
+        .getContext("2d")!
+        .getImageData(0, 0, pngCanvas.width, pngCanvas.height),
+      pngEvidence: PixelEvidence = {};
+    retain(pngImage, pngEvidence);
+    generatedEvidence.push(pngEvidence);
     const pngResult = {
       size: [pngCanvas.width, pngCanvas.height],
-      pixels: hash(
-        pngCanvas.getContext("2d")!.getImageData(0, 0, pngCanvas.width, pngCanvas.height).data
-      ),
+      pixels: hash(pngImage.data),
     };
     pngCanvas.width = pngCanvas.height = 0;
     const originalValue = (await Effect.runPromise(operations.getFields(file))).widgets
@@ -155,12 +262,60 @@ export async function checkFilledFields(
     await Effect.runPromise(operations.dispose());
     await Effect.runPromise(service.dispose());
     const independent = await inspectFilledPDF(Array.from(result.data));
-    const references = [];
+    const references: RenderResult[] = [];
     for (const scale of [0.2, 1, 2]) {
-      const inspected = await inspectFilledPDF(Array.from(result.data), scale);
+      const evidence: PixelEvidence = {};
+      const inspected = await inspectFilledPDF(Array.from(result.data), scale, evidence);
+      referenceEvidence.push(evidence);
       references.push({ scale, size: inspected.pages[3].size, pixels: inspected.pages[3].pixels });
     }
     const untouched = await inspectFilledPDF(Array.from(baseline.data));
+    const actual = [...renders, { ...pngResult, scale: 2 }];
+    const mismatches = actual.flatMap((render, index) => {
+      const reference = references[index];
+      return render.scale === reference.scale &&
+        render.pixels === reference.pixels &&
+        JSON.stringify(render.size) === JSON.stringify(reference.size)
+        ? []
+        : [index];
+    });
+    // Preserve original buffers before canvas cleanup; encode only a failed pair,
+    // after every comparison render and source lifetime has already completed.
+    const diagnostics = mismatches.length
+      ? {
+          sourceBytes: [Array.from(fixture.bytes), Array.from(second.bytes)],
+          completedBytes: Array.from(result.data),
+          completedNative: await nativePage(result.data, 3),
+          geometry,
+          unit,
+          sourceRotation,
+          workspaceRotation,
+          userAgent: navigator.userAgent,
+          devicePixelRatio,
+          pairs: await Promise.all(
+            mismatches.map(async (index) => {
+              const derived = derivedDocuments.get(actual[index].scale);
+              return {
+                actual: actual[index],
+                reference: references[index],
+                actualImage: encode(generatedEvidence[index].image!),
+                referenceImage: encode(referenceEvidence[index].image!),
+                actualFontStatus: generatedEvidence[index].fontStatus,
+                referenceFontStatus: referenceEvidence[index].fontStatus,
+                renderOptions: {
+                  sourcePage: 1,
+                  outputPage: 4,
+                  scale: actual[index].scale,
+                  rotation,
+                  maxRasterPixels: index < 2 ? 4_000_000 : undefined,
+                },
+                derivedBytes: derived ? Array.from(derived) : undefined,
+                derivedNative: derived ? await nativePage(derived, 0) : undefined,
+              };
+            })
+          ),
+        }
+      : undefined;
     return {
       fieldRef: fixture.fieldRef,
       widgetRefs: fixture.widgetRefs,
@@ -174,6 +329,7 @@ export async function checkFilledFields(
       bytes: Array.from(result.data),
       originalValue,
       geometry,
+      diagnostics,
     };
   } finally {
     await Effect.runPromise(operations.dispose());
