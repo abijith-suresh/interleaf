@@ -142,7 +142,7 @@ export default function EditorAdditionsEditor(props: Props) {
     );
   }
 
-  function focusElement(element: HTMLElement) {
+  function focusElement(element: HTMLElement, reveal = element) {
     element.focus({ preventScroll: true });
     if (
       document.activeElement !== element ||
@@ -154,7 +154,9 @@ export default function EditorAdditionsEditor(props: Props) {
     for (const container of [element.closest<HTMLElement>(".editor-text-content"), props.toolbar]) {
       if (!container || container.scrollHeight <= container.clientHeight) continue;
       const viewport = container.getBoundingClientRect();
-      const field = element.getBoundingClientRect();
+      const region = reveal.getBoundingClientRect();
+      const field =
+        region.height <= container.clientHeight - 8 ? region : element.getBoundingClientRect();
       const top = viewport.top + container.clientTop + 4;
       const bottom = viewport.top + container.clientTop + container.clientHeight - 4;
       if (field.top < top) container.scrollTop += field.top - top;

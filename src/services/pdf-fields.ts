@@ -1,4 +1,7 @@
 import {
+  adjustDimsForRotation,
+  componentsToColor,
+  drawTextField,
   PDFAcroText,
   PDFArray,
   PDFDict,
@@ -12,6 +15,9 @@ import {
   PDFStream,
   PDFString,
   PDFTextField,
+  rgb,
+  rotateInPlace,
+  StandardFontEmbedder,
   StandardFonts,
 } from "pdf-lib";
 import type { FieldAnswer, PDFFields, TextFieldWidget } from "../types/interfaces";
@@ -21,6 +27,16 @@ const LATIN = /^[\x20-\x7e]*$/;
 const ALLOWED_FLAGS = 2 | 4 | 0x400000 | 0x800000;
 const UNAVAILABLE = "This field is read-only in the editor.";
 const FONT_SIZE = 12;
+// Unlike Ascender/Descender, FontBBox encloses every glyph in the fallback font.
+const FONT_BOUNDS = StandardFontEmbedder.for(
+  "Helvetica" as Parameters<typeof StandardFontEmbedder.for>[0]
+).font.FontBBox;
+function verticalBounds(size: number) {
+  return {
+    bottom: (FONT_BOUNDS[1] * size) / 1000,
+    height: ((FONT_BOUNDS[3] - FONT_BOUNDS[1]) * size) / 1000,
+  };
+}
 
 // Optional resolved null is absence, including indirect null. Never confuse an
 // explicit empty string or zero with absence. Walk library objects, not PDF syntax.
@@ -349,10 +365,11 @@ export async function applyFieldAnswers(
     if (field.maxLength !== undefined && answer.value.length > field.maxLength)
       throw Error(`Use at most ${field.maxLength} characters.`);
     for (const widget of field.widgets.filter((widget) => pageNumbers.includes(widget.page))) {
+      if (answer.value.length > 0 && verticalBounds(widget.fontSize).height > widget.height)
+        throw Error("This field is too short for 12 pt text. Use Add text.");
       if (
         answer.value.length > 0 &&
-        (font.widthOfTextAtSize(answer.value, widget.fontSize) > widget.width ||
-          font.heightAtSize(widget.fontSize, { descender: true }) > widget.height)
+        font.widthOfTextAtSize(answer.value, widget.fontSize) > widget.width
       )
         throw Error("The answer does not fit every linked field. Use shorter text.");
     }
@@ -367,6 +384,54 @@ export async function applyFieldAnswers(
     text.acroField.setDefaultAppearance(`/Helvetica ${FONT_SIZE} Tf 0 g`);
     for (const widget of field.widgets)
       widget.dict.set(N("DA"), PDFString.of(`/Helvetica ${widget.fontSize} Tf 0 g`));
-    text.updateAppearances(font);
+    text.updateAppearances(font, (_text, widget) => {
+      const geometry = field.widgets.find((candidate) => candidate.dict === widget.dict);
+      if (!geometry) throw Error("Missing field widget.");
+      const rectangle = widget.getRectangle();
+      const characteristics = widget.getAppearanceCharacteristics();
+      const rotation = characteristics?.getRotation() ?? 0;
+      if (rotation !== 0 && rotation !== 90 && rotation !== 180 && rotation !== 270)
+        throw Error("Unsupported widget rotation.");
+      const { width, height } = adjustDimsForRotation(rectangle, rotation);
+      const border = widget.getBorderStyle()?.getWidth() ?? 0;
+      const size = geometry.fontSize,
+        bounds = verticalBounds(size);
+      const value = answers[index].value;
+      const textWidth = font.widthOfTextAtSize(value, size);
+      const left = border + 1;
+      const x =
+        left +
+        (field.alignment === 1
+          ? (geometry.width - textWidth) / 2
+          : field.alignment === 2
+            ? geometry.width - textWidth
+            : 0);
+      // Center the complete font envelope, then place the text baseline above
+      // its negative lower bound. Validation uses the exact same clipping area.
+      const y = left + (geometry.height - bounds.height) / 2 - bounds.bottom;
+      return [
+        ...rotateInPlace({ ...rectangle, rotation }),
+        ...drawTextField({
+          x: border / 2,
+          y: border / 2,
+          width: width - border,
+          height: height - border,
+          borderWidth: border,
+          borderColor: componentsToColor(characteristics?.getBorderColor()),
+          color: componentsToColor(characteristics?.getBackgroundColor()),
+          textColor: rgb(0, 0, 0),
+          font: font.name,
+          fontSize: size,
+          padding: 1,
+          textLines: [
+            {
+              encoded: font.encodeText(value),
+              x,
+              y,
+            },
+          ],
+        }),
+      ];
+    });
   }
 }

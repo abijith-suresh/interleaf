@@ -1,6 +1,7 @@
 import { Effect, Fiber } from "effect";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show, untrack } from "solid-js";
 import { Portal } from "solid-js/web";
+import { answerField } from "../../controllers/editor-field-state";
 import { pdfToViewport } from "../../controllers/text-geometry";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { PageGeometry, PageState, PDFFields, TextFieldWidget } from "../../types/interfaces";
@@ -17,7 +18,7 @@ interface Props {
   disabled?: boolean;
   onOpen: () => void;
   onClose: () => void;
-  focusInput: (input: HTMLElement) => void;
+  focusInput: (input: HTMLElement, reveal?: HTMLElement) => void;
   onChange: (pageId: string, fieldRef: string, value: string) => void;
 }
 
@@ -28,9 +29,15 @@ export default function EditorFieldsEditor(props: Props) {
   const [error, setError] = createSignal("");
   const [saving, setSaving] = createSignal(false);
   const [notice, setNotice] = createSignal("");
+  const sourceFile = createMemo(() => props.page.sourceFile);
   let input!: HTMLInputElement;
   let layer!: HTMLDivElement;
   let panel!: HTMLDivElement;
+  let answerRegion!: HTMLSpanElement;
+  const drafts = new Map<string, string>();
+  let ownCommit:
+    | { pageId: string; file: File; group?: string; rotation: number; answers: string }
+    | undefined;
   let disposed = false;
   let generation = 0;
   let focusRevision = 0;
@@ -60,7 +67,7 @@ export default function EditorFieldsEditor(props: Props) {
         element?.isConnected &&
         element.getClientRects().length
       )
-        props.focusInput(element);
+        props.focusInput(element, element === input && error() ? answerRegion : undefined);
     });
   }
   function hit(widget?: TextFieldWidget) {
@@ -70,6 +77,7 @@ export default function EditorFieldsEditor(props: Props) {
   }
   function finish() {
     const widget = selected();
+    if (widget) drafts.delete(widget.fieldRef);
     const owned = ownedFocus();
     generation++;
     setSelected(undefined);
@@ -90,7 +98,7 @@ export default function EditorFieldsEditor(props: Props) {
       return;
     }
     setSelected(widget);
-    setAnswer(currentValue(widget));
+    setAnswer(drafts.get(widget.fieldRef) ?? currentValue(widget));
     props.onOpen();
     focusLater(() => input);
   }
@@ -121,12 +129,31 @@ export default function EditorFieldsEditor(props: Props) {
     try {
       await Effect.runPromise(Fiber.join(fiber));
       if (disposed || generation !== version) return;
+      if (props.disabled) {
+        setSaving(false);
+        setError("An operation is in progress. Save your answer when it finishes.");
+        return;
+      }
       // A later unrelated focus change may not be stolen by Save completion.
       const restore =
         revision === focusRevision &&
         owned &&
         (ownedFocus() || document.activeElement === document.body);
+      const commit = {
+        pageId,
+        file: props.page.sourceFile,
+        group: props.page.fieldGroupId,
+        rotation: props.page.rotation,
+        answers: JSON.stringify(
+          answerField([props.page], pageId, widget.fieldRef, value)[0].fieldAnswers ?? []
+        ),
+      };
+      ownCommit = commit;
       props.onChange(pageId, widget.fieldRef, value);
+      drafts.delete(widget.fieldRef);
+      queueMicrotask(() => {
+        if (ownCommit === commit) ownCommit = undefined;
+      });
       generation++;
       setSelected(undefined);
       setSaving(false);
@@ -147,7 +174,7 @@ export default function EditorFieldsEditor(props: Props) {
     }
   }
   createEffect(() => {
-    const file = props.page.sourceFile;
+    const file = sourceFile();
     setFields(undefined);
     const fiber = props.runtime.runFork(PDFProcessing.use((service) => service.getFields(file)));
     let live = true;
@@ -173,10 +200,20 @@ export default function EditorFieldsEditor(props: Props) {
     });
   });
   createEffect(() => {
-    props.page.id;
-    props.page.rotation;
-    JSON.stringify(props.page.fieldAnswers ?? []);
+    const pageId = props.page.id,
+      file = props.page.sourceFile,
+      group = props.page.fieldGroupId,
+      rotation = props.page.rotation;
+    const answers = JSON.stringify(props.page.fieldAnswers ?? []);
+    const own =
+      ownCommit?.pageId === pageId &&
+      ownCommit.file === file &&
+      ownCommit.group === group &&
+      ownCommit.rotation === rotation &&
+      ownCommit.answers === answers;
+    ownCommit = undefined;
     untrack(() => {
+      if (!own) drafts.clear();
       generation++;
       setSelected(undefined);
       setError("");
@@ -241,25 +278,34 @@ export default function EditorFieldsEditor(props: Props) {
                 }}
               >
                 <label class="editor-text-value">
-                  {widget().label}
-                  <input
-                    ref={input}
-                    aria-label={`Answer for ${widget().label}`}
-                    value={answer()}
-                    aria-invalid={!!error()}
-                    aria-describedby={error() ? "editor-field-error" : "editor-field-input-help"}
-                    disabled={saving() || props.disabled}
-                    onInput={(event) => {
-                      setAnswer(event.currentTarget.value);
-                      setError("");
-                    }}
-                    onPaste={(event) => {
-                      if (/[^\x20-\x7e]/.test(event.clipboardData?.getData("text/plain") ?? "")) {
-                        event.preventDefault();
-                        setError("Use one line of basic Latin text.");
-                      }
-                    }}
-                  />
+                  <span class="editor-field-label">{widget().label}</span>
+                  <span ref={answerRegion} class="editor-field-answer">
+                    <input
+                      ref={input}
+                      aria-label={`Answer for ${widget().label}`}
+                      value={answer()}
+                      aria-invalid={!!error()}
+                      aria-describedby={error() ? "editor-field-error" : "editor-field-input-help"}
+                      disabled={saving() || props.disabled}
+                      onInput={(event) => {
+                        setAnswer(event.currentTarget.value);
+                        drafts.set(widget().fieldRef, event.currentTarget.value);
+                        setError("");
+                      }}
+                      onPaste={(event) => {
+                        if (/[^\x20-\x7e]/.test(event.clipboardData?.getData("text/plain") ?? "")) {
+                          event.preventDefault();
+                          setError("Use one line of basic Latin text.");
+                          focusLater(() => input);
+                        }
+                      }}
+                    />
+                    <Show when={error()}>
+                      <span id="editor-field-error" class="editor-text-error" role="alert">
+                        {error()}
+                      </span>
+                    </Show>
+                  </span>
                 </label>
                 <span id="editor-field-input-help" class="editor-text-font">
                   Embedded field · Helvetica 12 pt
@@ -293,11 +339,6 @@ export default function EditorFieldsEditor(props: Props) {
                   }
                   onClick={() => navigate(1)}
                 />
-                <Show when={error()}>
-                  <p id="editor-field-error" class="editor-text-error" role="alert">
-                    {error()}
-                  </p>
-                </Show>
               </form>
             )}
           </Show>

@@ -19,6 +19,22 @@ vi.mock("../../../services/pdf-operations-service", () => ({
             value: "Before",
             rect: [10, 10, 200, 40],
           },
+          {
+            widgetRef: "15 0 R",
+            fieldRef: "13 0 R",
+            pageNumber: 1,
+            label: "Answer",
+            value: "Before",
+            rect: [10, 50, 200, 80],
+          },
+          {
+            widgetRef: "17 0 R",
+            fieldRef: "16 0 R",
+            pageNumber: 1,
+            label: "Other",
+            value: "Other before",
+            rect: [10, 90, 200, 120],
+          },
         ],
       });
     validateFieldAnswer = validate;
@@ -77,7 +93,7 @@ it.each(["failure", "success", "navigation", "disposal"])(
       />
     ));
     try {
-      const hit = await screen.findByRole("button", { name: "Fill field: Answer" });
+      const hit = (await screen.findAllByRole("button", { name: "Fill field: Answer" }))[0];
       hit.focus();
       fireEvent.click(hit);
       const input = screen.getByRole("textbox", { name: "Answer for Answer" });
@@ -111,6 +127,83 @@ it.each(["failure", "success", "navigation", "disposal"])(
       view.unmount();
       await runtime.dispose();
       for (const element of [toolbar, stage, external]) element.remove();
+    }
+  }
+);
+
+it.each(["Save", "Cancel"])(
+  "field navigation retains other terminal drafts after own %s",
+  async (action) => {
+    validate.mockReset().mockReturnValue(Effect.void);
+    const runtime = makePDFRuntime();
+    const [page, setPage] = createSignal<PageState>({
+      id: "page",
+      sourceFile: new File(["pdf"], "same.pdf"),
+      sourcePageNumber: 1,
+      rotation: 0,
+      markedForDeletion: false,
+      fieldGroupId: "group",
+    });
+    const toolbar = document.createElement("div"),
+      stage = document.createElement("section");
+    document.body.append(toolbar, stage);
+    const onChange = vi.fn((_: string, fieldRef: string, value: string) =>
+      setPage({ ...page(), fieldAnswers: [{ fieldRef, value }] })
+    );
+    const view = render(() => (
+      <EditorFieldsEditor
+        page={page()}
+        groupPageNumbers={[1]}
+        runtime={runtime}
+        toolbar={toolbar}
+        stage={stage}
+        geometry={{
+          bounds: [0, 0, 400, 600],
+          userUnit: 1,
+          width: 400,
+          height: 600,
+          transform: [1, 0, 0, -1, 0, 600],
+        }}
+        rotation={0}
+        onOpen={() => {}}
+        onClose={() => {}}
+        focusInput={(input) => input.focus()}
+        onChange={onChange}
+      />
+    ));
+    try {
+      const hits = await screen.findAllByRole("button", { name: "Fill field: Answer" });
+      fireEvent.click(hits[0]);
+      fireEvent.input(screen.getByRole("textbox"), { target: { value: "Draft A" } });
+      fireEvent.click(screen.getByRole("button", { name: "Next field" }));
+      expect(screen.getByRole("textbox")).toHaveValue("Draft A");
+      fireEvent.keyDown(screen.getByRole("textbox"), { key: "ArrowDown", altKey: true });
+      fireEvent.input(screen.getByRole("textbox"), { target: { value: "Draft B" } });
+      if (action === "Save") fireEvent.submit(screen.getByRole("textbox").closest("form")!);
+      else fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
+      fireEvent.click(hits[0]);
+      expect(screen.getByRole("textbox")).toHaveValue("Draft A");
+      fireEvent.click(screen.getByRole("button", { name: "Fill field: Other" }));
+      expect(screen.getByRole("textbox")).toHaveValue(
+        action === "Save" ? "Draft B" : "Other before"
+      );
+      fireEvent.click(hits[1]);
+      expect(screen.getByRole("textbox")).toHaveValue("Draft A");
+      expect(onChange).toHaveBeenCalledTimes(action === "Save" ? 1 : 0);
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      fireEvent.click(hits[0]);
+      expect(screen.getByRole("textbox")).toHaveValue("Before");
+      // An external history/group change invalidates ephemeral drafts.
+      fireEvent.input(screen.getByRole("textbox"), { target: { value: "Stale" } });
+      setPage({ ...page(), fieldGroupId: "restored" });
+      fireEvent.click(hits[0]);
+      expect(screen.getByRole("textbox")).toHaveValue("Before");
+    } finally {
+      view.unmount();
+      await runtime.dispose();
+      toolbar.remove();
+      stage.remove();
     }
   }
 );

@@ -101,7 +101,7 @@ describe("embedded text field ownership and constraints", () => {
     widget.set(N("Rect"), doc.context.obj([10, 310, 250, 316]));
     await expect(
       applyFieldAnswers(doc, [{ fieldRef: fixture.fieldRef, value: "X" }], [1, 2])
-    ).rejects.toThrow("does not fit");
+    ).rejects.toThrow("too short for 12 pt");
     await applyFieldAnswers(doc, [{ fieldRef: fixture.fieldRef, value: "" }], [1, 2]);
     expect(
       inspectPDFFields(doc)
@@ -125,6 +125,26 @@ describe("embedded text field ownership and constraints", () => {
     ).toEqual(["INHERITED", "INHERITED", "INHERITED"]);
     // A detached page has only its own linked widgets.
     await applyFieldAnswers(doc, [{ fieldRef: fixture.fieldRef, value: "W".repeat(15) }], [1]);
+  });
+  it("rejects a short linked widget before publishing any values or appearances", async () => {
+    const fixture = await textFieldFixture();
+    const doc = await PDFDocument.load(fixture.bytes);
+    const field = terminal(doc, fixture.fieldRef);
+    const widgets = field
+      .lookup(N("Kids"), PDFArray)
+      .asArray()
+      .map((ref) => doc.context.lookup(ref, PDFDict));
+    widgets[2].set(N("Rect"), doc.context.obj([10, 310, 120, 325.2]));
+    const before = widgets.map((widget) => widget.lookup(N("AP"), PDFDict).get(N("N")));
+    await expect(
+      applyFieldAnswers(doc, [{ fieldRef: fixture.fieldRef, value: "gjpqyQ" }], [1, 2])
+    ).rejects.toThrow("too short for 12 pt");
+    expect(widgets.map((widget) => widget.lookup(N("AP"), PDFDict).get(N("N")))).toEqual(before);
+    expect(
+      inspectPDFFields(doc)
+        .widgets.filter((widget) => widget.fieldRef === fixture.fieldRef)
+        .map((widget) => widget.value)
+    ).toEqual(["INHERITED", "INHERITED", "INHERITED"]);
   });
   it.each(["é", "two\nlines", "\t", "\x7f"])(
     "rejects unsupported input %j without normalization",

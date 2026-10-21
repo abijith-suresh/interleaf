@@ -2009,8 +2009,18 @@ body:has([data-page="editor"]) {
   color: var(--editor-muted);
 }
 .editor-field-settings .editor-text-value {
+  display: grid;
+  gap: 0.25rem;
   flex: 1 1 18rem;
+  min-width: 0;
   max-width: 28rem;
+}
+.editor-field-label {
+  overflow-wrap: anywhere;
+}
+.editor-field-answer,
+.editor-field-answer .editor-text-error {
+  display: block;
 }
 @media (hover: hover) and (pointer: fine) {
   .editor-field-hit:hover {
