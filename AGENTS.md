@@ -47,6 +47,10 @@ The active product supports:
 
 These are the only current public product promises.
 
+### Draft PDFium experiment
+
+Draft PR #303 preserves an isolated PDFium workspace at `/pdfium/` for evaluation only. It is not part of the active product or a shipping migration. The default `/app/` editor and the public promises above remain the production baseline. Original text replacement, suggested form targets, and broader form editing belong only to that draft experiment. Do not link the experiment from public navigation or marketing.
+
 ### Non-Goals
 
 The product does not include, and must not gain without this section changing first:

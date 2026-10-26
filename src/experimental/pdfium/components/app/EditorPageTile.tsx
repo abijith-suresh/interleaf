@@ -1,0 +1,237 @@
+import { createSignal, onCleanup, onMount } from "solid-js";
+import type { PDFRuntime } from "../../services/pdf-runtime";
+import type { PageState } from "../../types/interfaces";
+import EditorPageCanvas from "./EditorPageCanvas";
+import EditorButton from "./ui/EditorButton";
+import EditorIcon from "./ui/EditorIcon";
+
+const TOUCH_DRAG_DELAY_MS = 220;
+const TOUCH_DRAG_SLOP_PX = 8;
+
+interface Props {
+  page: PageState;
+  runtime: PDFRuntime;
+  index: number;
+  busy: boolean;
+  selected: boolean;
+  isDragSource: boolean;
+  dragOverDirection: "before" | "after" | null;
+  scrollRoot: HTMLDivElement;
+  onClick: () => void;
+  onKeyDown: (e: KeyboardEvent) => void;
+  onRotate: (e: MouseEvent) => void;
+  onDuplicate?: (event: MouseEvent) => void;
+  onOpen?: () => void;
+  onDelete: (e: MouseEvent) => void;
+  onDragStart: (e: DragEvent) => void;
+  onDragOver: (e: DragEvent) => void;
+  onDragEnter: (e: DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (e: DragEvent) => void;
+  onDragEnd: () => void;
+  onTouchDragStart: (index: number, y: number) => void;
+  onTouchDragMove: (x: number, y: number) => void;
+  onTouchDragEnd: () => void;
+  onTouchDragCancel: () => void;
+}
+
+export default function EditorPageTile(props: Props) {
+  const [touchLifted, setTouchLifted] = createSignal(false);
+  let hitarea: HTMLButtonElement | undefined;
+  let touchDragTimer: number | null = null;
+  let touchDragId: number | null = null;
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  const clearTouchDragTimer = () => {
+    if (touchDragTimer !== null) {
+      window.clearTimeout(touchDragTimer);
+      touchDragTimer = null;
+    }
+  };
+
+  const resetTouchDrag = () => {
+    clearTouchDragTimer();
+    touchDragId = null;
+    setTouchLifted(false);
+  };
+
+  const handleTouchStart = (event: TouchEvent) => {
+    if (props.busy || event.touches.length !== 1) return;
+    resetTouchDrag();
+    const touch = event.touches[0];
+    touchDragId = touch.identifier;
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    touchDragTimer = window.setTimeout(() => {
+      touchDragTimer = null;
+      setTouchLifted(true);
+      props.onTouchDragStart(props.index, touchStartY);
+    }, TOUCH_DRAG_DELAY_MS);
+  };
+
+  const handleTouchMove = (event: TouchEvent) => {
+    if (touchDragId === null) return;
+    const touch = Array.from(event.touches).find(
+      (candidate) => candidate.identifier === touchDragId
+    );
+    if (!touch) return;
+    if (touchLifted()) {
+      event.preventDefault();
+      props.onTouchDragMove(touch.clientX, touch.clientY);
+      return;
+    }
+    if (touchDragTimer !== null) {
+      const moved = Math.hypot(touch.clientX - touchStartX, touch.clientY - touchStartY);
+      if (moved > TOUCH_DRAG_SLOP_PX) clearTouchDragTimer();
+    }
+  };
+
+  const endTouchDrag = (event: TouchEvent) => {
+    if (touchDragId === null) return;
+    const lifted = Array.from(event.changedTouches).some(
+      (candidate) => candidate.identifier === touchDragId
+    );
+    if (!lifted) return;
+    const wasDragging = touchLifted();
+    resetTouchDrag();
+    if (wasDragging) {
+      event.preventDefault();
+      props.onTouchDragEnd();
+    }
+  };
+
+  const cancelTouchDrag = (event: TouchEvent) => {
+    if (touchDragId === null) return;
+    const lifted = Array.from(event.changedTouches).some(
+      (candidate) => candidate.identifier === touchDragId
+    );
+    if (!lifted) return;
+    const wasDragging = touchLifted();
+    resetTouchDrag();
+    if (wasDragging) props.onTouchDragCancel();
+  };
+
+  onMount(() => {
+    const element = hitarea;
+    if (!element) return;
+    element.addEventListener("touchstart", handleTouchStart, { passive: true });
+    element.addEventListener("touchmove", handleTouchMove, { passive: false });
+    element.addEventListener("touchend", endTouchDrag, { passive: false });
+    element.addEventListener("touchcancel", cancelTouchDrag, { passive: true });
+    onCleanup(() => {
+      clearTouchDragTimer();
+      element.removeEventListener("touchstart", handleTouchStart);
+      element.removeEventListener("touchmove", handleTouchMove);
+      element.removeEventListener("touchend", endTouchDrag);
+      element.removeEventListener("touchcancel", cancelTouchDrag);
+    });
+  });
+
+  const tileClass = () => {
+    const classes = ["editor-page"];
+    if (props.selected) classes.push("selected");
+    if (props.page.markedForDeletion) classes.push("marked-deleted");
+    if (props.isDragSource) classes.push("dragging");
+    if (props.dragOverDirection === "before") classes.push("drag-insert-before");
+    if (props.dragOverDirection === "after") classes.push("drag-insert-after");
+    return classes.join(" ");
+  };
+
+  return (
+    <li
+      data-page-index={props.index}
+      data-source-page={props.page.sourcePageNumber}
+      data-selected={props.selected}
+      data-marked-for-deletion={props.page.markedForDeletion}
+      class={tileClass()}
+      draggable={!props.busy && !touchLifted()}
+      onDragStart={props.onDragStart}
+      onDragOver={props.onDragOver}
+      onDragEnter={props.onDragEnter}
+      onDragLeave={props.onDragLeave}
+      onDrop={props.onDrop}
+      onDragEnd={props.onDragEnd}
+    >
+      <div class="editor-page-preview">
+        <EditorPageCanvas
+          page={props.page}
+          runtime={props.runtime}
+          rotation={props.page.rotation}
+          scrollRoot={props.scrollRoot}
+        />
+        <button
+          ref={hitarea}
+          type="button"
+          data-testid="editor-page-tile"
+          data-page-index={props.index}
+          data-source-page={props.page.sourcePageNumber}
+          data-selected={props.selected}
+          data-marked-for-deletion={props.page.markedForDeletion}
+          class="editor-page-hitarea"
+          aria-pressed={props.selected}
+          aria-label={
+            props.page.markedForDeletion
+              ? `Page ${props.index + 1}, marked for deletion`
+              : `Page ${props.index + 1}`
+          }
+          aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+          disabled={props.busy}
+          onClick={props.onClick}
+          onDblClick={props.onOpen}
+          onKeyDown={props.onKeyDown}
+        />
+      </div>
+      <div class="page-controls">
+        <span class="page-label" aria-hidden="true">
+          {props.index + 1}
+        </span>
+        <span class="page-action-buttons">
+          <EditorButton
+            variant="plain"
+            type="button"
+            class="btn-page-duplicate"
+            title="Duplicate page"
+            aria-label={`Duplicate page ${props.index + 1}`}
+            disabled={props.busy}
+            onClick={props.onDuplicate}
+          >
+            <EditorIcon name="copy" />
+          </EditorButton>
+          <EditorButton
+            variant={props.page.markedForDeletion ? "plain" : "danger"}
+            type="button"
+            data-testid="editor-page-delete-button"
+            class="btn-page-delete"
+            classList={{ "is-marked": props.page.markedForDeletion }}
+            title={props.page.markedForDeletion ? "Restore page" : "Mark page for deletion"}
+            aria-label={
+              props.page.markedForDeletion
+                ? `Restore page ${props.index + 1} from deletion`
+                : `Mark page ${props.index + 1} for deletion`
+            }
+            aria-pressed={props.page.markedForDeletion}
+            disabled={props.busy}
+            draggable={false}
+            onClick={props.onDelete}
+          >
+            <EditorIcon name={props.page.markedForDeletion ? "restore" : "delete"} />
+          </EditorButton>
+          <EditorButton
+            variant="plain"
+            type="button"
+            data-testid="editor-page-rotate-button"
+            class="btn-page-rotate"
+            title="Rotate 90°"
+            aria-label={`Rotate page ${props.index + 1} 90 degrees`}
+            disabled={props.busy}
+            draggable={false}
+            onClick={props.onRotate}
+          >
+            <EditorIcon name="rotate" />
+          </EditorButton>
+        </span>
+      </div>
+    </li>
+  );
+}

@@ -29,11 +29,44 @@ jobs:
     permissions:
       contents: read
 
+  pdfium-browser:
+    name: pdfium-browser
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Install tools from mise.toml
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+
+      - name: Install and build application
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: Install Chromium runner
+        run: bunx playwright install --with-deps chromium
+
+      - name: Serve application and run browser regression checks
+        run: |
+          python3 -m http.server 4873 --bind 127.0.0.1 --directory dist >/tmp/interleaf-http.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4873/pdfium/ >/dev/null; then break; fi
+            sleep 1
+          done
+          bun tools/pdfium-wasm/browser-smoke.mjs http://127.0.0.1:4873
+
   gate:
     name: gate
     runs-on: ubuntu-24.04
     if: ${{ !cancelled() }}
-    needs: [ci, dependency-review, qpdf]
+    needs: [ci, dependency-review, qpdf, pdfium-browser]
     permissions: {}
 
     steps:
@@ -43,11 +76,13 @@ jobs:
           CI_RESULT: ${{ needs.ci.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           QPDF_RESULT: ${{ needs.qpdf.result }}
+          PDFIUM_BROWSER_RESULT: ${{ needs.pdfium-browser.result }}
         run: |
           set -euo pipefail
-          if [[ "$CI_RESULT" != success || "$DEPENDENCY_REVIEW_RESULT" != success || "$QPDF_RESULT" != success ]]; then
+          if [[ "$CI_RESULT" != success || "$DEPENDENCY_REVIEW_RESULT" != success || "$QPDF_RESULT" != success || "$PDFIUM_BROWSER_RESULT" != success ]]; then
             echo "ci: $CI_RESULT" >&2
             echo "dependency-review: $DEPENDENCY_REVIEW_RESULT" >&2
             echo "qpdf: $QPDF_RESULT" >&2
+            echo "pdfium-browser: $PDFIUM_BROWSER_RESULT" >&2
             exit 1
           fi

@@ -1,0 +1,241 @@
+import { Context, Effect, Exit, type Fiber, Layer, ManagedRuntime } from "effect";
+import { PDFCompressionService } from "../../../services/pdf-compression-service";
+import { collectFirstError } from "../../../services/pdf-errors";
+import {
+  makeQpdfProcessingLayer,
+  QpdfProcessing,
+  type QpdfProcessingError,
+} from "../../../services/qpdf-processing";
+import type {
+  PageState,
+  PDFCompressionResult,
+  PDFError,
+  PDFImageExportResult,
+  PDFOperationResult,
+} from "../types/interfaces";
+import { PDFProcessingError } from "../types/interfaces";
+import type { PDFDocumentCheckpoint } from "./pdf-checkpoint";
+import type { PDFImageExportOptions } from "./pdf-image-export-service";
+import type {
+  PDFBuildOptions,
+  PDFImagesToPDFOptions,
+  PDFOperationsService,
+} from "./pdf-operations-service";
+import { PDFService } from "./pdf-service";
+import type { PDFContentEdit, PDFPageContent } from "./pdfium/protocol";
+
+export interface PDFProcessingShape {
+  readonly preload: Effect.Effect<void>;
+  readonly loadPDF: (file: File) => Effect.Effect<void, PDFError>;
+  readonly loadPDFWithPassword: (file: File, password: string) => Effect.Effect<void, PDFError>;
+  readonly getPageCount: Effect.Effect<number>;
+  readonly renderPage: (
+    file: File,
+    pageNumber: number,
+    canvas: HTMLCanvasElement,
+    scale?: number,
+    rotation?: number
+  ) => Effect.Effect<void, PDFError>;
+  readonly getPageRotation: (file: File, pageNumber: number) => Effect.Effect<number, PDFError>;
+  readonly getPageSize: (
+    file: File,
+    pageNumber: number,
+    rotation?: number
+  ) => Effect.Effect<{ readonly width: number; readonly height: number }, PDFError>;
+  readonly getPageContent: (
+    file: File,
+    pageNumber: number
+  ) => Effect.Effect<PDFPageContent, PDFError>;
+  readonly editPage: (
+    file: File,
+    pageNumber: number,
+    edit: PDFContentEdit
+  ) => Effect.Effect<void, PDFError>;
+  readonly snapshotDocument: (file: File) => Effect.Effect<PDFDocumentCheckpoint, PDFError>;
+  readonly editPageUndoable: (
+    file: File,
+    pageNumber: number,
+    edit: PDFContentEdit
+  ) => Effect.Effect<PDFDocumentCheckpoint, PDFError>;
+  readonly restoreDocument: (
+    file: File,
+    checkpoint: PDFDocumentCheckpoint
+  ) => Effect.Effect<PDFDocumentCheckpoint | undefined, PDFError>;
+  readonly buildPDF: (
+    pages: readonly PageState[],
+    options?: PDFBuildOptions
+  ) => Effect.Effect<PDFOperationResult, PDFError>;
+  readonly imagesToPDF: (
+    files: readonly File[],
+    options?: PDFImagesToPDFOptions
+  ) => Effect.Effect<PDFOperationResult, PDFProcessingError>;
+  readonly exportImages: (
+    pages: readonly PageState[],
+    options?: PDFImageExportOptions
+  ) => Effect.Effect<PDFImageExportResult, PDFError>;
+  readonly compressPDF: (
+    file: File
+  ) => Effect.Effect<PDFCompressionResult, PDFError | QpdfProcessingError>;
+  readonly releaseFile: (file: File) => Effect.Effect<void, PDFProcessingError>;
+  readonly reset: Effect.Effect<void, PDFProcessingError>;
+  readonly clearCache: Effect.Effect<void>;
+}
+
+export class PDFProcessing extends Context.Service<PDFProcessing, PDFProcessingShape>()(
+  "interleaf/PDFProcessing"
+) {}
+
+export interface PDFRuntime {
+  readonly runFork: <A, E>(
+    effect: Effect.Effect<A, E, PDFProcessing>,
+    options?: Effect.RunOptions
+  ) => Fiber.Fiber<A, E>;
+  readonly runPromise: <A, E>(
+    effect: Effect.Effect<A, E, PDFProcessing>,
+    options?: Effect.RunOptions
+  ) => Promise<A>;
+  readonly dispose: () => Promise<void>;
+}
+
+export interface PDFRuntimeOptions {
+  readonly qpdfWorkerUrl?: string | URL;
+}
+
+export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
+  const qpdfLayer = makeQpdfProcessingLayer({
+    workerUrl: options.qpdfWorkerUrl ?? `${import.meta.env.BASE_URL}qpdf/qpdf-worker.js`,
+  });
+
+  const live = Layer.effect(
+    PDFProcessing,
+    Effect.acquireRelease(
+      Effect.gen(function* () {
+        const pdfService = new PDFService();
+        let operationsService: PDFOperationsService | undefined;
+        const getOperationsService = yield* Effect.cachedWithTTL(
+          Effect.tryPromise({
+            try: async () => {
+              const { PDFOperationsService } = await import("./pdf-operations-service");
+              const service = new PDFOperationsService(pdfService);
+              operationsService = service;
+              return service;
+            },
+            catch: (cause) =>
+              new PDFProcessingError({
+                operation: "load-pdf-operations",
+                cause,
+                message:
+                  cause instanceof Error && cause.message
+                    ? cause.message
+                    : "Could not load PDF editing support.",
+              }),
+          }),
+          (exit) => (Exit.isSuccess(exit) ? Infinity : 0)
+        );
+        const getImageExportService = yield* Effect.cachedWithTTL(
+          Effect.tryPromise({
+            try: async () => {
+              const { PDFImageExportService } = await import("./pdf-image-export-service");
+              const service = new PDFImageExportService(pdfService);
+              return service;
+            },
+            catch: (cause) =>
+              new PDFProcessingError({
+                operation: "load-pdf-image-export",
+                cause,
+                message:
+                  cause instanceof Error && cause.message
+                    ? cause.message
+                    : "Could not load PDF image export support.",
+              }),
+          }),
+          (exit) => (Exit.isSuccess(exit) ? Infinity : 0)
+        );
+        const qpdfProcessing = yield* QpdfProcessing;
+        const compressionService = new PDFCompressionService(qpdfProcessing);
+
+        const service: PDFProcessingShape & {
+          readonly dispose: () => Effect.Effect<void, PDFProcessingError>;
+        } = {
+          preload: Effect.suspend(() => pdfService.preload()),
+          loadPDF: (file: File) => pdfService.loadPDF(file),
+          loadPDFWithPassword: (file: File, password: string) =>
+            pdfService.loadPDFWithPassword(file, password),
+          getPageCount: Effect.sync(() => pdfService.getPageCount()),
+          renderPage: (
+            file: File,
+            pageNumber: number,
+            canvas: HTMLCanvasElement,
+            scale?: number,
+            rotation?: number
+          ) => pdfService.renderPage(file, pageNumber, canvas, scale, rotation),
+          getPageRotation: (file: File, pageNumber: number) =>
+            pdfService.getPageRotation(file, pageNumber),
+          getPageSize: (file: File, pageNumber: number, rotation?: number) =>
+            pdfService.getPageSize(file, pageNumber, rotation),
+          getPageContent: (file, pageNumber) => pdfService.getPageContent(file, pageNumber),
+          editPage: (file, pageNumber, edit) => pdfService.editPage(file, pageNumber, edit),
+          snapshotDocument: (file) => pdfService.snapshotDocument(file),
+          editPageUndoable: (file, pageNumber, edit) =>
+            pdfService.editPageUndoable(file, pageNumber, edit),
+          restoreDocument: (file, checkpoint) => pdfService.restoreDocument(file, checkpoint),
+          buildPDF: (pages: readonly PageState[], options?: PDFBuildOptions) =>
+            Effect.flatMap(getOperationsService, (service) => service.buildPDF(pages, options)),
+          imagesToPDF: (files: readonly File[], options?: PDFImagesToPDFOptions) =>
+            Effect.flatMap(getOperationsService, (service) => service.imagesToPDF(files, options)),
+          exportImages: (pages: readonly PageState[], options?: PDFImageExportOptions) =>
+            Effect.flatMap(getImageExportService, (service) =>
+              service.exportImages(pages, options)
+            ),
+          compressPDF: (file: File) =>
+            compressionService.compressPDF(file, pdfService.getPassword(file)),
+          releaseFile: (file: File) =>
+            Effect.suspend(() =>
+              collectFirstError([
+                pdfService.releaseFile(file),
+                operationsService?.releaseFile(file) ?? Effect.void,
+              ])
+            ),
+          reset: Effect.suspend(() => pdfService.reset()),
+          clearCache: Effect.suspend(() => operationsService?.clearCache() ?? Effect.void),
+          dispose: () =>
+            collectFirstError([pdfService.dispose(), operationsService?.dispose() ?? Effect.void]),
+        };
+
+        return service;
+      }),
+      (service) =>
+        collectFirstError([service.reset, service.clearCache, service.dispose()]).pipe(
+          Effect.catch((error) => Effect.logError(error))
+        )
+    )
+  ).pipe(Layer.provide(qpdfLayer));
+
+  const managedRuntime = ManagedRuntime.make(live);
+  let disposed = false;
+  let disposePromise: Promise<void> | undefined;
+
+  return {
+    runFork<A, E>(effect: Effect.Effect<A, E, PDFProcessing>, options?: Effect.RunOptions) {
+      if (disposed) {
+        throw new Error("PDF runtime has been disposed");
+      }
+
+      return managedRuntime.runFork(effect, options);
+    },
+    runPromise<A, E>(effect: Effect.Effect<A, E, PDFProcessing>, options?: Effect.RunOptions) {
+      if (disposed) {
+        return Promise.reject(new Error("PDF runtime has been disposed"));
+      }
+
+      return managedRuntime.runPromise(effect, options);
+    },
+    dispose() {
+      if (disposePromise) return disposePromise;
+
+      disposed = true;
+      disposePromise = managedRuntime.dispose();
+      return disposePromise;
+    },
+  };
+}

@@ -1,0 +1,1605 @@
+import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
+import { Deferred, Effect } from "effect";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  type PageState,
+  PDFPasswordRequiredError,
+  PDFProcessingError,
+} from "../../../types/interfaces";
+
+const pdfServiceMocks = vi.hoisted(() => ({
+  preload: vi.fn(),
+  loadPDF: vi.fn(),
+  loadPDFWithPassword: vi.fn(),
+  getPageCount: vi.fn(),
+  getPassword: vi.fn(),
+  getPageRotation: vi.fn(),
+  getPageSize: vi.fn(),
+  renderPage: vi.fn(),
+  getPageContent: vi.fn(),
+  editPage: vi.fn(),
+  editPageUndoable: vi.fn(),
+  snapshotDocument: vi.fn(),
+  restoreDocument: vi.fn(),
+  releaseFile: vi.fn(),
+  reset: vi.fn(),
+  dispose: vi.fn(),
+}));
+
+const pdfOperationsMocks = vi.hoisted(() => ({
+  buildPDF: vi.fn(),
+  imagesToPDF: vi.fn(),
+  clearCache: vi.fn(),
+  releaseFile: vi.fn(),
+  dispose: vi.fn(),
+}));
+
+const pdfCompressionMocks = vi.hoisted(() => ({
+  compressPDF: vi.fn(),
+}));
+
+const pdfImageExportMocks = vi.hoisted(() => ({
+  exportImages: vi.fn(),
+}));
+
+const promptForPassword = vi.hoisted(() => vi.fn());
+const downloadPDF = vi.hoisted(() => vi.fn());
+const downloadFile = vi.hoisted(() => vi.fn());
+
+vi.mock("../../../services/pdf-service", () => ({
+  PDFService: class {
+    preload = pdfServiceMocks.preload;
+    loadPDF = pdfServiceMocks.loadPDF;
+    loadPDFWithPassword = pdfServiceMocks.loadPDFWithPassword;
+    getPageCount = pdfServiceMocks.getPageCount;
+    getPassword = pdfServiceMocks.getPassword;
+    getPageRotation = pdfServiceMocks.getPageRotation;
+    getPageSize = pdfServiceMocks.getPageSize;
+    renderPage = pdfServiceMocks.renderPage;
+    getPageContent = pdfServiceMocks.getPageContent;
+    editPage = pdfServiceMocks.editPage;
+    editPageUndoable = pdfServiceMocks.editPageUndoable;
+    snapshotDocument = pdfServiceMocks.snapshotDocument;
+    restoreDocument = pdfServiceMocks.restoreDocument;
+    releaseFile = pdfServiceMocks.releaseFile;
+    reset = pdfServiceMocks.reset;
+    dispose = pdfServiceMocks.dispose;
+  },
+}));
+vi.mock("../../../services/pdf-operations-service", () => ({
+  PDFOperationsService: class {
+    buildPDF = pdfOperationsMocks.buildPDF;
+    imagesToPDF = pdfOperationsMocks.imagesToPDF;
+    clearCache = pdfOperationsMocks.clearCache;
+    releaseFile = pdfOperationsMocks.releaseFile;
+    dispose = pdfOperationsMocks.dispose;
+  },
+}));
+vi.mock("../../../../../services/pdf-compression-service", () => ({
+  PDFCompressionService: class {
+    compressPDF = pdfCompressionMocks.compressPDF;
+  },
+}));
+vi.mock("../../../services/pdf-image-export-service", () => ({
+  PDFImageExportService: class {
+    exportImages = pdfImageExportMocks.exportImages;
+  },
+}));
+vi.mock("../../../../../utils/password-prompt", () => ({ promptForPassword }));
+vi.mock("../../../../../utils/download", () => ({ downloadFile, downloadPDF }));
+
+import Editor from "../Editor";
+
+const makeFile = (name = "doc.pdf") => new File(["%PDF-1.4"], name, { type: "application/pdf" });
+const makeImageFile = (name = "image.png", type = "image/png") =>
+  new File(["image"], name, { type });
+
+function selectFiles(input: "upload" | "add", files: File[]) {
+  const label =
+    input === "upload" ? "Choose PDF or image files" : "Choose additional PDF or image files";
+  fireEvent.change(screen.getByLabelText(label), { target: { files } });
+}
+
+function selectFile(input: "upload" | "add", file: File) {
+  selectFiles(input, [file]);
+}
+
+const pageButtonName = /^Page \d+(, marked for deletion)?$/;
+const getPages = () => screen.getAllByRole("button", { name: pageButtonName });
+const findPages = () => screen.findAllByRole("button", { name: pageButtonName });
+
+// Toasts accumulate until their 3s dismissal timer fires, so assert on the newest one.
+function expectLastToast(text: string) {
+  expect(screen.getAllByTestId("editor-toast").at(-1)).toHaveTextContent(text);
+}
+
+async function openEditMenu() {
+  fireEvent.click(screen.getByRole("button", { name: "Select pages" }));
+  expect(await screen.findByRole("menu", { name: "Page selection options" })).toBeVisible();
+}
+
+async function openDownloadMenu() {
+  fireEvent.click(screen.getByRole("button", { name: "More download options" }));
+  expect(await screen.findByRole("menu", { name: "Download options" })).toBeVisible();
+}
+
+async function openPDF(file = makeFile()) {
+  render(() => <Editor />);
+  selectFile("upload", file);
+  return findPages();
+}
+
+describe("Editor", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    pdfServiceMocks.preload.mockReturnValue(Effect.void);
+    promptForPassword.mockResolvedValue(null);
+    pdfServiceMocks.getPageCount.mockReturnValue(3);
+    pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(0));
+    pdfServiceMocks.getPageSize.mockReturnValue(Effect.succeed({ width: 100, height: 200 }));
+    pdfServiceMocks.loadPDF.mockReturnValue(Effect.succeed(undefined));
+    pdfServiceMocks.loadPDFWithPassword.mockReturnValue(Effect.succeed(undefined));
+    pdfServiceMocks.renderPage.mockReturnValue(Effect.succeed(undefined));
+    pdfServiceMocks.getPageContent.mockReturnValue(
+      Effect.succeed({ width: 100, height: 200, text: [], fields: [] })
+    );
+    pdfServiceMocks.editPage.mockReturnValue(Effect.void);
+    pdfServiceMocks.snapshotDocument.mockReturnValue(
+      Effect.succeed({ bytes: new Uint8Array([1, 2]) })
+    );
+    pdfServiceMocks.restoreDocument.mockReturnValue(
+      Effect.succeed({ bytes: new Uint8Array([3, 4]) })
+    );
+    pdfServiceMocks.editPageUndoable.mockImplementation((file, page, edit) =>
+      pdfServiceMocks.editPage(file, page, edit).pipe(Effect.as({ bytes: new Uint8Array([1, 2]) }))
+    );
+    pdfServiceMocks.releaseFile.mockReturnValue(Effect.succeed(undefined));
+    pdfServiceMocks.reset.mockReturnValue(Effect.succeed(undefined));
+    pdfServiceMocks.dispose.mockReturnValue(Effect.void);
+    pdfOperationsMocks.releaseFile.mockReturnValue(Effect.void);
+    pdfOperationsMocks.dispose.mockReturnValue(Effect.void);
+    pdfOperationsMocks.buildPDF.mockReturnValue(
+      Effect.succeed({
+        data: new Uint8Array([1, 2, 3]),
+        suggestedFileName: "interleaf-output.pdf",
+      })
+    );
+    pdfOperationsMocks.imagesToPDF.mockReturnValue(
+      Effect.succeed({
+        data: new Uint8Array([8, 9]),
+        suggestedFileName: "interleaf-images.pdf",
+      })
+    );
+    pdfOperationsMocks.clearCache.mockReturnValue(Effect.succeed(undefined));
+    pdfCompressionMocks.compressPDF.mockReturnValue(
+      Effect.succeed({
+        data: new Uint8Array([4, 5]),
+        inputBytes: 10,
+        candidateBytes: 2,
+        outputBytes: 2,
+        suggestedFileName: "interleaf-output.pdf",
+        reduced: true,
+      })
+    );
+    pdfImageExportMocks.exportImages.mockReturnValue(
+      Effect.succeed({
+        data: new Blob([new Uint8Array([6, 7])], { type: "application/zip" }),
+        suggestedFileName: "interleaf-images.zip",
+      })
+    );
+  });
+
+  it("renders the upload dropzone before any file is loaded", () => {
+    render(() => <Editor />);
+
+    expect(
+      screen.getByRole("button", { name: "Choose PDF or image files, or drop them here" })
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
+  });
+
+  it("warms the engine during browser idle before a file is opened", async () => {
+    let idleCallback!: IdleRequestCallback;
+    const requestIdleCallback = vi.fn((callback: IdleRequestCallback) => {
+      idleCallback = callback;
+      return 17;
+    });
+    vi.stubGlobal("requestIdleCallback", requestIdleCallback);
+    vi.stubGlobal("cancelIdleCallback", vi.fn());
+    const view = render(() => <Editor />);
+    try {
+      expect(requestIdleCallback).toHaveBeenCalledWith(expect.any(Function), {
+        timeout: 1_000,
+      });
+      expect(pdfServiceMocks.preload).not.toHaveBeenCalled();
+      idleCallback({ didTimeout: false, timeRemaining: () => 10 });
+      await waitFor(() => expect(pdfServiceMocks.preload).toHaveBeenCalledOnce());
+      expect(pdfServiceMocks.loadPDF).not.toHaveBeenCalled();
+    } finally {
+      view.unmount();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("cancels idle warmup when the editor is removed", async () => {
+    let idleCallback!: IdleRequestCallback;
+    const cancelIdleCallback = vi.fn();
+    vi.stubGlobal("requestIdleCallback", (callback: IdleRequestCallback) => {
+      idleCallback = callback;
+      return 17;
+    });
+    vi.stubGlobal("cancelIdleCallback", cancelIdleCallback);
+    const view = render(() => <Editor />);
+    try {
+      view.unmount();
+      expect(cancelIdleCallback).toHaveBeenCalledWith(17);
+      idleCallback({ didTimeout: true, timeRemaining: () => 0 });
+      await Promise.resolve();
+      expect(pdfServiceMocks.preload).not.toHaveBeenCalled();
+    } finally {
+      view.unmount();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("rejects unsupported files with an error toast", async () => {
+    render(() => <Editor />);
+
+    selectFile("upload", new File(["text"], "notes.txt", { type: "text/plain" }));
+
+    const toast = await screen.findByTestId("editor-toast");
+    expect(toast).toHaveTextContent("Choose PDF, PNG, or JPEG files.");
+    expect(pdfServiceMocks.loadPDF).not.toHaveBeenCalled();
+    expect(pdfOperationsMocks.imagesToPDF).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
+  });
+
+  it("preserves page selection through tools and downloads the correct scope", async () => {
+    const tiles = await openPDF();
+    expect(screen.queryByRole("button", { name: /Review|Edit PDF/ })).not.toBeInTheDocument();
+    fireEvent.click(tiles[1]);
+    for (const tool of ["Document", "Add text", "Edit text", "Fill forms", "Document"]) {
+      fireEvent.click(screen.getByRole("button", { name: tool }));
+      expect(await screen.findByTestId("editor-page-viewer")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Document" })).toHaveAttribute(
+        "aria-current",
+        "page"
+      );
+      if (tool !== "Document")
+        expect(screen.getByRole("button", { name: tool })).toHaveAttribute("aria-pressed", "true");
+    }
+    expect(
+      screen.queryByRole("button", { name: /^(Rotate|Duplicate|Delete)$/ })
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
+    expect(screen.getAllByRole("button", { name: /^Go to page/ })).toHaveLength(3);
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: /^Download PDF/ })
+    );
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenNthCalledWith(
+      1,
+      expect.any(Array),
+      expect.objectContaining({ selectedIndices: undefined })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Back to pages" }));
+    expect(getPages().map((tile) => tile.getAttribute("aria-pressed"))).toEqual([
+      "false",
+      "true",
+      "false",
+    ]);
+    expect(screen.getByTestId("editor-selection-title")).toHaveTextContent("1 selected");
+    fireEvent.click(screen.getByRole("button", { name: "Download a PDF with 1 exportable page" }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(2));
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Array),
+      expect.objectContaining({ selectedIndices: [1] })
+    );
+  });
+
+  it("opens a multi-page review without requiring a single selected page", async () => {
+    await openPDF();
+
+    fireEvent.click(screen.getByRole("button", { name: "Document" }));
+
+    await waitFor(() => expect(screen.getByTestId("editor-page-viewer")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2")
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to pages" }));
+    await waitFor(() => expect(screen.queryByTestId("editor-page-viewer")).not.toBeInTheDocument());
+  });
+
+  it.each([
+    { label: "Add text", mode: "add", guidance: "Tap the page to place text." },
+    {
+      label: "Fill forms",
+      mode: "forms",
+      guidance: "Tap a blank to fill.",
+    },
+  ])("opens $label directly from the workspace tool rail", async ({ label, mode, guidance }) => {
+    const file = makeFile();
+    const tiles = await openPDF(file);
+    fireEvent.click(tiles[2]);
+    fireEvent.click(screen.getByRole("button", { name: label }));
+
+    expect(await screen.findByTestId("editor-page-viewer")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(guidance)).toBeVisible());
+    expect(screen.getByRole("region", { name: "Page content" })).toHaveAttribute("data-tool", mode);
+    expect(screen.getByRole("button", { name: label })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 3");
+    expect(pdfServiceMocks.getPageContent).toHaveBeenCalledWith(file, 3);
+  });
+
+  it("duplicates a rotated page into an independent source and keeps its file group", async () => {
+    const file = makeFile("report.pdf");
+    await openPDF(file);
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 2 90 degrees" }));
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 2" }));
+    await waitFor(() => expect(getPages()).toHaveLength(4));
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledExactlyOnceWith(
+      [expect.objectContaining({ sourceFile: file, sourcePageNumber: 2, rotation: 90 })],
+      undefined
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "View 1 file" }));
+    expect(
+      await screen.findByRole("button", { name: "Select all 4 pages from report.pdf" })
+    ).toBeVisible();
+    expect(screen.getAllByTestId("editor-file-item")).toHaveLength(1);
+    fireEvent.click(screen.getByTestId("editor-files-close-button"));
+    // Deselect the new copy so export includes its original and its neighbors too.
+    fireEvent.click(getPages()[2]);
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+
+    const output = pdfOperationsMocks.buildPDF.mock.calls[1][0] as PageState[];
+    const copy = output[2];
+    expect(copy.sourceFile).not.toBe(file);
+    expect(copy.sourceFile).toBeInstanceOf(File);
+    expect(new Uint8Array(await copy.sourceFile.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
+    expect(copy.sourceOrigin).toBe(file);
+    expect(output.map((page) => page.sourcePageNumber)).toEqual([1, 2, 1, 3]);
+    expect(output.map((page) => page.rotation)).toEqual([0, 90, 0, 0]);
+  });
+
+  it("duplicates the edited working page and routes later copy edits independently", async () => {
+    const original = makeFile("working.pdf");
+    await openPDF(original);
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Place text on page" }), {
+      key: "Enter",
+    });
+    const originalInput = screen.getByRole("textbox", { name: "Text" });
+    fireEvent.input(originalInput, { target: { value: "Original edit" } });
+    fireEvent.submit(originalInput.closest("form") as HTMLFormElement);
+    await waitFor(() => expect(screen.getByText("Applied to this page.")).toBeVisible());
+    expect(pdfServiceMocks.editPage).toHaveBeenCalledExactlyOnceWith(
+      original,
+      1,
+      expect.objectContaining({ kind: "add", text: "Original edit" })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Back to pages" }));
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expect(getPages()).toHaveLength(4));
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledExactlyOnceWith(
+      [expect.objectContaining({ sourceFile: original, sourcePageNumber: 1, contentRevision: 1 })],
+      undefined
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Place text on page" }), {
+      key: "Enter",
+    });
+    const copyInput = screen.getByRole("textbox", { name: "Text" });
+    fireEvent.input(copyInput, { target: { value: "Copy only" } });
+    fireEvent.submit(copyInput.closest("form") as HTMLFormElement);
+    await waitFor(() => expect(screen.getByText("Applied to this page.")).toBeVisible());
+    expect(pdfServiceMocks.editPage).toHaveBeenCalledTimes(2);
+    const copiedFile = pdfServiceMocks.editPage.mock.calls[1][0] as File;
+    expect(copiedFile).not.toBe(original);
+    expect(pdfServiceMocks.editPage).toHaveBeenLastCalledWith(
+      copiedFile,
+      1,
+      expect.objectContaining({ kind: "add", text: "Copy only" })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to pages" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const output = pdfOperationsMocks.buildPDF.mock.calls[1][0] as PageState[];
+    expect(output[0]).toEqual(
+      expect.objectContaining({ sourceFile: original, contentRevision: 1 })
+    );
+    expect(output[1]).toEqual(
+      expect.objectContaining({
+        sourceFile: copiedFile,
+        sourceOrigin: original,
+        contentRevision: 2,
+      })
+    );
+    expect(pdfServiceMocks.releaseFile).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { description: "a signature field", type: 7, value: "", options: [], selectedOption: -1 },
+    {
+      description: "a choice field with a different stored value and display label",
+      type: 4,
+      value: "g",
+      options: ["Green"],
+      selectedOption: 0,
+    },
+  ])("preserves the original export when $description prevents a safe copy", async (field) => {
+    const file = makeFile("protected-form.pdf");
+    pdfServiceMocks.getPageContent.mockReturnValue(
+      Effect.succeed({
+        width: 100,
+        height: 200,
+        text: [],
+        fields: [
+          {
+            index: 0,
+            fieldId: 1,
+            name: "Important field",
+            type: field.type,
+            value: field.value,
+            options: field.options,
+            selectedOption: field.selectedOption,
+            checked: false,
+            exportValue: "Yes",
+            flags: 0,
+            readOnly: field.type === 7,
+          },
+        ],
+      })
+    );
+    await openPDF(file);
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expectLastToast("This page has form fields that cannot be copied safely."));
+    expect(getPages()).toHaveLength(3);
+    expect(pdfOperationsMocks.buildPDF).not.toHaveBeenCalled();
+    expect(pdfServiceMocks.releaseFile).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const output = pdfOperationsMocks.buildPDF.mock.calls[0][0] as PageState[];
+    expect(output.map((page) => page.sourceFile)).toEqual([file, file, file]);
+    expect(output.map((page) => page.sourcePageNumber)).toEqual([1, 2, 3]);
+  });
+
+  it("removes an original file with all its independent copies and releases each source", async () => {
+    render(() => <Editor />);
+    const removed = makeFile("brief.pdf");
+    const remaining = makeFile("appendix.pdf");
+    selectFiles("upload", [removed, remaining]);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expect(getPages()).toHaveLength(7));
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expect(getPages()).toHaveLength(8));
+
+    fireEvent.click(screen.getByRole("button", { name: "View 2 files" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Remove brief.pdf and its 5 pages from the workspace",
+      })
+    );
+    await waitFor(() => expect(getPages()).toHaveLength(3));
+    await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledTimes(3));
+    const released = pdfServiceMocks.releaseFile.mock.calls.map(([file]) => file as File);
+    expect(new Set(released).size).toBe(3);
+    expect(released).toContain(removed);
+    expect(released).not.toContain(remaining);
+    expect(released.filter((file) => file !== removed).map((file) => file.name)).toEqual([
+      "brief (copy).pdf",
+      "brief (copy).pdf",
+    ]);
+
+    await waitFor(() => expect(screen.getByTestId("editor-add-pdf-button")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("editor-files-close-button"));
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const output = pdfOperationsMocks.buildPDF.mock.calls[2][0] as PageState[];
+    expect(output.map((page) => page.sourceFile)).toEqual([remaining, remaining, remaining]);
+  });
+
+  it("turns selected images into a PDF and opens it in the workspace", async () => {
+    render(() => <Editor />);
+    const images = [makeImageFile("one.png"), makeImageFile("two.jpg", "image/jpeg")];
+
+    selectFiles("upload", images);
+
+    await waitFor(() => expect(screen.getByTestId("editor-page-grid")).toBeInTheDocument());
+    expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalledWith(
+      images,
+      expect.objectContaining({ onProgress: expect.any(Function) })
+    );
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "interleaf-images.pdf", type: "application/pdf" })
+    );
+    expect(await findPages()).toHaveLength(3);
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Created a PDF from 2 images."
+    );
+  });
+
+  it("returns to the uploader after image conversion fails", async () => {
+    pdfOperationsMocks.imagesToPDF.mockReturnValueOnce(
+      Effect.fail(
+        new PDFProcessingError({
+          operation: "images-to-pdf",
+          cause: new Error("Unsupported image"),
+          message: "Unsupported image",
+        })
+      )
+    );
+    render(() => <Editor />);
+
+    selectFile("upload", makeImageFile());
+
+    expect(await screen.findByTestId("editor-toast")).toHaveTextContent("Unsupported image");
+    await waitFor(() => expect(screen.getByLabelText("Choose PDF or image files")).toBeEnabled());
+  });
+
+  it("keeps interleaved image groups in the uploaded order", async () => {
+    render(() => <Editor />);
+    const files = [
+      makeImageFile("first.png"),
+      makeFile("middle.pdf"),
+      makeImageFile("last.jpg", "image/jpeg"),
+    ];
+
+    selectFiles("upload", files);
+
+    await waitFor(() => expect(getPages()).toHaveLength(9));
+    expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalledTimes(2);
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledTimes(3);
+
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    await waitFor(() => expect(screen.getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    expect(screen.getByTestId("editor-files-close-button")).toHaveFocus();
+    const fileItems = await screen.findAllByTestId("editor-file-item");
+    expect(fileItems.map((item) => item.textContent?.replace(/\s+/g, " ").trim())).toEqual([
+      expect.stringContaining("interleaf-images-1.pdf"),
+      expect.stringContaining("middle.pdf"),
+      expect.stringContaining("interleaf-images-2.pdf"),
+    ]);
+    expect(pdfServiceMocks.loadPDF.mock.calls.map(([file]) => file.name)).toEqual([
+      "interleaf-images-1.pdf",
+      "middle.pdf",
+      "interleaf-images-2.pdf",
+    ]);
+  });
+
+  it("does not partially commit a batch when a later file fails", async () => {
+    const failedFile = makeFile("broken.pdf");
+    pdfServiceMocks.loadPDF
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(
+        Effect.fail(
+          new PDFProcessingError({
+            operation: "load-pdf-js",
+            file: failedFile,
+            cause: new Error("Invalid PDF"),
+            message: "Invalid PDF",
+          })
+        )
+      );
+    render(() => <Editor />);
+
+    selectFiles("upload", [makeFile("good.pdf"), makeImageFile(), failedFile]);
+
+    expect(await screen.findByTestId("editor-toast")).toHaveTextContent(
+      "Failed to load broken.pdf"
+    );
+    expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
+    await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledTimes(2));
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "good.pdf" })
+    );
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "interleaf-images.pdf" })
+    );
+  });
+
+  it("loads multiple selected PDFs into the same workspace", async () => {
+    render(() => <Editor />);
+    const files = [makeFile("one.pdf"), makeFile("two.pdf")];
+
+    selectFiles("upload", files);
+
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Loaded 2 PDFs into the workspace."
+    );
+  });
+
+  it("opens the file drawer and selects pages from one source file", async () => {
+    await openPDF(makeFile("brief.pdf"));
+    expect(screen.getByTestId("editor-files-button")).toBeEnabled();
+    expect(screen.getByTestId("editor-files-button")).toHaveAttribute("aria-label", "View 1 file");
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    await waitFor(() => expect(screen.getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    expect(await screen.findAllByTestId("editor-file-item")).toHaveLength(1);
+    fireEvent.click(screen.getByTestId("editor-files-close-button"));
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-files-dialog")).not.toHaveAttribute("open")
+    );
+
+    selectFile("add", makeFile("appendix.pdf"));
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+
+    expect(screen.getByTestId("editor-files-button")).toBeEnabled();
+    expect(screen.getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+
+    await waitFor(() => expect(screen.getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    const fileItems = await screen.findAllByTestId("editor-file-item");
+    expect(fileItems).toHaveLength(2);
+
+    fireEvent.click(fileItems[1]);
+
+    await waitFor(() => {
+      const tiles = getPages();
+      expect(tiles.slice(0, 3).every((tile) => tile.getAttribute("aria-pressed") === "false")).toBe(
+        true
+      );
+      expect(tiles.slice(3).every((tile) => tile.getAttribute("aria-pressed") === "true")).toBe(
+        true
+      );
+    });
+    expect(screen.getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Selected 3 pages from appendix.pdf."
+    );
+  });
+
+  it.each([
+    {
+      selectedIndex: 1,
+      selection: "No pages selected",
+      pressed: ["false", "false", "false"],
+      selectedIndices: undefined,
+    },
+    {
+      selectedIndex: 4,
+      selection: "1 selected",
+      pressed: ["false", "true", "false"],
+      selectedIndices: [1],
+    },
+  ])(
+    "removes a source file and remaps selection from page index $selectedIndex",
+    async ({ selectedIndex, selection, pressed, selectedIndices }) => {
+      render(() => <Editor />);
+      const removed = makeFile("brief.pdf");
+      const remaining = makeFile("appendix.pdf");
+      selectFiles("upload", [removed, remaining]);
+      await waitFor(() => expect(getPages()).toHaveLength(6));
+      fireEvent.click(getPages()[selectedIndex]);
+
+      fireEvent.click(screen.getByRole("button", { name: "View 2 files" }));
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Remove brief.pdf and its 3 pages from the workspace",
+        })
+      );
+
+      await waitFor(() => expect(getPages()).toHaveLength(3));
+      expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(selection);
+      expect(getPages().map((tile) => tile.getAttribute("aria-pressed"))).toEqual(pressed);
+      expect(pdfServiceMocks.releaseFile).toHaveBeenCalledExactlyOnceWith(removed);
+
+      await waitFor(() => expect(screen.getByTestId("editor-add-pdf-button")).toBeEnabled());
+      fireEvent.click(screen.getByTestId("editor-files-close-button"));
+      fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+      await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
+      const [pages, options] = pdfOperationsMocks.buildPDF.mock.calls[0];
+      expect(pages.map((page: { sourceFile: File }) => page.sourceFile)).toEqual([
+        remaining,
+        remaining,
+        remaining,
+      ]);
+      expect(options.selectedIndices).toEqual(selectedIndices);
+      expect(screen.getByRole("button", { name: "View 1 file" })).toBeEnabled();
+    }
+  );
+
+  it("returns to the uploader after the last removal and keeps the files dialog closed on reload", async () => {
+    await openPDF(makeFile("only.pdf"));
+
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    await waitFor(() => expect(screen.getByTestId("editor-files-dialog")).toHaveAttribute("open"));
+    fireEvent.click(screen.getByTestId("editor-file-remove"));
+
+    await waitFor(() => expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument());
+    expect(
+      screen.getByRole("button", { name: "Choose PDF or image files, or drop them here" })
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("editor-upload-status")).toHaveTextContent(
+      "Removed only.pdf. The workspace is empty."
+    );
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "only.pdf" })
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Choose PDF or image files")).toBeEnabled());
+    selectFile("upload", makeFile("fresh.pdf"));
+    await findPages();
+    expect(screen.getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
+  });
+
+  it("adds mixed PDFs and images from the workspace", async () => {
+    await openPDF(makeFile("brief.pdf"));
+
+    selectFiles("add", [makeFile("appendix.pdf"), makeImageFile("scan.jpg", "image/jpeg")]);
+
+    await waitFor(() => expect(getPages()).toHaveLength(9));
+    expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalledWith(
+      [expect.objectContaining({ name: "scan.jpg" })],
+      expect.objectContaining({ onProgress: expect.any(Function) })
+    );
+    expect(pdfServiceMocks.loadPDF).toHaveBeenCalledTimes(3);
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Added 1 PDF and created a PDF from 1 image."
+    );
+  });
+
+  it("does not partially add a batch when a later workspace file fails", async () => {
+    const failedFile = makeFile("broken-add.pdf");
+    pdfServiceMocks.loadPDF
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(
+        Effect.fail(
+          new PDFProcessingError({
+            operation: "load-pdf-js",
+            file: failedFile,
+            cause: new Error("Invalid PDF"),
+            message: "Invalid PDF",
+          })
+        )
+      );
+    await openPDF(makeFile("existing.pdf"));
+
+    selectFiles("add", [makeFile("good-add.pdf"), failedFile]);
+
+    expect(await screen.findByTestId("editor-toast")).toHaveTextContent(
+      "Failed to load broken-add.pdf"
+    );
+    expect(await findPages()).toHaveLength(3);
+    await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledTimes(1));
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "good-add.pdf" })
+    );
+  });
+
+  it("keeps a failed batch busy until staged resources are released", async () => {
+    const failedFile = makeFile("protected-add.pdf");
+    const release = Deferred.makeUnsafe<void>();
+    pdfServiceMocks.releaseFile.mockReturnValueOnce(Deferred.await(release));
+    pdfServiceMocks.loadPDF
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(Effect.fail(new PDFPasswordRequiredError(failedFile, "needs-password")));
+    promptForPassword.mockResolvedValue(null);
+
+    await openPDF(makeFile("existing.pdf"));
+
+    selectFiles("add", [makeFile("good-add.pdf"), failedFile]);
+
+    await waitFor(() =>
+      expect(promptForPassword).toHaveBeenCalledWith(
+        "protected-add.pdf",
+        false,
+        expect.any(AbortSignal)
+      )
+    );
+    expect(screen.getByLabelText("Choose additional PDF or image files")).toBeDisabled();
+
+    await Effect.runPromise(Deferred.succeed(release, undefined));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Choose additional PDF or image files")).toBeEnabled()
+    );
+    expect(await findPages()).toHaveLength(3);
+  });
+
+  it("interrupts an import and rolls back staged files before disposing the editor", async () => {
+    const release = Deferred.makeUnsafe<void>();
+    const interrupted = vi.fn();
+    pdfServiceMocks.releaseFile.mockReturnValueOnce(Deferred.await(release));
+    pdfOperationsMocks.imagesToPDF.mockReturnValue(
+      Effect.never.pipe(Effect.onInterrupt(() => Effect.sync(interrupted)))
+    );
+    const view = render(() => <Editor />);
+    const stagedFile = makeFile("staged.pdf");
+    selectFiles("upload", [stagedFile, makeImageFile()]);
+    await waitFor(() => expect(pdfOperationsMocks.imagesToPDF).toHaveBeenCalled());
+
+    view.unmount();
+
+    await waitFor(() => expect(interrupted).toHaveBeenCalledOnce());
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(stagedFile);
+    expect(pdfServiceMocks.reset).not.toHaveBeenCalled();
+    await Effect.runPromise(Deferred.succeed(release, undefined));
+    await waitFor(() => expect(pdfServiceMocks.reset).toHaveBeenCalledOnce());
+  });
+
+  it("updates selection actions and compression eligibility when a page is selected", async () => {
+    const tiles = await openPDF();
+    await openEditMenu();
+    expect(screen.getByRole("menuitem", { name: "No pages selected to clear" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
+    await openDownloadMenu();
+    expect(screen.getByRole("menuitem", { name: "Compress the original PDF" })).toBeEnabled();
+    fireEvent.click(tiles[0]);
+    await openEditMenu();
+    expect(screen.getByRole("menuitem", { name: "Clear page selection" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Rotate selection 90 degrees" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Mark selected pages for deletion" })).toBeEnabled();
+    await openDownloadMenu();
+    expect(screen.getByTestId("editor-compress-button")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("uses one clear control after every page is selected", async () => {
+    await openPDF();
+
+    await openEditMenu();
+    expect(screen.getByRole("menuitem", { name: "Select all pages" })).toBeEnabled();
+
+    fireEvent.click(screen.getByTestId("editor-select-all-button"));
+
+    await openEditMenu();
+    await waitFor(() => {
+      expect(screen.getByTestId("editor-select-all-button")).toHaveAccessibleName(
+        "All pages selected"
+      );
+      expect(screen.getByTestId("editor-select-all-button")).toHaveAttribute(
+        "aria-disabled",
+        "true"
+      );
+      expect(screen.getByRole("menuitem", { name: "Clear page selection" })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByTestId("editor-clear-selection-button"));
+
+    await openEditMenu();
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-select-all-button")).toHaveTextContent("Select all pages")
+    );
+  });
+
+  it("prompts for a password and unlocks a protected PDF", async () => {
+    pdfServiceMocks.loadPDF.mockReturnValue(
+      Effect.fail(new PDFPasswordRequiredError(makeFile(), "needs-password"))
+    );
+    promptForPassword.mockResolvedValue("623");
+
+    render(() => <Editor />);
+
+    selectFile("upload", makeFile("protected.pdf"));
+
+    await waitFor(() =>
+      expect(promptForPassword).toHaveBeenCalledWith(
+        "protected.pdf",
+        false,
+        expect.any(AbortSignal)
+      )
+    );
+    const tiles = await findPages();
+    expect(tiles).toHaveLength(3);
+    expect(pdfServiceMocks.loadPDFWithPassword).toHaveBeenCalledWith(expect.any(File), "623");
+  });
+
+  it("stays on the uploader when the password prompt is cancelled", async () => {
+    pdfServiceMocks.loadPDF.mockReturnValue(
+      Effect.fail(new PDFPasswordRequiredError(makeFile(), "needs-password"))
+    );
+    promptForPassword.mockResolvedValue(null);
+
+    render(() => <Editor />);
+
+    selectFile("upload", makeFile("protected.pdf"));
+
+    await waitFor(() => expect(promptForPassword).toHaveBeenCalled());
+    expect(pdfServiceMocks.loadPDFWithPassword).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Choose PDF or image files, or drop them here" })
+    ).toBeInTheDocument();
+  });
+
+  it("re-prompts when the password is wrong", async () => {
+    pdfServiceMocks.loadPDF.mockReturnValue(
+      Effect.fail(new PDFPasswordRequiredError(makeFile(), "needs-password"))
+    );
+    pdfServiceMocks.loadPDFWithPassword.mockReturnValueOnce(
+      Effect.fail(new PDFPasswordRequiredError(makeFile(), "wrong-password"))
+    );
+    promptForPassword.mockResolvedValueOnce("bad").mockResolvedValueOnce("good");
+
+    render(() => <Editor />);
+
+    selectFile("upload", makeFile("protected.pdf"));
+
+    await waitFor(() => expect(promptForPassword).toHaveBeenCalledTimes(2));
+    expect(promptForPassword).toHaveBeenLastCalledWith(
+      "protected.pdf",
+      true,
+      expect.any(AbortSignal)
+    );
+    await waitFor(() => expect(screen.getByTestId("editor-page-grid")).toBeInTheDocument());
+  });
+
+  it("selects all pages and reports the rotation", async () => {
+    const tiles = await openPDF();
+
+    await openEditMenu();
+    fireEvent.click(screen.getByTestId("editor-select-all-button"));
+
+    await waitFor(() =>
+      expect(tiles.map((tile) => tile.getAttribute("aria-pressed"))).toEqual([
+        "true",
+        "true",
+        "true",
+      ])
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Rotate selection 90 degrees" }));
+    const status = await screen.findByTestId("editor-status-message");
+    await waitFor(() => expect(status).toHaveTextContent("Rotated 3 selected pages."));
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
+    expect(
+      pdfOperationsMocks.buildPDF.mock.calls[0][0].map(
+        (page: { rotation: number }) => page.rotation
+      )
+    ).toEqual([90, 90, 90]);
+  });
+
+  it("marks selected pages for deletion before export", async () => {
+    const tiles = await openPDF();
+
+    await openEditMenu();
+    fireEvent.click(screen.getByTestId("editor-select-all-button"));
+    await waitFor(() => expect(tiles[0].getAttribute("aria-pressed")).toBe("true"));
+
+    expect(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    ).toHaveAccessibleName("Mark selected pages for deletion");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    );
+
+    await waitFor(() =>
+      expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual(["true", "true", "true"])
+    );
+    expect(screen.getByTestId("editor-status-bar")).toHaveTextContent("0 of 3 pages exportable.");
+    expect(screen.getByTestId("editor-download-button")).toBeDisabled();
+    await openDownloadMenu();
+    expect(screen.getByTestId("editor-export-images-button")).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
+    expect(screen.getByTestId("editor-export-images-button")).toHaveTextContent(
+      "Export PNG images"
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    ).toHaveAccessibleName("Restore selected pages");
+    expect(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    ).toHaveAttribute("aria-label", "Restore selected pages");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    );
+
+    await waitFor(() => {
+      expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual([
+        "false",
+        "false",
+        "false",
+      ]);
+      expect(
+        screen.getByRole("button", {
+          name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+        })
+      ).toHaveAccessibleName("Mark selected pages for deletion");
+    });
+  });
+
+  it("keeps focus on the moved page for repeated keyboard reordering", async () => {
+    const tiles = await openPDF();
+    tiles[0].focus();
+    fireEvent.keyDown(document.activeElement as HTMLElement, { altKey: true, key: "ArrowRight" });
+    await waitFor(() => expect(getPages()[1]).toHaveFocus());
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Moved page 1 to position 2."
+    );
+    fireEvent.keyDown(document.activeElement as HTMLElement, { altKey: true, key: "ArrowLeft" });
+    await waitFor(() => expect(getPages()[0]).toHaveFocus());
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Moved page 2 to position 1."
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    expect(
+      pdfOperationsMocks.buildPDF.mock.calls[0][0].map((page: PageState) => page.sourcePageNumber)
+    ).toEqual([1, 2, 3]);
+  });
+
+  it("reorders a page with the keyboard alternative", async () => {
+    const tiles = await openPDF();
+
+    fireEvent.keyDown(tiles[2], { altKey: true, key: "ArrowLeft" });
+
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Moved page 3 to position 2."
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
+    expect(
+      pdfOperationsMocks.buildPDF.mock.calls[0][0].map(
+        (page: { sourcePageNumber: number }) => page.sourcePageNumber
+      )
+    ).toEqual([1, 3, 2]);
+  });
+
+  it("reorders a page with a long-press touch drag and skips the tap selection", async () => {
+    await openPDF();
+
+    const hitareas = getPages();
+    const dropTile = document.querySelectorAll("li[data-page-index]")[2];
+    const documentWithProbe = document as unknown as Record<string, unknown>;
+    const hadElementFromPoint = Object.getOwnPropertyDescriptor(document, "elementFromPoint");
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => dropTile,
+    });
+
+    try {
+      const scrollContainer = screen.getByTestId("editor-page-grid").parentElement as HTMLElement;
+      vi.spyOn(scrollContainer, "getBoundingClientRect").mockReturnValue({
+        top: 0,
+        bottom: 400,
+      } as DOMRect);
+      const start = { touches: [{ identifier: 1, clientX: 10, clientY: 390 }] };
+      const move = { touches: [{ identifier: 1, clientX: 220, clientY: 220 }] };
+
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+      fireEvent.touchStart(hitareas[0], start);
+      vi.advanceTimersByTime(200);
+      expect(hitareas[0].closest("li")).not.toHaveClass("dragging");
+      vi.advanceTimersByTime(100);
+      expect(hitareas[0].closest("li")).toHaveClass("dragging");
+      vi.advanceTimersByTime(16);
+      expect(scrollContainer.scrollTop).toBeGreaterThan(0);
+      fireEvent.touchMove(hitareas[0], move);
+      fireEvent.touchEnd(hitareas[0], { touches: [], changedTouches: [{ identifier: 1 }] });
+      vi.useRealTimers();
+
+      expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+        "Moved page 1 to position 3."
+      );
+      expect(screen.queryByTestId("editor-edit-menu")).not.toBeInTheDocument();
+      expect(hitareas[0].closest("li")).not.toHaveClass("dragging");
+      expect(dropTile).not.toHaveClass("drag-insert-after");
+      expect(screen.getByTestId("editor-selection-title")).toHaveTextContent("No pages selected");
+      fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+      await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
+      expect(
+        pdfOperationsMocks.buildPDF.mock.calls[0][0].map(
+          (page: { sourcePageNumber: number }) => page.sourcePageNumber
+        )
+      ).toEqual([2, 3, 1]);
+    } finally {
+      vi.useRealTimers();
+      if (hadElementFromPoint) {
+        Object.defineProperty(document, "elementFromPoint", hadElementFromPoint);
+      } else {
+        delete documentWithProbe.elementFromPoint;
+      }
+    }
+  });
+
+  it("treats a quick touch tap on a page as selection, not a drag", async () => {
+    const tiles = await openPDF();
+
+    const hitarea = tiles[0];
+    fireEvent.touchStart(hitarea, { touches: [{ clientX: 10, clientY: 10 }] });
+    fireEvent.touchEnd(hitarea, { touches: [] });
+    expect(hitarea.closest("li")).not.toHaveClass("dragging");
+
+    fireEvent.click(hitarea);
+    await waitFor(() => expect(tiles[0]).toHaveAttribute("aria-pressed", "true"));
+  });
+
+  it("rotates and marks a page from its direct controls", async () => {
+    const tiles = await openPDF();
+
+    const rotateButtons = await screen.findAllByRole("button", {
+      name: /^Rotate page \d+ 90 degrees$/,
+    });
+    fireEvent.click(rotateButtons[1]);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-status-message")).toHaveTextContent("Rotated page 2.")
+    );
+
+    const deleteButtons = await screen.findAllByRole("button", {
+      name: /^(Mark page \d+ for deletion|Restore page \d+ from deletion)$/,
+    });
+    fireEvent.click(deleteButtons[1]);
+
+    await waitFor(() => {
+      expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "true");
+      expect(tiles[1]).toHaveAttribute("aria-pressed", "false");
+      expect(deleteButtons[1]).toHaveAttribute("aria-label", "Restore page 2 from deletion");
+    });
+
+    fireEvent.click(deleteButtons[1]);
+
+    await waitFor(() => {
+      expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "false");
+    });
+  });
+
+  it("undoes and redoes page rotation, deletion, and keyboard reorder", async () => {
+    await openPDF();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 2 90 degrees" }));
+    fireEvent.click(screen.getByRole("button", { name: "Undo rotate page" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo rotate page" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Redo rotate page" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo rotate page" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Mark page 2 for deletion" }));
+    expect(getPages()[1]).toHaveAttribute("data-marked-for-deletion", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Undo delete page" }));
+    await waitFor(() => expect(getPages()[1]).toHaveAttribute("data-marked-for-deletion", "false"));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo delete page" })).toBeEnabled()
+    );
+    fireEvent.keyDown(getPages()[2], { altKey: true, key: "ArrowLeft" });
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Undo reorder pages" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo reorder pages" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Redo reorder pages" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo reorder pages" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const output = pdfOperationsMocks.buildPDF.mock.calls[0][0] as PageState[];
+    expect(output.map((page) => page.sourcePageNumber)).toEqual([1, 3, 2]);
+    expect(output.map((page) => page.rotation)).toEqual([0, 0, 90]);
+    expect(output.every((page) => !page.markedForDeletion)).toBe(true);
+  });
+
+  it("undoes a duplicate and restores the same independent copy on redo", async () => {
+    const file = makeFile();
+    await openPDF(file);
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
+    await waitFor(() => expect(getPages()).toHaveLength(4));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo duplicate page" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Undo duplicate page" }));
+    await waitFor(() => expect(getPages()).toHaveLength(3));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo duplicate page" })).toBeEnabled()
+    );
+    expect(pdfServiceMocks.snapshotDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "doc (copy).pdf" })
+    );
+    const copiedFile = pdfServiceMocks.snapshotDocument.mock.calls[0][0];
+    fireEvent.click(screen.getByRole("button", { name: "Redo duplicate page" }));
+    await waitFor(() => expect(getPages()).toHaveLength(4));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo duplicate page" })).toBeEnabled()
+    );
+    expect(pdfServiceMocks.restoreDocument).toHaveBeenCalledWith(copiedFile, {
+      bytes: new Uint8Array([1, 2]),
+    });
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledOnce();
+  });
+
+  it("undoes added sources and restores their archived documents on redo", async () => {
+    await openPDF();
+    const added = makeFile("appendix.pdf");
+    selectFile("add", added);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo add files" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Undo add files" }));
+    await waitFor(() => expect(getPages()).toHaveLength(3));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo add files" })).toBeEnabled()
+    );
+    expect(pdfServiceMocks.snapshotDocument).toHaveBeenCalledWith(added);
+    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(added);
+    fireEvent.click(screen.getByRole("button", { name: "Redo add files" }));
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    expect(pdfServiceMocks.restoreDocument).toHaveBeenCalledWith(added, {
+      bytes: new Uint8Array([1, 2]),
+    });
+  });
+
+  it("keeps last-source removal undoable from the empty uploader", async () => {
+    const file = makeFile("only.pdf");
+    await openPDF(file);
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    fireEvent.click(await screen.findByTestId("editor-file-remove"));
+    await waitFor(() => expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo remove file" })).toBeEnabled()
+    );
+    expect(pdfServiceMocks.snapshotDocument).toHaveBeenCalledWith(file);
+    fireEvent.click(screen.getByRole("button", { name: "Undo remove file" }));
+    await waitFor(() => expect(getPages()).toHaveLength(3));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo remove file" })).toBeEnabled()
+    );
+    expect(pdfServiceMocks.restoreDocument).toHaveBeenCalledWith(file, {
+      bytes: new Uint8Array([1, 2]),
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Redo remove file" }));
+    await waitFor(() => expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Undo remove file" })).toBeInTheDocument();
+  });
+
+  it("records saved text and retains a failed restore for retry", async () => {
+    const file = makeFile();
+    await openPDF(file);
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Place text on page" }), {
+      key: "Enter",
+    });
+    const input = screen.getByLabelText("Text");
+    fireEvent.input(input, { target: { value: "Saved answer" } });
+    expect(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+        name: "Undo",
+      })
+    ).toBeDisabled();
+    fireEvent.submit(input.closest("form") as HTMLFormElement);
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+          name: "Undo add text",
+        })
+      ).toBeEnabled()
+    );
+    pdfServiceMocks.restoreDocument.mockReturnValueOnce(
+      Effect.fail(
+        new PDFProcessingError({
+          operation: "restore",
+          message: "Cannot restore",
+          cause: undefined,
+        })
+      )
+    );
+    fireEvent.click(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+        name: "Undo add text",
+      })
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+          name: "Undo add text",
+        })
+      ).toBeEnabled()
+    );
+    expect(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+        name: "Redo",
+      })
+    ).toBeDisabled();
+    expectLastToast("Cannot restore");
+    fireEvent.click(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+        name: "Undo add text",
+      })
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+          name: "Redo add text",
+        })
+      ).toBeEnabled()
+    );
+    expect(pdfServiceMocks.restoreDocument).toHaveBeenLastCalledWith(file, {
+      bytes: new Uint8Array([1, 2]),
+    });
+    fireEvent.click(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+        name: "Redo add text",
+      })
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("editor-page-viewer")).getByRole("button", {
+          name: "Undo add text",
+        })
+      ).toBeEnabled()
+    );
+    expect(pdfServiceMocks.restoreDocument).toHaveBeenLastCalledWith(file, {
+      bytes: new Uint8Array([3, 4]),
+    });
+  });
+
+  it("leaves the workspace intact when archiving a removed source fails", async () => {
+    const file = makeFile();
+    await openPDF(file);
+    pdfServiceMocks.snapshotDocument.mockReturnValueOnce(
+      Effect.fail(
+        new PDFProcessingError({
+          operation: "snapshot",
+          message: "Archive failed",
+          cause: undefined,
+        })
+      )
+    );
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    fireEvent.click(await screen.findByTestId("editor-file-remove"));
+    await waitFor(() => expect(screen.getByTestId("editor-add-pdf-button")).toBeEnabled());
+    expect(getPages()).toHaveLength(3);
+    expect(pdfServiceMocks.releaseFile).not.toHaveBeenCalled();
+    expectLastToast("Archive failed");
+    fireEvent.click(screen.getByTestId("editor-files-close-button"));
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+  });
+
+  it("does not consume history for a rejected text edit", async () => {
+    await openPDF();
+    pdfServiceMocks.editPage.mockReturnValueOnce(
+      Effect.fail(
+        new PDFProcessingError({ operation: "edit", message: "Text overflows", cause: undefined })
+      )
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Place text on page" }), {
+      key: "Enter",
+    });
+    fireEvent.input(screen.getByLabelText("Text"), { target: { value: "Too wide" } });
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Page content" })).getByRole("button", {
+        name: "Add text",
+      })
+    );
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel edit" }));
+    expect(
+      within(screen.getByTestId("editor-page-viewer")).getByRole("button", { name: "Undo" })
+    ).toBeDisabled();
+    expect(pdfServiceMocks.restoreDocument).not.toHaveBeenCalled();
+  });
+
+  it("preserves input undo while workspace shortcuts undo and redo organization", async () => {
+    await openPDF();
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 1 90 degrees" }));
+    const input = screen.getByLabelText("Choose additional PDF or image files");
+    expect(fireEvent.keyDown(input, { key: "z", ctrlKey: true })).toBe(true);
+    expect(screen.getByRole("button", { name: "Undo rotate page" })).toBeEnabled();
+    fireEvent.keyDown(screen.getByTestId("editor-page-grid"), { key: "z", ctrlKey: true });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Redo rotate page" })).toBeEnabled()
+    );
+    fireEvent.keyDown(screen.getByTestId("editor-page-grid"), {
+      key: "z",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Undo rotate page" })).toBeEnabled()
+    );
+  });
+
+  it("labels exports by active selected pages", async () => {
+    const tiles = await openPDF();
+    const deleteButtons = await screen.findAllByRole("button", {
+      name: /^(Mark page \d+ for deletion|Restore page \d+ from deletion)$/,
+    });
+
+    fireEvent.click(tiles[0]);
+    fireEvent.click(deleteButtons[0]);
+    fireEvent.click(tiles[1]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(
+        "2 selected · 1 exportable"
+      );
+      expect(screen.getByTestId("editor-download-button")).toHaveTextContent("Download PDF");
+      expect(screen.getByTestId("editor-download-button")).toHaveAccessibleName(
+        "Download a PDF with 1 exportable page"
+      );
+    });
+
+    expect(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    ).toHaveAccessibleName("Mark selected pages for deletion");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+      })
+    );
+
+    await waitFor(() => {
+      expect(tiles[0]).toHaveAttribute("data-marked-for-deletion", "true");
+      expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "true");
+      expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(
+        "2 selected · 0 exportable"
+      );
+      expect(
+        screen.getByRole("button", {
+          name: /^(Mark selected pages for deletion|Restore selected pages)$/,
+        })
+      ).toHaveAccessibleName("Restore selected pages");
+    });
+  });
+
+  it("toggles a page selection by clicking its tile", async () => {
+    const tiles = await openPDF();
+
+    fireEvent.click(tiles[0]);
+    await waitFor(() => expect(tiles[0].getAttribute("aria-pressed")).toBe("true"));
+
+    fireEvent.click(tiles[0]);
+    await waitFor(() => expect(tiles[0].getAttribute("aria-pressed")).toBe("false"));
+  });
+
+  it("clears selection from the empty grid or with Escape", async () => {
+    const tiles = await openPDF();
+
+    fireEvent.click(tiles[0]);
+    await waitFor(() => expect(tiles[0].getAttribute("aria-pressed")).toBe("true"));
+
+    fireEvent.click(screen.getByTestId("editor-page-grid"));
+    await waitFor(() => expect(tiles[0].getAttribute("aria-pressed")).toBe("false"));
+
+    fireEvent.click(tiles[1]);
+    await waitFor(() => expect(tiles[1].getAttribute("aria-pressed")).toBe("true"));
+    fireEvent.keyDown(tiles[1], { key: "Escape" });
+    await waitFor(() => expect(tiles[1].getAttribute("aria-pressed")).toBe("false"));
+  });
+
+  it.each([
+    { scope: "all exportable pages", selectedIndices: undefined },
+    { scope: "selected pages", selectedIndices: [2] },
+  ])("downloads the PDF built for $scope", async ({ selectedIndices }) => {
+    render(() => <Editor />);
+    const file = makeFile();
+    selectFile("upload", file);
+    const tiles = await findPages();
+    if (selectedIndices) fireEvent.click(tiles[2]);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+
+    await waitFor(() =>
+      expect(downloadPDF).toHaveBeenCalledExactlyOnceWith({
+        data: new Uint8Array([1, 2, 3]),
+        suggestedFileName: "interleaf-output.pdf",
+      })
+    );
+    expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledExactlyOnceWith(
+      [
+        expect.objectContaining({ sourceFile: file, sourcePageNumber: 1 }),
+        expect.objectContaining({ sourceFile: file, sourcePageNumber: 2 }),
+        expect.objectContaining({ sourceFile: file, sourcePageNumber: 3 }),
+      ],
+      expect.objectContaining({ selectedIndices })
+    );
+  });
+
+  it("exports selected pages as PNG images", async () => {
+    const tiles = await openPDF();
+
+    fireEvent.click(tiles[1]);
+    await waitFor(() => expect(tiles[1].getAttribute("aria-pressed")).toBe("true"));
+    await openDownloadMenu();
+    fireEvent.click(screen.getByTestId("editor-export-images-button"));
+
+    await waitFor(() => expect(downloadFile).toHaveBeenCalledTimes(1));
+    expect(downloadFile).toHaveBeenCalledWith(
+      expect.objectContaining({ suggestedFileName: "interleaf-images.zip" }),
+      "application/zip"
+    );
+    expect(pdfImageExportMocks.exportImages).toHaveBeenCalledTimes(1);
+    expect(pdfImageExportMocks.exportImages.mock.calls[0][0]).toHaveLength(3);
+    expect(pdfImageExportMocks.exportImages.mock.calls[0][1].selectedIndices).toEqual([1]);
+  });
+
+  it("compresses the original uploaded PDF before page edits", async () => {
+    render(() => <Editor />);
+
+    const file = makeFile("source.pdf");
+    selectFile("upload", file);
+    await waitFor(() => expect(screen.getByTestId("editor-page-grid")).toBeInTheDocument());
+    await openDownloadMenu();
+    fireEvent.click(screen.getByTestId("editor-compress-button"));
+
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
+    expect(pdfCompressionMocks.compressPDF).toHaveBeenCalledTimes(1);
+    expect(pdfCompressionMocks.compressPDF.mock.calls[0][0]).toBe(file);
+    expect(pdfCompressionMocks.compressPDF.mock.calls[0][1]).toBeUndefined();
+    expect(screen.getByTestId("editor-toast")).toHaveTextContent("Compressed 10 B to 2 B.");
+  });
+
+  it("reports when compression cannot make the workspace smaller", async () => {
+    pdfCompressionMocks.compressPDF.mockReturnValue(
+      Effect.succeed({
+        data: new Uint8Array([1, 2, 3]),
+        inputBytes: 3,
+        candidateBytes: 4,
+        outputBytes: 3,
+        suggestedFileName: "interleaf-output.pdf",
+        reduced: false,
+      })
+    );
+
+    await openPDF();
+
+    await openDownloadMenu();
+    fireEvent.click(screen.getByTestId("editor-compress-button"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-toast")).toHaveTextContent(
+        "No smaller file was available. The original PDF was exported."
+      )
+    );
+    expect(downloadPDF).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a failure toast when compression fails", async () => {
+    pdfCompressionMocks.compressPDF.mockReturnValue(Effect.fail(new Error("compress failed")));
+
+    await openPDF();
+
+    await openDownloadMenu();
+    fireEvent.click(screen.getByTestId("editor-compress-button"));
+
+    await waitFor(() => expectLastToast("Failed to compress the PDF."));
+    expect(downloadPDF).not.toHaveBeenCalled();
+  });
+
+  it("shows a failure toast when building the output fails", async () => {
+    pdfOperationsMocks.buildPDF.mockReturnValue(Effect.fail(new Error("build failed")));
+
+    await openPDF();
+
+    fireEvent.click(screen.getByTestId("editor-download-button"));
+
+    await waitFor(() => expectLastToast("Failed to export the PDF."));
+    expect(downloadPDF).not.toHaveBeenCalled();
+  });
+});

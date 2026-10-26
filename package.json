@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@astrojs/solid-js": "^7.1.0",
+    "@embedpdf/pdfium": "2.15.1",
     "@fontsource/work-sans": "^5.3.0",
     "@resvg/resvg-js": "^2.6.2",
     "astro": "^7.4.0",
@@ -43,7 +44,6 @@
     "@effect/vitest": "4.0.5",
     "@embedpdf/engine-runtime": "3.0.0-next.15",
     "@embedpdf/engine-runtime-wasm32": "3.0.0-next.15",
-    "@embedpdf/pdfium": "2.15.1",
     "@playwright/test": "^1.64.1",
     "@solidjs/testing-library": "^0.8.10",
     "@tailwindcss/vite": "^4.3.3",

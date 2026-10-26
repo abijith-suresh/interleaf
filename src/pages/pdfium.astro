@@ -1,0 +1,15 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Editor from "../experimental/pdfium/components/app/Editor";
+import "../experimental/pdfium/editor.css";
+---
+
+<Layout
+  title="Experimental PDFium workspace — Interleaf"
+  description="Draft PDFium workspace for local evaluation."
+>
+  <meta slot="head" name="robots" content="noindex, nofollow" />
+  <main id="main-content" class="pdfium-experiment" data-page="editor" transition:animate="none">
+    <Editor client:only="solid-js" />
+  </main>
+</Layout>
