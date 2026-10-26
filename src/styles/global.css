@@ -116,12 +116,14 @@ body {
   --marketing-page: var(--marketing-page-default);
   --marketing-paper: #fcfbf8;
   --marketing-ink: #242421;
-  --marketing-body: #77756e;
-  --marketing-muted: #77756e;
+  --marketing-body: #706e67;
+  --marketing-muted: #706e67;
   --marketing-rule: #dedbd4;
   --marketing-rule-strong: #c7c3ba;
   --marketing-hover: #ebe8e1;
   --marketing-accent: #ff2a1f;
+  --marketing-disclosure-duration: 220ms;
+  --marketing-disclosure-ease: var(--ease-out);
   --marketing-nav-height: 4.75rem;
   --marketing-radius-sm: 0.45rem;
   --marketing-radius-md: 0.75rem;
@@ -460,7 +462,6 @@ body:has(.marketing-page) {
 .mobile-nav-chevron {
   flex: 0 0 auto;
   color: var(--marketing-muted, var(--color-muted));
-  transition: transform 180ms var(--ease-out);
 }
 
 .mobile-nav[open] .mobile-nav-chevron {
@@ -471,15 +472,57 @@ body:has(.marketing-page) {
   display: none;
 }
 
-/* The panel is an overlay pinned to the header, so opening it never
-   shifts the page layout. It spans the nav gutter width for
-   comfortable touch targets. */
-.mobile-nav-panel {
+/* The sheet stays positioned for browsers without animated details content. */
+.mobile-nav-panel-clip {
   position: absolute;
   top: calc(100% + 0.4rem);
   right: 1rem;
   left: 1rem;
   z-index: 20;
+}
+
+@supports selector(details::details-content) {
+  .mobile-nav-chevron {
+    transition:
+      transform var(--marketing-disclosure-duration) var(--marketing-disclosure-ease),
+      color var(--marketing-disclosure-duration) var(--marketing-disclosure-ease);
+  }
+
+  .mobile-nav::details-content {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    right: 1rem;
+    left: 1rem;
+    z-index: 20;
+    display: grid;
+    grid-template-rows: 0fr;
+    overflow: clip;
+    content-visibility: hidden;
+    transition:
+      grid-template-rows var(--marketing-disclosure-duration) var(--marketing-disclosure-ease),
+      content-visibility 0s allow-discrete var(--marketing-disclosure-duration);
+  }
+
+  .mobile-nav[open]::details-content {
+    grid-template-rows: 1fr;
+    content-visibility: visible;
+    transition:
+      grid-template-rows var(--marketing-disclosure-duration) var(--marketing-disclosure-ease),
+      content-visibility 0s allow-discrete;
+  }
+
+  .mobile-nav-panel-clip {
+    position: relative;
+    top: auto;
+    right: auto;
+    left: auto;
+    z-index: auto;
+    min-height: 0;
+    overflow: clip;
+  }
+}
+
+.mobile-nav-panel {
   display: grid;
   gap: 0.15rem;
   padding: 0.5rem;
@@ -663,6 +706,13 @@ body:has(.marketing-page) {
     animation-duration: 0.01ms;
     animation-iteration-count: 1;
     transition-duration: 0.01ms;
+  }
+
+  .mobile-nav::details-content,
+  .mobile-nav[open]::details-content,
+  .mobile-nav-chevron {
+    transition-duration: 0s;
+    transition-delay: 0s;
   }
 
   ::view-transition-old(root),
