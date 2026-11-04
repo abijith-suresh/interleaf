@@ -1,6 +1,7 @@
 version: 2
 
 updates:
+  # npm projects: set package-ecosystem to "npm".
   - package-ecosystem: "bun"
     directory: "/"
     schedule:
@@ -22,6 +23,8 @@ updates:
           - "minor"
           - "patch"
 
+  # Also updates the pins to abijith-suresh/workflows. Auto-merge skips this
+  # ecosystem, so every workflow pin change gets a human review.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

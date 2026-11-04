@@ -1,15 +1,14 @@
-name: Conventional Commit title
+name: PR title
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, edited, synchronize, reopened]
 
-permissions:
-  pull-requests: read
+permissions: {}
 
 jobs:
   pr-title:
     name: pr-title
-    uses: abijith-suresh/workflows/.github/workflows/conventional-commit-title.yml@9c9e55ab629eafe5b5edbae9857b1d66fb384f8c # 0.8.1
     permissions:
       pull-requests: read
+    uses: abijith-suresh/workflows/.github/workflows/conventional-commit-title.yml@c299f85c6c0c73fff9b2a1e420484f5bdb482ff1 # v0.9.0

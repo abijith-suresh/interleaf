@@ -11,43 +11,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Local fork of the shared ci.yml that adds a per-browser Playwright matrix.
   ci:
     name: CI
-    uses: ./.github/workflows/verify.yml
     permissions:
       contents: read
+    uses: ./.github/workflows/verify.yml
 
   dependency-review:
     name: dependency-review
-    uses: abijith-suresh/workflows/.github/workflows/dependency-review.yml@9c9e55ab629eafe5b5edbae9857b1d66fb384f8c # 0.8.1
     permissions:
       contents: read
+    uses: abijith-suresh/workflows/.github/workflows/dependency-review.yml@c299f85c6c0c73fff9b2a1e420484f5bdb482ff1 # v0.9.0
 
   qpdf:
     name: qpdf
-    uses: ./.github/workflows/qpdf-wasm.yml
     permissions:
       contents: read
+    uses: ./.github/workflows/qpdf-wasm.yml
 
   gate:
     name: gate
-    runs-on: ubuntu-24.04
     if: ${{ !cancelled() }}
     needs: [ci, dependency-review, qpdf]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     permissions: {}
-
     steps:
-      - name: Require checks to pass
-        shell: bash
-        env:
-          CI_RESULT: ${{ needs.ci.result }}
-          DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
-          QPDF_RESULT: ${{ needs.qpdf.result }}
-        run: |
-          set -euo pipefail
-          if [[ "$CI_RESULT" != success || "$DEPENDENCY_REVIEW_RESULT" != success || "$QPDF_RESULT" != success ]]; then
-            echo "ci: $CI_RESULT" >&2
-            echo "dependency-review: $DEPENDENCY_REVIEW_RESULT" >&2
-            echo "qpdf: $QPDF_RESULT" >&2
-            exit 1
-          fi
+      - name: Require every job to succeed
+        uses: abijith-suresh/workflows/.github/actions/gate@c299f85c6c0c73fff9b2a1e420484f5bdb482ff1 # v0.9.0
+        with:
+          needs: ${{ toJSON(needs) }}
