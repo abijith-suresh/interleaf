@@ -10,10 +10,11 @@ permissions: {}
 jobs:
   release-please:
     name: release-please
-    uses: abijith-suresh/workflows/.github/workflows/release-please.yml@9c9e55ab629eafe5b5edbae9857b1d66fb384f8c # 0.8.1
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: write
       issues: write
       pull-requests: write
+    uses: abijith-suresh/workflows/.github/workflows/release-please.yml@c299f85c6c0c73fff9b2a1e420484f5bdb482ff1 # v0.9.0
     secrets:
       RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
