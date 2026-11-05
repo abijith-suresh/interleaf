@@ -12,11 +12,27 @@ body:has([data-page="editor"]) {
   inset: 0;
   z-index: 50;
   display: flex;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  box-sizing: border-box;
   align-items: center;
   justify-content: center;
   padding: 1rem;
+  border: 0;
   background: rgb(36 36 33 / 32%);
+  color: inherit;
   overscroll-behavior: contain;
+}
+
+.password-modal-backdrop:not([open]) {
+  display: none;
+}
+
+.password-modal-backdrop::backdrop {
+  background: transparent;
 }
 
 .password-modal {
@@ -45,7 +61,7 @@ body:has([data-page="editor"]) {
 .password-modal-file {
   margin-top: 0.5rem;
   overflow: hidden;
-  color: #85827a;
+  color: #6a6860;
   font-size: 0.75rem;
   line-height: 1.4;
   text-overflow: ellipsis;
@@ -129,7 +145,7 @@ body:has([data-page="editor"]) {
   --editor-paper: #fcfbf8;
   --editor-ink: #242421;
   --editor-body: #5e5c56;
-  --editor-muted: #706e67;
+  --editor-muted: #6a6860;
   --editor-line: #dedbd4;
   --editor-line-strong: #c8c4bb;
   --editor-hover: #edeae3;
@@ -262,6 +278,28 @@ body:has([data-page="editor"]) {
   border-color: #f0c4bf;
   background: #fff5f3;
   color: #93332c;
+}
+
+.editor-toast-dismissible {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  pointer-events: auto;
+}
+
+.editor-toast-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.editor-toast-dismiss {
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  flex: none;
+  margin: -0.3rem -0.55rem -0.3rem 0;
+  padding: 0;
+  color: inherit;
 }
 
 .editor-header {
@@ -859,7 +897,7 @@ body:has([data-page="editor"]) {
   color: var(--editor-muted);
   cursor: pointer;
   font: inherit;
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   text-align: center;
@@ -1040,7 +1078,7 @@ body:has([data-page="editor"]) {
   background: var(--editor-danger-ink);
   color: var(--editor-paper);
   content: "Marked";
-  font-size: 0.5625rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   line-height: 1;

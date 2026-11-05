@@ -205,12 +205,8 @@ export default function EditorPageTile(props: Props) {
             data-testid="editor-page-delete-button"
             class="btn-page-delete"
             classList={{ "is-marked": props.page.markedForDeletion }}
-            title={props.page.markedForDeletion ? "Restore page" : "Mark page for deletion"}
-            aria-label={
-              props.page.markedForDeletion
-                ? `Restore page ${props.index + 1} from deletion`
-                : `Mark page ${props.index + 1} for deletion`
-            }
+            title="Mark page for deletion"
+            aria-label={`Mark page ${props.index + 1} for deletion`}
             aria-pressed={props.page.markedForDeletion}
             disabled={props.busy}
             draggable={false}

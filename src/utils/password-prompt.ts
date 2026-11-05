@@ -19,16 +19,15 @@ export function promptForPassword(
     // Store the element that triggered the modal so focus can be restored on close
     const triggerElement = document.activeElement as HTMLElement | null;
 
-    // Backdrop
-    const backdrop = document.createElement("div");
+    // Native modal <dialog>: makes the rest of the page inert and traps focus.
+    // It doubles as the backdrop so clicks outside the panel cancel.
+    const backdrop = document.createElement("dialog");
     backdrop.className = "password-modal-backdrop";
+    backdrop.setAttribute("aria-labelledby", "password-modal-title");
 
     // Modal panel
     const modal = document.createElement("div");
     modal.className = "password-modal";
-    modal.setAttribute("role", "dialog");
-    modal.setAttribute("aria-modal", "true");
-    modal.setAttribute("aria-labelledby", "password-modal-title");
 
     // Title
     const title = document.createElement("h2");
@@ -43,8 +42,9 @@ export function promptForPassword(
 
     // Error message (only when retrying)
     const errorMsg = document.createElement("div");
+    errorMsg.id = "password-modal-error";
     errorMsg.textContent = "Incorrect password. Try again.";
-    errorMsg.setAttribute("aria-live", "polite");
+    if (isRetry) errorMsg.setAttribute("role", "alert");
     errorMsg.className = `password-modal-error${isRetry ? "" : " is-hidden"}`;
 
     // Password input
@@ -55,6 +55,10 @@ export function promptForPassword(
     input.name = "pdf-password";
     input.autocomplete = "off";
     input.className = "password-modal-input";
+    if (isRetry) {
+      input.setAttribute("aria-invalid", "true");
+      input.setAttribute("aria-describedby", errorMsg.id);
+    }
 
     // Button row
     const buttonRow = document.createElement("div");
@@ -78,6 +82,11 @@ export function promptForPassword(
     modal.appendChild(buttonRow);
     backdrop.appendChild(modal);
     document.body.appendChild(backdrop);
+    if (typeof backdrop.showModal === "function") {
+      backdrop.showModal();
+    } else {
+      backdrop.setAttribute("open", "");
+    }
 
     // Focus the input after mounting
     const focusFrame = requestAnimationFrame(() => input.focus());
@@ -86,8 +95,12 @@ export function promptForPassword(
       if (!backdrop.isConnected) return;
       cancelAnimationFrame(focusFrame);
       signal?.removeEventListener("abort", cancel);
+      input.value = "";
+      if (typeof backdrop.close === "function" && backdrop.open) {
+        backdrop.close();
+      }
       backdrop.remove();
-      triggerElement?.focus();
+      if (triggerElement?.isConnected) triggerElement.focus();
       resolve(password);
     };
 
@@ -108,27 +121,13 @@ export function promptForPassword(
       if (e.key === "Enter") submit();
     });
 
-    // Focus trap: Tab/Shift+Tab cycles within [input, cancelBtn, unlockBtn]
-    // Escape closes the modal from anywhere in the backdrop
-    const focusable = [input, cancelBtn, unlockBtn];
+    // Escape fires the native cancel event on a modal dialog.
+    backdrop.addEventListener("cancel", (e) => {
+      e.preventDefault();
+      cancel();
+    });
     backdrop.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        cancel();
-        return;
-      }
-      if (e.key === "Tab") {
-        const currentIndex = focusable.indexOf(
-          document.activeElement as HTMLInputElement | HTMLButtonElement
-        );
-        e.preventDefault();
-        if (e.shiftKey) {
-          const prevIndex = currentIndex <= 0 ? focusable.length - 1 : currentIndex - 1;
-          focusable[prevIndex].focus();
-        } else {
-          const nextIndex = currentIndex >= focusable.length - 1 ? 0 : currentIndex + 1;
-          focusable[nextIndex].focus();
-        }
-      }
+      if (e.key === "Escape") cancel();
     });
 
     backdrop.addEventListener("click", (e) => {

@@ -110,6 +110,31 @@ describe("EditorPageCanvas", () => {
     expect(pdfServiceMocks.renderPage).not.toHaveBeenCalled();
   });
 
+  it("keeps compact previews out of the live regions and hides the canvas from assistive tech", async () => {
+    pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(0));
+    pdfServiceMocks.renderPage.mockImplementation(() => Effect.fail(new Error("thumbnail failed")));
+    const scrollRoot = document.createElement("div");
+    const { getByTestId } = render(() => (
+      <EditorPageCanvas
+        page={makePage()}
+        rotation={0}
+        scrollRoot={scrollRoot}
+        runtime={runtime}
+        showRetry={false}
+      />
+    ));
+    TestIntersectionObserver.intersect();
+
+    await waitFor(() =>
+      expect(getByTestId("editor-page-canvas")).toHaveAttribute("data-render-state", "error")
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(getByTestId("editor-page-canvas-error")).toHaveTextContent("Preview unavailable.");
+    expect(
+      getByTestId("editor-page-canvas").querySelector("canvas")?.closest("[aria-hidden]")
+    ).not.toBeNull();
+  });
+
   it("keeps rendering lazy and offers an accessible retry after a failure", async () => {
     pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(90));
     pdfServiceMocks.renderPage

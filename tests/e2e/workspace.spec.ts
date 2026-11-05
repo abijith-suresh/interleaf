@@ -73,7 +73,7 @@ test("Document preserves marked subset inspection, output eligibility and active
   await page.getByTestId("editor-pages-view-button").click();
   await expect(tiles.nth(0)).toHaveAttribute("aria-pressed", "true");
   await expect(tiles.nth(2)).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "Restore page 3 from deletion", exact: true }).click();
+  await page.getByRole("button", { name: "Mark page 3 for deletion", exact: true }).click();
   await page.getByTestId("editor-document-view-button").click();
   await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 3");
   const restoredPDF = await downloadPDF(page);
@@ -174,8 +174,12 @@ test("Document keeps untouched compression and password dialogs available withou
   });
   const password = page.getByLabel("PDF password", { exact: true });
   await expect(password).toBeFocused();
-  await page.keyboard.press("Shift+Tab");
-  await expect(page.getByRole("button", { name: "Unlock", exact: true })).toBeFocused();
+  await expect(page.getByRole("dialog", { name: "Password required" })).toBeVisible();
+  expect(
+    await page
+      .getByRole("dialog", { name: "Password required" })
+      .evaluate((node) => (node as HTMLDialogElement).matches(":modal"))
+  ).toBe(true);
   await password.fill("wrong");
   await page.getByRole("button", { name: "Unlock", exact: true }).click();
   await expect(page.getByText("Incorrect password. Try again.")).toBeVisible();

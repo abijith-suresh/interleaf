@@ -253,16 +253,16 @@ export default function EditorPageCanvas(props: Props) {
         "thumbnail-placeholder": renderState() === "loading",
       }}
     >
-      <span class="canvas-stage">
+      <span class="canvas-stage" aria-hidden="true">
         <canvas ref={canvas} width={0} height={0} class="page-canvas" />
       </span>
       {renderState() === "error" && (
         <span
           data-testid="editor-page-canvas-error"
           class="editor-page-canvas-error"
-          role="status"
-          aria-atomic="true"
-          aria-live="polite"
+          role={props.showRetry === false ? undefined : "status"}
+          aria-atomic={props.showRetry === false ? undefined : "true"}
+          aria-live={props.showRetry === false ? undefined : "polite"}
         >
           <span>Preview unavailable.</span>
           {props.showRetry !== false && (

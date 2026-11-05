@@ -757,7 +757,9 @@ describe("Editor", () => {
     await openPDF();
     fireEvent.click(getPages()[1]);
     fireEvent.click(screen.getByRole("button", { name: "Mark page 2 for deletion" }));
-    fireEvent.click(screen.getByRole("button", { name: "Restore page 2 from deletion" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mark page 2 for deletion", pressed: true })
+    );
     fireEvent.click(screen.getByTestId("editor-document-view-button"));
     fireEvent.click(screen.getByTestId("editor-undo-button"));
     expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
@@ -905,7 +907,9 @@ describe("Editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rotate page 2 90 degrees" }));
     fireEvent.click(screen.getByRole("button", { name: "Mark page 2 for deletion" }));
     expect(getPages()[0]).toHaveAttribute("data-marked-for-deletion", "false");
-    fireEvent.click(screen.getByRole("button", { name: "Restore page 2 from deletion" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mark page 2 for deletion", pressed: true })
+    );
     fireEvent.keyDown(getPages()[1], { altKey: true, key: "ArrowRight" });
     expect(getPages()[2]).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByTestId("editor-download-button"));
@@ -949,6 +953,51 @@ describe("Editor", () => {
     expect(pdfServiceMocks.loadPDF).not.toHaveBeenCalled();
     expect(pdfOperationsMocks.imagesToPDF).not.toHaveBeenCalled();
     expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
+  });
+
+  it("keeps error toasts longer, pauses them on hover and focus, and lets them be dismissed", async () => {
+    vi.useFakeTimers();
+    try {
+      render(() => <Editor />);
+      selectFile("upload", new File(["text"], "notes.txt", { type: "text/plain" }));
+
+      const toast = screen.getByTestId("editor-toast");
+      expect(toast).toHaveAttribute("role", "alert");
+
+      vi.advanceTimersByTime(3500);
+      expect(screen.getByTestId("editor-toast")).toBeInTheDocument();
+
+      fireEvent.pointerEnter(toast);
+      vi.advanceTimersByTime(20_000);
+      expect(screen.getByTestId("editor-toast")).toBeInTheDocument();
+
+      fireEvent.pointerLeave(toast);
+      vi.advanceTimersByTime(7_900);
+      expect(screen.getByTestId("editor-toast")).toBeInTheDocument();
+      vi.advanceTimersByTime(200);
+      expect(screen.queryByTestId("editor-toast")).not.toBeInTheDocument();
+
+      selectFile("upload", new File(["text"], "notes.txt", { type: "text/plain" }));
+      fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }));
+      expect(screen.queryByTestId("editor-toast")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("announces a file removal inside the modal Files dialog", async () => {
+    render(() => <Editor />);
+    selectFiles("upload", [makeFile("first.pdf"), makeFile("second.pdf")]);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+
+    fireEvent.click(screen.getAllByTestId("editor-file-remove")[0]);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-files-notice")).toHaveTextContent(
+        /^Removed first\.pdf and \d+ pages?\. Close this dialog and press Ctrl\/Cmd\+Z to undo\.$/
+      )
+    );
   });
 
   it("switches to Document without requiring a selection and retains the active page", async () => {
@@ -1731,14 +1780,14 @@ describe("Editor", () => {
     );
 
     const deleteButtons = await screen.findAllByRole("button", {
-      name: /^(Mark page \d+ for deletion|Restore page \d+ from deletion)$/,
+      name: /^Mark page \d+ for deletion$/,
     });
     fireEvent.click(deleteButtons[1]);
 
     await waitFor(() => {
       expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "true");
       expect(tiles[1]).toHaveAttribute("aria-pressed", "false");
-      expect(deleteButtons[1]).toHaveAttribute("aria-label", "Restore page 2 from deletion");
+      expect(deleteButtons[1]).toHaveAttribute("aria-pressed", "true");
     });
 
     fireEvent.click(deleteButtons[1]);
@@ -1751,7 +1800,7 @@ describe("Editor", () => {
   it("labels exports by active selected pages", async () => {
     const tiles = await openPDF();
     const deleteButtons = await screen.findAllByRole("button", {
-      name: /^(Mark page \d+ for deletion|Restore page \d+ from deletion)$/,
+      name: /^Mark page \d+ for deletion$/,
     });
 
     fireEvent.click(tiles[0]);

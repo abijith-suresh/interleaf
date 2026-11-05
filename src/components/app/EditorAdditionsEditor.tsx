@@ -511,7 +511,6 @@ export default function EditorAdditionsEditor(props: Props) {
           <EditorButton
             ref={disclosure}
             aria-label="Tools"
-            aria-pressed={mode() !== "read"}
             class="editor-text-disclosure"
             aria-expanded={toolsOpen()}
             onClick={() => setToolsOpen(!toolsOpen())}
