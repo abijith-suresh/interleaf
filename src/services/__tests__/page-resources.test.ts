@@ -140,6 +140,34 @@ describe("PageResources", () => {
     }
   );
 
+  it.effect("gives up on cleanup that never completes instead of polling forever", () => {
+    const resources = new PageResources();
+    const file = makeFile("stuck.pdf");
+    const page = { cleanup: vi.fn(() => false) };
+    const document = makeDocument(page);
+
+    return Effect.gen(function* () {
+      const fiber = yield* Effect.forkChild(
+        Effect.exit(
+          resources.withPageCleanup(
+            file,
+            1,
+            resources.getPage(document, file, 1, "render"),
+            () => Effect.void
+          )
+        )
+      );
+      yield* TestClock.adjust("60 seconds");
+      const exit = yield* Fiber.join(fiber);
+      expect(exit._tag).toBe("Failure");
+      expect(page.cleanup.mock.calls.length).toBeLessThanOrEqual(401);
+      const calls = page.cleanup.mock.calls.length;
+      yield* TestClock.adjust("60 seconds");
+      expect(page.cleanup.mock.calls.length).toBe(calls);
+      yield* resources.drain(file);
+    });
+  });
+
   it.effect("keeps access to different pages independent", () => {
     const resources = new PageResources();
     const file = makeFile("shared.pdf");

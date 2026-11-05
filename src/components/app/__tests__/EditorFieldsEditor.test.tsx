@@ -118,7 +118,8 @@ it.each(["failure", "success", "navigation", "disposal"])(
       await waitFor(() => {
         if (outcome === "failure")
           expect(screen.getByRole("alert")).toHaveTextContent("Does not fit");
-        if (outcome === "success") expect(onChange).toHaveBeenCalledWith("page", "13 0 R", "After");
+        if (outcome === "success")
+          expect(onChange).toHaveBeenCalledWith("page", "13 0 R", "After", "Before");
         expect(external).toHaveFocus();
       });
       if (outcome === "navigation" || outcome === "disposal")

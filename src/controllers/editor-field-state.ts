@@ -18,7 +18,8 @@ export function answerField(
   pages: readonly PageState[],
   pageId: string,
   fieldRef: string,
-  value: string
+  value: string,
+  originalValue?: string
 ): PageState[] {
   const page = pages.find((candidate) => candidate.id === pageId);
   if (!page) return [...pages];
@@ -27,6 +28,8 @@ export function answerField(
       return candidate;
     const answers = copyFieldAnswers(candidate.fieldAnswers) ?? [];
     const index = answers.findIndex((answer) => answer.fieldRef === fieldRef);
+    // Re-entering the PDF's own value with no stored answer changes nothing visible.
+    if (index < 0 && value === originalValue) return candidate;
     if (index < 0) answers.push({ fieldRef, value });
     else answers[index] = { fieldRef, value };
     return { ...candidate, fieldAnswers: answers };

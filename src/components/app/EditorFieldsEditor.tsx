@@ -19,7 +19,7 @@ interface Props {
   onOpen: () => void;
   onClose: () => void;
   focusInput: (input: HTMLElement, reveal?: HTMLElement) => void;
-  onChange: (pageId: string, fieldRef: string, value: string) => void;
+  onChange: (pageId: string, fieldRef: string, value: string, originalValue: string) => void;
 }
 
 export default function EditorFieldsEditor(props: Props) {
@@ -145,11 +145,12 @@ export default function EditorFieldsEditor(props: Props) {
         group: props.page.fieldGroupId,
         rotation: props.page.rotation,
         answers: JSON.stringify(
-          answerField([props.page], pageId, widget.fieldRef, value)[0].fieldAnswers ?? []
+          answerField([props.page], pageId, widget.fieldRef, value, widget.value)[0].fieldAnswers ??
+            []
         ),
       };
       ownCommit = commit;
-      props.onChange(pageId, widget.fieldRef, value);
+      props.onChange(pageId, widget.fieldRef, value, widget.value);
       drafts.delete(widget.fieldRef);
       queueMicrotask(() => {
         if (ownCommit === commit) ownCommit = undefined;
