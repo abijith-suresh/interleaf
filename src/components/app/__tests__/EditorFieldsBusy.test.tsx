@@ -51,7 +51,7 @@ it("held field validation cannot publish during a real export; draft retries ato
       );
     });
   const runtime = makePDFRuntime(),
-    exportService = new PDFOperationsService({ renderPage: () => Effect.void });
+    exportService = new PDFOperationsService({});
   const [pages, setPages] = createStore(createPageStates(file, 2));
   const [busy, setBusy] = createSignal(false),
     [history, setHistory] = createSignal(emptyOrganizationHistory());

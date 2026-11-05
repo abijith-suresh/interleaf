@@ -14,7 +14,7 @@ import { inspectFilledPDF } from "./filled-fields";
 export async function checkClearedFields() {
   const fixture = await textFieldFixture({ nullAttributes: false });
   const file = new File([new Uint8Array(fixture.bytes)], "same.pdf", { type: "application/pdf" });
-  const service = new PDFOperationsService({ renderPage: () => Effect.void });
+  const service = new PDFOperationsService({});
   let originalBytes: Uint8Array, clearedBytes: Uint8Array, undoBytes: Uint8Array;
   const original = createPageStates(file, 2);
   const before = snapshotOrganization(original, new Set(), original[0].id);

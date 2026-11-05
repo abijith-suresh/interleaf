@@ -39,7 +39,7 @@ function file(bytes: Uint8Array, name = "same.pdf") {
   return new File([new Uint8Array(bytes)], name, { type: "application/pdf" });
 }
 async function build(pages: PageState[], selectedIndices?: number[]) {
-  const service = new PDFOperationsService({ renderPage: () => Effect.void });
+  const service = new PDFOperationsService({});
   try {
     return (await Effect.runPromise(service.buildPDF(pages, { selectedIndices }))).data;
   } finally {
@@ -145,18 +145,18 @@ describe("PDF export ownership", () => {
     const cache: { doc: PDFDocument; objects: string[] }[] = [];
     const spy = vi.spyOn(PDFDocument, "load").mockImplementation(async (data, options) => {
       const doc = await originalLoad(data, options);
-      if (options?.ignoreEncryption)
-        cache.push({
-          doc,
-          objects: doc.context.enumerateIndirectObjects().map(([, o]) => o.toString()),
-        });
+      cache.push({
+        doc,
+        objects: doc.context.enumerateIndirectObjects().map(([, o]) => o.toString()),
+      });
       return doc;
     });
-    const service = new PDFOperationsService({ renderPage: () => Effect.void });
+    const service = new PDFOperationsService({});
     try {
       await Effect.runPromise(service.buildPDF([createPageState(source, 1)]));
       await Effect.runPromise(service.buildPDF([createPageState(source, 2)]));
-      expect(cache).toHaveLength(1);
+      // One cached source, then one private document per export.
+      expect(cache).toHaveLength(3);
       expect(cache[0].doc.context.enumerateIndirectObjects().map(([, o]) => o.toString())).toEqual(
         cache[0].objects
       );
@@ -624,17 +624,16 @@ describe("source page indexing boundary", () => {
       const cached = await PDFDocument.load(bytes),
         objects = cached.context.enumerateIndirectObjects().map(([, o]) => o.toString());
       const load = PDFDocument.load.bind(PDFDocument);
-      const loadSpy = vi
-        .spyOn(PDFDocument, "load")
-        .mockImplementation((data, options) =>
-          data instanceof ArrayBuffer &&
-          data.byteLength === bytes.byteLength &&
-          options?.ignoreEncryption
-            ? Promise.resolve(cached)
-            : load(data, options)
-        );
+      let served = false;
+      // The first load of these bytes is the cached source; later loads are private.
+      const loadSpy = vi.spyOn(PDFDocument, "load").mockImplementation((data, options) => {
+        if (served || !(data instanceof ArrayBuffer) || data.byteLength !== bytes.byteLength)
+          return load(data, options);
+        served = true;
+        return Promise.resolve(cached);
+      });
       const copy = vi.spyOn(PDFDocument.prototype, "copyPages");
-      const service = new PDFOperationsService({ renderPage: () => Effect.void });
+      const service = new PDFOperationsService({});
       try {
         await expect(
           Effect.runPromise(
@@ -660,25 +659,23 @@ describe("source page indexing boundary", () => {
       }
     }
   );
-  it("rejects inconsistent encrypted preparation before rendering or indexed geometry", async () => {
-    const bytes = await exportPageIndexFixture(true),
-      source = file(bytes),
-      cached = await PDFDocument.load(bytes);
-    Object.defineProperty(cached, "isEncrypted", { value: true });
-    const load = vi.spyOn(PDFDocument, "load").mockResolvedValueOnce(cached);
-    const renderPage = vi.fn(() => Effect.void),
-      getPageGeometry = vi.fn();
-    const getPage = vi.spyOn(cached, "getPage"),
-      service = new PDFOperationsService({ renderPage, getPageGeometry });
+  it("rejects an inconsistent decrypted export source before indexed geometry", async () => {
+    const source = file(new Uint8Array([1]), "protected.pdf"),
+      decrypted = file(await exportPageIndexFixture(true), "protected.pdf");
+    const getPageGeometry = vi.fn(),
+      getPage = vi.spyOn(PDFDocument.prototype, "getPage"),
+      service = new PDFOperationsService({
+        getExportSource: () => Effect.succeed(decrypted),
+        getPageGeometry,
+      });
     try {
       await expect(
         Effect.runPromise(service.buildPDF([createPageState(source, 2, { rotation: 90 })]))
       ).rejects.toMatchObject({ operation: "reconcile-export", file: source });
       expect(getPage).not.toHaveBeenCalled();
       expect(getPageGeometry).not.toHaveBeenCalled();
-      expect(renderPage).not.toHaveBeenCalled();
     } finally {
-      load.mockRestore();
+      getPage.mockRestore();
       await Effect.runPromise(service.dispose());
     }
   });
@@ -803,25 +800,23 @@ describe("source subtree Counts", () => {
       expect(indexed).not.toHaveBeenCalled();
       expect(doc.context.enumerateIndirectObjects().map(([, o]) => o.toString())).toEqual(objects);
     });
-  it("rejects bad Count in encrypted preparation before rotation/geometry/render", async () => {
-    const bytes = await exportPageCountFixture(true, false),
-      source = file(bytes),
-      doc = await PDFDocument.load(bytes);
-    Object.defineProperty(doc, "isEncrypted", { value: true });
-    const load = vi.spyOn(PDFDocument, "load").mockResolvedValueOnce(doc),
-      indexed = vi.spyOn(doc, "getPage"),
-      renderPage = vi.fn(() => Effect.void),
-      getPageGeometry = vi.fn();
-    const service = new PDFOperationsService({ renderPage, getPageGeometry });
+  it("rejects bad Count in a decrypted export source before rotation or geometry", async () => {
+    const source = file(new Uint8Array([1]), "protected.pdf"),
+      decrypted = file(await exportPageCountFixture(true, false), "protected.pdf");
+    const getPageGeometry = vi.fn(),
+      indexed = vi.spyOn(PDFDocument.prototype, "getPage"),
+      service = new PDFOperationsService({
+        getExportSource: () => Effect.succeed(decrypted),
+        getPageGeometry,
+      });
     try {
       await expect(
         Effect.runPromise(service.buildPDF([createPageState(source, 2, { rotation: 90 })]))
       ).rejects.toMatchObject({ operation: "reconcile-export", file: source });
       expect(indexed).not.toHaveBeenCalled();
       expect(getPageGeometry).not.toHaveBeenCalled();
-      expect(renderPage).not.toHaveBeenCalled();
     } finally {
-      load.mockRestore();
+      indexed.mockRestore();
       await Effect.runPromise(service.dispose());
     }
   });

@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { degrees, PageSizes, PDFDocument, type PDFPage } from "pdf-lib";
+import { degrees, PageSizes, PDFDocument } from "pdf-lib";
 import { IMAGES_TO_PDF_FILENAME, OUTPUT_FILENAME } from "../constants";
 import type {
   FieldAnswer,
@@ -18,11 +18,8 @@ import { PDFExportCopy, type PDFExportSource, validatePDFSourcePages } from "./p
 import { applyFieldAnswers, inspectPDFFields } from "./pdf-fields";
 import type { PDFService } from "./pdf-service";
 
-const ENCRYPTED_PAGE_RENDER_SCALE = 2;
-
 export interface PDFBuildOptions {
   readonly selectedIndices?: readonly number[];
-  readonly maxRasterPixels?: number;
   readonly onProgress?: (progress: PDFBuildProgress) => void;
 }
 
@@ -105,26 +102,29 @@ const sourceDocumentKey = (file: File): DocumentKey => ({
   variant: SOURCE_DOCUMENT_VARIANT,
 });
 
+interface ExportSource {
+  readonly doc: PDFDocument;
+  // The source File itself, or its decrypted copy when the source is encrypted.
+  readonly file: File;
+}
+
 export class PDFOperationsService {
-  private readonly store: DocumentStore<PDFDocument>;
+  private readonly store: DocumentStore<ExportSource>;
 
   constructor(
-    private readonly pdfService: Pick<PDFService, "renderPage"> &
-      Partial<Pick<PDFService, "getPageGeometry">>
+    private readonly pdfService: Partial<Pick<PDFService, "getPageGeometry" | "getExportSource">>
   ) {
-    this.store = makeDocumentStore<PDFDocument>({
-      load: (key) => {
-        const file = key.file;
-        return Effect.tryPromise({
-          try: async () => {
-            const buffer = await file.arrayBuffer();
-            // ignoreEncryption allows pdf-lib to read the page tree. Encrypted page
-            // content is rasterized through the already-unlocked PDF.js document.
-            return PDFDocument.load(buffer, { ignoreEncryption: true });
-          },
-          catch: (cause) => processingError("load-source", file, cause),
-        });
-      },
+    this.store = makeDocumentStore<ExportSource>({
+      load: (key) =>
+        Effect.gen({ self: this }, function* () {
+          const file = yield* this.pdfService.getExportSource?.(key.file) ??
+            Effect.succeed(key.file);
+          const doc = yield* Effect.tryPromise({
+            try: async () => PDFDocument.load(await file.arrayBuffer()),
+            catch: (cause) => processingError("load-source", key.file, cause),
+          });
+          return { doc, file };
+        }),
       cleanup: () => Effect.void,
       releaseError: (file) =>
         new PDFProcessingError({
@@ -344,7 +344,7 @@ export class PDFOperationsService {
         catch: (cause) => processingError("create-output", pagesToBuild[0].sourceFile, cause),
       });
 
-      const sourceDocuments = new Map<File, PDFDocument>();
+      const sourceDocuments = new Map<File, ExportSource>();
       const privateSources: PDFExportSource[] = [];
       const scopes = new Map<File, Set<string>>();
       for (const page of pagesToBuild) {
@@ -352,7 +352,7 @@ export class PDFOperationsService {
         let source = sourceDocuments.get(sourceFile);
         if (!source) {
           source = yield* this.store.acquire(sourceDocumentKey(sourceFile));
-          const validatedSource = source;
+          const validatedSource = source.doc;
           yield* Effect.try({
             try: () => validatePDFSourcePages(validatedSource, sourceFile),
             catch: (cause) =>
@@ -362,17 +362,15 @@ export class PDFOperationsService {
           });
           sourceDocuments.set(sourceFile, source);
         }
-        if (source.isEncrypted) {
-          if (page.fieldAnswers?.length)
-            return yield* Effect.fail(
-              processingError(
-                "fill-field",
-                sourceFile,
-                new Error("Embedded filling is unavailable for protected PDFs.")
-              )
-            );
-          continue;
-        }
+        if (source.file !== sourceFile && page.fieldAnswers?.length)
+          return yield* Effect.fail(
+            processingError(
+              "fill-field",
+              sourceFile,
+              new Error("Embedded filling is unavailable for protected PDFs.")
+            )
+          );
+        const exportFile = source.file;
         const scope = page.fieldAnswers?.length ? (page.fieldGroupId ?? "") : "";
         const prepared = scopes.get(sourceFile) ?? new Set<string>();
         if (prepared.has(scope)) continue;
@@ -381,7 +379,7 @@ export class PDFOperationsService {
         // Private per-build scopes never replace original Files or the cached source.
         const doc = yield* Effect.tryPromise({
           try: async () => {
-            const doc = await PDFDocument.load(await sourceFile.arrayBuffer());
+            const doc = await PDFDocument.load(await exportFile.arrayBuffer());
             const group = pages.filter(
               (candidate) =>
                 candidate.sourceFile === sourceFile && candidate.fieldGroupId === page.fieldGroupId
@@ -413,23 +411,17 @@ export class PDFOperationsService {
             ? cause
             : processingError("prepare-export", pagesToBuild[0].sourceFile, cause),
       });
-      const copyRequests = pagesToBuild.flatMap((page, index) =>
-        privateSources.some((source) => source.file === page.sourceFile) ? [{ index, page }] : []
-      );
-      const copiedPages = new Map<number, PDFPage>();
-      yield* Effect.tryPromise({
-        try: async () => {
-          const copied = await exportCopy.copyPages(
-            copyRequests.map(({ page }) => ({
+      // Every source is unencrypted here, so all pages are copied in one batch.
+      const copiedPages = yield* Effect.tryPromise({
+        try: () =>
+          exportCopy.copyPages(
+            pagesToBuild.map((page) => ({
               file: page.sourceFile,
               pageNumber: page.sourcePageNumber,
               scope: page.fieldAnswers?.length ? (page.fieldGroupId ?? "") : "",
               editable: Boolean(page.addedText?.length || page.addedCheckmarks?.length),
             }))
-          );
-          for (const [position, { index }] of copyRequests.entries())
-            copiedPages.set(index, copied[position]);
-        },
+          ),
         catch: (cause) =>
           cause instanceof PDFProcessingError
             ? cause
@@ -437,64 +429,46 @@ export class PDFOperationsService {
       });
 
       for (const [index, page] of pagesToBuild.entries()) {
-        const sourceDoc = sourceDocuments.get(page.sourceFile);
-        if (!sourceDoc)
+        const copiedPage = copiedPages[index];
+        if (!copiedPage)
           return yield* Effect.fail(
             processingError(
-              "prepare-export",
+              "copy-page",
               page.sourceFile,
-              new Error("The export source is unavailable.")
+              new Error("PDF source page was not returned")
             )
           );
-        const isEncrypted = yield* Effect.try({
-          try: () => sourceDoc.isEncrypted,
-          catch: (cause) => processingError("inspect-source", page.sourceFile, cause),
-        });
-
-        if (isEncrypted) {
-          yield* this.addEncryptedPage(outputDoc, sourceDoc, page, options.maxRasterPixels);
-        } else {
-          const copiedPage = copiedPages.get(index);
-          if (!copiedPage)
+        if (page.addedText?.length || page.addedCheckmarks?.length) {
+          if (!this.pdfService.getPageGeometry)
             return yield* Effect.fail(
               processingError(
-                "copy-page",
+                "draw-text",
                 page.sourceFile,
-                new Error("PDF source page was not returned")
+                new Error("Page geometry is unavailable.")
               )
             );
-          if (page.addedText?.length || page.addedCheckmarks?.length) {
-            if (!this.pdfService.getPageGeometry)
-              return yield* Effect.fail(
-                processingError(
-                  "draw-text",
-                  page.sourceFile,
-                  new Error("Page geometry is unavailable.")
-                )
-              );
-            const geometry = yield* this.pdfService.getPageGeometry(
-              page.sourceFile,
-              page.sourcePageNumber
-            );
-            yield* Effect.tryPromise({
-              try: () => drawPageAdditions(outputDoc, copiedPage, page, geometry),
-              catch: (cause) => processingError("draw-text", page.sourceFile, cause),
-            });
-          }
-          yield* Effect.try({
-            try: () => {
-              const sourceRotation = normalizeRotation(copiedPage.getRotation().angle);
-              const combinedRotation = normalizeRotation(sourceRotation + page.rotation);
-
-              if (combinedRotation !== sourceRotation) {
-                copiedPage.setRotation(degrees(combinedRotation));
-              }
-
-              outputDoc.addPage(copiedPage);
-            },
-            catch: (cause) => processingError("add-page", page.sourceFile, cause),
+          const geometry = yield* this.pdfService.getPageGeometry(
+            page.sourceFile,
+            page.sourcePageNumber
+          );
+          yield* Effect.tryPromise({
+            try: () => drawPageAdditions(outputDoc, copiedPage, page, geometry),
+            catch: (cause) => processingError("draw-text", page.sourceFile, cause),
           });
         }
+        yield* Effect.try({
+          try: () => {
+            const sourceRotation = normalizeRotation(copiedPage.getRotation().angle);
+            const combinedRotation = normalizeRotation(sourceRotation + page.rotation);
+
+            if (combinedRotation !== sourceRotation) {
+              copiedPage.setRotation(degrees(combinedRotation));
+            }
+
+            outputDoc.addPage(copiedPage);
+          },
+          catch: (cause) => processingError("add-page", page.sourceFile, cause),
+        });
 
         yield* Effect.try({
           try: () => {
@@ -517,79 +491,6 @@ export class PDFOperationsService {
       });
 
       return { data, suggestedFileName: OUTPUT_FILENAME };
-    });
-  }
-
-  private addEncryptedPage(
-    outputDoc: PDFDocument,
-    sourceDoc: PDFDocument,
-    page: PageState,
-    maxRasterPixels?: number
-  ): Effect.Effect<void, PDFError> {
-    return Effect.gen({ self: this }, function* () {
-      const geometry = this.pdfService.getPageGeometry
-        ? yield* this.pdfService.getPageGeometry(page.sourceFile, page.sourcePageNumber)
-        : undefined;
-      if ((page.addedText?.length || page.addedCheckmarks?.length) && !geometry) {
-        return yield* Effect.fail(
-          processingError("draw-text", page.sourceFile, new Error("Page geometry is unavailable."))
-        );
-      }
-      const { combinedRotation, height, width } = yield* Effect.try({
-        try: () => {
-          const sourcePage = sourceDoc.getPage(page.sourcePageNumber - 1);
-          return {
-            combinedRotation: normalizeRotation(sourcePage.getRotation().angle + page.rotation),
-            height: geometry?.height ?? sourcePage.getHeight(),
-            width: geometry?.width ?? sourcePage.getWidth(),
-          };
-        },
-        catch: (cause) => processingError("prepare-page", page.sourceFile, cause),
-      });
-      return yield* Effect.acquireUseRelease(
-        Effect.try({
-          try: () => document.createElement("canvas"),
-          catch: (cause) => processingError("prepare-page", page.sourceFile, cause),
-        }),
-        (canvas) =>
-          Effect.gen({ self: this }, function* () {
-            yield* this.pdfService.renderPage(
-              page.sourceFile,
-              page.sourcePageNumber,
-              canvas,
-              maxRasterPixels === undefined
-                ? ENCRYPTED_PAGE_RENDER_SCALE
-                : Math.min(
-                    ENCRYPTED_PAGE_RENDER_SCALE,
-                    Math.sqrt(maxRasterPixels / (width * height))
-                  ),
-              0
-            );
-            const image = yield* Effect.tryPromise({
-              try: () => outputDoc.embedPng(canvas.toDataURL("image/png")),
-              catch: (cause) => processingError("embed-page", page.sourceFile, cause),
-            });
-            const outputPage = yield* Effect.try({
-              try: () => {
-                const outputPage = outputDoc.addPage([width, height]);
-                outputPage.drawImage(image, { x: 0, y: 0, width, height });
-                outputPage.setRotation(degrees(combinedRotation));
-                return outputPage;
-              },
-              catch: (cause) => processingError("add-page", page.sourceFile, cause),
-            });
-            if ((page.addedText?.length || page.addedCheckmarks?.length) && geometry) {
-              yield* Effect.tryPromise({
-                try: () => drawPageAdditions(outputDoc, outputPage, page, geometry, true),
-                catch: (cause) => processingError("draw-text", page.sourceFile, cause),
-              });
-            }
-          }),
-        (canvas) =>
-          Effect.sync(() => {
-            canvas.width = canvas.height = 0;
-          })
-      );
     });
   }
 }

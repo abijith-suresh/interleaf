@@ -138,7 +138,6 @@ export class PDFImageExportService {
                 canvas,
                 IMAGE_EXPORT_SCALE,
                 (sourceRotation + page.rotation) % 360,
-                undefined,
                 IMAGE_EXPORT_MAX_PIXELS
               );
             } else

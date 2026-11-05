@@ -1,6 +1,13 @@
 import { Effect } from "effect";
-import { decodePDFRawStream, PDFArray, PDFDocument, PDFPage, PDFRawStream } from "pdf-lib";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  decodePDFRawStream,
+  PDFArray,
+  type PDFContentStream,
+  PDFDocument,
+  PDFPage,
+  PDFRawStream,
+} from "pdf-lib";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PDFNoPagesError } from "../../types/interfaces";
 import { PDFOperationsService } from "../pdf-operations-service";
 import {
@@ -10,6 +17,7 @@ import {
   createPdfFile,
   createPngFile,
 } from "./pdf-fixtures";
+import { makeNodeQpdfProcessing, readQpdfFixture } from "./qpdf-node-worker";
 
 type Corner = "TL" | "TR" | "BL" | "BR";
 
@@ -69,14 +77,27 @@ async function placeStoredCorners(data: Uint8Array) {
   };
 }
 
+function pageOperators(page: PDFPage): string {
+  const contents = page.node.Contents();
+  const streams = contents instanceof PDFArray ? contents.asArray() : [contents];
+  // Reading a page can rewrap its content as a PDFContentStream.
+  return streams
+    .map((ref) => page.node.context.lookup(ref))
+    .map((stream) =>
+      new TextDecoder().decode(
+        stream instanceof PDFRawStream
+          ? decodePDFRawStream(stream).decode()
+          : (stream as PDFContentStream).getUnencodedContents()
+      )
+    )
+    .join("\n");
+}
+
 describe("PDFOperationsService", () => {
   let service: PDFOperationsService;
-  const renderPage = vi.fn(() => Effect.void);
 
   beforeEach(() => {
-    renderPage.mockReset();
-    renderPage.mockReturnValue(Effect.void);
-    service = new PDFOperationsService({ renderPage });
+    service = new PDFOperationsService({});
   });
 
   afterEach(async () => {
@@ -303,72 +324,92 @@ describe("PDFOperationsService", () => {
     });
   });
 
-  it("exports an unlocked encrypted page through a local render", async () => {
-    const file = await createPdfFile("protected.pdf", [{ width: 612, height: 792, rotation: 90 }]);
-    const source = await PDFDocument.load(await file.arrayBuffer());
-    Object.defineProperty(source, "isEncrypted", { value: true });
-    vi.spyOn(PDFDocument, "load").mockResolvedValueOnce(source);
-    const png = await createPngFile().arrayBuffer();
-    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
-      `data:image/png;base64,${btoa(String.fromCharCode(...new Uint8Array(png)))}`
+  // Real qpdf worker threads compile WASM per request; allow for slow runners.
+  describe("with encrypted sources", { timeout: 30_000 }, () => {
+    const qpdf = makeNodeQpdfProcessing();
+    const decryptedSource = (password: string | undefined) => (file: File) =>
+      Effect.promise(() => file.arrayBuffer()).pipe(
+        Effect.flatMap((input) => qpdf.decrypt(input, password)),
+        Effect.map((bytes) => new File([bytes], file.name, { type: "application/pdf" })),
+        Effect.orDie
+      );
+    const geometry = {
+      bounds: [0, 0, 612, 792] as [number, number, number, number],
+      userUnit: 1,
+      width: 612,
+      height: 792,
+      transform: [1, 0, 0, -1, 0, 792] as [number, number, number, number, number, number],
+    };
+
+    afterAll(() => qpdf.close());
+
+    it.each([
+      { fixture: "encrypted-256-bit-r6", password: "wwwww", pageCount: 30 },
+      { fixture: "encrypted-40-bit-r3", password: "623", pageCount: 1 },
+      { fixture: "encrypted-256-bit-owner-only", password: undefined, pageCount: 30 },
+    ])(
+      "exports every page of $fixture as unencrypted vector pages with added text",
+      async ({ fixture, password, pageCount }) => {
+        const file = readQpdfFixture(fixture);
+        const getExportSource = vi.fn(decryptedSource(password));
+        service = new PDFOperationsService({
+          getExportSource,
+          getPageGeometry: () => Effect.succeed(geometry),
+        });
+        const pages = Array.from({ length: pageCount }, (_, index) =>
+          createPageState(file, index + 1, {
+            rotation: index === 0 ? 90 : 0,
+            addedText:
+              index === 0
+                ? [{ id: "text", text: "Added 123", x: 72, y: 600, fontSize: 16, rotation: 0 }]
+                : undefined,
+          })
+        );
+
+        const result = await Effect.runPromise(service.buildPDF(pages));
+        await Effect.runPromise(service.buildPDF(pages.slice(0, 1)));
+        const output = await PDFDocument.load(result.data);
+
+        expect(getExportSource).toHaveBeenCalledOnce();
+        expect(output.isEncrypted).toBe(false);
+        expect(output.getPageCount()).toBe(pageCount);
+        expect(output.getPage(0).getRotation().angle).toBe(90);
+        const operators = pageOperators(output.getPage(0));
+        expect(operators).toContain("(Potato");
+        expect(operators).toContain("416464656420313233");
+        expect(pageOperators(output.getPage(pageCount - 1))).toContain(
+          pageCount === 1 ? "(Potato)" : `(Potato ${pageCount - 1})`
+        );
+        // Pages stay vectors: no rasterized page image is drawn.
+        expect(output.getPage(0).node.normalizedEntries().XObject?.keys() ?? []).toHaveLength(0);
+      }
     );
 
-    const result = await Effect.runPromise(
-      service.buildPDF([createPageState(file, 1, { rotation: 90 })])
-    );
-    const output = await PDFDocument.load(result.data);
+    it("rejects an encrypted source without a decrypted export source", async () => {
+      const file = readQpdfFixture("encrypted-256-bit-r6");
 
-    expect(output.getPageCount()).toBe(1);
-    expect(output.getPage(0).node.normalizedEntries().XObject.keys()).toHaveLength(1);
-    expect(output.getPage(0).getSize()).toEqual({ width: 612, height: 792 });
-    expect(output.getPage(0).getRotation().angle).toBe(180);
-    expect(renderPage).toHaveBeenCalledExactlyOnceWith(
-      file,
-      1,
-      expect.any(HTMLCanvasElement),
-      2,
-      0
-    );
-  });
-
-  it("bounds the encrypted preview bitmap and releases it while retaining physical page geometry", async () => {
-    const file = await createPdfFile("large-protected.pdf", [
-      { width: 1500, height: 2000, rotation: 90 },
-    ]);
-    const source = await PDFDocument.load(await file.arrayBuffer());
-    Object.defineProperty(source, "isEncrypted", { value: true });
-    vi.spyOn(PDFDocument, "load").mockResolvedValueOnce(source);
-    const png = await createPngFile().arrayBuffer();
-    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
-      `data:image/png;base64,${btoa(String.fromCharCode(...new Uint8Array(png)))}`
-    );
-    await Effect.runPromise(service.dispose());
-    service = new PDFOperationsService({
-      renderPage,
-      getPageGeometry: () =>
-        Effect.succeed({
-          bounds: [-40, -60, 1460, 1940],
-          userUnit: 2,
-          width: 3000,
-          height: 4000,
-          transform: [2, 0, 0, -2, 80, 3880],
-        }),
+      await expect(
+        Effect.runPromise(service.buildPDF([createPageState(file, 1)]))
+      ).rejects.toMatchObject({ _tag: "PDFProcessingError", operation: "load-source" });
     });
-    const result = await Effect.runPromise(
-      service.buildPDF([createPageState(file, 1, { rotation: 90 })], { maxRasterPixels: 4_000_000 })
-    );
-    const output = await PDFDocument.load(result.data);
-    expect(output.getPage(0).getSize()).toEqual({ width: 3000, height: 4000 });
-    expect(output.getPage(0).getRotation().angle).toBe(180);
-    const [, , canvas, scale] = renderPage.mock.calls[0] as unknown as [
-      File,
-      number,
-      HTMLCanvasElement,
-      number,
-    ];
-    expect(scale).toBeCloseTo(Math.sqrt(4_000_000 / (3000 * 4000)));
-    expect(canvas.width).toBe(0);
-    expect(canvas.height).toBe(0);
+
+    it("rejects embedded field answers for a decrypted source", async () => {
+      const file = readQpdfFixture("encrypted-40-bit-r3");
+      service = new PDFOperationsService({ getExportSource: decryptedSource("623") });
+
+      await expect(
+        Effect.runPromise(
+          service.buildPDF([
+            createPageState(file, 1, {
+              fieldAnswers: [{ fieldRef: "1 0 R", value: "Answer" }],
+            }),
+          ])
+        )
+      ).rejects.toMatchObject({
+        operation: "fill-field",
+        message: "Embedded filling is unavailable for protected PDFs.",
+      });
+    });
   });
 
   it.each(["clearCache", "releaseFile"] as const)(

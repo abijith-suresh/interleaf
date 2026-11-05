@@ -109,7 +109,6 @@ export default function EditorPageCanvas(props: Props) {
                 canvas,
                 THUMBNAIL_SCALE,
                 sourceRotation,
-                4_000_000,
                 THUMBNAIL_MAX_PIXELS
               );
             } else

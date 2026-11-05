@@ -25,9 +25,17 @@ function fail(id, code, message) {
   self.postMessage({ type: "error", id, code, message });
 }
 
+// Decryption writes an unencrypted copy for the editor's page-building path.
+// The password is passed to qpdf only and never stored or logged.
+const operations = {
+  optimize: { run: "_qpdf_optimize", failure: "qpdf could not optimize the PDF" },
+  decrypt: { run: "_qpdf_decrypt", failure: "qpdf could not decrypt the PDF" },
+};
+
 self.addEventListener("message", async (event) => {
   const request = event.data;
-  if (request?.type !== "optimize") return;
+  const operation = Object.hasOwn(operations, request?.type) ? operations[request.type] : null;
+  if (!operation) return;
 
   try {
     const module = await getModule();
@@ -44,7 +52,7 @@ self.addEventListener("message", async (event) => {
       module.HEAPU8.set(input, inputPointer);
       if (password) module.HEAPU8.set(password, passwordPointer);
 
-      const status = module._qpdf_optimize(
+      const status = module[operation.run](
         inputPointer,
         input.byteLength,
         passwordPointer,
@@ -58,8 +66,16 @@ self.addEventListener("message", async (event) => {
       const errorPointer = readUint32(module, errorPointerPointer);
 
       if (status !== 0) {
-        const message = readCString(module, errorPointer) || "qpdf could not optimize the PDF";
+        const message = readCString(module, errorPointer) || operation.failure;
         fail(request.id, "QPDF_EXEC_FAILED", message);
+        return;
+      }
+
+      if (request.type === "decrypt") {
+        const output = module.HEAPU8.slice(outputPointer, outputPointer + candidateSize);
+        self.postMessage({ type: "decrypted", id: request.id, output: output.buffer }, [
+          output.buffer,
+        ]);
         return;
       }
 

@@ -4,6 +4,7 @@
 // lossless policy decisions here so the browser worker cannot accidentally
 // enable an image-reencoding mode.
 
+#include <qpdf/Buffer.hh>
 #include <qpdf/Pl_Flate.hh>
 #include <qpdf/QPDF.hh>
 #include <qpdf/QPDFWriter.hh>
@@ -11,6 +12,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -74,6 +76,56 @@ namespace
             return false;
         }
     }
+
+    bool has_valid_arguments(
+        unsigned char const* input,
+        size_t input_size,
+        unsigned char** output,
+        size_t* output_size,
+        char** error)
+    {
+        if (input == nullptr || input_size == 0 || output == nullptr || output_size == nullptr ||
+            error == nullptr) {
+            if (error != nullptr) {
+                *error = copy_error("qpdf received an empty or invalid input buffer");
+            }
+            return false;
+        }
+        return true;
+    }
+
+    // A null password means that no password was supplied. qpdf then tries the
+    // empty user password, which opens owner-password-only PDFs.
+    std::shared_ptr<QPDF> open_pdf(
+        unsigned char const* input,
+        size_t input_size,
+        std::string const* password)
+    {
+        auto pdf = QPDF::create();
+        pdf->processMemoryFile(
+            "interleaf input.pdf",
+            reinterpret_cast<char const*>(input),
+            input_size,
+            password == nullptr ? nullptr : password->c_str());
+        return pdf;
+    }
+
+    int copy_output(Buffer const& buffer, unsigned char** output, size_t* output_size, char** error)
+    {
+        auto const size = buffer.getSize();
+        auto* data = static_cast<unsigned char*>(std::malloc(size));
+        if (data == nullptr && size != 0) {
+            *error = copy_error("qpdf could not allocate the output buffer");
+            return 2;
+        }
+
+        if (size != 0) {
+            std::memcpy(data, buffer.getBuffer(), size);
+        }
+        *output = data;
+        *output_size = size;
+        return 0;
+    }
 }
 
 extern "C"
@@ -91,29 +143,19 @@ extern "C"
         char** error)
     {
         reset_result(output, output_size, error);
-
-        if (input == nullptr || input_size == 0 || output == nullptr || output_size == nullptr ||
-            error == nullptr) {
-            if (error != nullptr) {
-                *error = copy_error("qpdf received an empty or invalid input buffer");
-            }
+        if (!has_valid_arguments(input, input_size, output, output_size, error)) {
             return 1;
         }
 
         try {
             std::string password_value;
-            char const* password_argument = nullptr;
+            std::string const* password_argument = nullptr;
             if (password != nullptr) {
                 password_value.assign(password, password_size);
-                password_argument = password_value.c_str();
+                password_argument = &password_value;
             }
 
-            auto pdf = QPDF::create();
-            pdf->processMemoryFile(
-                "interleaf input.pdf",
-                reinterpret_cast<char const*>(input),
-                input_size,
-                password_argument);
+            auto pdf = open_pdf(input, input_size, password_argument);
 
             if (has_digital_signature(*pdf)) {
                 throw std::runtime_error("signed PDFs cannot be rewritten losslessly");
@@ -134,26 +176,54 @@ extern "C"
             writer.write();
 
             auto buffer = writer.getBufferSharedPointer();
-            auto const size = buffer->getSize();
             auto verification = QPDF::create();
             verification->processMemoryFile(
                 "interleaf output.pdf",
                 reinterpret_cast<char const*>(buffer->getBuffer()),
-                size,
-                password_argument);
+                buffer->getSize(),
+                password_argument == nullptr ? nullptr : password_argument->c_str());
 
-            auto* data = static_cast<unsigned char*>(std::malloc(size));
-            if (data == nullptr && size != 0) {
-                *error = copy_error("qpdf could not allocate the output buffer");
-                return 2;
+            return copy_output(*buffer, output, output_size, error);
+        } catch (std::exception const& exception) {
+            *error = copy_error(exception.what());
+            return 3;
+        } catch (...) {
+            *error = copy_error("qpdf failed with an unknown error");
+            return 4;
+        }
+    }
+
+    // Write an unencrypted copy with qpdf's default writer settings, matching
+    // `qpdf --decrypt`. Arguments and ownership follow qpdf_optimize.
+    int qpdf_decrypt(
+        unsigned char const* input,
+        size_t input_size,
+        char const* password,
+        size_t password_size,
+        unsigned char** output,
+        size_t* output_size,
+        char** error)
+    {
+        reset_result(output, output_size, error);
+        if (!has_valid_arguments(input, input_size, output, output_size, error)) {
+            return 1;
+        }
+
+        try {
+            std::string password_value;
+            std::string const* password_argument = nullptr;
+            if (password != nullptr) {
+                password_value.assign(password, password_size);
+                password_argument = &password_value;
             }
 
-            if (size != 0) {
-                std::memcpy(data, buffer->getBuffer(), size);
-            }
-            *output = data;
-            *output_size = size;
-            return 0;
+            auto pdf = open_pdf(input, input_size, password_argument);
+            QPDFWriter writer(*pdf);
+            writer.setOutputMemory();
+            writer.setPreserveEncryption(false);
+            writer.write();
+
+            return copy_output(*writer.getBufferSharedPointer(), output, output_size, error);
         } catch (std::exception const& exception) {
             *error = copy_error(exception.what());
             return 3;

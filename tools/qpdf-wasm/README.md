@@ -1,8 +1,9 @@
 # qpdf WASM runtime
 
-This directory contains the browser boundary for Interleaf's lossless PDF compression workflow.
-The editor uses it to optimize an untouched, single uploaded PDF without sending its bytes to a
-server.
+This directory contains the browser boundary for Interleaf's lossless PDF compression workflow
+and for decrypting protected PDFs before export. The editor uses it to optimize an untouched,
+single uploaded PDF, and to write an unencrypted working copy of an encrypted source after it
+opens, without sending its bytes to a server.
 
 The build pins qpdf 12.4.1 to the official release archive and checks its SHA-256 before compiling it
 with Emscripten 3.1.72. The generated worker uses qpdf's in-memory C++ API, so PDF bytes do not pass
@@ -19,6 +20,10 @@ The optimization profile is intentionally narrow:
   signature fields are preserved;
 - image optimization, JPEG decoding/re-encoding, metadata removal, decryption, and rasterization are
   not enabled.
+
+Decryption is a separate entry point. It writes the PDF with qpdf's default writer settings and no
+encryption, like `qpdf --decrypt`. Without a password, qpdf tries the empty user password, which
+opens owner-password-only PDFs. Compression still preserves the source's encryption.
 
 qpdf reparses its output before returning it. It may still produce an output that is larger than the
 input. The worker returns the original bytes in that case and reports the candidate size, so a later
@@ -61,7 +66,7 @@ decision. CI opens it in Chromium after building the generated assets.
 
 `fidelity.html` is the qpdf fidelity fixture suite. It exercises real qpdf WASM behavior for
 recompression, page text, forms, annotations, images, 40-bit R3 and AES-256 R6 encrypted input,
-wrong passwords, malformed input, and signed-document rejection. The encrypted fixture provenance
+decryption, wrong passwords, malformed input, and signed-document rejection. The encrypted fixture provenance
 and license are recorded in `fixtures/README.md`. This suite is still not a substitute for
 editor-level regression tests.
 

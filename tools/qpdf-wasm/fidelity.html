@@ -135,7 +135,7 @@
     return Uint8Array.from(binary, (character) => character.charCodeAt(0));
   }
 
-  function runWorker(input, password) {
+  function runWorker(input, password, type = "optimize") {
     const inputSize = input.byteLength;
     const original = input.slice();
     const worker = new Worker("./qpdf-worker.js", { type: "module" });
@@ -162,7 +162,7 @@
 
       worker.postMessage(
         {
-          type: "optimize",
+          type,
           id: "fidelity",
           input: input.buffer,
           ...(password === undefined ? {} : { password }),
@@ -244,6 +244,27 @@
         errorMessage: /password|encrypted/i,
       },
       {
+        name: "decrypts a 40-bit encrypted PDF with its password",
+        input: encrypted40BitFixture.slice(),
+        password: "623",
+        operation: "decrypt",
+      },
+      {
+        name: "decrypts an AES-256 R6 encrypted PDF with its password",
+        input: encrypted256BitFixture.slice(),
+        password: "wwwww",
+        operation: "decrypt",
+        expectedPages: 30,
+      },
+      {
+        name: "rejects decrypting an AES-256 R6 encrypted PDF with a wrong password",
+        input: encrypted256BitFixture.slice(),
+        password: "wrong",
+        operation: "decrypt",
+        expectError: true,
+        errorMessage: /password|encrypted/i,
+      },
+      {
         name: "repairs a malformed xref offset",
         input: makeRepairablePdf(),
         contains: ["/Type /Page"],
@@ -264,7 +285,11 @@
 
     const failures = [];
     for (const testCase of cases) {
-      const { original, result, inputSize } = await runWorker(testCase.input, testCase.password);
+      const { original, result, inputSize } = await runWorker(
+        testCase.input,
+        testCase.password,
+        testCase.operation
+      );
       if (testCase.expectError) {
         const message = result.message ?? "";
         if (
@@ -282,6 +307,21 @@
       const bytes = new Uint8Array(result.output ?? new ArrayBuffer(0));
       const text = decoder.decode(bytes);
       const validPdf = decoder.decode(bytes.slice(0, 5)) === "%PDF-";
+      if (testCase.operation === "decrypt") {
+        if (result.type !== "decrypted" || !validPdf || text.includes("/Encrypt")) {
+          failures.push(`${testCase.name}: invalid output`);
+        } else {
+          window.__fidelityOutputs.push({
+            bytes: Array.from(bytes),
+            encrypted: false,
+            expectedPages: testCase.expectedPages ?? 1,
+            image: false,
+            name: testCase.name,
+            structured: false,
+          });
+        }
+        continue;
+      }
       const sizeMatches = result.type === "result" && result.inputSize === inputSize;
       const outputSizeMatches =
         result.type === "result" && bytes.byteLength === (result.reduced ? result.candidateSize : inputSize);

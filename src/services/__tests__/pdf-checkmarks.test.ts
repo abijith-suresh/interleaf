@@ -66,36 +66,11 @@ describe("manual checkmark geometry and native PDF strokes", () => {
     ])
       expect(() => measureAddedCheckmark(mark, g)).toThrow();
   });
-  it.each([false, true])(
-    "rejects overflowing marks before writing output operators, raster=%s",
-    async (raster) => {
-      const document = await PDFDocument.create();
-      const page = document.addPage([400, 480]);
-      await expect(
-        drawPageAdditions(
-          document,
-          page,
-          {
-            id: "page",
-            sourceFile: new File(["source"], "source.pdf"),
-            sourcePageNumber: 1,
-            rotation: 0,
-            markedForDeletion: false,
-            addedCheckmarks: [mark, { ...mark, id: "overflow", x: 179, y: 209 }],
-          },
-          geometry(2),
-          raster
-        )
-      ).rejects.toThrow(/beyond/);
-      expect(page.node.Contents()).toBeUndefined();
-    }
-  );
-
-  it("reopens font-free strokes in raw and encrypted-raster coordinate mappings", async () => {
+  it("rejects overflowing marks before writing output operators", async () => {
     const document = await PDFDocument.create();
-    for (const raster of [false, true]) {
-      const page = document.addPage([400, 480]);
-      await drawPageAdditions(
+    const page = document.addPage([400, 480]);
+    await expect(
+      drawPageAdditions(
         document,
         page,
         {
@@ -104,14 +79,32 @@ describe("manual checkmark geometry and native PDF strokes", () => {
           sourcePageNumber: 1,
           rotation: 0,
           markedForDeletion: false,
-          addedCheckmarks: [mark],
+          addedCheckmarks: [mark, { ...mark, id: "overflow", x: 179, y: 209 }],
         },
-        geometry(2),
-        raster
-      );
-    }
+        geometry(2)
+      )
+    ).rejects.toThrow(/beyond/);
+    expect(page.node.Contents()).toBeUndefined();
+  });
+
+  it("reopens font-free strokes in raw page coordinates", async () => {
+    const document = await PDFDocument.create();
+    const page = document.addPage([400, 480]);
+    await drawPageAdditions(
+      document,
+      page,
+      {
+        id: "page",
+        sourceFile: new File(["source"], "source.pdf"),
+        sourcePageNumber: 1,
+        rotation: 0,
+        markedForDeletion: false,
+        addedCheckmarks: [mark],
+      },
+      geometry(2)
+    );
     const reopened = await PDFDocument.load(await document.save());
-    for (const [index, page] of reopened.getPages().entries()) {
+    for (const page of reopened.getPages()) {
       expect(page.node.Resources()?.lookup(PDFName.of("Font"), PDFDict).keys()).toEqual([]);
       expect(page.node.Annots()?.size() ?? 0).toBe(0);
       const contents = page.node.Contents();
@@ -121,8 +114,8 @@ describe("manual checkmark geometry and native PDF strokes", () => {
       expect(operators.match(/\nS\n/g)).toHaveLength(2);
       expect(operators.match(/1 J/g)).toHaveLength(2);
       expect(operators).not.toMatch(/\b(?:Tj|Tf|Do)\b/);
-      expect(operators).toContain(index === 0 ? "71.2 85 m" : "182.4 230 m");
-      expect(operators).toContain(index === 0 ? "1 w" : "2 w");
+      expect(operators).toContain("71.2 85 m");
+      expect(operators).toContain("1 w");
     }
   });
 });
