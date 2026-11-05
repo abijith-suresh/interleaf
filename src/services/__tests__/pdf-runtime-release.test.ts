@@ -12,11 +12,7 @@ const pdfjs = vi.hoisted(() => ({
 vi.mock("pdfjs-dist", () => ({
   GlobalWorkerOptions: { workerSrc: "" },
   getDocument: () => ({
-    promise: Promise.resolve({
-      numPages: 1,
-      cleanup: pdfjs.cleanup,
-      getMetadata: async () => ({ info: {} }),
-    }),
+    promise: Promise.resolve({ numPages: 1, cleanup: pdfjs.cleanup }),
     destroy: pdfjs.destroy,
   }),
 }));
@@ -56,19 +52,18 @@ it("a captured release uses the current real operations cache on every execution
     // Each export reads one private copy even when the source is cached.
     expect(read).toHaveBeenCalledTimes(cachedReads + 1);
 
-    // After a release, an export also reloads PDF.js to check for encryption.
     await runtime.runPromise(release);
     await runtime.runPromise(build);
-    expect(read).toHaveBeenCalledTimes(cachedReads + 4);
+    expect(read).toHaveBeenCalledTimes(cachedReads + 3);
 
     await runtime.runPromise(release);
     await runtime.runPromise(build);
-    expect(read).toHaveBeenCalledTimes(cachedReads + 7);
+    expect(read).toHaveBeenCalledTimes(cachedReads + 5);
     expect(pdfjs.operationsImported).toHaveBeenCalledTimes(1);
 
     await runtime.runPromise(PDFProcessing.use((service) => service.clearCache));
     await runtime.runPromise(build);
-    expect(read).toHaveBeenCalledTimes(cachedReads + 9);
+    expect(read).toHaveBeenCalledTimes(cachedReads + 7);
   } finally {
     await runtime.dispose();
   }
@@ -94,8 +89,7 @@ it("evicts the real operations cache even when PDF.js cleanup fails", async () =
     expect(pdfjs.destroy).toHaveBeenCalledTimes(1);
     expect(await runtime.runPromise(PDFProcessing.use((service) => service.getPageCount))).toBe(0);
     await runtime.runPromise(build);
-    // PDF.js reload for the encryption check, cached source, and private copy.
-    expect(read).toHaveBeenCalledTimes(cachedReads + 3);
+    expect(read).toHaveBeenCalledTimes(cachedReads + 2);
   } finally {
     await runtime.dispose();
   }

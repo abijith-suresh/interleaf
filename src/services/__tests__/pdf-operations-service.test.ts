@@ -412,7 +412,8 @@ describe("PDFOperationsService", () => {
       expect(pageOperators(output.getPage(1))).toContain("(Potato 2)");
       expect(pageOperators(output.getPage(2))).toContain("(Potato 0)");
       expect(output.getPage(2).getRotation().angle).toBe(180);
-      expect(getExportSource).toHaveBeenCalledTimes(2);
+      // Unencrypted sources never ask for a decrypted copy.
+      expect(getExportSource).toHaveBeenCalledExactlyOnceWith(encrypted);
     });
 
     it("rejects an encrypted source without a decrypted export source", async () => {
@@ -420,7 +421,11 @@ describe("PDFOperationsService", () => {
 
       await expect(
         Effect.runPromise(service.buildPDF([createPageState(file, 1)]))
-      ).rejects.toMatchObject({ _tag: "PDFProcessingError", operation: "load-source" });
+      ).rejects.toMatchObject({
+        _tag: "PDFProcessingError",
+        operation: "load-source",
+        message: "Protected PDFs cannot be prepared for export.",
+      });
     });
 
     it("rejects embedded field answers for a decrypted source", async () => {

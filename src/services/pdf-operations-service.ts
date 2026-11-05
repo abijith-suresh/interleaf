@@ -118,13 +118,29 @@ export class PDFOperationsService {
     this.store = makeDocumentStore<ExportSource>({
       load: (key) =>
         Effect.gen({ self: this }, function* () {
-          const file = yield* this.pdfService.getExportSource?.(key.file) ??
-            Effect.succeed(key.file);
+          // ignoreEncryption is enough to see whether the trailer has /Encrypt.
+          // pdf-lib cannot decrypt object streams, so encrypted sources export
+          // from a copy that PDFService decrypts with qpdf.
+          const original = yield* Effect.tryPromise({
+            try: async () =>
+              PDFDocument.load(await key.file.arrayBuffer(), { ignoreEncryption: true }),
+            catch: (cause) => processingError("load-source", key.file, cause),
+          });
+          if (!original.isEncrypted) return { doc: original, file: key.file, decrypted: false };
+          if (!this.pdfService.getExportSource)
+            return yield* Effect.fail(
+              processingError(
+                "load-source",
+                key.file,
+                new Error("Protected PDFs cannot be prepared for export.")
+              )
+            );
+          const file = yield* this.pdfService.getExportSource(key.file);
           const doc = yield* Effect.tryPromise({
             try: async () => PDFDocument.load(await file.arrayBuffer()),
             catch: (cause) => processingError("load-source", key.file, cause),
           });
-          return { doc, file, decrypted: file !== key.file };
+          return { doc, file, decrypted: true };
         }),
       cleanup: () => Effect.void,
       releaseError: (file) =>

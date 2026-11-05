@@ -33,6 +33,7 @@ import {
 } from "./pdf-export-fixtures";
 import { inspectExport, retainedMetadata } from "./pdf-export-inspection";
 import { createPageState } from "./pdf-fixtures";
+import { readQpdfFixture } from "./qpdf-node-worker";
 
 const N = PDFName.of;
 function file(bytes: Uint8Array, name = "same.pdf") {
@@ -145,18 +146,18 @@ describe("PDF export ownership", () => {
     const cache: { doc: PDFDocument; objects: string[] }[] = [];
     const spy = vi.spyOn(PDFDocument, "load").mockImplementation(async (data, options) => {
       const doc = await originalLoad(data, options);
-      cache.push({
-        doc,
-        objects: doc.context.enumerateIndirectObjects().map(([, o]) => o.toString()),
-      });
+      if (options?.ignoreEncryption)
+        cache.push({
+          doc,
+          objects: doc.context.enumerateIndirectObjects().map(([, o]) => o.toString()),
+        });
       return doc;
     });
     const service = new PDFOperationsService({});
     try {
       await Effect.runPromise(service.buildPDF([createPageState(source, 1)]));
       await Effect.runPromise(service.buildPDF([createPageState(source, 2)]));
-      // One cached source, then one private document per export.
-      expect(cache).toHaveLength(3);
+      expect(cache).toHaveLength(1);
       expect(cache[0].doc.context.enumerateIndirectObjects().map(([, o]) => o.toString())).toEqual(
         cache[0].objects
       );
@@ -624,14 +625,15 @@ describe("source page indexing boundary", () => {
       const cached = await PDFDocument.load(bytes),
         objects = cached.context.enumerateIndirectObjects().map(([, o]) => o.toString());
       const load = PDFDocument.load.bind(PDFDocument);
-      let served = false;
-      // The first load of these bytes is the cached source; later loads are private.
-      const loadSpy = vi.spyOn(PDFDocument, "load").mockImplementation((data, options) => {
-        if (served || !(data instanceof ArrayBuffer) || data.byteLength !== bytes.byteLength)
-          return load(data, options);
-        served = true;
-        return Promise.resolve(cached);
-      });
+      const loadSpy = vi
+        .spyOn(PDFDocument, "load")
+        .mockImplementation((data, options) =>
+          data instanceof ArrayBuffer &&
+          data.byteLength === bytes.byteLength &&
+          options?.ignoreEncryption
+            ? Promise.resolve(cached)
+            : load(data, options)
+        );
       const copy = vi.spyOn(PDFDocument.prototype, "copyPages");
       const service = new PDFOperationsService({});
       try {
@@ -660,7 +662,7 @@ describe("source page indexing boundary", () => {
     }
   );
   it("rejects an inconsistent decrypted export source before indexed geometry", async () => {
-    const source = file(new Uint8Array([1]), "protected.pdf"),
+    const source = readQpdfFixture("encrypted-40-bit-r3"),
       decrypted = file(await exportPageIndexFixture(true), "protected.pdf");
     const getPageGeometry = vi.fn(),
       getPage = vi.spyOn(PDFDocument.prototype, "getPage"),
@@ -801,7 +803,7 @@ describe("source subtree Counts", () => {
       expect(doc.context.enumerateIndirectObjects().map(([, o]) => o.toString())).toEqual(objects);
     });
   it("rejects bad Count in a decrypted export source before rotation or geometry", async () => {
-    const source = file(new Uint8Array([1]), "protected.pdf"),
+    const source = readQpdfFixture("encrypted-40-bit-r3"),
       decrypted = file(await exportPageCountFixture(true, false), "protected.pdf");
     const getPageGeometry = vi.fn(),
       indexed = vi.spyOn(PDFDocument.prototype, "getPage"),
