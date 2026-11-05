@@ -118,17 +118,19 @@ function entryInactiveFiles(entry: PageOrganizationEntry, active: ReadonlySet<Fi
 //
 // `newest` is the change the user just made, redid or undid: the entry that now
 // sits next to the present (undo.at(-1) after recording or redoing, redo.at(-1)
-// after undoing). It is never evicted, even when it alone exceeds the size limit,
-// so redo right after undo and undo right after a change keep working. It
-// defaults to undo.at(-1), else redo.at(-1).
+// after undoing). It is matched by identity, never evicted, and may use more than
+// the size limit by itself, so redo right after undo and undo right after a change
+// keep working. It defaults to undo.at(-1), else redo.at(-1).
 //
-// Count limit: evict the farthest past first, then the farthest future.
+// Count limit: evict the farthest past first, then the farthest future, never
+// `newest`.
 //
 // Size limit: evicting an entry that references no inactive file frees nothing,
 // so choose how many entries to drop from the far past (k) and far future (m)
-// together. Among the windows that contain `newest` and fit the limit, keep the
+// together. Among the windows that contain `newest` and fit the budget, keep the
 // one losing the fewest entries; on a tie, drop the future instead of the past so
-// undo is preserved. When no window fits, only `newest` is kept.
+// undo is preserved. The budget is the size limit, or the inactive bytes of
+// `newest` itself when those alone exceed it, so only that one change may go over.
 export function trimOrganizationHistory(
   history: PageOrganizationHistory,
   activePages: readonly PageState[],
@@ -152,6 +154,9 @@ export function trimOrganizationHistory(
   const active = new Set(activePages.map((page) => page.sourceFile));
   const undoFiles = undo.map((entry) => entryInactiveFiles(entry, active));
   const redoFiles = redo.map((entry) => entryInactiveFiles(entry, active));
+  let newestSize = 0;
+  if (newest) for (const file of entryInactiveFiles(newest, active)) newestSize += file.size;
+  const budget = Math.max(INACTIVE_SOURCE_SIZE_LIMIT, newestSize);
   let best: { k: number; m: number } | null = null;
   for (let k = 0; k <= maxDropPast; k++) {
     for (let m = 0; m <= maxDropFuture; m++) {
@@ -162,10 +167,12 @@ export function trimOrganizationHistory(
       for (const files of redoFiles.slice(m)) for (const file of files) kept.add(file);
       let size = 0;
       for (const file of kept) size += file.size;
-      if (size <= INACTIVE_SOURCE_SIZE_LIMIT) best = { k, m };
+      if (size <= budget) best = { k, m };
     }
   }
   if (best) return { undo: undo.slice(best.k), redo: redo.slice(best.m) };
+  // Defensive: with `newest` in the history the window holding only it always
+  // fits the budget. This is reached only when `newest` is missing from it.
   if (inUndo >= 0) return { undo: [undo[inUndo]], redo: [] };
   if (inRedo >= 0) return { undo: [], redo: [redo[inRedo]] };
   return undo.length > 0 ? { undo: undo.slice(-1), redo: [] } : { undo: [], redo: redo.slice(-1) };

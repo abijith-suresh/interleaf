@@ -278,17 +278,44 @@ describe("source history retention", () => {
     expect(inactiveSourceSize(history, stateA.pages)).toBe(30 * 1024 * 1024);
   });
 
-  it("keeps the just-undone oversized addition redoable, even with earlier steps", () => {
+  it("keeps the just-undone oversized addition redoable and earlier unrelated steps undoable", () => {
     const small = file(1024);
     const stateA = snapshotOf(small);
     const stateAH = snapshotOf(small, file(60 * 1024 * 1024));
     const rotation = { label: "rotation", before: stateA, after: stateA };
     const addHuge = { label: "add huge", before: stateA, after: stateAH };
     const history = undoStep({ undo: [rotation, addHuge], redo: [] });
-    // The newest change alone exceeds the limit but is the next redo step.
-    expect(history.undo).toEqual([]);
+    // Only the newest change's own bytes may exceed the limit; the rotation
+    // references no inactive file, so it stays.
+    expect(history.undo.map((entry) => entry.label)).toEqual(["rotation"]);
     expect(history.redo.map((entry) => entry.label)).toEqual(["add huge"]);
-    expect(redoStep(history).undo.map((entry) => entry.label)).toEqual(["add huge"]);
+    expect(redoStep(history).undo.map((entry) => entry.label)).toEqual(["rotation", "add huge"]);
+  });
+
+  it("never evicts the newest entry in the count loop", () => {
+    const before = snapshot(file(1));
+    const entries = Array.from({ length: 33 }, (_, index) => ({
+      label: String(index),
+      before,
+      after: before,
+    }));
+    // Newest is the farthest-past entry: only the far future may go.
+    const pastNewest = trimOrganizationHistory(
+      { undo: entries.slice(0, 1), redo: entries.slice(1).reverse() },
+      before.pages,
+      entries[0]
+    );
+    expect(pastNewest.undo).toEqual([entries[0]]);
+    expect(pastNewest.redo).toHaveLength(PAGE_HISTORY_LIMIT - 1);
+    // Newest is the farthest-future entry: the whole past goes first.
+    const futureNewest = trimOrganizationHistory(
+      { undo: entries.slice(0, 1), redo: entries.slice(1).reverse() },
+      before.pages,
+      entries[1]
+    );
+    expect(futureNewest.undo).toEqual([]);
+    expect(futureNewest.redo.at(-1)).toBe(entries[1]);
+    expect(futureNewest.redo).toHaveLength(PAGE_HISTORY_LIMIT);
   });
 
   it("keeps the just-undone addition when a removal holds the other large file", () => {
