@@ -8,10 +8,10 @@ const sections = [
     id: "no-data-collection",
     num: "01",
     title: "No data collection",
-    body: "Interleaf does not collect, store, or transmit any personal data. We do not use analytics, tracking pixels, or any form of user monitoring.",
+    body: "Interleaf does not collect personal data, and it does not transmit your files. We do not use analytics, tracking pixels, or any form of user monitoring.",
   },
   {
-    id: "client-side-processing",
+    id: "local-processing",
     num: "02",
     title: "Local processing",
     body: "All PDF operations run entirely in your browser using JavaScript. Your files are never uploaded to any server. Documents are processed in memory and discarded when you close the tab.",
@@ -20,17 +20,23 @@ const sections = [
     id: "no-cookies",
     num: "03",
     title: "No cookies",
-    body: "Interleaf does not use cookies, local storage, or any other client-side storage mechanism to track users or store personal information.",
+    body: "Interleaf does not set cookies. It does not use local storage or other browser storage to track users or store personal information.",
   },
   {
     id: "no-third-party-services",
     num: "04",
     title: "No third-party services",
-    body: "We do not integrate with any third-party analytics, advertising, or tracking services. Every resource the site loads, including scripts, styles, and fonts, is served from this site itself. No requests are made to third-party domains.",
+    body: "We do not integrate with any third-party analytics, advertising, or tracking services. Every resource the site loads, including scripts, styles, and fonts, is served from this site itself. Interleaf does not request resources from third-party domains.",
+  },
+  {
+    id: "hosting",
+    num: "05",
+    title: "Hosting",
+    body: "Vercel hosts this site. As with any website, the host receives standard request metadata when a page loads, such as your IP address and browser user agent, and may keep server logs. Interleaf does not use this data. It never includes your files.",
   },
   {
     id: "open-source",
-    num: "05",
+    num: "06",
     title: "Open source",
     body: "Interleaf is fully open source. You can inspect the complete source code on ",
     link: {
@@ -41,7 +47,7 @@ const sections = [
   },
   {
     id: "contact",
-    num: "06",
+    num: "07",
     title: "Contact",
     body: "If you have questions about this privacy policy, you can open an issue on our ",
     link: {
@@ -55,7 +61,7 @@ const sections = [
 
 <LegalPage
   title="Privacy policy — Interleaf"
-  description="How Interleaf handles your files and browsing data. No uploads, tracking, analytics, or cookies."
+  description="How Interleaf handles your files and browsing data, and what the host receives. No uploads, analytics, or cookies."
   heading="Privacy policy"
   headingId="privacy-title"
   intro="What Interleaf collects and how it handles files in your browser."
