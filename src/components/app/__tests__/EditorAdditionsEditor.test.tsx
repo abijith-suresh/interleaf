@@ -3,7 +3,7 @@ import { Effect } from "effect";
 import { createSignal } from "solid-js";
 import { afterEach, expect, it, vi } from "vitest";
 import { makePDFRuntime } from "../../../services/pdf-runtime";
-import type { PageState } from "../../../types/interfaces";
+import type { AddedText, PageState } from "../../../types/interfaces";
 
 const validate = vi.hoisted(() => vi.fn());
 vi.mock("../../../services/pdf-text", () => ({ validateAddedText: validate }));
@@ -180,6 +180,73 @@ it.each(["text", "checkmark"] as const)("busy Save cannot commit a new %s draft"
     await waitFor(() => expect(committed).toHaveBeenCalledTimes(1));
     expect(committed.mock.calls[0][1]).toHaveLength(1);
     expect(committed.mock.calls[0][2]).toBe(`Add ${kind}`);
+  } finally {
+    view.unmount();
+    await runtime.dispose();
+    for (const element of [toolbar, header, stage]) element.remove();
+  }
+});
+
+it("reports an open draft until it is saved, canceled, or unmounted", async () => {
+  vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
+    new DOMRect(0, 0, 400, 600),
+  ] as unknown as DOMRectList);
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 400, 600)
+  );
+  validate.mockReset().mockResolvedValue(undefined);
+  const runtime = makePDFRuntime();
+  const toolbar = document.createElement("div"),
+    header = document.createElement("div"),
+    stage = document.createElement("section");
+  document.body.append(toolbar, header, stage);
+  const page: PageState = {
+    id: "page",
+    sourceFile: new File(["pdf"], "source.pdf"),
+    sourcePageNumber: 1,
+    rotation: 0,
+    markedForDeletion: false,
+    addedText: [{ id: "saved", text: "Saved", x: 100, y: 100, fontSize: 16, rotation: 0 }],
+  };
+  const [current, setCurrent] = createSignal(page);
+  const reports: boolean[] = [];
+  const onChange = vi.fn((_: string, texts: readonly AddedText[]) =>
+    setCurrent({ ...current(), addedText: [...texts] })
+  );
+  const view = render(() => (
+    <EditorAdditionsEditor
+      page={current()}
+      runtime={runtime}
+      toolbar={toolbar}
+      header={header}
+      stage={stage}
+      ready
+      onChange={onChange}
+      onEditing={() => {}}
+      onDraftChange={(open) => reports.push(open)}
+      registerTap={() => {}}
+      registerGesture={() => {}}
+    />
+  ));
+  const open = () => reports.at(-1);
+  try {
+    expect(open()).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Select additions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit added text: Saved" }));
+    expect(open()).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(open()).toBe(false);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit added text: Saved" }));
+    fireEvent.input(screen.getByLabelText("Added text", { exact: true }), {
+      target: { value: "Changed" },
+    });
+    fireEvent.submit(screen.getByLabelText("Added text", { exact: true }).closest("form")!);
+    await waitFor(() => expect(onChange).toHaveBeenCalledOnce());
+    expect(open()).toBe(false);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit added text: Changed" }));
+    expect(open()).toBe(true);
+    view.unmount();
+    expect(open()).toBe(false);
   } finally {
     view.unmount();
     await runtime.dispose();
