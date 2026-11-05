@@ -12,6 +12,26 @@ import { PDFOperationsService } from "../../../src/services/pdf-operations-servi
 import { PDFService } from "../../../src/services/pdf-service";
 
 GlobalWorkerOptions.workerSrc = worker;
+/**
+ * Chromium rasterizes a canvas differently depending on where its recorded draw
+ * ops are flushed: thin widget borders at small scales shift by a few intensity
+ * levels when a flush lands between two `transform` calls. PDF.js ends an
+ * operator-list slice, and yields to the browser, once `Date.now()` passes a
+ * 15 ms budget, so a render that is slow (cold, or on a loaded CI runner) is
+ * cut at different ops and hashes differently from the same bytes rendered
+ * warm. Pinning the clock for one render keeps it a single slice, so the app
+ * render and the independent reference compare on schedule-free output.
+ */
+async function withoutRenderSlices<T>(run: () => Promise<T>): Promise<T> {
+  const now = Date.now,
+    frozen = now();
+  Date.now = () => frozen;
+  try {
+    return await run();
+  } finally {
+    Date.now = now;
+  }
+}
 function hash(data: Uint8ClampedArray) {
   let hash = 2166136261;
   for (const value of data) hash = Math.imul(hash ^ value, 16777619);
@@ -96,7 +116,9 @@ export async function inspectFilledPDF(bytes: number[], scale = 1, evidence?: Pi
       canvas.width = viewport.width;
       canvas.height = viewport.height;
       const context = canvas.getContext("2d", { willReadFrequently: true })!;
-      await page.render({ canvas, canvasContext: context, viewport }).promise;
+      await withoutRenderSlices(
+        () => page.render({ canvas, canvasContext: context, viewport }).promise
+      );
       const annotations = [];
       for (const annotation of await page.getAnnotations()) {
         const a = viewport.convertToViewportPoint(annotation.rect[0], annotation.rect[1]);
@@ -222,7 +244,9 @@ export async function checkFilledFields(
     }
     for (const scale of [0.2, 1]) {
       await captureDerived(scale, () =>
-        Effect.runPromise(service.renderPageState(pages[0], canvas, scale, rotation))
+        withoutRenderSlices(() =>
+          Effect.runPromise(service.renderPageState(pages[0], canvas, scale, rotation))
+        )
       );
       const image = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height),
         evidence: PixelEvidence = {};
@@ -236,7 +260,7 @@ export async function checkFilledFields(
     }
     canvas.width = canvas.height = 0;
     const archive = await captureDerived(2, () =>
-      Effect.runPromise(images.exportImages([pages[0]]))
+      withoutRenderSlices(() => Effect.runPromise(images.exportImages([pages[0]])))
     );
     const png = Object.values(unzipSync(new Uint8Array(await archive.data.arrayBuffer())))[0];
     const bitmap = await createImageBitmap(new Blob([new Uint8Array(png)], { type: "image/png" }));
