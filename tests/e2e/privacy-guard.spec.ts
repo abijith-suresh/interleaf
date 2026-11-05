@@ -3,7 +3,20 @@ import { expect, type Request, test } from "@playwright/test";
 import { finishPrivacy, observePrivacy } from "./fixtures/privacy";
 
 // These deliberate violations never run in the app workflow contexts. All payloads are synthetic.
-test.use({ serviceWorkers: "block" });
+// The guard is checked on its own: bypass the production CSP, which would block these requests
+// (and blob: workers) before the guard sees them. WebKit's bypassCSP does not cover workers, so
+// there the page navigation is served without the CSP header. Other requests reach the guard.
+test.use({ serviceWorkers: "block", bypassCSP: true });
+test.beforeEach(async ({ page, browserName }) => {
+  if (browserName !== "webkit") return;
+  await page.route("**/app", async (route) => {
+    if (!route.request().isNavigationRequest()) return route.fallback();
+    const response = await route.fetch();
+    const headers = response.headers();
+    delete headers["content-security-policy"];
+    await route.fulfill({ response, headers });
+  });
+});
 
 for (const control of [
   { name: "same-origin POST", method: "POST", path: "/app" },
