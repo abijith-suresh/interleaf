@@ -166,15 +166,30 @@ describe("PDF export ownership", () => {
       await Effect.runPromise(service.dispose());
     }
   });
-  it.each([[2], [1, 2], [2, 1], [1, 2, 1, 2]])(
-    "rejects positional button Opt pruning for layout %j",
-    async (...layout) => {
+  it("rejects positional button Opt pruning", async () => {
+    const source = file(await exportCrossPageButtonFixture());
+    await expect(build([createPageState(source, 2)])).rejects.toMatchObject({
+      operation: "reconcile-export",
+      file: source,
+      message: "This PDF has linked choice fields that cannot be preserved in this export.",
+    });
+  });
+  // Every widget is retained, so Kids and Opt stay positionally aligned.
+  it.each([[[1, 2]], [[2, 1]], [[1, 2, 1, 2]]])(
+    "keeps a cross-page button group whole for layout %j",
+    async (layout) => {
       const source = file(await exportCrossPageButtonFixture());
-      await expect(build(layout.map((n) => createPageState(source, n)))).rejects.toMatchObject({
-        operation: "reconcile-export",
-        file: source,
-        message: "This PDF has linked choice fields that cannot be preserved in this export.",
-      });
+      const saved = await PDFDocument.load(
+        await build(layout.map((n) => createPageState(source, n)))
+      );
+      for (const page of saved.getPages()) {
+        const field = page.node
+          .lookup(N("Annots"), PDFArray)
+          .lookup(0, PDFDict)
+          .lookup(N("Parent"), PDFDict);
+        expect(field.lookup(N("Kids"), PDFArray).size()).toBe(2);
+        expect(field.lookup(N("Opt"), PDFArray).size()).toBe(2);
+      }
     }
   );
   it("handles merged widget/terminal dictionaries without inventing field trees", async () => {
@@ -234,7 +249,7 @@ describe("PDF export ownership", () => {
       privateDoc = await PDFDocument.load(await f.arrayBuffer()),
       out = await PDFDocument.create();
     const helper = new PDFExportCopy(out, [{ file: f, doc: privateDoc }]);
-    out.addPage(await helper.copy(f, 1));
+    out.addPage((await helper.copyPages([{ file: f, pageNumber: 1 }]))[0]);
     await helper.finish();
     const result = await inspectExport(await out.save());
     expect(result.serialized).toContain("/InterleafExportPage0 (Original custom data)");
@@ -1085,8 +1100,8 @@ describe("missing references are null", () => {
     expect(annots.lookup(0, PDFDict).lookup(N("Subtype"))).toBe(N("Text"));
   });
 
-  // Each copy owns its field tree, so every exported widget keeps one parent
-  // whose Kids are that widget plus the missing (null) kid.
+  // Retained widgets share one copied field whose Kids keep the missing (null)
+  // kid in place.
   it.each([[[1]], [[1, 2]]])(
     "keeps a missing field kid in place when exporting pages %j",
     async (pages) => {
@@ -1109,8 +1124,9 @@ describe("missing references are null", () => {
         .lookup(0, PDFDict)
         .lookup(N("Parent"), PDFDict)
         .lookup(N("Kids"), PDFArray);
-      expect(kids.size()).toBe(2);
-      expect(saved.context.lookup(kids.get(1))).toBeUndefined();
+      expect(kids.size()).toBe(pages.length + 1);
+      expect(saved.context.lookup(kids.get(pages.length))).toBeUndefined();
+      expect(kids.asArray().filter((kid) => saved.context.lookup(kid))).toHaveLength(pages.length);
     }
   );
 
@@ -1162,10 +1178,64 @@ describe("missing references are null", () => {
     const out = await PDFDocument.create(),
       f = file(new Uint8Array()),
       copy = new PDFExportCopy(out, [{ file: f, doc }]);
-    out.addPage(await copy.copy(f, 1));
+    out.addPage((await copy.copyPages([{ file: f, pageNumber: 1 }]))[0]);
     await copy.finish();
     expect(out.getPage(0).node.lookup(N("Big"), PDFArray).size()).toBe(200_000);
   }, 30_000);
+
+  it("reads a reachable dictionary with a missing /Type target as not a Page", async () => {
+    const doc = await PDFDocument.create();
+    doc.addPage().node.set(N("Custom"), doc.context.obj({ Type: missing(doc, 100), Kept: 1 }));
+    const saved = await PDFDocument.load(await build([createPageState(file(await doc.save()), 1)]));
+    expect(saved.getPage(0).node.lookup(N("Custom"), PDFDict).get(N("Kept"))).toEqual(
+      PDFNumber.of(1)
+    );
+  });
+
+  it("reads a missing destination operand as null", async () => {
+    const doc = await PDFDocument.create(),
+      p1 = doc.addPage(),
+      p2 = doc.addPage();
+    p1.node.addAnnot(
+      doc.context.register(
+        doc.context.obj({
+          Subtype: "Link",
+          Rect: [0, 0, 10, 10],
+          Dest: [p2.ref, "XYZ", missing(doc, 100), 0, 0],
+        })
+      )
+    );
+    const source = file(await doc.save());
+    const saved = await PDFDocument.load(
+      await build([createPageState(source, 1), createPageState(source, 2)])
+    );
+    const dest = saved
+      .getPage(0)
+      .node.lookup(N("Annots"), PDFArray)
+      .lookup(0, PDFDict)
+      .lookup(N("Dest"), PDFArray);
+    expect(dest.get(0)).toBe(saved.getPage(1).ref);
+    expect(dest.get(2)).toBe(PDFNull);
+  });
+
+  it("drops /Annots entries that point to a null object", async () => {
+    const doc = await PDFDocument.create(),
+      page = doc.addPage(),
+      empty = doc.context.nextRef();
+    doc.context.assign(empty, PDFNull);
+    page.node.set(
+      N("Annots"),
+      doc.context.obj([
+        empty,
+        PDFNull,
+        doc.context.register(doc.context.obj({ Subtype: "Text", Rect: [0, 0, 10, 10] })),
+      ])
+    );
+    const saved = await PDFDocument.load(await build([createPageState(file(await doc.save()), 1)]));
+    const annots = saved.getPage(0).node.lookup(N("Annots"), PDFArray);
+    expect(annots.size()).toBe(1);
+    expect(annots.lookup(0, PDFDict).lookup(N("Subtype"))).toBe(N("Text"));
+  });
 });
 
 describe("opaque invalid objects", () => {
@@ -1178,7 +1248,7 @@ describe("opaque invalid objects", () => {
     const out = await PDFDocument.create(),
       f = file(new Uint8Array()),
       copy = new PDFExportCopy(out, [{ file: f, doc }]);
-    out.addPage(await copy.copy(f, 1));
+    out.addPage((await copy.copyPages([{ file: f, pageNumber: 1 }]))[0]);
     await copy.finish();
     expect(out.getPageCount()).toBe(1);
   });
@@ -1189,7 +1259,147 @@ describe("opaque invalid objects", () => {
     const out = await PDFDocument.create(),
       f = file(new Uint8Array());
     await expect(
-      (async () => new PDFExportCopy(out, [{ file: f, doc }]).copy(f, 1))()
+      (async () =>
+        new PDFExportCopy(out, [{ file: f, doc }]).copyPages([{ file: f, pageNumber: 1 }]))()
     ).rejects.toThrow("Opaque invalid PDF object cannot be reconciled");
+  });
+});
+
+describe("batched export copies", () => {
+  const count = (doc: PDFDocument) => doc.context.enumerateIndirectObjects().length;
+  const all = (source: File, n: number) =>
+    Array.from({ length: n }, (_, index) => createPageState(source, index + 1));
+
+  it("copies a resource shared by every page once", async () => {
+    const doc = await PDFDocument.create(),
+      shared = doc.context.register(
+        doc.context.flateStream(
+          Uint8Array.from({ length: 50_000 }, (_, i) => (i * 2654435761) >>> 24)
+        )
+      );
+    for (let i = 0; i < 50; i++) {
+      const page = doc.addPage();
+      page.node.setXObject(N("Shared"), shared);
+      page.drawText(`page ${i}`);
+    }
+    const bytes = await doc.save(),
+      out = await build(all(file(bytes), 50));
+    expect(out.length).toBeLessThan(bytes.length * 1.2);
+    const saved = await PDFDocument.load(out);
+    expect(count(saved)).toBeLessThanOrEqual(count(await PDFDocument.load(bytes)) + 5);
+  });
+
+  it("keeps table-of-contents links from copying linked pages again", async () => {
+    const doc = await PDFDocument.create(),
+      pages = Array.from({ length: 60 }, (_, i) => {
+        const page = doc.addPage();
+        page.drawText(`content ${i}`);
+        return page;
+      });
+    for (const [i, page] of pages.entries())
+      for (const target of i === 0 ? pages : [pages[0]])
+        page.node.addAnnot(
+          doc.context.register(
+            doc.context.obj({ Subtype: "Link", Rect: [0, 0, 10, 10], Dest: [target.ref, "Fit"] })
+          )
+        );
+    const source = await PDFDocument.load(await doc.save()),
+      out = await PDFDocument.create(),
+      f = file(new Uint8Array()),
+      copy = new PDFExportCopy(out, [{ file: f, doc: source }]);
+    for (const page of await copy.copyPages(
+      pages.map((_, index) => ({ file: f, pageNumber: index + 1 }))
+    ))
+      out.addPage(page);
+    // Copying page by page allocated every linked page again for each page.
+    expect(out.context.largestObjectNumber).toBeLessThan(count(source) * 2);
+    await copy.finish();
+    expect(count(out)).toBeLessThanOrEqual(count(source) + 5);
+    const toc = out.getPage(0).node.lookup(N("Annots"), PDFArray);
+    for (let i = 0; i < 60; i++)
+      expect(toc.lookup(i, PDFDict).lookup(N("Dest"), PDFArray).get(0)).toBe(out.getPage(i).ref);
+  });
+
+  it("copies one linked text field across pages once", async () => {
+    const doc = await PDFDocument.create(),
+      field = doc.getForm().createTextField("name");
+    for (let i = 0; i < 50; i++)
+      field.addToPage(doc.addPage(), { x: 10, y: 10, width: 100, height: 20 });
+    const bytes = await doc.save(),
+      saved = await PDFDocument.load(await build(all(file(bytes), 50)));
+    expect(count(saved)).toBeLessThanOrEqual(count(await PDFDocument.load(bytes)) + 5);
+    const parents = new Set(
+      saved
+        .getPages()
+        .map((page) =>
+          page.node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict).lookup(N("Parent"), PDFDict)
+        )
+    );
+    expect(parents.size).toBe(1);
+    expect([...parents][0].lookup(N("Kids"), PDFArray).size()).toBe(50);
+  });
+
+  it("gives a duplicated page its own widgets without recopying other pages", async () => {
+    const doc = await PDFDocument.create(),
+      field = doc.getForm().createTextField("name");
+    for (let i = 0; i < 20; i++) {
+      const page = doc.addPage();
+      page.drawText(`content ${i}`);
+      field.addToPage(page, { x: 10, y: 10, width: 100, height: 20 });
+    }
+    const bytes = await doc.save(),
+      source = file(bytes),
+      layout = [...all(source, 20), createPageState(source, 1)];
+    const saved = await PDFDocument.load(await build(layout));
+    // The duplicate's field tree is copied once more; its omitted siblings are pruned.
+    expect(count(saved)).toBeLessThanOrEqual(count(await PDFDocument.load(bytes)) + 10);
+    const widget = (index: number) =>
+      saved.getPage(index).node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict);
+    expect(widget(20)).not.toBe(widget(0));
+    expect(widget(20).get(N("P"))).toBe(saved.getPage(20).ref);
+    expect(widget(0).get(N("P"))).toBe(saved.getPage(0).ref);
+    expect(widget(20).lookup(N("Parent"), PDFDict)).not.toBe(
+      widget(0).lookup(N("Parent"), PDFDict)
+    );
+    expect(widget(20).lookup(N("Parent"), PDFDict).lookup(N("Kids"), PDFArray).size()).toBe(1);
+  });
+
+  it("copies pages that share an annotation independently", async () => {
+    const doc = await PDFDocument.create(),
+      note = doc.context.register(doc.context.obj({ Subtype: "Text", Rect: [0, 0, 10, 10] }));
+    for (let i = 0; i < 2; i++) doc.addPage().node.set(N("Annots"), doc.context.obj([note]));
+    const saved = await PDFDocument.load(await build(all(file(await doc.save()), 2)));
+    const annot = (index: number) =>
+      saved.getPage(index).node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict);
+    expect(annot(0)).not.toBe(annot(1));
+    expect(annot(0).get(N("P"))).toBe(saved.getPage(0).ref);
+    expect(annot(1).get(N("P"))).toBe(saved.getPage(1).ref);
+  });
+
+  it("keeps drawing on an editable page out of shared contents and resources", async () => {
+    const doc = await PDFDocument.create();
+    const resources = doc.context.register(doc.context.obj({ Font: {} }));
+    const contents = doc.context.register(
+      doc.context.obj([doc.context.register(doc.context.flateStream("0 0 m"))])
+    );
+    for (let i = 0; i < 2; i++) {
+      const page = doc.addPage();
+      page.node.set(N("Resources"), resources);
+      page.node.set(N("Contents"), contents);
+    }
+    const out = await PDFDocument.create(),
+      f = file(new Uint8Array()),
+      copy = new PDFExportCopy(out, [{ file: f, doc }]);
+    const [edited, plain] = await copy.copyPages([
+      { file: f, pageNumber: 1, editable: true },
+      { file: f, pageNumber: 2 },
+    ]);
+    for (const page of [edited, plain]) out.addPage(page);
+    edited.drawText("added");
+    await copy.finish();
+    expect(plain.node.Resources()?.lookup(N("Font"), PDFDict).keys()).toHaveLength(0);
+    expect(plain.node.Contents()).toBeInstanceOf(PDFArray);
+    expect((plain.node.Contents() as PDFArray).size()).toBe(1);
+    expect(edited.node.Resources()?.lookup(N("Font"), PDFDict).keys()).toHaveLength(1);
   });
 });
