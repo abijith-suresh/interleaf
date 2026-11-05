@@ -199,7 +199,8 @@ describe("EditorPageViewer", () => {
         1,
         expect.any(HTMLCanvasElement),
         expect.any(Number),
-        90
+        90,
+        undefined
       )
     );
   });
