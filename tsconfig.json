@@ -9,5 +9,5 @@
     "types": ["vitest/globals"]
   },
   "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist"]
+  "exclude": ["dist", "public/qpdf"]
 }
