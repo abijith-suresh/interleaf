@@ -238,10 +238,10 @@ export class PDFOperationsService {
                 break;
               case 5:
                 page.drawImage(image, {
-                  x,
-                  y,
-                  width: drawWidth,
-                  height: -drawHeight,
+                  x: x + drawHeight,
+                  y: y + drawWidth,
+                  width: -drawWidth,
+                  height: drawHeight,
                   rotate: degrees(90),
                 });
                 break;
@@ -256,10 +256,10 @@ export class PDFOperationsService {
                 break;
               case 7:
                 page.drawImage(image, {
-                  x: x + drawHeight,
-                  y: y + drawWidth,
-                  width: -drawWidth,
-                  height: drawHeight,
+                  x,
+                  y,
+                  width: drawWidth,
+                  height: -drawHeight,
                   rotate: degrees(90),
                 });
                 break;
