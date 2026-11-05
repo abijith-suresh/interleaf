@@ -20,7 +20,10 @@ import { processingError } from "./pdf-errors";
 
 const N = PDFName.of;
 // Walk native objects only. Identity sets bound cycles without interpreting PDF syntax.
-function objects(doc: PDFDocument, roots: PDFObject[]): Set<PDFObject> {
+// A reference to a missing object is null (ISO 32000-1 7.3.10), so it has no
+// children to reconcile. Opaque invalid objects may hide references to omitted
+// pages, so they are rejected unless the caller only needs parsed dictionaries.
+function objects(doc: PDFDocument, roots: PDFObject[], allowOpaque = false): Set<PDFObject> {
   const seen = new Set<PDFObject>();
   const stack = [...roots];
   while (stack.length) {
@@ -31,11 +34,10 @@ function objects(doc: PDFDocument, roots: PDFObject[]): Set<PDFObject> {
     if (o instanceof PDFRef) {
       const target = doc.context.lookup(o);
       if (target) stack.push(target);
-      else throw Error(`Missing PDF reference ${o}`);
-    } else if (o instanceof PDFDict) stack.push(...o.values());
-    else if (o instanceof PDFArray) stack.push(...o.asArray());
+    } else if (o instanceof PDFDict) for (const v of o.values()) stack.push(v);
+    else if (o instanceof PDFArray) for (const v of o.asArray()) stack.push(v);
     else if (o instanceof PDFStream) stack.push(o.dict);
-    else if (o instanceof PDFInvalidObject)
+    else if (o instanceof PDFInvalidObject && !allowOpaque)
       throw Error("Opaque invalid PDF object cannot be reconciled");
   }
   return seen;
@@ -142,7 +144,10 @@ export class PDFExportCopy {
       [
         ...objects(
           s.doc,
-          s.doc.context.enumerateIndirectObjects().map(([, o]) => o)
+          s.doc.context.enumerateIndirectObjects().map(([, o]) => o),
+          // Only parsed dictionaries can collide with the provenance key; any
+          // opaque object that reaches an output page is rejected by copy/finish.
+          true
         ),
       ].filter((o): o is PDFDict => o instanceof PDFDict)
     );
