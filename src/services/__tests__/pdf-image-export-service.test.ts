@@ -2,7 +2,8 @@ import { Deferred, Effect, Fiber } from "effect";
 import { unzipSync } from "fflate";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PDFNoPagesError } from "../../types/interfaces";
-import { PDFImageExportService } from "../pdf-image-export-service";
+import { IMAGE_EXPORT_MAX_PIXELS, PDFImageExportService } from "../pdf-image-export-service";
+import { clampScaleToPixelBudget } from "../render-scale";
 import { createPageState } from "./pdf-fixtures";
 
 const renderPage = vi.fn();
@@ -71,7 +72,8 @@ describe("PDFImageExportService", () => {
       1,
       expect.any(HTMLCanvasElement),
       2,
-      0
+      0,
+      IMAGE_EXPORT_MAX_PIXELS
     );
     expect(renderPage).toHaveBeenNthCalledWith(
       2,
@@ -79,8 +81,47 @@ describe("PDFImageExportService", () => {
       3,
       expect.any(HTMLCanvasElement),
       2,
-      180
+      180,
+      IMAGE_EXPORT_MAX_PIXELS
     );
+  });
+
+  it("renders oversized pages within the pixel budget and ordinary pages at scale 2", async () => {
+    const sourceFile = new File(["source"], "source.pdf", { type: "application/pdf" });
+    const sizes = new Map([
+      [1, { width: 2480, height: 3508 }],
+      [2, { width: 612, height: 792 }],
+    ]);
+    const canvasSizes: Array<[number, number]> = [];
+    const scales: number[] = [];
+    renderPage.mockImplementation(
+      (
+        _file: File,
+        pageNumber: number,
+        canvas: HTMLCanvasElement,
+        scale: number,
+        _rotation: number,
+        maxPixels: number
+      ) =>
+        Effect.sync(() => {
+          const size = sizes.get(pageNumber)!;
+          const fitted = clampScaleToPixelBudget(scale, size.width, size.height, maxPixels);
+          canvas.width = Math.floor(size.width * fitted);
+          canvas.height = Math.floor(size.height * fitted);
+          canvasSizes.push([canvas.width, canvas.height]);
+          scales.push(fitted);
+        })
+    );
+    const service = new PDFImageExportService({ getPageRotation, renderPage });
+
+    await Effect.runPromise(
+      service.exportImages([createPageState(sourceFile, 1), createPageState(sourceFile, 2)])
+    );
+
+    expect(canvasSizes[0][0] * canvasSizes[0][1]).toBeLessThanOrEqual(IMAGE_EXPORT_MAX_PIXELS);
+    expect(scales[0]).toBeLessThan(2);
+    expect(canvasSizes[1]).toEqual([1224, 1584]);
+    expect(scales[1]).toBe(2);
   });
 
   it("exports only selected active pages", async () => {

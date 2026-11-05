@@ -1,6 +1,10 @@
 import { Effect, Fiber } from "effect";
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
-import { THUMBNAIL_INTERSECTION_MARGIN, THUMBNAIL_SCALE } from "../../constants";
+import {
+  THUMBNAIL_INTERSECTION_MARGIN,
+  THUMBNAIL_MAX_PIXELS,
+  THUMBNAIL_SCALE,
+} from "../../constants";
 import { hasPageAdditions } from "../../controllers/editor-additions-state";
 import { copyOrganizationPages } from "../../controllers/editor-history";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
@@ -105,7 +109,8 @@ export default function EditorPageCanvas(props: Props) {
                 canvas,
                 THUMBNAIL_SCALE,
                 sourceRotation,
-                4_000_000
+                4_000_000,
+                THUMBNAIL_MAX_PIXELS
               );
             } else
               yield* service.renderPage(
@@ -113,7 +118,8 @@ export default function EditorPageCanvas(props: Props) {
                 props.page.sourcePageNumber,
                 canvas,
                 THUMBNAIL_SCALE,
-                sourceRotation
+                sourceRotation,
+                THUMBNAIL_MAX_PIXELS
               );
           })
         )

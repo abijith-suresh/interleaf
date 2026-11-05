@@ -42,7 +42,12 @@ function objects(doc: PDFDocument, roots: PDFObject[], allowOpaque = false): Set
   }
   return seen;
 }
-function resolvedValue(dict: PDFDict, key: PDFName, required = false): PDFObject | undefined {
+function resolvedValue(
+  dict: PDFDict,
+  key: PDFName,
+  required = false,
+  missingIsNull = false
+): PDFObject | undefined {
   let value = dict.get(key, true);
   if (value === undefined && !required) return undefined;
   const seen = new Set<PDFRef>();
@@ -52,8 +57,8 @@ function resolvedValue(dict: PDFDict, key: PDFName, required = false): PDFObject
     seen.add(value);
     value = dict.context.lookup(value);
   }
-  if (value === undefined) throw Error(`Missing PDF name ${key}`);
-  return value;
+  if (value === undefined && !missingIsNull) throw Error(`Missing PDF name ${key}`);
+  return value ?? PDFNull;
 }
 function resolvedName(dict: PDFDict, key: PDFName, required = false): PDFName | undefined {
   const value = resolvedValue(dict, key, required);
@@ -127,7 +132,17 @@ export interface PDFExportSource {
   doc: PDFDocument;
   scope?: string;
 }
-// One instance owns one output. Each copyPages call keeps a separate copier namespace.
+export interface PDFExportPageRequest {
+  file: File;
+  pageNumber: number;
+  scope?: string;
+  // The caller will draw on the page, so its content list and resource maps
+  // must not be shared with other output pages.
+  editable?: boolean;
+}
+// One instance owns one output. Pages of one source scope share one copier, so
+// shared resources and linked fields are copied once. A batch never holds two
+// pages that share a source page or annotation: those copies stay independent.
 // Only fresh private source documents may be passed in: tagging must never touch the cache.
 export class PDFExportCopy {
   private readonly sources = new Map<File, Map<string, PDFExportSource>>();
@@ -166,21 +181,86 @@ export class PDFExportCopy {
       }
     }
   }
-  async copy(file: File, pageNumber: number, scope = "") {
-    const source = this.sources.get(file)?.get(scope);
-    if (!source) throw Error("The export source is unavailable.");
-    const [page] = await this.output.copyPages(source.doc, [pageNumber - 1]);
-    for (const o of objects(this.output, [page.node]))
-      if (o instanceof PDFDict) this.owner.set(o, source);
-    const id = page.node.lookup(this.key, PDFNumber).asNumber();
-    // Answers have separate source scopes; simple navigation still targets the
-    // first retained logical occurrence of the original File/page reference.
-    const identity = this.identities.get(id);
-    if (!identity) throw Error("Missing export page identity.");
-    for (const [candidate, target] of this.identities)
-      if (target.file === file && target.ref === identity.ref && !this.first.has(candidate))
-        this.first.set(candidate, page);
-    return page;
+  async copyPages(requests: readonly PDFExportPageRequest[]): Promise<PDFPage[]> {
+    type Batch = { source: PDFExportSource; claims: Set<PDFObject>; requests: number[] };
+    const batches: Batch[] = [];
+    for (const [index, request] of requests.entries()) {
+      const source = this.sources.get(request.file)?.get(request.scope ?? "");
+      const claims: PDFObject[] = [];
+      try {
+        if (!source) throw Error("The export source is unavailable.");
+        const node = source.doc.getPage(request.pageNumber - 1).node;
+        claims.push(node);
+        const annots = source.doc.context.lookup(node.get(N("Annots")));
+        if (annots instanceof PDFArray) {
+          claims.push(annots);
+          for (const raw of annots.asArray()) {
+            const annot = source.doc.context.lookup(raw);
+            if (annot) claims.push(annot);
+          }
+        }
+      } catch (cause) {
+        throw processingError("copy-page", request.file, cause);
+      }
+      let batch = batches.find(
+        (candidate) =>
+          candidate.source === source && !claims.some((claim) => candidate.claims.has(claim))
+      );
+      if (!batch) {
+        batch = { source, claims: new Set(), requests: [] };
+        batches.push(batch);
+      }
+      for (const claim of claims) batch.claims.add(claim);
+      batch.requests.push(index);
+    }
+    const pages: PDFPage[] = new Array(requests.length);
+    for (const batch of batches) {
+      try {
+        const copied = await this.output.copyPages(
+          batch.source.doc,
+          batch.requests.map((index) => requests[index].pageNumber - 1)
+        );
+        for (const [position, index] of batch.requests.entries()) {
+          pages[index] = copied[position];
+          if (requests[index].editable) this.detach(copied[position]);
+        }
+        const nodes = copied.map((page) => page.node);
+        for (const o of objects(this.output, nodes))
+          if (o instanceof PDFDict) this.owner.set(o, batch.source);
+      } catch (cause) {
+        throw processingError("copy-page", batch.source.file, cause);
+      }
+    }
+    for (const [index, page] of pages.entries()) {
+      const id = page.node.lookup(this.key, PDFNumber).asNumber();
+      // Answers have separate source scopes; simple navigation still targets the
+      // first retained logical occurrence of the original File/page reference.
+      const identity = this.identities.get(id);
+      if (!identity) throw Error("Missing export page identity.");
+      for (const [candidate, target] of this.identities)
+        if (
+          target.file === requests[index].file &&
+          target.ref === identity.ref &&
+          !this.first.has(candidate)
+        )
+          this.first.set(candidate, page);
+    }
+    return pages;
+  }
+  // pdf-lib drawing appends to Contents and adds Font, XObject and ExtGState
+  // entries. Give the page private copies so batch-shared maps stay unchanged.
+  private detach(page: PDFPage) {
+    const context = this.output.context;
+    const contents = context.lookup(page.node.get(N("Contents")));
+    if (contents instanceof PDFArray) page.node.set(N("Contents"), contents.clone());
+    const resources = context.lookup(page.node.get(N("Resources")));
+    if (!(resources instanceof PDFDict)) return;
+    const detached = resources.clone();
+    for (const key of ["Font", "XObject", "ExtGState"]) {
+      const map = context.lookup(detached.get(N(key)));
+      if (map instanceof PDFDict) detached.set(N(key), map.clone());
+    }
+    page.node.set(N("Resources"), detached);
   }
   private reject(file: File | undefined, message: string): never {
     const cause = new Error(message);
@@ -199,7 +279,8 @@ export class PDFExportCopy {
       return this.name(dict, N("Type"), true) === N("Page");
     // A resource/state lookup map may itself have a key named Type. Only a
     // resolved Page name identifies an otherwise unknown dictionary as a Page.
-    return resolvedValue(dict, N("Type")) === N("Page");
+    // A missing reference target is null (ISO 32000-1 7.3.10), never a Page.
+    return resolvedValue(dict, N("Type"), false, true) === N("Page");
   }
   // Optional action slots treat resolved null, including a missing reference
   // target (ISO 32000-1 7.3.10), as absent. Keep this separate
@@ -282,23 +363,14 @@ export class PDFExportCopy {
         this.reject(source.file, "Unrecognized internal destination Page");
       const page = this.first.get(id);
       if (!page) return undefined;
+      // A missing operand target is null, which destinations accept.
       const tail = value
         .asArray()
         .slice(1)
-        .map((item) => context.lookup(item));
-      if (
-        tail.some(
-          (v) => !(v instanceof PDFName || v instanceof PDFNumber || v?.toString() === "null")
-        )
-      )
+        .map((item) => context.lookup(item) ?? PDFNull);
+      if (tail.some((v) => !(v instanceof PDFName || v instanceof PDFNumber || v === PDFNull)))
         this.reject(source.file, "Unsupported internal destination operands");
-      return this.output.context.obj([
-        page.ref,
-        ...tail.map((o) => {
-          if (!o) this.reject(source.file, "Missing internal destination operand");
-          return o.clone();
-        }),
-      ]);
+      return this.output.context.obj([page.ref, ...tail.map((o) => o.clone())]);
     }
   }
   async finish() {
@@ -311,11 +383,12 @@ export class PDFExportCopy {
     const fields = new Set<PDFDict>();
     const annotationOwners = new Map<PDFDict, PDFPage>();
     for (const page of actualPages) {
-      // A missing annotation target is null: drop it instead of reconciling it.
+      // A null or missing annotation target is null: drop it instead of reconciling it.
       const annots = page.node.Annots();
-      for (let i = (annots?.size() ?? 0) - 1; i >= 0; i--)
-        if (annots?.get(i) instanceof PDFRef && !this.output.context.lookup(annots.get(i)))
-          annots.remove(i);
+      for (let i = (annots?.size() ?? 0) - 1; i >= 0; i--) {
+        const annot = this.output.context.lookup(annots?.get(i));
+        if (annot === undefined || annot === PDFNull) annots?.remove(i);
+      }
       for (const raw of annots?.asArray() ?? []) {
         const annot = this.output.context.lookup(raw, PDFDict);
         const previous = annotationOwners.get(annot);

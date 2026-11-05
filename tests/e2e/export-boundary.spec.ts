@@ -155,6 +155,8 @@ test("an unsupported linked choice export offers no partial download", async ({ 
     buffer: Buffer.from(await exportCrossPageButtonFixture()),
   });
   await expect(page.getByTestId("editor-download-button")).toBeVisible();
+  // Exporting one page of the group would prune a positional radio option.
+  await page.getByTestId("editor-page-tile").nth(1).click();
   const downloads: string[] = [];
   page.on("download", (download) => downloads.push(download.suggestedFilename()));
   await page.getByTestId("editor-download-button").click();
@@ -189,6 +191,9 @@ for (const width of [1280, 320])
     await expect(tiles).toHaveCount(4);
     const downloads: string[] = [];
     page.on("download", (download) => downloads.push(download.suggestedFilename()));
+    // Exporting one page of the group would prune a positional radio option.
+    await tiles.nth(0).click();
+    await tiles.nth(3).click();
     await page.getByTestId("editor-download-button").click();
     const message =
       "radio-source.pdf: This PDF has linked choice fields that cannot be preserved in this export. Select pages from other files or remove this file, then try again.";
@@ -196,7 +201,7 @@ for (const width of [1280, 320])
     await expect(page.getByTestId("editor-toast")).toHaveText(message);
     await expect(page.getByTestId("editor-download-button")).toBeEnabled();
     expect(downloads).toEqual([]);
-    await tiles.nth(0).click();
+    await tiles.nth(3).click();
     await tiles.nth(1).click();
     const download = page.waitForEvent("download");
     await page.getByTestId("editor-download-button").click();

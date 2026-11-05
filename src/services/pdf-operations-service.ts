@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { degrees, PageSizes, PDFDocument } from "pdf-lib";
+import { degrees, PageSizes, PDFDocument, type PDFPage } from "pdf-lib";
 import { IMAGES_TO_PDF_FILENAME, OUTPUT_FILENAME } from "../constants";
 import type {
   FieldAnswer,
@@ -413,6 +413,28 @@ export class PDFOperationsService {
             ? cause
             : processingError("prepare-export", pagesToBuild[0].sourceFile, cause),
       });
+      const copyRequests = pagesToBuild.flatMap((page, index) =>
+        privateSources.some((source) => source.file === page.sourceFile) ? [{ index, page }] : []
+      );
+      const copiedPages = new Map<number, PDFPage>();
+      yield* Effect.tryPromise({
+        try: async () => {
+          const copied = await exportCopy.copyPages(
+            copyRequests.map(({ page }) => ({
+              file: page.sourceFile,
+              pageNumber: page.sourcePageNumber,
+              scope: page.fieldAnswers?.length ? (page.fieldGroupId ?? "") : "",
+              editable: Boolean(page.addedText?.length || page.addedCheckmarks?.length),
+            }))
+          );
+          for (const [position, { index }] of copyRequests.entries())
+            copiedPages.set(index, copied[position]);
+        },
+        catch: (cause) =>
+          cause instanceof PDFProcessingError
+            ? cause
+            : processingError("copy-page", pagesToBuild[0].sourceFile, cause),
+      });
 
       for (const [index, page] of pagesToBuild.entries()) {
         const sourceDoc = sourceDocuments.get(page.sourceFile);
@@ -432,15 +454,15 @@ export class PDFOperationsService {
         if (isEncrypted) {
           yield* this.addEncryptedPage(outputDoc, sourceDoc, page, options.maxRasterPixels);
         } else {
-          const copiedPage = yield* Effect.tryPromise({
-            try: () =>
-              exportCopy.copy(
+          const copiedPage = copiedPages.get(index);
+          if (!copiedPage)
+            return yield* Effect.fail(
+              processingError(
+                "copy-page",
                 page.sourceFile,
-                page.sourcePageNumber,
-                page.fieldAnswers?.length ? (page.fieldGroupId ?? "") : ""
-              ),
-            catch: (cause) => processingError("copy-page", page.sourceFile, cause),
-          });
+                new Error("PDF source page was not returned")
+              )
+            );
           if (page.addedText?.length || page.addedCheckmarks?.length) {
             if (!this.pdfService.getPageGeometry)
               return yield* Effect.fail(
@@ -461,10 +483,6 @@ export class PDFOperationsService {
           }
           yield* Effect.try({
             try: () => {
-              if (!copiedPage) {
-                throw new Error("PDF source page was not returned");
-              }
-
               const sourceRotation = normalizeRotation(copiedPage.getRotation().angle);
               const combinedRotation = normalizeRotation(sourceRotation + page.rotation);
 
