@@ -1,6 +1,9 @@
 /** Scale factor used when rendering thumbnail previews of PDF pages */
 export const THUMBNAIL_SCALE = 0.5;
 
+/** Pixel budget per thumbnail canvas; oversized pages render at a smaller scale */
+export const THUMBNAIL_MAX_PIXELS = 1_000_000;
+
 /** IntersectionObserver rootMargin for pre-loading thumbnails before they enter view */
 export const THUMBNAIL_INTERSECTION_MARGIN = "200px";
 

@@ -7,6 +7,7 @@ import { processingError } from "./pdf-errors";
 import type { PDFService } from "./pdf-service";
 
 const IMAGE_EXPORT_SCALE = 2;
+export const IMAGE_EXPORT_MAX_PIXELS = 16_000_000;
 const MAX_IMAGE_ARCHIVE_BYTES = 128 * 1024 * 1024;
 const IMAGE_EXPORT_LIMIT_MESSAGE = "Image export is too large. Export fewer pages and try again.";
 
@@ -136,7 +137,9 @@ export class PDFImageExportService {
                 page,
                 canvas,
                 IMAGE_EXPORT_SCALE,
-                (sourceRotation + page.rotation) % 360
+                (sourceRotation + page.rotation) % 360,
+                undefined,
+                IMAGE_EXPORT_MAX_PIXELS
               );
             } else
               yield* this.pdfService.renderPage(
@@ -144,7 +147,8 @@ export class PDFImageExportService {
                 page.sourcePageNumber,
                 canvas,
                 IMAGE_EXPORT_SCALE,
-                (sourceRotation + page.rotation) % 360
+                (sourceRotation + page.rotation) % 360,
+                IMAGE_EXPORT_MAX_PIXELS
               );
             return yield* canvasToPNG(canvas, page.sourceFile);
           }).pipe(

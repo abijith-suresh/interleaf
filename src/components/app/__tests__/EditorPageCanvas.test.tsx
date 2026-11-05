@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { THUMBNAIL_INTERSECTION_MARGIN, THUMBNAIL_SCALE } from "@/constants";
+import { THUMBNAIL_INTERSECTION_MARGIN, THUMBNAIL_MAX_PIXELS, THUMBNAIL_SCALE } from "@/constants";
 import { makePDFRuntime, type PDFRuntime } from "@/services/pdf-runtime";
 import type { PageState } from "@/types/interfaces";
 
@@ -140,7 +140,8 @@ describe("EditorPageCanvas", () => {
       1,
       expect.any(HTMLCanvasElement),
       THUMBNAIL_SCALE,
-      90
+      90,
+      THUMBNAIL_MAX_PIXELS
     );
     expect(pdfServiceMocks.renderPage).toHaveBeenNthCalledWith(
       2,
@@ -148,7 +149,8 @@ describe("EditorPageCanvas", () => {
       1,
       expect.any(HTMLCanvasElement),
       THUMBNAIL_SCALE,
-      90
+      90,
+      THUMBNAIL_MAX_PIXELS
     );
     expect(pdfServiceMocks.getPageRotation).toHaveBeenCalledTimes(2);
   });

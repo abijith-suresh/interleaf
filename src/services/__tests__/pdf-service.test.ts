@@ -641,6 +641,24 @@ describe("PDFService", () => {
     expect([wideCanvas.width, wideCanvas.height]).toEqual([300, 150]);
   });
 
+  it("clamps the render scale to a pixel budget without changing ordinary pages", async () => {
+    const wide = new File(["%PDF"], "huge.pdf", { type: "application/pdf" });
+    getDocument
+      .mockReturnValueOnce(task)
+      .mockReturnValueOnce(makeTask(Promise.resolve(makeDocument(makePage(2480, 3508)))));
+    await runPromise(service.loadPDF(file));
+    await runPromise(service.loadPDF(wide));
+    const huge = document.createElement("canvas");
+    const ordinary = document.createElement("canvas");
+
+    await runPromise(service.renderPage(wide, 1, huge, 2, 0, 1_000_000));
+    await runPromise(service.renderPage(file, 1, ordinary, 2, 0, 1_000_000));
+
+    expect(huge.width * huge.height).toBeLessThanOrEqual(1_000_000);
+    expect(huge.width).toBeGreaterThan(0);
+    expect([ordinary.width, ordinary.height]).toEqual([200, 400]);
+  });
+
   it("renders the requested page at the requested scale and rotation", async () => {
     const canvas = document.createElement("canvas");
     await runPromise(service.renderPage(file, 2, canvas, 2, 90));

@@ -13,6 +13,7 @@ import { type DocumentKey, makeDocumentStore } from "./document-store";
 import { PageRenderer } from "./page-renderer";
 import { PageResources } from "./page-resources";
 import { collectFirstError, processingError } from "./pdf-errors";
+import { clampScaleToPixelBudget } from "./render-scale";
 
 let pdfjsModule: Promise<typeof pdfjsLib> | null = null;
 
@@ -195,10 +196,18 @@ export class PDFService {
     canvas: HTMLCanvasElement,
     scale: number,
     rotation: number,
-    maxRasterPixels?: number
+    maxRasterPixels?: number,
+    maxCanvasPixels?: number
   ): Effect.Effect<void, PDFError> {
     if (!hasPageAdditions(page))
-      return this.renderPage(page.sourceFile, page.sourcePageNumber, canvas, scale, rotation);
+      return this.renderPage(
+        page.sourceFile,
+        page.sourcePageNumber,
+        canvas,
+        scale,
+        rotation,
+        maxCanvasPixels
+      );
     // No derived-document cache. The temporary file lives until render cancellation
     // and page cleanup settle, then its loading task is destroyed.
     return this.documents.track(
@@ -235,7 +244,7 @@ export class PDFService {
                   Effect.sync(() => new PDFService()),
                   (derived) =>
                     this.pageRenderer.withPermit(
-                      derived.renderPage(temporary, 1, canvas, scale, rotation)
+                      derived.renderPage(temporary, 1, canvas, scale, rotation, maxCanvasPixels)
                     ),
                   (derived) => derived.dispose()
                 );
@@ -340,7 +349,8 @@ export class PDFService {
     pageNumber: number,
     canvas: HTMLCanvasElement,
     scale = 1.5,
-    rotation = 0
+    rotation = 0,
+    maxPixels?: number
   ): Effect.Effect<void, PDFError> {
     return this.documents.track(
       file,
@@ -357,7 +367,19 @@ export class PDFService {
               Effect.gen({ self: this }, function* () {
                 const { context, viewport } = yield* Effect.try({
                   try: () => {
-                    const nextViewport = page.getViewport({ scale, rotation });
+                    const fitted =
+                      maxPixels === undefined
+                        ? scale
+                        : (() => {
+                            const base = page.getViewport({ scale: 1, rotation });
+                            return clampScaleToPixelBudget(
+                              scale,
+                              base.width,
+                              base.height,
+                              maxPixels
+                            );
+                          })();
+                    const nextViewport = page.getViewport({ scale: fitted, rotation });
                     canvas.width = nextViewport.width;
                     canvas.height = nextViewport.height;
 
