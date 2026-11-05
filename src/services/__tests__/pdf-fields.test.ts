@@ -241,7 +241,7 @@ describe("field answer state and exported bytes", () => {
     radio.acroField.dict.set(N("Opt"), PDFNull);
     doc.getForm().acroForm.dict.set(N("Fields"), doc.context.obj([parent]));
     const source = file(await doc.save({ updateFieldAppearances: false }));
-    const service = new PDFOperationsService({ renderPage: () => Effect.void });
+    const service = new PDFOperationsService({});
     try {
       await expect(
         Effect.runPromise(service.buildPDF([createPageStates(source, 2)[0]]))
@@ -268,7 +268,7 @@ describe("field answer state and exported bytes", () => {
     original = answerField(original, original[0].id, fixture.fieldRef, "FIRST");
     const duplicate = duplicatePageState(original[0]);
     const state = answerField([...original, duplicate], duplicate.id, fixture.fieldRef, "COPY");
-    const service = new PDFOperationsService({ renderPage: () => Effect.void });
+    const service = new PDFOperationsService({});
     try {
       const result = await Effect.runPromise(
         service.buildPDF(state, { selectedIndices: [2, 1, 0] })
@@ -303,7 +303,7 @@ describe("field answer state and exported bytes", () => {
       "COPY"
     );
     pages = answerField(pages, again.id, fixture.fieldRef, "THIRD");
-    const service = new PDFOperationsService({ renderPage: () => Effect.void });
+    const service = new PDFOperationsService({});
     try {
       const output = await Effect.runPromise(
         service.buildPDF(pages, { selectedIndices: [1, 2, 3, 0, 4] })

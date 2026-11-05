@@ -48,7 +48,6 @@ export interface PDFProcessingShape {
     canvas: HTMLCanvasElement,
     scale: number,
     rotation: number,
-    maxRasterPixels?: number,
     maxCanvasPixels?: number
   ) => Effect.Effect<void, PDFError>;
   readonly getPageGeometry: (
@@ -110,7 +109,8 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
     PDFProcessing,
     Effect.acquireRelease(
       Effect.gen(function* () {
-        const pdfService = new PDFService();
+        const qpdfProcessing = yield* QpdfProcessing;
+        const pdfService = new PDFService({ decrypt: qpdfProcessing.decrypt });
         let operationsService: PDFOperationsService | undefined;
         const getOperationsService = yield* Effect.cachedWithTTL(
           Effect.tryPromise({
@@ -151,7 +151,6 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
           }),
           (exit) => (Exit.isSuccess(exit) ? Infinity : 0)
         );
-        const qpdfProcessing = yield* QpdfProcessing;
         const compressionService = new PDFCompressionService(qpdfProcessing);
 
         const service: PDFProcessingShape & {
@@ -175,15 +174,8 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
             rotation?: number,
             maxPixels?: number
           ) => pdfService.renderPage(file, pageNumber, canvas, scale, rotation, maxPixels),
-          renderPageState: (page, canvas, scale, rotation, maxRasterPixels, maxCanvasPixels) =>
-            pdfService.renderPageState(
-              page,
-              canvas,
-              scale,
-              rotation,
-              maxRasterPixels,
-              maxCanvasPixels
-            ),
+          renderPageState: (page, canvas, scale, rotation, maxCanvasPixels) =>
+            pdfService.renderPageState(page, canvas, scale, rotation, maxCanvasPixels),
           getPageGeometry: (file, pageNumber) => pdfService.getPageGeometry(file, pageNumber),
           getPageRotation: (file: File, pageNumber: number) =>
             pdfService.getPageRotation(file, pageNumber),

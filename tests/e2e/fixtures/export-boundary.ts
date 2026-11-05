@@ -400,7 +400,7 @@ export async function checkAdditions() {
 }
 
 export async function checkIndirectRoles() {
-  const operations = new PDFOperationsService({ renderPage: () => Effect.void });
+  const operations = new PDFOperationsService({});
   try {
     const widgets = [];
     for (const indirect of [false, true]) {

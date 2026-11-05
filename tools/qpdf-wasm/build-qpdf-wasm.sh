@@ -109,7 +109,7 @@ em++ \
   -sINVOKE_RUN=0 \
   -sEXIT_RUNTIME=1 \
   -sALLOW_MEMORY_GROWTH=1 \
-  -sEXPORTED_FUNCTIONS='["_malloc","_free","_qpdf_optimize","_qpdf_free"]' \
+  -sEXPORTED_FUNCTIONS='["_malloc","_free","_qpdf_optimize","_qpdf_decrypt","_qpdf_free"]' \
   -sEXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
   --no-entry \
   -O3 \

@@ -16,7 +16,14 @@ import { pdfToViewport, viewportToPDF } from "../../../src/controllers/text-geom
 import { PDFImageExportService } from "../../../src/services/pdf-image-export-service";
 import { PDFOperationsService } from "../../../src/services/pdf-operations-service";
 import { PDFService } from "../../../src/services/pdf-service";
+import { makeQpdfProcessing } from "../../../src/services/qpdf-processing";
 import type { PageState } from "../../../src/types/interfaces";
+
+// Protected sources are exported from a copy decrypted by the real qpdf worker.
+function makeService() {
+  const qpdf = makeQpdfProcessing({ workerUrl: "/qpdf/qpdf-worker.js" });
+  return new PDFService({ decrypt: qpdf.decrypt });
+}
 
 function context(canvas: HTMLCanvasElement) {
   const value = canvas.getContext("2d");
@@ -83,7 +90,7 @@ export async function checkAddedText(
       type: "application/pdf",
     }
   );
-  const service = new PDFService();
+  const service = makeService();
   const operations = new PDFOperationsService(service);
   const images = new PDFImageExportService(service);
   await Effect.runPromise(
@@ -211,12 +218,7 @@ export async function checkAddedText(
           const rawY =
             tick.y +
             (tick.size / geometry.userUnit) * (x * Math.sin(radians) + y * Math.cos(radians));
-          return encrypted
-            ? [
-                (rawX - geometry.bounds[0]) * geometry.userUnit,
-                (rawY - geometry.bounds[1]) * geometry.userUnit,
-              ]
-            : [rawX, rawY];
+          return [rawX, rawY];
         });
         for (const [segmentIndex, segment] of segments.entries()) {
           const expected = [...points[segmentIndex], ...points[segmentIndex + 1]];
@@ -278,13 +280,13 @@ export async function checkAddedText(
 
 export async function checkLargeProtectedPNG() {
   // Same first page as added-text-encrypted.b64, rewritten with pypdf 6.21.1
-  // UserUnit 5 and the same RC4-128 password. Its 2x raster exceeds 4M pixels.
+  // UserUnit 5 and the same RC4-128 password. Its 2x PNG exceeds 4M pixels.
   const encoded = (
     await (await fetch("/tests/e2e/fixtures/added-text-large-encrypted.b64")).text()
   ).trim();
   const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
   const file = new File([bytes], "large-protected.pdf", { type: "application/pdf" });
-  const service = new PDFService();
+  const service = makeService();
   const operations = new PDFOperationsService(service);
   const images = new PDFImageExportService(service);
   let task: ReturnType<typeof getDocument> | undefined;

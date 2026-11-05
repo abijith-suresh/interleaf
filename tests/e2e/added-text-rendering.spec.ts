@@ -51,7 +51,7 @@ for (const unitIndex of [0, 1, 2])
         expect(result.maxRoundtripError).toBeLessThan(0.000001);
         expect(result.results).toHaveLength(4);
         for (const entry of result.results) {
-          if (!encrypted) expect(entry.strings).toContain("Original");
+          expect(entry.strings).toContain("Original");
           expect(entry.strings).toContain("Added 123");
           expect(entry.physicalSize).toBeCloseTo(16);
           expect(entry.placementError).toBeLessThan(0.000001);
@@ -64,9 +64,7 @@ for (const unitIndex of [0, 1, 2])
         expect(errors).toEqual([]);
       });
 
-test("protected PNG exports retain full source resolution above the preview raster budget", async ({
-  page,
-}) => {
+test("protected PNG exports retain full source resolution", async ({ page }) => {
   await page.goto(`${url}text-test`);
   const result = await page.evaluate(async () => {
     const path = "/tests/e2e/fixtures/added-text.ts";

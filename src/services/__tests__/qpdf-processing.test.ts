@@ -2,23 +2,23 @@ import { Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   makeQpdfProcessing,
-  type QpdfWorkerOptimizeRequest,
   type QpdfWorkerPort,
+  type QpdfWorkerRequest,
   type QpdfWorkerResponse,
 } from "../qpdf-processing";
 
 class FakeWorker implements QpdfWorkerPort {
-  private sentRequest: QpdfWorkerOptimizeRequest | undefined;
+  private sentRequest: QpdfWorkerRequest | undefined;
 
-  get request(): QpdfWorkerOptimizeRequest {
-    if (!this.sentRequest) throw new Error("No optimize request was sent to the worker");
+  get request(): QpdfWorkerRequest {
+    if (!this.sentRequest) throw new Error("No request was sent to the worker");
     return this.sentRequest;
   }
   terminated = false;
   private messageListeners = new Set<(event: MessageEvent<QpdfWorkerResponse>) => void>();
   private errorListeners = new Set<(event: ErrorEvent) => void>();
 
-  postMessage(message: QpdfWorkerOptimizeRequest, transfer: Transferable[]): void {
+  postMessage(message: QpdfWorkerRequest, transfer: Transferable[]): void {
     this.sentRequest = structuredClone(message, { transfer });
   }
 
@@ -135,6 +135,66 @@ describe("QpdfProcessing", () => {
       _tag: "QpdfProcessingError",
       operation: "optimize",
       message: "Password required",
+    });
+  });
+
+  it("transfers decrypt input without copying and returns the decrypted bytes", async () => {
+    const worker = new FakeWorker();
+    const service = makeService(worker);
+    const input = new Uint8Array([1, 2, 3]).buffer;
+    const resultPromise = Effect.runPromise(service.decrypt(input, "secret"));
+
+    expect(worker.request).toMatchObject({ type: "decrypt", password: "secret" });
+    expect(new Uint8Array(worker.request.input)).toEqual(new Uint8Array([1, 2, 3]));
+    expect(input.byteLength).toBe(0);
+
+    worker.respond({
+      type: "decrypted",
+      id: worker.request.id,
+      output: new Uint8Array([4, 5]).buffer,
+    });
+
+    await expect(resultPromise).resolves.toEqual(new Uint8Array([4, 5]));
+    expect(worker.terminated).toBe(true);
+  });
+
+  it("omits a missing decrypt password and rejects a mismatched response", async () => {
+    const worker = new FakeWorker();
+    const service = makeService(worker);
+    const resultPromise = Effect.runPromise(service.decrypt(new Uint8Array([1]).buffer));
+
+    expect(worker.request).not.toHaveProperty("password");
+    worker.respond({
+      type: "result",
+      id: worker.request.id,
+      output: new Uint8Array([1]).buffer,
+      inputSize: 1,
+      candidateSize: 1,
+      reduced: false,
+    });
+
+    await expect(resultPromise).rejects.toMatchObject({
+      _tag: "QpdfProcessingError",
+      operation: "decrypt",
+    });
+  });
+
+  it("maps decrypt failures to a typed Effect error", async () => {
+    const worker = new FakeWorker();
+    const service = makeService(worker);
+    const resultPromise = Effect.runPromise(service.decrypt(new Uint8Array([1]).buffer, "wrong"));
+
+    worker.respond({
+      type: "error",
+      id: worker.request.id,
+      code: "QPDF_EXEC_FAILED",
+      message: "invalid password",
+    });
+
+    await expect(resultPromise).rejects.toMatchObject({
+      _tag: "QpdfProcessingError",
+      operation: "decrypt",
+      message: "invalid password",
     });
   });
 

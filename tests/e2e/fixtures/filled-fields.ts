@@ -245,7 +245,7 @@ export async function checkFilledFields(
     for (const scale of [0.2, 1]) {
       await captureDerived(scale, () =>
         withoutRenderSlices(() =>
-          Effect.runPromise(service.renderPageState(pages[0], canvas, scale, rotation, 4_000_000))
+          Effect.runPromise(service.renderPageState(pages[0], canvas, scale, rotation))
         )
       );
       const image = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height),
@@ -331,7 +331,6 @@ export async function checkFilledFields(
                   outputPage: 4,
                   scale: actual[index].scale,
                   rotation,
-                  maxRasterPixels: index < 2 ? 4_000_000 : undefined,
                 },
                 derivedBytes: derived ? Array.from(derived) : undefined,
                 derivedNative: derived ? await nativePage(derived, 0) : undefined,
