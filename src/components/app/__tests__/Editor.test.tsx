@@ -978,8 +978,13 @@ describe("Editor", () => {
       expect(screen.queryByTestId("editor-toast")).not.toBeInTheDocument();
 
       selectFile("upload", new File(["text"], "notes.txt", { type: "text/plain" }));
-      fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }));
+      const dismiss = screen.getByRole("button", { name: "Dismiss notification" });
+      dismiss.focus();
+      fireEvent.click(dismiss);
       expect(screen.queryByTestId("editor-toast")).not.toBeInTheDocument();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(document.activeElement).not.toBe(document.body);
+      expect(document.activeElement).not.toBe(dismiss);
     } finally {
       vi.useRealTimers();
     }

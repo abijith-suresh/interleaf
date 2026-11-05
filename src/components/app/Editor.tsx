@@ -372,6 +372,31 @@ export default function Editor() {
     setStatusMessage(phase() === "edit" ? "Ready" : "Your files never leave your device.");
   }
 
+  // Where focus goes when the toast that holds it is dismissed with its × button.
+  let toastReturnFocus: HTMLElement | null = null;
+
+  function dismissToastWithFocus(id: number, toastElement: HTMLElement) {
+    const hadFocus = toastElement.contains(document.activeElement);
+    const nextToastDismiss = toastElement.nextElementSibling?.querySelector<HTMLElement>(
+      '[data-testid="editor-toast-dismiss"]'
+    );
+    dismissToast(id);
+    if (!hadFocus) return;
+    queueMicrotask(() => {
+      if (disposed) return;
+      const target =
+        nextToastDismiss?.isConnected === true
+          ? nextToastDismiss
+          : toastReturnFocus?.isConnected && !toastReturnFocus.hasAttribute("disabled")
+            ? toastReturnFocus
+            : editorRoot?.querySelector<HTMLElement>(
+                'button:not(:disabled), input:not(:disabled), [tabindex="0"]'
+              );
+      toastReturnFocus = null;
+      target?.focus();
+    });
+  }
+
   function dismissToast(id: number) {
     const timer = toastTimers.get(id);
     if (timer) {
@@ -1287,7 +1312,12 @@ export default function Editor() {
                   if (!document.activeElement?.closest(`[data-toast-id="${toast.id}"]`))
                     startToastTimer(toast.id, toast.tone);
                 }}
-                onFocusIn={() => pauseToastTimer(toast.id)}
+                onFocusIn={(event) => {
+                  pauseToastTimer(toast.id);
+                  const from = event.relatedTarget;
+                  if (from instanceof HTMLElement && !event.currentTarget.contains(from))
+                    toastReturnFocus = from;
+                }}
                 onFocusOut={(event) => {
                   if (!event.currentTarget.contains(event.relatedTarget as Node | null))
                     startToastTimer(toast.id, toast.tone);
@@ -1302,7 +1332,13 @@ export default function Editor() {
                   title="Dismiss"
                   variant="plain"
                   icon="close"
-                  onClick={() => dismissToast(toast.id)}
+                  onClick={(event) =>
+                    dismissToastWithFocus(
+                      toast.id,
+                      event.currentTarget.closest<HTMLElement>("[data-toast-id]") ??
+                        event.currentTarget
+                    )
+                  }
                 />
               </div>
             </Show>
