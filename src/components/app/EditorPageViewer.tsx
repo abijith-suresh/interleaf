@@ -33,7 +33,7 @@ interface Props {
   runtime: PDFRuntime;
   disabled?: boolean;
   onCheckmarksChange?: (pageId: string, marks: readonly AddedCheckmark[], label: string) => void;
-  onFieldChange?: (pageId: string, fieldRef: string, value: string) => void;
+  onFieldChange?: (pageId: string, fieldRef: string, value: string, originalValue: string) => void;
   onTextChange?: (pageId: string, texts: readonly AddedText[], label: string) => void;
   onActivePageChange: (pageId: string) => void;
 }
