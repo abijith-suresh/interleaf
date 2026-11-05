@@ -116,35 +116,45 @@ function entryInactiveFiles(entry: PageOrganizationEntry, active: ReadonlySet<Fi
 // the farthest future (redo[0]). Only the two far ends may be evicted, so the
 // next undo and redo steps stay contiguous with the current workspace state.
 //
+// `newest` is the change the user just made, redid or undid: the entry that now
+// sits next to the present (undo.at(-1) after recording or redoing, redo.at(-1)
+// after undoing). It is never evicted, even when it alone exceeds the size limit,
+// so redo right after undo and undo right after a change keep working. It
+// defaults to undo.at(-1), else redo.at(-1).
+//
 // Count limit: evict the farthest past first, then the farthest future.
 //
 // Size limit: evicting an entry that references no inactive file frees nothing,
 // so choose how many entries to drop from the far past (k) and far future (m)
-// together. Among the windows that fit the limit, keep the one losing the fewest
-// entries; on a tie, drop the future instead of the past so undo is preserved.
-// The window never empties the history: when no window fits, only the newest
-// change (the nearest undo step, else the nearest redo step) is kept, even if it
-// alone exceeds the limit.
+// together. Among the windows that contain `newest` and fit the limit, keep the
+// one losing the fewest entries; on a tie, drop the future instead of the past so
+// undo is preserved. When no window fits, only `newest` is kept.
 export function trimOrganizationHistory(
   history: PageOrganizationHistory,
-  activePages: readonly PageState[]
+  activePages: readonly PageState[],
+  newest: PageOrganizationEntry | undefined = history.undo.at(-1) ?? history.redo.at(-1)
 ): PageOrganizationHistory {
   let { undo, redo } = history;
   while (undo.length + redo.length > PAGE_HISTORY_LIMIT) {
-    if (undo.length > 0) undo = undo.slice(1);
-    else redo = redo.slice(1);
+    if (undo.length > 0 && undo[0] !== newest) undo = undo.slice(1);
+    else if (redo.length > 0 && redo[0] !== newest) redo = redo.slice(1);
+    else break;
   }
   if (undo.length + redo.length <= 1) return { undo, redo };
   if (inactiveSourceSize({ undo, redo }, activePages) <= INACTIVE_SOURCE_SIZE_LIMIT) {
     return { undo, redo };
   }
 
+  const inUndo = newest === undefined ? -1 : undo.lastIndexOf(newest);
+  const inRedo = newest === undefined ? -1 : redo.lastIndexOf(newest);
+  const maxDropPast = inUndo >= 0 ? inUndo : undo.length;
+  const maxDropFuture = inRedo >= 0 ? inRedo : redo.length;
   const active = new Set(activePages.map((page) => page.sourceFile));
   const undoFiles = undo.map((entry) => entryInactiveFiles(entry, active));
   const redoFiles = redo.map((entry) => entryInactiveFiles(entry, active));
   let best: { k: number; m: number } | null = null;
-  for (let k = 0; k <= undo.length; k++) {
-    for (let m = 0; m <= redo.length; m++) {
+  for (let k = 0; k <= maxDropPast; k++) {
+    for (let m = 0; m <= maxDropFuture; m++) {
       if (undo.length - k + (redo.length - m) < 1) continue;
       if (best && k + m >= best.k + best.m) continue;
       const kept = new Set<File>();
@@ -156,5 +166,7 @@ export function trimOrganizationHistory(
     }
   }
   if (best) return { undo: undo.slice(best.k), redo: redo.slice(best.m) };
+  if (inUndo >= 0) return { undo: [undo[inUndo]], redo: [] };
+  if (inRedo >= 0) return { undo: [], redo: [redo[inRedo]] };
   return undo.length > 0 ? { undo: undo.slice(-1), redo: [] } : { undo: [], redo: redo.slice(-1) };
 }

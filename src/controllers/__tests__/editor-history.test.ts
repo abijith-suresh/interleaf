@@ -165,7 +165,8 @@ describe("source history retention", () => {
     if (!entry) throw new Error("Nothing to undo");
     return trimOrganizationHistory(
       { undo: history.undo.slice(0, -1), redo: [...history.redo, entry] },
-      entry.before.pages
+      entry.before.pages,
+      entry
     );
   };
   const redoStep = (history: PageOrganizationHistory): PageOrganizationHistory => {
@@ -173,7 +174,8 @@ describe("source history retention", () => {
     if (!entry) throw new Error("Nothing to redo");
     return trimOrganizationHistory(
       { undo: [...history.undo, entry], redo: history.redo.slice(0, -1) },
-      entry.after.pages
+      entry.after.pages,
+      entry
     );
   };
 
@@ -249,10 +251,7 @@ describe("source history retention", () => {
     const stateA = snapshotOf(small);
     const stateAB = snapshotOf(small, file(30 * 1024 * 1024));
     const stateABC = snapshotOf(small, stateAB.pages[1].sourceFile, file(30 * 1024 * 1024));
-    let history = emptyOrganizationHistory();
-    for (let step = 0; step < 5; step++) {
-      history = recordOrganization(history, `rotation ${step}`, stateA, stateA);
-    }
+    let history: PageOrganizationHistory;
     history = {
       undo: [
         ...Array.from({ length: 5 }, (_, step) => ({
@@ -279,61 +278,83 @@ describe("source history retention", () => {
     expect(inactiveSourceSize(history, stateA.pages)).toBe(30 * 1024 * 1024);
   });
 
-  it("keeps unrelated undo steps when undoing a single oversized addition", () => {
+  it("keeps the just-undone oversized addition redoable, even with earlier steps", () => {
     const small = file(1024);
     const stateA = snapshotOf(small);
     const stateAH = snapshotOf(small, file(60 * 1024 * 1024));
-    const undo = [
-      { label: "rotation 0", before: stateA, after: stateA },
-      { label: "rotation 1", before: stateA, after: stateA },
-      { label: "add huge", before: stateA, after: stateAH },
-    ];
-    const history = undoStep({ undo, redo: [] });
-    expect(history.undo.map((entry) => entry.label)).toEqual(["rotation 0", "rotation 1"]);
-    expect(history.redo).toEqual([]);
-    expect(inactiveSourceSize(history, stateA.pages)).toBe(0);
+    const rotation = { label: "rotation", before: stateA, after: stateA };
+    const addHuge = { label: "add huge", before: stateA, after: stateAH };
+    const history = undoStep({ undo: [rotation, addHuge], redo: [] });
+    // The newest change alone exceeds the limit but is the next redo step.
+    expect(history.undo).toEqual([]);
+    expect(history.redo.map((entry) => entry.label)).toEqual(["add huge"]);
+    expect(redoStep(history).undo.map((entry) => entry.label)).toEqual(["add huge"]);
   });
 
-  it("evicts the far past when only it holds the oversized file, and prefers dropping future on ties", () => {
+  it("keeps the just-undone addition when a removal holds the other large file", () => {
     const small = file(1024);
     const stateA = snapshotOf(small);
-    const bigPast = snapshotOf(small, file(40 * 1024 * 1024));
-    const bigFuture = snapshotOf(small, file(40 * 1024 * 1024));
-    const rotate = (label: string) => ({ label, before: stateA, after: stateA });
-    const removePast = { label: "remove past", before: bigPast, after: stateA };
-    const removeFuture = { label: "remove future", before: bigFuture, after: stateA };
-    // The far past and far future each hold 40 MiB; with a harmless step on
-    // each side, only dropping one end fits, and the future end goes first.
-    const both = trimOrganizationHistory(
-      { undo: [removePast, rotate("rotation")], redo: [removeFuture] },
-      stateA.pages
-    );
-    expect(both.undo.map((entry) => entry.label)).toEqual(["remove past", "rotation"]);
-    expect(both.redo).toEqual([]);
-    // Only the far past holds inactive files: dropping its oldest step frees the space.
-    const pastA = {
+    const stateAP = snapshotOf(small, file(40 * 1024 * 1024));
+    const stateAF = snapshotOf(small, file(40 * 1024 * 1024));
+    const removeP = { label: "remove P", before: stateAP, after: stateA };
+    const addF = { label: "add F", before: stateA, after: stateAF };
+    const history = undoStep({ undo: [removeP, addF], redo: [] });
+    expect(history.undo).toEqual([]);
+    expect(history.redo.map((entry) => entry.label)).toEqual(["add F"]);
+    expect(inactiveSourceSize(history, stateA.pages)).toBe(40 * 1024 * 1024);
+  });
+
+  it("keeps the just-undone addition after the last oversized source was removed", () => {
+    const empty = snapshotOrganization([], new Set(), null);
+    const stateH1 = snapshotOf(file(60 * 1024 * 1024));
+    const stateH2 = snapshotOf(file(60 * 1024 * 1024));
+    const removeH1 = { label: "remove H1", before: stateH1, after: empty };
+    const addH2 = { label: "add H2", before: empty, after: stateH2 };
+    const history = undoStep({ undo: [removeH1, addH2], redo: [] });
+    expect(history.undo).toEqual([]);
+    expect(history.redo.map((entry) => entry.label)).toEqual(["add H2"]);
+    expect(redoStep(history).undo.map((entry) => entry.label)).toEqual(["add H2"]);
+  });
+
+  it("evicts only the far past when it alone holds the oversized files", () => {
+    const small = file(1024);
+    const stateA = snapshotOf(small);
+    const fileA = file(30 * 1024 * 1024);
+    const fileB = file(30 * 1024 * 1024);
+    const removeA = {
       label: "remove A",
-      before: snapshotOf(small, file(30 * 1024 * 1024)),
-      after: stateA,
+      before: snapshotOf(small, fileA, fileB),
+      after: snapshotOf(small, fileB),
     };
-    const pastB = {
-      label: "remove B",
-      before: snapshotOf(small, file(30 * 1024 * 1024)),
-      after: stateA,
-    };
-    const pastOnly = trimOrganizationHistory(
-      { undo: [pastA, pastB, rotate("rotation")], redo: [rotate("future rotation")] },
+    const removeB = { label: "remove B", before: snapshotOf(small, fileB), after: stateA };
+    const rotation = { label: "rotation", before: stateA, after: stateA };
+    const trimmed = trimOrganizationHistory(
+      { undo: [removeA, removeB, rotation], redo: [] },
       stateA.pages
     );
-    expect(pastOnly.undo.map((entry) => entry.label)).toEqual(["remove B", "rotation"]);
-    expect(pastOnly.redo).toHaveLength(1);
-    // Equal loss either way: the future step is dropped and undo is preserved.
-    const tied = trimOrganizationHistory(
-      { undo: [removePast], redo: [removeFuture] },
+    expect(trimmed.undo.map((entry) => entry.label)).toEqual(["remove B", "rotation"]);
+  });
+
+  it("drops the future rather than the past when both ends lose the same number of entries", () => {
+    const small = file(1024);
+    const stateA = snapshotOf(small);
+    const removeP = {
+      label: "remove P",
+      before: snapshotOf(small, file(40 * 1024 * 1024)),
+      after: stateA,
+    };
+    const rotation = { label: "rotation", before: stateA, after: stateA };
+    const addF = {
+      label: "add F",
+      before: stateA,
+      after: snapshotOf(small, file(40 * 1024 * 1024)),
+    };
+    const trimmed = trimOrganizationHistory(
+      { undo: [removeP, rotation], redo: [addF] },
       stateA.pages
     );
-    expect(tied.undo.map((entry) => entry.label)).toEqual(["remove past"]);
-    expect(tied.redo).toEqual([]);
+    expect(trimmed.undo.map((entry) => entry.label)).toEqual(["remove P", "rotation"]);
+    expect(trimmed.redo).toEqual([]);
   });
 
   it("retains an oversized next redo step when it is the only entry left", () => {
