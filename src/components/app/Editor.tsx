@@ -1,7 +1,11 @@
 import { Effect, Exit, Fiber } from "effect";
 import { batch, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
-import { ROTATION_STEP, TOAST_DISMISS_TIMEOUT_MS } from "../../constants";
+import {
+  ROTATION_STEP,
+  TOAST_DISMISS_TIMEOUT_MS,
+  TOAST_ERROR_DISMISS_TIMEOUT_MS,
+} from "../../constants";
 import { hasPageAdditions } from "../../controllers/editor-additions-state";
 import { answerField } from "../../controllers/editor-field-state";
 import {
@@ -111,6 +115,7 @@ export default function Editor() {
   const [workspaceView, setWorkspaceView] = createSignal<"pages" | "document">("pages");
   const [activePageId, setActivePageId] = createSignal<string | null>(null);
   const [operation, setOperation] = createSignal<EditorOperation>("idle");
+  const [filesNotice, setFilesNotice] = createSignal("");
   const [statusMessage, setStatusMessage] = createSignal("Your files never leave your device.");
   const [toasts, setToasts] = createSignal<Toast[]>([]);
 
@@ -367,6 +372,31 @@ export default function Editor() {
     setStatusMessage(phase() === "edit" ? "Ready" : "Your files never leave your device.");
   }
 
+  // Where focus goes when the toast that holds it is dismissed with its × button.
+  let toastReturnFocus: HTMLElement | null = null;
+
+  function dismissToastWithFocus(id: number, toastElement: HTMLElement) {
+    const hadFocus = toastElement.contains(document.activeElement);
+    const nextToastDismiss = toastElement.nextElementSibling?.querySelector<HTMLElement>(
+      '[data-testid="editor-toast-dismiss"]'
+    );
+    dismissToast(id);
+    if (!hadFocus) return;
+    queueMicrotask(() => {
+      if (disposed) return;
+      const target =
+        nextToastDismiss?.isConnected === true
+          ? nextToastDismiss
+          : toastReturnFocus?.isConnected && !toastReturnFocus.hasAttribute("disabled")
+            ? toastReturnFocus
+            : editorRoot?.querySelector<HTMLElement>(
+                'button:not(:disabled), input:not(:disabled), [tabindex="0"]'
+              );
+      toastReturnFocus = null;
+      target?.focus();
+    });
+  }
+
   function dismissToast(id: number) {
     const timer = toastTimers.get(id);
     if (timer) {
@@ -376,11 +406,29 @@ export default function Editor() {
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }
 
+  function startToastTimer(id: number, tone: ToastTone) {
+    if (disposed) return;
+    const existing = toastTimers.get(id);
+    if (existing) window.clearTimeout(existing);
+    const timeout = tone === "error" ? TOAST_ERROR_DISMISS_TIMEOUT_MS : TOAST_DISMISS_TIMEOUT_MS;
+    toastTimers.set(
+      id,
+      window.setTimeout(() => dismissToast(id), timeout)
+    );
+  }
+
+  function pauseToastTimer(id: number) {
+    const timer = toastTimers.get(id);
+    if (timer) {
+      window.clearTimeout(timer);
+      toastTimers.delete(id);
+    }
+  }
+
   function addToast(message: string, tone: ToastTone) {
     if (disposed) return;
     const id = ++nextToastId;
-    const timer = window.setTimeout(() => dismissToast(id), TOAST_DISMISS_TIMEOUT_MS);
-    toastTimers.set(id, timer);
+    startToastTimer(id, tone);
     setToasts((current) => [...current, { id, message, tone }]);
   }
 
@@ -697,6 +745,7 @@ export default function Editor() {
     const view = workspaceView();
     const focused = document.activeElement;
     setFilesOpen(false);
+    setFilesNotice("");
     queueMicrotask(() => {
       if (disposed || version !== filesFocusGeneration || workspaceView() !== view) return;
       if (
@@ -813,8 +862,14 @@ export default function Editor() {
     });
     setStatusMessage(
       remainingPages.length === 0
-        ? `Removed ${removedFileName}. The workspace is empty.`
+        ? `Removed ${removedFileName}. The workspace is empty. Press Ctrl/Cmd+Z to undo.`
         : `Removed ${removedFileName} and ${formatPageCount(removedPageCount)}.`
+    );
+    // The modal Files dialog makes the status bar inert, so announce inside it.
+    setFilesNotice(
+      remainingPages.length === 0
+        ? ""
+        : `Removed ${removedFileName} and ${formatPageCount(removedPageCount)}. Close this dialog and press Ctrl/Cmd+Z to undo.`
     );
     try {
       await runPDF(
@@ -1232,15 +1287,61 @@ export default function Editor() {
       <section
         data-testid="editor-toast-region"
         aria-label="Notifications"
-        aria-live="polite"
-        aria-atomic="true"
         class="editor-toast-region"
       >
         <For each={toasts()}>
           {(toast) => (
-            <div data-testid="editor-toast" class={`editor-toast editor-toast-${toast.tone}`}>
-              {toast.message}
-            </div>
+            <Show
+              when={toast.tone === "error"}
+              fallback={
+                <div
+                  data-testid="editor-toast"
+                  role="status"
+                  class={`editor-toast editor-toast-${toast.tone}`}
+                >
+                  {toast.message}
+                </div>
+              }
+            >
+              <div
+                data-testid="editor-toast"
+                role="alert"
+                class="editor-toast editor-toast-error editor-toast-dismissible"
+                onPointerEnter={() => pauseToastTimer(toast.id)}
+                onPointerLeave={() => {
+                  if (!document.activeElement?.closest(`[data-toast-id="${toast.id}"]`))
+                    startToastTimer(toast.id, toast.tone);
+                }}
+                onFocusIn={(event) => {
+                  pauseToastTimer(toast.id);
+                  const from = event.relatedTarget;
+                  if (from instanceof HTMLElement && !event.currentTarget.contains(from))
+                    toastReturnFocus = from;
+                }}
+                onFocusOut={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+                    startToastTimer(toast.id, toast.tone);
+                }}
+                data-toast-id={toast.id}
+              >
+                <span class="editor-toast-message">{toast.message}</span>
+                <EditorButton
+                  data-testid="editor-toast-dismiss"
+                  class="editor-toast-dismiss"
+                  aria-label="Dismiss notification"
+                  title="Dismiss"
+                  variant="plain"
+                  icon="close"
+                  onClick={(event) =>
+                    dismissToastWithFocus(
+                      toast.id,
+                      event.currentTarget.closest<HTMLElement>("[data-toast-id]") ??
+                        event.currentTarget
+                    )
+                  }
+                />
+              </div>
+            </Show>
           )}
         </For>
       </section>
@@ -1497,6 +1598,7 @@ export default function Editor() {
               open={filesOpen()}
               busy={isBusy()}
               files={workspaceFiles()}
+              notice={filesNotice()}
               onClose={closeFilesDialog}
               onSelectFile={handleWorkspaceFileClick}
               onRemoveFile={handleRemoveWorkspaceFile}

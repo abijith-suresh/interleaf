@@ -18,12 +18,9 @@ const animationPair = {
   ],
 };
 
-const prefersReducedMotion =
-  typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-export const contentSlide = prefersReducedMotion
-  ? undefined
-  : {
-      forwards: animationPair,
-      backwards: animationPair,
-    };
+// Evaluated at build time, so reduced motion cannot be read here. The
+// `prefers-reduced-motion` rule in global.css disables these at use time.
+export const contentSlide = {
+  forwards: animationPair,
+  backwards: animationPair,
+};

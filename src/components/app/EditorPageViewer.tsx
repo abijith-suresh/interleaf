@@ -582,7 +582,7 @@ export default function EditorPageViewer(props: Props) {
           <h2 id="editor-review-title" data-testid="editor-viewer-title">
             Page {currentWorkspaceIndex() + 1}
           </h2>
-          <span class="editor-review-position" aria-live="polite">
+          <span class="editor-review-position" aria-live="polite" aria-atomic="true">
             {currentNavigationIndex() + 1} of {navigationPages().length}
             <Show when={currentPage()?.markedForDeletion}> · Marked for deletion</Show>
           </span>
@@ -687,9 +687,7 @@ export default function EditorPageViewer(props: Props) {
           </Show>
         </div>
         <Show when={renderState() === "loading" && !hasFrame()}>
-          <p class="editor-review-state" role="status" aria-live="polite">
-            Loading page…
-          </p>
+          <p class="editor-review-state">Loading page…</p>
         </Show>
         <Show when={renderState() === "error"}>
           <div class="editor-review-state editor-review-error" role="alert">

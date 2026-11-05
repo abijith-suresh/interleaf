@@ -7,6 +7,8 @@ interface Props {
   open: boolean;
   busy: boolean;
   files: WorkspaceFile[];
+  /** Announced inside the modal, whose inert surroundings cannot announce changes. */
+  notice?: string;
   onClose: () => void;
   onSelectFile: (file: File) => void;
   onRemoveFile: (file: File) => void | Promise<void>;
@@ -102,6 +104,10 @@ export default function EditorFilesDialog(props: Props) {
             icon="close"
           />
         </header>
+
+        <p class="sr-only" role="status" aria-atomic="true" data-testid="editor-files-notice">
+          {props.notice}
+        </p>
 
         <div class="editor-files-dialog-body">
           <ul ref={list} class="editor-file-list" aria-label="Workspace files">

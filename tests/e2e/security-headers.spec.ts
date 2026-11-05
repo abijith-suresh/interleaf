@@ -70,6 +70,34 @@ test("the editor opens, compresses and exports without CSP violations", async ({
   expect(violations).toEqual([]);
 });
 
+test("the native password dialog and mobile menu work without CSP violations", async ({ page }) => {
+  const violations = await watchViolations(page);
+  await page.goto("/app");
+  await page.getByTestId("editor-upload-input").setInputFiles({
+    name: "protected.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from(
+      readFileSync("tools/qpdf-wasm/fixtures/encrypted-40-bit-r3.b64", "utf8"),
+      "base64"
+    ),
+  });
+  const dialog = page.getByRole("dialog", { name: "Password required" });
+  await expect(dialog).toBeVisible();
+  await page.getByLabel("PDF password", { exact: true }).fill("wrong");
+  await page.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toHaveText("Incorrect password. Try again.");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.locator("details.mobile-nav summary").click();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("details.mobile-nav")).toHaveJSProperty("open", false);
+
+  expect(violations).toEqual([]);
+});
+
 test("the CSP blocks cross-origin fetches", async ({ page }) => {
   const violations = await watchViolations(page);
   await page.goto("/app");

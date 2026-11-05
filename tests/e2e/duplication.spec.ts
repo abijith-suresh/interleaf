@@ -133,7 +133,7 @@ test("copies retain independent organization, real PDF/PNG content and source re
   await page.getByRole("button", { name: "Rotate page 3 90 degrees", exact: true }).click();
   await page.getByRole("button", { name: "Mark page 3 for deletion", exact: true }).click();
   await expect(tiles.nth(1)).toHaveAttribute("data-marked-for-deletion", "false");
-  await page.getByRole("button", { name: "Restore page 3 from deletion", exact: true }).click();
+  await page.getByRole("button", { name: "Mark page 3 for deletion", exact: true }).click();
   await tiles.nth(2).focus();
   await page.keyboard.press("Alt+ArrowRight");
   await expect(tiles.nth(3)).toHaveAttribute("aria-pressed", "true");

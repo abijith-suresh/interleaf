@@ -68,3 +68,31 @@ const links = [
     </div>
   </div>
 </nav>
+
+<script>
+  const OPEN_MENU = "details.mobile-nav[open]";
+
+  function closeMenus(returnFocus = false) {
+    for (const menu of document.querySelectorAll<HTMLDetailsElement>(OPEN_MENU)) {
+      menu.open = false;
+      if (returnFocus) menu.querySelector<HTMLElement>("summary")?.focus();
+    }
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !event.defaultPrevented && document.querySelector(OPEN_MENU)) {
+      closeMenus(true);
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    for (const menu of document.querySelectorAll<HTMLDetailsElement>(OPEN_MENU)) {
+      // Outside click, or a link in the panel (a same-page link never swaps the page).
+      if (!menu.contains(target) || target.closest(".mobile-nav-panel a")) menu.open = false;
+    }
+  });
+
+  document.addEventListener("astro:after-swap", () => closeMenus());
+</script>
