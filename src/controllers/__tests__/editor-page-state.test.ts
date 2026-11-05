@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   areAllPagesSelected,
+  createPageBatchId,
   createPageStates,
   duplicatePageState,
   getDeletionAction,
@@ -10,6 +11,19 @@ import {
 } from "../editor-page-state";
 
 describe("editor page state controller", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("generates unique ids without crypto.randomUUID", () => {
+    vi.stubGlobal("crypto", {});
+    const first = createPageBatchId();
+    const second = createPageBatchId();
+    expect(first).toEqual(expect.any(String));
+    expect(first).not.toBe("");
+    expect(second).not.toBe(first);
+  });
+
   const file = new File(["plain"], "sample.pdf", { type: "application/pdf" });
 
   it("creates page state entries for each source page", () => {

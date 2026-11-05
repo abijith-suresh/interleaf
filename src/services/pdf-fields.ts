@@ -119,6 +119,28 @@ interface Field {
   reason?: string;
 }
 
+// A destination (array, name, or string) only navigates. An action is allowed
+// only when every action in its /Next chain is GoTo; anything else may run code.
+function safeOpenAction(catalog: PDFDict): boolean {
+  const open = value(catalog, "OpenAction");
+  if (open === undefined) return true;
+  if (open instanceof PDFArray || open instanceof PDFName) return true;
+  if (open instanceof PDFString || open instanceof PDFHexString) return true;
+  const seen = new Set<PDFDict>();
+  const pending: (PDFObject | undefined)[] = [open];
+  while (pending.length) {
+    const action = pending.pop();
+    if (!(action instanceof PDFDict) || seen.has(action) || seen.size >= 32) return false;
+    seen.add(action);
+    if (value(action, "S") !== N("GoTo")) return false;
+    const next = value(action, "Next");
+    if (next instanceof PDFArray)
+      pending.push(...next.asArray().map((raw) => action.context.lookup(raw)));
+    else if (next !== undefined) pending.push(next);
+  }
+  return true;
+}
+
 function scan(doc: PDFDocument): { fields: Field[]; reason?: string } {
   if (doc.isEncrypted)
     return {
@@ -131,7 +153,7 @@ function scan(doc: PDFDocument): { fields: Field[]; reason?: string } {
     value(form, "XFA") ||
     (array(form, "CO")?.size() ?? 0) > 0 ||
     value(doc.catalog, "AA") ||
-    value(doc.catalog, "OpenAction") ||
+    !safeOpenAction(doc.catalog) ||
     value(dictionary(doc.catalog, "Names") ?? doc.catalog, "JavaScript")
   )
     return { fields: [], reason: "Embedded filling is unavailable for this form. Use Add text." };

@@ -17,13 +17,17 @@ interface PageResource {
   readonly request: PendingPageRequest;
 }
 
+// PDF.js cleanup normally settles within a few polls; bound the wait so a stuck
+// operator-list stream cannot hold the page lock forever.
+const MAX_CLEANUP_ATTEMPTS = 400;
+
 function cleanupPage(
   page: pdfjsLib.PDFPageProxy,
   file: File,
   operation: string
 ): Effect.Effect<void, PDFProcessingError> {
   return Effect.gen(function* () {
-    while (true) {
+    for (let attempt = 0; attempt < MAX_CLEANUP_ATTEMPTS; attempt++) {
       const cleaned = yield* Effect.try({
         try: () => page.cleanup(),
         catch: (cause) => processingError(operation, file, cause),
@@ -34,6 +38,9 @@ function cleanupPage(
       // new render or document teardown cannot overtake it.
       yield* Effect.sleep("25 millis");
     }
+    return yield* Effect.fail(
+      processingError(operation, file, new Error("Page cleanup did not complete in time."))
+    );
   });
 }
 

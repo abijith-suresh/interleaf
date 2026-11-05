@@ -20,7 +20,10 @@ import { processingError } from "./pdf-errors";
 
 const N = PDFName.of;
 // Walk native objects only. Identity sets bound cycles without interpreting PDF syntax.
-function objects(doc: PDFDocument, roots: PDFObject[]): Set<PDFObject> {
+// A reference to a missing object is null (ISO 32000-1 7.3.10), so it has no
+// children to reconcile. Opaque invalid objects may hide references to omitted
+// pages, so they are rejected except by the source provenance-key scan.
+function objects(doc: PDFDocument, roots: PDFObject[], allowOpaque = false): Set<PDFObject> {
   const seen = new Set<PDFObject>();
   const stack = [...roots];
   while (stack.length) {
@@ -31,11 +34,10 @@ function objects(doc: PDFDocument, roots: PDFObject[]): Set<PDFObject> {
     if (o instanceof PDFRef) {
       const target = doc.context.lookup(o);
       if (target) stack.push(target);
-      else throw Error(`Missing PDF reference ${o}`);
-    } else if (o instanceof PDFDict) stack.push(...o.values());
-    else if (o instanceof PDFArray) stack.push(...o.asArray());
+    } else if (o instanceof PDFDict) for (const v of o.values()) stack.push(v);
+    else if (o instanceof PDFArray) for (const v of o.asArray()) stack.push(v);
     else if (o instanceof PDFStream) stack.push(o.dict);
-    else if (o instanceof PDFInvalidObject)
+    else if (o instanceof PDFInvalidObject && !allowOpaque)
       throw Error("Opaque invalid PDF object cannot be reconciled");
   }
   return seen;
@@ -142,7 +144,10 @@ export class PDFExportCopy {
       [
         ...objects(
           s.doc,
-          s.doc.context.enumerateIndirectObjects().map(([, o]) => o)
+          s.doc.context.enumerateIndirectObjects().map(([, o]) => o),
+          // Only parsed dictionaries can collide with the provenance key; any
+          // opaque object that reaches an output page is rejected by copy/finish.
+          true
         ),
       ].filter((o): o is PDFDict => o instanceof PDFDict)
     );
@@ -196,7 +201,8 @@ export class PDFExportCopy {
     // resolved Page name identifies an otherwise unknown dictionary as a Page.
     return resolvedValue(dict, N("Type")) === N("Page");
   }
-  // Optional action slots treat resolved null as absent. Keep this separate
+  // Optional action slots treat resolved null, including a missing reference
+  // target (ISO 32000-1 7.3.10), as absent. Keep this separate
   // from required role/count resolution and field inheritance.
   private actionValue(raw: PDFObject | undefined): PDFObject | undefined {
     let value = raw;
@@ -206,7 +212,7 @@ export class PDFExportCopy {
         throw Error("Cyclic or excessive PDF action references");
       seen.add(value);
       value = this.output.context.lookup(value);
-      if (value === undefined) throw Error("Missing PDF action reference");
+      if (value === undefined) return undefined;
     }
     return value === PDFNull ? undefined : value;
   }
@@ -233,18 +239,21 @@ export class PDFExportCopy {
         }
       }
       const kids = node.lookupMaybe(N("Kids"), PDFArray);
-      if (kids) stack.push(...kids.asArray());
+      if (kids) for (const kid of kids.asArray()) stack.push(kid);
     }
     return undefined;
   }
   private destination(dict: PDFDict, raw: PDFObject | undefined): PDFArray | undefined {
     const source = this.owner.get(dict);
     if (!source) throw Error("The internal destination has no source identity.");
-    let value = this.output.context.lookup(raw);
+    let context = this.output.context;
+    let next = raw;
     const seen = new Set<PDFObject>();
     const names = new Set<string>();
-    let foreign = false;
     for (;;) {
+      const value = context.lookup(next);
+      // A missing reference target is null: the link has no destination.
+      if (!value && next instanceof PDFRef) return undefined;
       if (!value) this.reject(source.file, "Missing internal destination");
       if (seen.has(value)) this.reject(source.file, "Cyclic internal destination");
       seen.add(value);
@@ -254,17 +263,18 @@ export class PDFExportCopy {
         names.add(name);
         const named = this.named(source, name);
         if (!named) this.reject(source.file, `Unresolved named destination ${name}`);
-        value = source.doc.context.lookup(named);
-        foreign = true;
+        next = named;
+        context = source.doc.context;
         continue;
       }
       if (value instanceof PDFDict) {
-        value = (foreign ? source.doc.context : this.output.context).lookup(value.get(N("D")));
+        next = value.get(N("D"));
         continue;
       }
       if (!(value instanceof PDFArray) || value.size() < 2)
         this.reject(source.file, "Unsupported internal destination");
-      const target = (foreign ? source.doc.context : this.output.context).lookup(value.get(0));
+      const target = context.lookup(value.get(0));
+      if (target === undefined && value.get(0) instanceof PDFRef) return undefined;
       if (!(target instanceof PDFDict))
         this.reject(source.file, "Internal destination has no source Page");
       const id = target.lookupMaybe(this.key, PDFNumber)?.asNumber();
@@ -272,7 +282,6 @@ export class PDFExportCopy {
         this.reject(source.file, "Unrecognized internal destination Page");
       const page = this.first.get(id);
       if (!page) return undefined;
-      const context = foreign ? source.doc.context : this.output.context;
       const tail = value
         .asArray()
         .slice(1)
@@ -302,7 +311,12 @@ export class PDFExportCopy {
     const fields = new Set<PDFDict>();
     const annotationOwners = new Map<PDFDict, PDFPage>();
     for (const page of actualPages) {
-      for (const raw of page.node.Annots()?.asArray() ?? []) {
+      // A missing annotation target is null: drop it instead of reconciling it.
+      const annots = page.node.Annots();
+      for (let i = (annots?.size() ?? 0) - 1; i >= 0; i--)
+        if (annots?.get(i) instanceof PDFRef && !this.output.context.lookup(annots.get(i)))
+          annots.remove(i);
+      for (const raw of annots?.asArray() ?? []) {
         const annot = this.output.context.lookup(raw, PDFDict);
         const previous = annotationOwners.get(annot);
         if (previous && previous !== page)
@@ -329,10 +343,15 @@ export class PDFExportCopy {
     }
     for (const field of fields) {
       const kids = field.lookup(N("Kids"), PDFArray);
+      // A missing kid is null, not an omitted widget: keep it in place so
+      // positional entries such as button /Opt stay aligned.
+      const missing = (kid: PDFObject) =>
+        kid instanceof PDFRef && this.output.context.lookup(kid) === undefined;
       const retained = kids
         .asArray()
-        .filter((kid) => keep.has(this.output.context.lookup(kid, PDFDict)));
+        .filter((kid) => missing(kid) || keep.has(this.output.context.lookup(kid, PDFDict)));
       for (const kid of retained) {
+        if (missing(kid)) continue;
         if (this.output.context.lookup(kid, PDFDict).lookupMaybe(N("Parent"), PDFDict) !== field)
           throw Error("This PDF has inconsistent linked fields that cannot be preserved.");
       }
@@ -372,7 +391,7 @@ export class PDFExportCopy {
       const additional = this.actionValue(semantic.get(N("AA"), true));
       if (additional !== undefined && !(additional instanceof PDFDict))
         throw Error("Invalid PDF additional actions dictionary");
-      if (additional) pendingActions.push(...additional.values());
+      if (additional) for (const v of additional.values()) pendingActions.push(v);
     }
     const actions = new Set<PDFDict>();
     while (pendingActions.length) {
@@ -383,7 +402,7 @@ export class PDFExportCopy {
       actions.add(action);
       this.name(action, N("S"), true);
       const next = this.actionValue(action.get(N("Next"), true));
-      if (next instanceof PDFArray) pendingActions.push(...next.asArray());
+      if (next instanceof PDFArray) for (const v of next.asArray()) pendingActions.push(v);
       else if (next) pendingActions.push(next);
     }
     const removeActions = new Set<PDFDict>();

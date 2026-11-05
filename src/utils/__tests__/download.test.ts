@@ -1,8 +1,13 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { downloadFile, downloadPDF } from "../download";
 
 describe("download utilities", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -10,7 +15,7 @@ describe("download utilities", () => {
     { kind: "PDF", contentType: "application/pdf", suggestedFileName: "custom.pdf" },
     { kind: "ZIP", contentType: "application/zip", suggestedFileName: "pages.zip" },
   ])(
-    "downloads $kind bytes with the supplied filename and releases the URL",
+    "downloads $kind bytes with the supplied filename and releases the URL after a delay",
     async ({ kind, contentType, suggestedFileName }) => {
       const data = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
       const url = "blob:interleaf-download";
@@ -40,6 +45,10 @@ describe("download utilities", () => {
       expect(new Uint8Array(await blob.arrayBuffer())).toEqual(data);
       expect(click).toHaveBeenCalledTimes(1);
       expect(clickedAnchor).not.toBeInTheDocument();
+      expect(revokeURL).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(59_999);
+      expect(revokeURL).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
       expect(revokeURL).toHaveBeenCalledExactlyOnceWith(url);
     }
   );

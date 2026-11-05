@@ -668,10 +668,16 @@ export default function Editor() {
     ).catch(() => false);
   }
 
+  // Older browsers do not fire `cancel` on file inputs; the window regains focus either way.
+  function changeFilePickerOpen(open: boolean): void {
+    setFilePickerOpen(open);
+    if (open) window.addEventListener("focus", () => setFilePickerOpen(false), { once: true });
+  }
+
   function requestAddFiles(): void {
     if (isBusy()) return;
     setFilesOpen(false);
-    setFilePickerOpen(true);
+    changeFilePickerOpen(true);
     addPdfInput.click();
   }
 
@@ -792,7 +798,7 @@ export default function Editor() {
       remainingPages.push(page);
     });
     organize("source removal", () => {
-      setPages(copyOrganizationPages(remainingPages));
+      setPages(reconcile(copyOrganizationPages(remainingPages), { key: "id" }));
       setSelectedIndices(nextSelection);
       setDragSourceIndex(null);
       setDragOverTarget(null);
@@ -1386,10 +1392,12 @@ export default function Editor() {
                           );
                       })
                     }
-                    onFieldChange={(pageId, fieldRef, value) =>
+                    onFieldChange={(pageId, fieldRef, value, originalValue) =>
                       organize("Fill text field", () =>
                         setPages(
-                          reconcile(answerField(pages, pageId, fieldRef, value), { key: "id" })
+                          reconcile(answerField(pages, pageId, fieldRef, value, originalValue), {
+                            key: "id",
+                          })
                         )
                       )
                     }
@@ -1418,7 +1426,7 @@ export default function Editor() {
                       busy={isBusy()}
                       statusMessage={statusMessage()}
                       onFilesSelected={handleInitialFiles}
-                      onPickerChange={setFilePickerOpen}
+                      onPickerChange={changeFilePickerOpen}
                     />
                   }
                 >
