@@ -353,3 +353,100 @@ describe("field answer state and exported bytes", () => {
     }
   });
 });
+
+describe("form-wide fillability checks", () => {
+  const UNAVAILABLE = "Embedded filling is unavailable for this form. Use Add text.";
+  async function load() {
+    return PDFDocument.load((await textFieldFixture()).bytes);
+  }
+  const action = (doc: PDFDocument, entries: Record<string, unknown>) =>
+    doc.context.obj(entries as Parameters<typeof doc.context.obj>[0]) as unknown as PDFDict;
+  const refuses = (doc: PDFDocument) => {
+    const result = inspectPDFFields(doc);
+    expect(result.reason).toBe(UNAVAILABLE);
+    expect(result.widgets).toHaveLength(0);
+  };
+  const fillable = (doc: PDFDocument) => {
+    const result = inspectPDFFields(doc);
+    expect(result.reason).toBeUndefined();
+    expect(result.widgets.length).toBeGreaterThan(0);
+  };
+
+  it("keeps filling for OpenAction destinations and GoTo action chains", async () => {
+    const destination = await load();
+    destination.catalog.set(
+      N("OpenAction"),
+      destination.context.obj([destination.getPage(0).ref, N("XYZ"), PDFNull, PDFNull, 0])
+    );
+    fillable(destination);
+    const named = await load();
+    named.catalog.set(N("OpenAction"), PDFHexString.fromText("chapter"));
+    fillable(named);
+    const goto = await load();
+    const target = goto.context.obj([goto.getPage(0).ref, N("Fit")]);
+    const second = action(goto, { S: N("GoTo"), D: target });
+    goto.catalog.set(N("OpenAction"), action(goto, { S: N("GoTo"), D: target, Next: [second] }));
+    fillable(goto);
+  });
+  it("refuses OpenAction actions that are not plain GoTo", async () => {
+    const script = await load();
+    script.catalog.set(N("OpenAction"), action(script, { S: N("JavaScript"), JS: "app.alert(1)" }));
+    refuses(script);
+    const chained = await load();
+    const js = action(chained, { S: N("JavaScript"), JS: "app.alert(1)" });
+    chained.catalog.set(
+      N("OpenAction"),
+      action(chained, { S: N("GoTo"), D: [chained.getPage(0).ref, N("Fit")], Next: js })
+    );
+    refuses(chained);
+    const listed = await load();
+    listed.catalog.set(
+      N("OpenAction"),
+      action(listed, { S: N("GoTo"), Next: [action(listed, { S: N("SubmitForm") })] })
+    );
+    refuses(listed);
+    const missing = await load();
+    missing.catalog.set(N("OpenAction"), action(missing, {}));
+    refuses(missing);
+  });
+  it("refuses cyclic OpenAction chains", async () => {
+    const doc = await load();
+    const loop = action(doc, { S: N("GoTo") });
+    loop.set(N("Next"), loop);
+    doc.catalog.set(N("OpenAction"), loop);
+    refuses(doc);
+  });
+  it("refuses XFA, form-wide scripts, calculation order, and page actions", async () => {
+    const xfa = await load();
+    xfa.catalog.lookup(N("AcroForm"), PDFDict).set(N("XFA"), xfa.context.obj([]));
+    refuses(xfa);
+    const calculated = await load();
+    const [field] = calculated.getForm().getFields();
+    calculated.catalog
+      .lookup(N("AcroForm"), PDFDict)
+      .set(N("CO"), calculated.context.obj([field.ref]));
+    refuses(calculated);
+    const additional = await load();
+    additional.catalog.set(N("AA"), action(additional, {}));
+    refuses(additional);
+    const named = await load();
+    named.catalog.set(N("Names"), action(named, { JavaScript: action(named, { Names: [] }) }));
+    refuses(named);
+    const page = await load();
+    page.getPage(0).node.set(N("AA"), action(page, {}));
+    refuses(page);
+  });
+  it("refuses signed PDFs that have a signature value", async () => {
+    const doc = await load();
+    const signature = doc.context.obj({
+      FT: N("Sig"),
+      T: PDFHexString.fromText("sign"),
+      V: action(doc, { Type: N("Sig") }),
+    });
+    const form = doc.catalog.lookup(N("AcroForm"), PDFDict);
+    form.lookup(N("Fields"), PDFArray).push(doc.context.register(signature));
+    const result = inspectPDFFields(doc);
+    expect(result.reason).toBe("Embedded filling is unavailable for signed PDFs. Use Add text.");
+    expect(result.widgets).toHaveLength(0);
+  });
+});
