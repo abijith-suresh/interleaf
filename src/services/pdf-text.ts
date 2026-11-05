@@ -1,4 +1,4 @@
-import { degrees, type PDFDocument, type PDFFont, type PDFPage, StandardFonts } from "pdf-lib";
+import { degrees, PDFDocument, type PDFFont, type PDFPage, StandardFonts } from "pdf-lib";
 import { MAX_TEXT_SIZE, MIN_TEXT_SIZE } from "../constants";
 import { normalizeQuarterTurn } from "../controllers/text-geometry";
 import type { AddedText, PageGeometry } from "../types/interfaces";
@@ -50,7 +50,6 @@ export function measureAddedText(text: AddedText, geometry: PageGeometry, font: 
 }
 
 export async function validateAddedText(text: AddedText, geometry: PageGeometry) {
-  const { PDFDocument } = await import("pdf-lib");
   const document = await PDFDocument.create();
   const font = await document.embedFont(StandardFonts.Helvetica);
   return measureAddedText(text, geometry, font);
