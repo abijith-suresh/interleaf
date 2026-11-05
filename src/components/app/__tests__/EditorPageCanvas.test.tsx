@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { Effect } from "effect";
+import { createStore } from "solid-js/store";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { THUMBNAIL_INTERSECTION_MARGIN, THUMBNAIL_MAX_PIXELS, THUMBNAIL_SCALE } from "@/constants";
 import { makePDFRuntime, type PDFRuntime } from "@/services/pdf-runtime";
@@ -8,6 +9,7 @@ import type { PageState } from "@/types/interfaces";
 const pdfServiceMocks = vi.hoisted(() => ({
   getPageRotation: vi.fn(),
   renderPage: vi.fn(),
+  renderPageState: vi.fn(),
   reset: vi.fn(),
 }));
 
@@ -15,6 +17,7 @@ vi.mock("@/services/pdf-service", () => ({
   PDFService: class {
     getPageRotation = pdfServiceMocks.getPageRotation;
     renderPage = pdfServiceMocks.renderPage;
+    renderPageState = pdfServiceMocks.renderPageState;
     reset = pdfServiceMocks.reset;
     dispose = () => Effect.void;
   },
@@ -82,6 +85,29 @@ describe("EditorPageCanvas", () => {
     vi.useRealTimers();
     await runtime.dispose();
     vi.unstubAllGlobals();
+  });
+
+  it("rerenders an edited page only when its saved additions change", async () => {
+    pdfServiceMocks.renderPageState.mockReturnValue(Effect.succeed(undefined));
+    const text = { id: "text", text: "Hello", x: 10, y: 40, fontSize: 16, rotation: 0 };
+    const [state, setState] = createStore({ page: { ...makePage(), addedText: [text] } });
+    const scrollRoot = document.createElement("div");
+    const { getByTestId } = render(() => (
+      <EditorPageCanvas page={state.page} rotation={90} scrollRoot={scrollRoot} runtime={runtime} />
+    ));
+    TestIntersectionObserver.intersect();
+    const canvasFrame = getByTestId("editor-page-canvas");
+    await waitFor(() => expect(canvasFrame).toHaveAttribute("data-render-state", "ready"));
+    expect(pdfServiceMocks.renderPageState).toHaveBeenCalledOnce();
+
+    setState("page", "addedText", [{ ...text }]);
+    setState("page", "rotation", 180);
+    await Effect.runPromise(Effect.sleep(0));
+    expect(pdfServiceMocks.renderPageState).toHaveBeenCalledOnce();
+
+    setState("page", "addedText", [{ ...text, text: "Changed" }]);
+    await waitFor(() => expect(pdfServiceMocks.renderPageState).toHaveBeenCalledTimes(2));
+    expect(pdfServiceMocks.renderPage).not.toHaveBeenCalled();
   });
 
   it("keeps rendering lazy and offers an accessible retry after a failure", async () => {

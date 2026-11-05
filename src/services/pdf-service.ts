@@ -6,6 +6,7 @@ import {
   type PageGeometry,
   type PageState,
   type PDFError,
+  type PDFFields,
   PDFPasswordRequiredError,
   type PDFProcessingError,
 } from "../types/interfaces";
@@ -13,6 +14,7 @@ import { type DocumentKey, makeDocumentStore } from "./document-store";
 import { PageRenderer } from "./page-renderer";
 import { PageResources } from "./page-resources";
 import { collectFirstError, processingError } from "./pdf-errors";
+import type { PDFOperationsService } from "./pdf-operations-service";
 import { clampScaleToPixelBudget } from "./render-scale";
 
 let pdfjsModule: Promise<typeof pdfjsLib> | null = null;
@@ -23,6 +25,25 @@ function loadPdfjs(): Promise<typeof pdfjsLib> {
     return module;
   });
   return pdfjsModule;
+}
+
+// One PDF.js worker serves every document of a runtime. Without one, getDocument
+// starts, and later terminates, a separate worker for each loading task.
+export class SharedPDFWorker {
+  private worker: pdfjsLib.PDFWorker | undefined;
+  private destroyed = false;
+
+  get(pdfjs: typeof pdfjsLib): pdfjsLib.PDFWorker {
+    if (this.destroyed) throw new Error("The PDF.js worker has been destroyed.");
+    this.worker ??= new pdfjs.PDFWorker();
+    return this.worker;
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+    this.worker?.destroy();
+    this.worker = undefined;
+  }
 }
 
 interface PageMetadata extends PageGeometry {
@@ -52,9 +73,30 @@ export type PDFDecrypt = (
   password: string | undefined
 ) => Effect.Effect<Uint8Array<ArrayBuffer>, unknown>;
 
+export type PDFEditedPageOperations = Pick<PDFOperationsService, "buildPDF" | "getFields">;
+
 export interface PDFServiceOptions {
   readonly decrypt?: PDFDecrypt;
+  // The runtime's editing support. Without it, this service loads and owns one.
+  readonly operations?: Effect.Effect<PDFEditedPageOperations, PDFProcessingError>;
+  // Without a shared worker, this service creates one and destroys it on dispose.
+  readonly worker?: SharedPDFWorker;
 }
+
+// A single-page PDF built from an edited page, with its additions and the
+// field answers that have a widget on that page.
+interface DerivedPage {
+  readonly key: string;
+  readonly source: File;
+  readonly file: File;
+  readonly size: number;
+  users: number;
+  retired: boolean;
+}
+
+// Thumbnails, the viewer, and the filmstrip render the same edited page.
+const DERIVED_PAGE_LIMIT = 32;
+const DERIVED_PAGE_BYTES = 64 * 1024 * 1024;
 
 function isPasswordException(cause: unknown): boolean {
   return (
@@ -80,8 +122,26 @@ export class PDFService {
   private readonly pageRenderer = new PageRenderer();
   // Bound source reads and PDF generation too, before the shared bitmap permit.
   private readonly editedRenders = Semaphore.makeUnsafe(2);
+  private readonly worker: SharedPDFWorker;
+  private readonly ownsWorker: boolean;
+  private ownedOperations: Promise<PDFOperationsService> | undefined;
+  private readonly fileIds = new WeakMap<File, number>();
+  private nextFileId = 0;
+  // Insertion order is recency order.
+  private readonly derivedPages = new Map<string, DerivedPage>();
+  private readonly derivedBuilds = new Map<
+    string,
+    Deferred.Deferred<Exit.Exit<DerivedPage, PDFError>>
+  >();
+  // Derived documents need their own store. A source release or reset waits for
+  // edited renders, so their cleanup must never wait on the source store.
+  private derivedDocuments: PDFService | undefined;
+  private disposed = false;
 
-  constructor(private readonly options: PDFServiceOptions = {}) {}
+  constructor(private readonly options: PDFServiceOptions = {}) {
+    this.ownsWorker = options.worker === undefined;
+    this.worker = options.worker ?? new SharedPDFWorker();
+  }
 
   loadPDF(file: File): Effect.Effect<void, PDFError> {
     const version = this.documents.version(file);
@@ -234,50 +294,244 @@ export class PDFService {
         rotation,
         maxCanvasPixels
       );
-    // No derived-document cache. The temporary file lives until render cancellation
-    // and page cleanup settle, then its loading task is destroyed.
     return this.documents.track(
       page.sourceFile,
       "render-edited-page"
     )(
-      this.editedRenders.withPermit(
-        Effect.gen({ self: this }, function* () {
-          const { PDFOperationsService } = yield* Effect.tryPromise({
-            try: () => import("./pdf-operations-service"),
-            catch: (cause) => processingError("load-text-renderer", page.sourceFile, cause),
-          });
-          return yield* Effect.acquireUseRelease(
-            Effect.sync(() => new PDFOperationsService(this)),
-            (operations) =>
-              Effect.gen({ self: this }, function* () {
-                // Source metadata/render calls track their own fiber. Keep this
-                // outer source operation registered until derived cleanup completes.
-                const result = yield* Effect.acquireUseRelease(
-                  Effect.forkChild(
-                    operations.buildPDF([{ ...page, rotation: 0, markedForDeletion: false }])
-                  ),
-                  Fiber.join,
-                  (fiber) => Fiber.interrupt(fiber).pipe(Effect.asVoid)
-                );
-                const temporary = new File([new Uint8Array(result.data)], "edited-page.pdf", {
-                  type: "application/pdf",
-                });
-                // This store must be separate from the source store. A source reset
-                // waits for this fiber; its finalizer must not await that reset barrier.
-                yield* Effect.acquireUseRelease(
-                  Effect.sync(() => new PDFService()),
-                  (derived) =>
-                    this.pageRenderer.withPermit(
-                      derived.renderPage(temporary, 1, canvas, scale, rotation, maxCanvasPixels)
-                    ),
-                  (derived) => derived.dispose()
-                );
-              }),
-            (operations) => operations.dispose()
+      Effect.gen({ self: this }, function* () {
+        const operations = yield* this.getOperations(page.sourceFile);
+        const edited = yield* this.withVisibleFieldAnswers(operations, page);
+        if (!hasPageAdditions(edited))
+          return yield* this.renderSourcePage(
+            page.sourceFile,
+            page.sourcePageNumber,
+            canvas,
+            scale,
+            rotation,
+            maxCanvasPixels
           );
-        })
-      )
+        const key = this.derivedPageKey(edited);
+        const derivedDocuments = this.getDerivedDocuments();
+        // Claiming outside the interruptible build keeps an entry from being
+        // released while it is rendered. A retired entry is released by its last user.
+        yield* Effect.uninterruptibleMask((restore) =>
+          restore(this.derivedPage(operations, edited, key)).pipe(
+            Effect.tap((entry) =>
+              Effect.sync(() => {
+                entry.users++;
+              })
+            ),
+            Effect.flatMap((entry) =>
+              restore(
+                this.pageRenderer.withPermit(
+                  derivedDocuments.renderPage(
+                    entry.file,
+                    1,
+                    canvas,
+                    scale,
+                    rotation,
+                    maxCanvasPixels
+                  )
+                )
+              ).pipe(Effect.ensuring(this.unclaimDerivedPage(entry)))
+            )
+          )
+        );
+      })
     );
+  }
+
+  private getOperations(file: File): Effect.Effect<PDFEditedPageOperations, PDFProcessingError> {
+    if (this.options.operations) return this.options.operations;
+    return Effect.tryPromise({
+      try: () => {
+        if (this.disposed) throw new Error("The PDF service has been disposed.");
+        if (!this.ownedOperations) {
+          const loading = import("./pdf-operations-service").then(
+            ({ PDFOperationsService }) => new PDFOperationsService(this)
+          );
+          this.ownedOperations = loading;
+          loading.catch(() => {
+            if (this.ownedOperations === loading) this.ownedOperations = undefined;
+          });
+        }
+        return this.ownedOperations;
+      },
+      catch: (cause) => processingError("load-text-renderer", file, cause),
+    });
+  }
+
+  private withOwnedOperations(
+    use: (operations: PDFOperationsService) => Effect.Effect<void>,
+    release = false
+  ): Effect.Effect<void> {
+    return Effect.suspend(() => {
+      const loading = this.ownedOperations;
+      if (!loading) return Effect.void;
+      if (release) this.ownedOperations = undefined;
+      return Effect.promise(() => loading.then(use, () => Effect.void)).pipe(Effect.flatten);
+    });
+  }
+
+  // Answers are copied to every page of a field group. Only pages with a
+  // widget for an answered field look different, so the rest render as-is.
+  private withVisibleFieldAnswers(
+    operations: PDFEditedPageOperations,
+    page: PageState
+  ): Effect.Effect<PageState> {
+    const answers = page.fieldAnswers;
+    if (!answers?.length) return Effect.succeed(page);
+    return operations.getFields(page.sourceFile).pipe(
+      Effect.map((fields: PDFFields) => {
+        const visible = new Set(
+          fields.widgets
+            .filter((widget) => widget.pageNumber === page.sourcePageNumber)
+            .map((widget) => widget.fieldRef)
+        );
+        return {
+          ...page,
+          fieldAnswers: answers.filter((answer) => visible.has(answer.fieldRef)),
+        };
+      }),
+      // Build with every answer, as exports do, when fields cannot be read here.
+      Effect.orElseSucceed(() => page)
+    );
+  }
+
+  private derivedPageKey(page: PageState): string {
+    let id = this.fileIds.get(page.sourceFile);
+    if (id === undefined) {
+      id = this.nextFileId++;
+      this.fileIds.set(page.sourceFile, id);
+    }
+    return `${id}:${page.sourcePageNumber}:${JSON.stringify([
+      page.addedText ?? [],
+      page.addedCheckmarks ?? [],
+      page.fieldAnswers ?? [],
+    ])}`;
+  }
+
+  private getDerivedDocuments(): PDFService {
+    this.derivedDocuments ??= new PDFService({ worker: this.worker });
+    return this.derivedDocuments;
+  }
+
+  private derivedPage(
+    operations: PDFEditedPageOperations,
+    page: PageState,
+    key: string
+  ): Effect.Effect<DerivedPage, PDFError> {
+    return Effect.suspend(() => {
+      const cached = this.derivedPages.get(key);
+      if (cached) {
+        this.derivedPages.delete(key);
+        this.derivedPages.set(key, cached);
+        return Effect.succeed(cached);
+      }
+      const pending = this.derivedBuilds.get(key);
+      if (pending) {
+        return Deferred.await(pending).pipe(
+          Effect.flatMap((exit) => {
+            if (Exit.isSuccess(exit)) return Effect.succeed(exit.value);
+            // Only the builder was cancelled. A live waiter builds instead.
+            if (exit.cause.reasons.every(Cause.isInterruptReason))
+              return this.derivedPage(operations, page, key);
+            return Effect.failCause(exit.cause);
+          })
+        );
+      }
+
+      const source = page.sourceFile;
+      const version = this.documents.version(source);
+      const completion = Deferred.makeUnsafe<Exit.Exit<DerivedPage, PDFError>>();
+      this.derivedBuilds.set(key, completion);
+      return this.editedRenders
+        .withPermit(
+          // Source metadata calls track their own fiber. Keep the outer source
+          // operation registered until the build settles.
+          Effect.acquireUseRelease(
+            Effect.forkChild(
+              Effect.suspend(() =>
+                operations.buildPDF([{ ...page, rotation: 0, markedForDeletion: false }])
+              )
+            ),
+            Fiber.join,
+            (fiber) => Fiber.interrupt(fiber).pipe(Effect.asVoid)
+          )
+        )
+        .pipe(
+          Effect.map(({ data }) => {
+            const bytes =
+              data.buffer instanceof ArrayBuffer
+                ? (data as Uint8Array<ArrayBuffer>)
+                : new Uint8Array(data);
+            const entry: DerivedPage = {
+              key,
+              source,
+              file: new File([bytes], "edited-page.pdf", { type: "application/pdf" }),
+              size: bytes.byteLength,
+              users: 0,
+              retired: false,
+            };
+            // A build that outlives its source's release or reset is used once.
+            if (!this.disposed && this.documents.isCurrent(source, version))
+              this.derivedPages.set(key, entry);
+            else entry.retired = true;
+            return entry;
+          }),
+          Effect.onExit((exit) =>
+            Effect.sync(() => {
+              if (this.derivedBuilds.get(key) === completion) this.derivedBuilds.delete(key);
+            }).pipe(Effect.andThen(Deferred.succeed(completion, exit)))
+          )
+        );
+    });
+  }
+
+  private unclaimDerivedPage(entry: DerivedPage): Effect.Effect<void> {
+    return Effect.suspend(() => {
+      entry.users--;
+      const released: DerivedPage[] = [];
+      if (entry.retired && entry.users === 0) released.push(entry);
+      let count = this.derivedPages.size;
+      let bytes = 0;
+      for (const cached of this.derivedPages.values()) bytes += cached.size;
+      for (const cached of this.derivedPages.values()) {
+        if (count <= DERIVED_PAGE_LIMIT && bytes <= DERIVED_PAGE_BYTES) break;
+        if (cached.users > 0) continue;
+        this.derivedPages.delete(cached.key);
+        cached.retired = true;
+        released.push(cached);
+        count--;
+        bytes -= cached.size;
+      }
+      return this.releaseDerivedFiles(released).pipe(
+        Effect.catch((error) => Effect.logWarning(error))
+      );
+    });
+  }
+
+  private retireDerivedPages(
+    matches: (entry: DerivedPage) => boolean
+  ): Effect.Effect<void, PDFProcessingError> {
+    return Effect.suspend(() => {
+      const released: DerivedPage[] = [];
+      for (const entry of [...this.derivedPages.values()]) {
+        if (!matches(entry)) continue;
+        this.derivedPages.delete(entry.key);
+        entry.retired = true;
+        if (entry.users === 0) released.push(entry);
+      }
+      return this.releaseDerivedFiles(released);
+    });
+  }
+
+  private releaseDerivedFiles(
+    entries: readonly DerivedPage[]
+  ): Effect.Effect<void, PDFProcessingError> {
+    const derivedDocuments = this.derivedDocuments;
+    if (!derivedDocuments || entries.length === 0) return Effect.void;
+    return collectFirstError(entries.map((entry) => derivedDocuments.releaseFile(entry.file)));
   }
 
   private getPageMetadata(
@@ -379,53 +633,58 @@ export class PDFService {
     return this.documents.track(
       file,
       "render-page"
-    )(
-      Effect.gen({ self: this }, function* () {
-        const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
-        yield* this.pageRenderer.withPermit(
-          this.pageResources.withPageCleanup(
-            file,
-            pageNumber,
-            this.pageResources.getPage(record.pdfjsDocument, file, pageNumber, "render-page"),
-            (page) =>
-              Effect.gen({ self: this }, function* () {
-                const { context, viewport } = yield* Effect.try({
-                  try: () => {
-                    const fitted =
-                      maxPixels === undefined
-                        ? scale
-                        : (() => {
-                            const base = page.getViewport({ scale: 1, rotation });
-                            return clampScaleToPixelBudget(
-                              scale,
-                              base.width,
-                              base.height,
-                              maxPixels
-                            );
-                          })();
-                    const nextViewport = page.getViewport({ scale: fitted, rotation });
-                    canvas.width = nextViewport.width;
-                    canvas.height = nextViewport.height;
+    )(this.renderSourcePage(file, pageNumber, canvas, scale, rotation, maxPixels));
+  }
 
-                    // Choose this on the first context creation. WebKit can lose
-                    // vector widget ink across PDF.js animation-frame yields on
-                    // its default canvas backend; later calls cannot change it.
-                    const nextContext = canvas.getContext("2d", { willReadFrequently: true });
-                    if (!nextContext) {
-                      throw new Error("Could not get canvas context");
-                    }
+  // Callers track the source operation.
+  private renderSourcePage(
+    file: File,
+    pageNumber: number,
+    canvas: HTMLCanvasElement,
+    scale: number,
+    rotation: number,
+    maxPixels: number | undefined
+  ): Effect.Effect<void, PDFError> {
+    return Effect.gen({ self: this }, function* () {
+      const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
+      yield* this.pageRenderer.withPermit(
+        this.pageResources.withPageCleanup(
+          file,
+          pageNumber,
+          this.pageResources.getPage(record.pdfjsDocument, file, pageNumber, "render-page"),
+          (page) =>
+            Effect.gen({ self: this }, function* () {
+              const { context, viewport } = yield* Effect.try({
+                try: () => {
+                  const fitted =
+                    maxPixels === undefined
+                      ? scale
+                      : (() => {
+                          const base = page.getViewport({ scale: 1, rotation });
+                          return clampScaleToPixelBudget(scale, base.width, base.height, maxPixels);
+                        })();
+                  const nextViewport = page.getViewport({ scale: fitted, rotation });
+                  canvas.width = nextViewport.width;
+                  canvas.height = nextViewport.height;
 
-                    return { context: nextContext, viewport: nextViewport };
-                  },
-                  catch: (cause) => processingError("render-page", file, cause),
-                });
+                  // Choose this on the first context creation. WebKit can lose
+                  // vector widget ink across PDF.js animation-frame yields on
+                  // its default canvas backend; later calls cannot change it.
+                  const nextContext = canvas.getContext("2d", { willReadFrequently: true });
+                  if (!nextContext) {
+                    throw new Error("Could not get canvas context");
+                  }
 
-                yield* this.pageRenderer.render(file, page, canvas, context, viewport);
-              })
-          )
-        );
-      })
-    );
+                  return { context: nextContext, viewport: nextViewport };
+                },
+                catch: (cause) => processingError("render-page", file, cause),
+              });
+
+              yield* this.pageRenderer.render(file, page, canvas, context, viewport);
+            })
+        )
+      );
+    });
   }
 
   releaseFile(file: File): Effect.Effect<void, PDFProcessingError> {
@@ -433,7 +692,12 @@ export class PDFService {
       Effect.suspend(() => {
         if (this.activeFile === file) this.activeFile = null;
         this.passwordRegistry.delete(file);
-        return this.documents.releaseFile(file);
+        // Releasing the source first settles its edited renders.
+        return collectFirstError([
+          this.documents.releaseFile(file),
+          this.retireDerivedPages((entry) => entry.source === file),
+          this.withOwnedOperations((operations) => operations.releaseFile(file)),
+        ]);
       })
     );
   }
@@ -443,13 +707,31 @@ export class PDFService {
       Effect.suspend(() => {
         this.activeFile = null;
         this.passwordRegistry.clear();
-        return this.documents.reset;
+        return collectFirstError([
+          this.documents.reset,
+          this.retireDerivedPages(() => true),
+          this.withOwnedOperations((operations) => operations.clearCache()),
+        ]);
       })
     );
   }
 
   dispose(): Effect.Effect<void> {
-    return this.documents.dispose();
+    return Effect.uninterruptible(
+      Effect.suspend(() => {
+        this.disposed = true;
+        return this.documents.dispose().pipe(
+          Effect.andThen(this.retireDerivedPages(() => true).pipe(Effect.ignore)),
+          Effect.andThen(Effect.suspend(() => this.derivedDocuments?.dispose() ?? Effect.void)),
+          Effect.andThen(this.withOwnedOperations((operations) => operations.dispose(), true)),
+          Effect.andThen(
+            Effect.sync(() => {
+              if (this.ownsWorker) this.worker.destroy();
+            })
+          )
+        );
+      })
+    );
   }
 
   private cleanupRecord(record: LoadedPDFRecord): Effect.Effect<void, PDFProcessingError> {
@@ -559,10 +841,12 @@ export class PDFService {
         const data = new Uint8Array(buffer);
         const password = explicitPassword ?? this.passwordRegistry.get(file);
         const task = yield* Effect.try({
-          try: () =>
-            password === undefined
-              ? pdfjs.getDocument({ data })
-              : pdfjs.getDocument({ data, password }),
+          try: () => {
+            const worker = this.worker.get(pdfjs);
+            return password === undefined
+              ? pdfjs.getDocument({ data, worker })
+              : pdfjs.getDocument({ data, password, worker });
+          },
           catch: (cause) => processingError("load-pdf-js", file, cause),
         });
         loadingTask = task;

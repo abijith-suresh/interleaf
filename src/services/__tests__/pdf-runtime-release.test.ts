@@ -11,6 +11,9 @@ const pdfjs = vi.hoisted(() => ({
 
 vi.mock("pdfjs-dist", () => ({
   GlobalWorkerOptions: { workerSrc: "" },
+  PDFWorker: class {
+    destroy() {}
+  },
   getDocument: () => ({
     promise: Promise.resolve({ numPages: 1, cleanup: pdfjs.cleanup }),
     destroy: pdfjs.destroy,

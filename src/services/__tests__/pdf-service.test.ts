@@ -2,10 +2,20 @@ import { Effect, Exit, Fiber } from "effect";
 import { runFork, runPromise } from "effect/Effect";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { PDFPasswordRequiredError } from "../../types/interfaces";
-import { type PDFDecrypt, PDFService } from "../pdf-service";
+import { type PDFDecrypt, PDFService, SharedPDFWorker } from "../pdf-service";
 
-const getDocument = vi.hoisted(() => vi.fn<() => LoadingTask>());
-vi.mock("pdfjs-dist", () => ({ getDocument, GlobalWorkerOptions: { workerSrc: "" } }));
+const getDocument = vi.hoisted(() => vi.fn<(params: { worker?: unknown }) => LoadingTask>());
+const workers = vi.hoisted(() => ({ created: [] as { destroy: () => void }[] }));
+vi.mock("pdfjs-dist", () => ({
+  getDocument,
+  GlobalWorkerOptions: { workerSrc: "" },
+  PDFWorker: class {
+    destroy = vi.fn();
+    constructor() {
+      workers.created.push(this);
+    }
+  },
+}));
 
 type LoadingTask = {
   promise: Promise<unknown>;
@@ -605,6 +615,7 @@ describe("PDFService", () => {
     expect(getDocument).toHaveBeenCalledExactlyOnceWith({
       data: new Uint8Array(await file.arrayBuffer()),
       password: "623",
+      worker: workers.created.at(-1),
     });
     expect(service.getPassword(file)).toBe("623");
     expect(service.getPageCount()).toBe(5);
@@ -622,7 +633,42 @@ describe("PDFService", () => {
     ).rejects.toBeInstanceOf(PDFPasswordRequiredError);
     expect(getDocument).toHaveBeenLastCalledWith({
       data: new Uint8Array(await file.arrayBuffer()),
+      worker: workers.created.at(-1),
     });
+  });
+
+  it("loads every document on one shared PDF.js worker and destroys it on dispose", async () => {
+    const created = workers.created.length;
+    const files = ["a.pdf", "b.pdf", "c.pdf"].map(
+      (name) => new File(["%PDF"], name, { type: "application/pdf" })
+    );
+    for (const source of files) await runPromise(service.loadPDF(source));
+    await runPromise(service.releaseFile(files[0]));
+    await runPromise(service.loadPDF(files[0]));
+
+    expect(workers.created).toHaveLength(created + 1);
+    const worker = workers.created[created];
+    expect(getDocument).toHaveBeenCalledTimes(4);
+    for (const [params] of getDocument.mock.calls) expect(params.worker).toBe(worker);
+    expect(worker.destroy).not.toHaveBeenCalled();
+
+    await runPromise(service.dispose());
+    expect(worker.destroy).toHaveBeenCalledOnce();
+  });
+
+  it("uses a supplied worker without destroying it", async () => {
+    const shared = new SharedPDFWorker();
+    const borrower = new PDFService({ worker: shared });
+    const created = workers.created.length;
+    await runPromise(borrower.loadPDF(file));
+    await runPromise(service.loadPDF(new File(["%PDF"], "other.pdf")));
+    await runPromise(borrower.dispose());
+
+    const worker = workers.created[created];
+    expect(getDocument.mock.calls[0][0].worker).toBe(worker);
+    expect(worker.destroy).not.toHaveBeenCalled();
+    shared.destroy();
+    expect(worker.destroy).toHaveBeenCalledOnce();
   });
 
   describe("export sources", () => {

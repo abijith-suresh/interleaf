@@ -111,6 +111,9 @@ interface ExportSource {
 
 export class PDFOperationsService {
   private readonly store: DocumentStore<ExportSource>;
+  // Field inspection is a pure function of the File's bytes. Keep only the
+  // small result, not a parsed document, until the File is released.
+  private readonly fields = new Map<File, Promise<PDFFields>>();
 
   constructor(
     private readonly pdfService: Partial<Pick<PDFService, "getPageGeometry" | "getExportSource">>
@@ -154,15 +157,21 @@ export class PDFOperationsService {
   }
 
   clearCache(): Effect.Effect<void> {
-    return this.store.clear.pipe(Effect.catch((error) => Effect.logWarning(error)));
+    return Effect.sync(() => this.fields.clear()).pipe(
+      Effect.andThen(this.store.clear),
+      Effect.catch((error) => Effect.logWarning(error))
+    );
   }
 
   releaseFile(file: File): Effect.Effect<void> {
-    return this.store.releaseFile(file).pipe(Effect.catch((error) => Effect.logWarning(error)));
+    return Effect.sync(() => this.fields.delete(file)).pipe(
+      Effect.andThen(this.store.releaseFile(file)),
+      Effect.catch((error) => Effect.logWarning(error))
+    );
   }
 
   dispose(): Effect.Effect<void> {
-    return this.store.dispose();
+    return Effect.sync(() => this.fields.clear()).pipe(Effect.andThen(this.store.dispose()));
   }
 
   imagesToPDF(
@@ -317,10 +326,20 @@ export class PDFOperationsService {
 
   getFields(file: File): Effect.Effect<PDFFields, PDFProcessingError> {
     return Effect.tryPromise({
-      try: async () => {
-        const doc = await PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
-        if (!doc.isEncrypted) validatePDFSourcePages(doc, file);
-        return inspectPDFFields(doc);
+      try: () => {
+        const cached = this.fields.get(file);
+        if (cached) return cached;
+        const inspection = (async () => {
+          const doc = await PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
+          if (!doc.isEncrypted) validatePDFSourcePages(doc, file);
+          return inspectPDFFields(doc);
+        })();
+        this.fields.set(file, inspection);
+        // A failed read stays retryable. Release may already have dropped it.
+        inspection.catch(() => {
+          if (this.fields.get(file) === inspection) this.fields.delete(file);
+        });
+        return inspection;
       },
       catch: (cause) => processingError("read-fields", file, cause),
     });
