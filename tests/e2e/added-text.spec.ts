@@ -287,7 +287,7 @@ test("point placement, validation, editing, movement, rotation and history retai
   ).toBeVisible();
   await page.getByTestId("editor-undo-button").click();
   await expect(hit).toBeVisible();
-  await page.getByTestId("editor-redo-button").click({ force: true });
+  await page.getByTestId("editor-redo-button").click();
   await expect(
     page.getByRole("button", { name: "Edit added text: Changed", exact: true })
   ).toBeVisible();
@@ -335,7 +335,7 @@ test("cancel, deletion, compression after undo, source restoration, and input sh
   await page.getByRole("button", { name: "More download options" }).click();
   await expect(page.getByRole("menuitem", { name: /Compress/ })).toBeEnabled();
   await page.keyboard.press("Escape");
-  await page.getByTestId("editor-redo-button").click({ force: true });
+  await page.getByTestId("editor-redo-button").click();
   await page.getByRole("button", { name: "Select additions" }).click();
   await page.getByRole("button", { name: "Edit added text: Added text", exact: true }).click();
   await page.getByRole("button", { name: "Delete added text" }).click();
@@ -499,6 +499,7 @@ test("undo and redo wait for open text and field drafts instead of discarding th
   // Neither the workspace history nor the browser's native undo may touch the draft.
   await page.keyboard.press("ControlOrMeta+z");
   await expect(input).toHaveValue("Hello");
+  // Force clicks the aria-disabled control to prove a click cannot bypass the block.
   await undo.click({ force: true });
   await expect(input).toHaveValue("Hello");
   await expect(draft).toBeVisible();
