@@ -1,9 +1,73 @@
 import { Effect } from "effect";
-import { PDFDocument, PDFPage } from "pdf-lib";
+import { decodePDFRawStream, PDFArray, PDFDocument, PDFPage, PDFRawStream } from "pdf-lib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PDFNoPagesError } from "../../types/interfaces";
 import { PDFOperationsService } from "../pdf-operations-service";
-import { createJpegFile, createPageState, createPdfFile, createPngFile } from "./pdf-fixtures";
+import {
+  createJpegFile,
+  createOrientedJpegFile,
+  createPageState,
+  createPdfFile,
+  createPngFile,
+} from "./pdf-fixtures";
+
+type Corner = "TL" | "TR" | "BL" | "BR";
+
+/** Where the image content lands on a page, read back from the saved content stream. */
+async function placeStoredCorners(data: Uint8Array) {
+  const page = (await PDFDocument.load(data)).getPage(0);
+  const { context } = page.node;
+  const contents = page.node.Contents();
+  const streams = contents instanceof PDFArray ? contents.asArray() : [contents];
+  const content = streams
+    .map((entry) => {
+      const stream = context.lookup(entry);
+      if (!(stream instanceof PDFRawStream)) throw new Error("Expected a raw content stream");
+      return new TextDecoder().decode(decodePDFRawStream(stream).decode());
+    })
+    .join("\n");
+  const matrices = [...content.matchAll(/((?:-?[\d.]+(?:e-?\d+)?\s+){6})cm/g)].map((match) =>
+    (match[1] ?? "").trim().split(/\s+/).map(Number)
+  );
+  // Each `cm` applies before the ones already in effect, so the last one acts on the image first.
+  const place = (u: number, v: number) =>
+    [...matrices]
+      .reverse()
+      .reduce(
+        ([x, y], [a = 0, b = 0, c = 0, d = 0, e = 0, f = 0]) => [
+          a * x + c * y + e,
+          b * x + d * y + f,
+        ],
+        [u, v]
+      ) as [number, number];
+
+  // The image XObject is a unit square with (0, 0) at the bottom-left of the stored pixels.
+  const points = { TL: place(0, 1), TR: place(1, 1), BL: place(0, 0), BR: place(1, 0) };
+  const xs = Object.values(points).map(([x]) => x);
+  const ys = Object.values(points).map(([, y]) => y);
+  const bounds = {
+    left: Math.min(...xs),
+    right: Math.max(...xs),
+    bottom: Math.min(...ys),
+    top: Math.max(...ys),
+  };
+  const classify = ([x, y]: [number, number]): Corner => {
+    const vertical = Math.abs(y - bounds.top) < 1e-6 ? "T" : "B";
+    const horizontal = Math.abs(x - bounds.left) < 1e-6 ? "L" : "R";
+    return `${vertical}${horizontal}`;
+  };
+
+  return {
+    bounds,
+    page: { width: page.getWidth(), height: page.getHeight() },
+    landed: {
+      TL: classify(points.TL),
+      TR: classify(points.TR),
+      BL: classify(points.BL),
+      BR: classify(points.BR),
+    },
+  };
+}
 
 describe("PDFOperationsService", () => {
   let service: PDFOperationsService;
@@ -171,6 +235,47 @@ describe("PDFOperationsService", () => {
       expect.objectContaining({ rotate: { type: "degrees", angle: -90 } })
     );
   });
+
+  // Stored corner -> displayed corner, per the EXIF Orientation tag definition.
+  it.each<{ orientation: number; name: string; landed: Record<Corner, Corner> }>([
+    { orientation: 1, name: "upright", landed: { TL: "TL", TR: "TR", BL: "BL", BR: "BR" } },
+    {
+      orientation: 2,
+      name: "mirror horizontal",
+      landed: { TL: "TR", TR: "TL", BL: "BR", BR: "BL" },
+    },
+    { orientation: 3, name: "rotate 180", landed: { TL: "BR", TR: "BL", BL: "TR", BR: "TL" } },
+    { orientation: 4, name: "mirror vertical", landed: { TL: "BL", TR: "BR", BL: "TL", BR: "TR" } },
+    { orientation: 5, name: "transpose", landed: { TL: "TL", TR: "BL", BL: "TR", BR: "BR" } },
+    {
+      orientation: 6,
+      name: "rotate 90 clockwise",
+      landed: { TL: "TR", TR: "BR", BL: "TL", BR: "BL" },
+    },
+    { orientation: 7, name: "transverse", landed: { TL: "BR", TR: "TR", BL: "BL", BR: "TL" } },
+    {
+      orientation: 8,
+      name: "rotate 90 counterclockwise",
+      landed: { TL: "BL", TR: "TL", BL: "BR", BR: "TR" },
+    },
+  ])(
+    "places a JPEG with EXIF orientation $orientation ($name) with the right corners",
+    async ({ orientation, landed }) => {
+      const result = await Effect.runPromise(
+        service.imagesToPDF([createOrientedJpegFile(orientation)])
+      );
+      const placed = await placeStoredCorners(result.data);
+
+      // The stored image is 2x3 pixels; quarter-turn orientations display it as 3x2.
+      const [displayWidth, displayHeight] = orientation >= 5 ? [3, 2] : [2, 3];
+      const scale = Math.min(placed.page.width / displayWidth, placed.page.height / displayHeight);
+      expect(placed.landed).toEqual(landed);
+      expect(placed.bounds.right - placed.bounds.left).toBeCloseTo(displayWidth * scale, 4);
+      expect(placed.bounds.top - placed.bounds.bottom).toBeCloseTo(displayHeight * scale, 4);
+      expect((placed.bounds.left + placed.bounds.right) / 2).toBeCloseTo(placed.page.width / 2, 4);
+      expect((placed.bounds.top + placed.bounds.bottom) / 2).toBeCloseTo(placed.page.height / 2, 4);
+    }
+  );
 
   it("uses the image MIME type when its extension disagrees", async () => {
     const result = await Effect.runPromise(service.imagesToPDF([createJpegFile("image.png")]));
