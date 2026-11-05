@@ -297,7 +297,9 @@ it("passes the unlocked source PDF to compression and closes qpdf on disposal", 
     new Uint8Array(await file.arrayBuffer()),
     "623"
   );
-  expect(PDFService).toHaveBeenCalledWith({ decrypt: qpdfProcessingMock.decrypt });
+  expect(PDFService).toHaveBeenCalledWith(
+    expect.objectContaining({ decrypt: qpdfProcessingMock.decrypt })
+  );
 
   await runtime.dispose();
   expect(qpdfProcessingMock.close).toHaveBeenCalledTimes(1);

@@ -1,5 +1,5 @@
 import { Effect, Fiber } from "effect";
-import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import {
   THUMBNAIL_INTERSECTION_MARGIN,
   THUMBNAIL_MAX_PIXELS,
@@ -205,12 +205,23 @@ export default function EditorPageCanvas(props: Props) {
     renderThumbnail();
   };
 
+  // Rerender only when the page or its saved additions change, not when an
+  // unrelated store update rewrites them with equal values.
+  const additions = createMemo(
+    () => ({
+      page: props.page,
+      key: JSON.stringify([
+        props.page.addedText ?? [],
+        props.page.addedCheckmarks ?? [],
+        props.page.fieldAnswers ?? [],
+      ]),
+    }),
+    undefined,
+    { equals: (previous, next) => previous.page === next.page && previous.key === next.key }
+  );
+
   createEffect(() => {
-    JSON.stringify([
-      props.page.addedText ?? [],
-      props.page.addedCheckmarks ?? [],
-      props.page.fieldAnswers ?? [],
-    ]);
+    additions();
     needsRender = true;
     if (observer) {
       cancelPendingRender();

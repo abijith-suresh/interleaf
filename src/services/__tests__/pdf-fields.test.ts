@@ -9,7 +9,7 @@ import {
   PDFNumber,
   PDFRef,
 } from "pdf-lib";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { hasPageAdditions } from "../../controllers/editor-additions-state";
 import { answerField } from "../../controllers/editor-field-state";
 import {
@@ -178,6 +178,50 @@ describe("embedded text field ownership and constraints", () => {
     field.set(N("MaxLen"), PDFNull);
     field.set(N("Parent"), doc.context.register(field));
     expect(() => inspectPDFFields(doc)).toThrow();
+  });
+});
+
+describe("field inspection cache", () => {
+  it("reads each File's fields once until it is released or the cache is cleared", async () => {
+    const fixture = await textFieldFixture();
+    const source = file(fixture.bytes);
+    const read = vi.spyOn(source, "arrayBuffer");
+    const service = new PDFOperationsService({});
+    try {
+      const [first, second] = await Effect.runPromise(
+        Effect.all([service.getFields(source), service.getFields(source)], {
+          concurrency: "unbounded",
+        })
+      );
+      expect(second).toBe(first);
+      expect(first.widgets.length).toBeGreaterThan(0);
+      expect(read).toHaveBeenCalledOnce();
+      await Effect.runPromise(service.releaseFile(source));
+      await Effect.runPromise(service.getFields(source));
+      expect(read).toHaveBeenCalledTimes(2);
+      await Effect.runPromise(service.clearCache());
+      await Effect.runPromise(service.getFields(source));
+      expect(read).toHaveBeenCalledTimes(3);
+    } finally {
+      await Effect.runPromise(service.dispose());
+    }
+  });
+
+  it("retries a failed read", async () => {
+    const fixture = await textFieldFixture();
+    const source = file(fixture.bytes);
+    vi.spyOn(source, "arrayBuffer").mockRejectedValueOnce(new Error("read failed"));
+    const service = new PDFOperationsService({});
+    try {
+      await expect(Effect.runPromise(service.getFields(source))).rejects.toMatchObject({
+        operation: "read-fields",
+      });
+      await expect(Effect.runPromise(service.getFields(source))).resolves.toMatchObject({
+        widgets: expect.any(Array),
+      });
+    } finally {
+      await Effect.runPromise(service.dispose());
+    }
   });
 });
 

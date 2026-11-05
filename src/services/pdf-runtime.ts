@@ -110,13 +110,18 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
     Effect.acquireRelease(
       Effect.gen(function* () {
         const qpdfProcessing = yield* QpdfProcessing;
-        const pdfService = new PDFService({ decrypt: qpdfProcessing.decrypt });
+        // Edited-page renders share the runtime's editing support and its
+        // parsed sources, which releaseFile and clearCache already manage.
+        const pdfService = new PDFService({
+          decrypt: qpdfProcessing.decrypt,
+          operations: Effect.suspend(() => getOperationsService),
+        });
         let operationsService: PDFOperationsService | undefined;
         const getOperationsService = yield* Effect.cachedWithTTL(
           Effect.tryPromise({
             try: async () => {
               const { PDFOperationsService } = await import("./pdf-operations-service");
-              const service = new PDFOperationsService(pdfService);
+              const service: PDFOperationsService = new PDFOperationsService(pdfService);
               operationsService = service;
               return service;
             },
