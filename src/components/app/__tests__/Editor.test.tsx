@@ -1948,4 +1948,34 @@ describe("Editor", () => {
     expect(pdfOperationsMocks.buildPDF.mock.calls[1][1].selectedIndices).toEqual([0, 1]);
     expect(screen.getByTestId("editor-status-message")).toHaveTextContent("Export started.");
   });
+
+  it("clears the file picker lock on window focus when the browser fires no cancel event", async () => {
+    await openPDF();
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 1 90 degrees" }));
+    const pressUndo = () => {
+      const event = new KeyboardEvent("keydown", {
+        key: "z",
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      document.body.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    fireEvent.click(screen.getByTestId("editor-add-pdf-button"));
+    expect(pressUndo()).toBe(false);
+    window.dispatchEvent(new Event("focus"));
+    await waitFor(() => expect(pressUndo()).toBe(true));
+  });
+
+  it("keeps remaining page tiles mounted when a source is removed", async () => {
+    render(() => <Editor />);
+    selectFiles("upload", [makeFile("one.pdf"), makeFile("two.pdf")]);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    const survivor = getPages()[4];
+    fireEvent.click(screen.getByTestId("editor-files-button"));
+    fireEvent.click(screen.getAllByTestId("editor-file-remove")[0]);
+    await waitFor(() => expect(getPages()).toHaveLength(3));
+    expect(getPages()[1]).toBe(survivor);
+  });
 });

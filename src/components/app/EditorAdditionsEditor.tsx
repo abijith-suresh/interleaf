@@ -9,6 +9,7 @@ import {
   MIN_CHECKMARK_SIZE,
   measureAddedCheckmark,
 } from "../../controllers/checkmark-geometry";
+import { createPageBatchId } from "../../controllers/editor-page-state";
 import {
   normalizeQuarterTurn,
   offsetPDFPoint,
@@ -49,7 +50,7 @@ export interface AdditionsGesture {
 interface Props {
   page: PageState;
   groupPageNumbers?: readonly number[];
-  onFieldChange?: (pageId: string, fieldRef: string, value: string) => void;
+  onFieldChange?: (pageId: string, fieldRef: string, value: string, originalValue: string) => void;
   runtime: PDFRuntime;
   toolbar: HTMLElement;
   header: HTMLElement;
@@ -416,7 +417,7 @@ export default function EditorAdditionsEditor(props: Props) {
     // Center the checkmark on the chosen checkbox or visible keyboard target.
     const anchor =
       tool() === "checkmark" && g ? offsetPDFPoint(g, rotation(), point, -8, 8) : point;
-    const base = { id: crypto.randomUUID(), ...anchor, rotation: rotation() };
+    const base = { id: createPageBatchId(), ...anchor, rotation: rotation() };
     setDraft(tool() === "text" ? { ...base, text: "", fontSize: 16 } : { ...base, size: 16 });
     setMode("edit");
     setSettings(true);
@@ -813,7 +814,9 @@ export default function EditorAdditionsEditor(props: Props) {
           onOpen={() => setToolsOpen(true)}
           onClose={() => setToolsOpen(false)}
           focusInput={focusElement}
-          onChange={(pageId, fieldRef, value) => props.onFieldChange?.(pageId, fieldRef, value)}
+          onChange={(pageId, fieldRef, value, originalValue) =>
+            props.onFieldChange?.(pageId, fieldRef, value, originalValue)
+          }
         />
       </Show>
     </>

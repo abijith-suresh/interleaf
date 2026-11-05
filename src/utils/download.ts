@@ -4,6 +4,8 @@ type DownloadResult = Pick<PDFOperationResult, "suggestedFileName"> & {
   data: Uint8Array | Blob;
 };
 
+const REVOKE_DELAY_MS = 60_000;
+
 export function downloadFile(result: DownloadResult, contentType: string): void {
   const blob =
     result.data instanceof Blob && result.data.type === contentType
@@ -16,7 +18,8 @@ export function downloadFile(result: DownloadResult, contentType: string): void 
   document.body.appendChild(anchor);
   anchor.click();
   document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
+  // Revoking in the same tick can cancel large downloads in some browsers.
+  setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS);
 }
 
 export function downloadPDF(result: PDFOperationResult): void {
