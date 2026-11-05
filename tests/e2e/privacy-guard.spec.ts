@@ -3,7 +3,8 @@ import { expect, type Request, test } from "@playwright/test";
 import { finishPrivacy, observePrivacy } from "./fixtures/privacy";
 
 // These deliberate violations never run in the app workflow contexts. All payloads are synthetic.
-test.use({ serviceWorkers: "block" });
+// The guard is checked on its own; the production CSP would block these requests before it.
+test.use({ serviceWorkers: "block", bypassCSP: true });
 
 for (const control of [
   { name: "same-origin POST", method: "POST", path: "/app" },

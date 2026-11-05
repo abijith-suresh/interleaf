@@ -18,6 +18,7 @@ export default defineConfig({
   webServer: {
     command: `bun run preview --host 127.0.0.1 --port ${port}`,
     url: baseURL,
+    env: { INTERLEAF_VERCEL_HEADERS: "1" },
     reuseExistingServer: !process.env.CI,
   },
 });
