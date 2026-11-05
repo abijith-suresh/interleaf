@@ -42,6 +42,18 @@ interface LoadedPDFRecord {
   readonly loadingTask: ReturnType<typeof pdfjsLib.getDocument>;
   readonly pageMetadata: Map<number, PageMetadata>;
   readonly measuring: Map<number, Deferred.Deferred<Exit.Exit<PageMetadata, PDFProcessingError>>>;
+  // pdf-lib cannot decrypt every PDF, so exports read an unencrypted copy that
+  // is made on first use and kept until this record is released.
+  readonly exportSource: Effect.Effect<File, PDFError>;
+}
+
+export type PDFDecrypt = (
+  input: ArrayBuffer,
+  password: string | undefined
+) => Effect.Effect<Uint8Array<ArrayBuffer>, unknown>;
+
+export interface PDFServiceOptions {
+  readonly decrypt?: PDFDecrypt;
 }
 
 function isPasswordException(cause: unknown): boolean {
@@ -68,6 +80,8 @@ export class PDFService {
   private readonly pageRenderer = new PageRenderer();
   // Bound source reads and PDF generation too, before the shared bitmap permit.
   private readonly editedRenders = Semaphore.makeUnsafe(2);
+
+  constructor(private readonly options: PDFServiceOptions = {}) {}
 
   loadPDF(file: File): Effect.Effect<void, PDFError> {
     const version = this.documents.version(file);
@@ -191,12 +205,24 @@ export class PDFService {
     );
   }
 
+  // Returns the file itself when it is not encrypted.
+  getExportSource(file: File): Effect.Effect<File, PDFError> {
+    return this.documents.track(
+      file,
+      "get-export-source"
+    )(
+      Effect.gen({ self: this }, function* () {
+        const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
+        return yield* record.exportSource;
+      })
+    );
+  }
+
   renderPageState(
     page: PageState,
     canvas: HTMLCanvasElement,
     scale: number,
     rotation: number,
-    maxRasterPixels?: number,
     maxCanvasPixels?: number
   ): Effect.Effect<void, PDFError> {
     if (!hasPageAdditions(page))
@@ -228,9 +254,7 @@ export class PDFService {
                 // outer source operation registered until derived cleanup completes.
                 const result = yield* Effect.acquireUseRelease(
                   Effect.forkChild(
-                    operations.buildPDF([{ ...page, rotation: 0, markedForDeletion: false }], {
-                      maxRasterPixels,
-                    })
+                    operations.buildPDF([{ ...page, rotation: 0, markedForDeletion: false }])
                   ),
                   Fiber.join,
                   (fiber) => Fiber.interrupt(fiber).pipe(Effect.asVoid)
@@ -439,6 +463,42 @@ export class PDFService {
     ]);
   }
 
+  private loadExportSource(
+    file: File,
+    pdfjsDocument: pdfjsLib.PDFDocumentProxy,
+    password: string | undefined
+  ): Effect.Effect<File, PDFProcessingError> {
+    return Effect.gen({ self: this }, function* () {
+      const { info } = yield* Effect.tryPromise({
+        try: () => pdfjsDocument.getMetadata(),
+        catch: (cause) => processingError("inspect-encryption", file, cause),
+      });
+      if (!("EncryptFilterName" in info) || info.EncryptFilterName == null) return file;
+
+      const decrypt = this.options.decrypt;
+      if (!decrypt)
+        return yield* Effect.fail(
+          processingError(
+            "decrypt-source",
+            file,
+            new Error("Protected PDFs cannot be prepared for export.")
+          )
+        );
+      const input = yield* Effect.tryPromise({
+        try: () => file.arrayBuffer(),
+        catch: (cause) => processingError("read-file", file, cause),
+      });
+      // Without a password, qpdf tries the empty user password that opens
+      // owner-password-only PDFs.
+      const output = yield* decrypt(input, password).pipe(
+        Effect.mapError((cause) => processingError("decrypt-source", file, cause))
+      );
+      return new File([output], file.name, {
+        type: "application/pdf",
+      });
+    });
+  }
+
   private destroyLoadingTaskForFile(
     file: File,
     loadingTask: ReturnType<typeof pdfjsLib.getDocument>
@@ -506,6 +566,16 @@ export class PDFService {
           catch: (cause) => processingError("load-pdf-js", file, cause),
         });
         loadingTask = task;
+        const exportSource = yield* Effect.cachedWithTTL(
+          Effect.suspend(() =>
+            resolvedRecord
+              ? this.loadExportSource(file, resolvedRecord.pdfjsDocument, password)
+              : Effect.fail(
+                  processingError("decrypt-source", file, new Error("The PDF is not loaded."))
+                )
+          ),
+          (exit) => (Exit.isSuccess(exit) ? Infinity : 0)
+        );
         const resolution = Deferred.makeUnsafe<void, PDFProcessingError>();
         documentResolution = resolution;
 
@@ -530,6 +600,7 @@ export class PDFService {
                     loadingTask: task,
                     pageMetadata: new Map(),
                     measuring: new Map(),
+                    exportSource,
                   } satisfies LoadedPDFRecord;
                   resolvedRecord = loadedRecord;
                   return loadedRecord;

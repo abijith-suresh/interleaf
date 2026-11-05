@@ -120,17 +120,12 @@ describe("added PDF text", () => {
     ).toThrow(/finite/);
   });
 
-  it("maps encrypted raster overlays into physical points relative to the CropBox", async () => {
+  it("draws text in raw page coordinates and serializes its embedded font", async () => {
     const document = await PDFDocument.create();
     const raw = document.addPage([300, 400]);
-    const raster = document.addPage([600, 800]);
-    const g = geometry(2);
-    await drawAddedText(document, raw, [text], g);
-    await drawAddedText(document, raster, [text], g, true);
-    // Reopening exercises serialization of both output paths, including the embedded font.
+    await drawAddedText(document, raw, [text], geometry(2));
     const reopened = await PDFDocument.load(await document.save());
-    expect(reopened.getPageCount()).toBe(2);
+    expect(reopened.getPageCount()).toBe(1);
     expect(raw.node.Contents()).toBeDefined();
-    expect(raster.node.Contents()).toBeDefined();
   });
 });

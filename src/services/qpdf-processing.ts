@@ -8,6 +8,15 @@ export interface QpdfWorkerOptimizeRequest {
   readonly password?: string;
 }
 
+export interface QpdfWorkerDecryptRequest {
+  readonly type: "decrypt";
+  readonly id: string;
+  readonly input: ArrayBuffer;
+  readonly password?: string;
+}
+
+export type QpdfWorkerRequest = QpdfWorkerOptimizeRequest | QpdfWorkerDecryptRequest;
+
 export interface QpdfWorkerResultResponse {
   readonly type: "result";
   readonly id: string;
@@ -17,6 +26,12 @@ export interface QpdfWorkerResultResponse {
   readonly reduced: boolean;
 }
 
+export interface QpdfWorkerDecryptedResponse {
+  readonly type: "decrypted";
+  readonly id: string;
+  readonly output: ArrayBuffer;
+}
+
 export interface QpdfWorkerErrorResponse {
   readonly type: "error";
   readonly id: string;
@@ -24,10 +39,13 @@ export interface QpdfWorkerErrorResponse {
   readonly message: string;
 }
 
-export type QpdfWorkerResponse = QpdfWorkerResultResponse | QpdfWorkerErrorResponse;
+export type QpdfWorkerResponse =
+  | QpdfWorkerResultResponse
+  | QpdfWorkerDecryptedResponse
+  | QpdfWorkerErrorResponse;
 
 export interface QpdfWorkerPort {
-  postMessage(message: QpdfWorkerOptimizeRequest, transfer: Transferable[]): void;
+  postMessage(message: QpdfWorkerRequest, transfer: Transferable[]): void;
   addEventListener(
     type: "message",
     listener: (event: MessageEvent<QpdfWorkerResponse>) => void
@@ -52,7 +70,7 @@ export interface QpdfOptimizationResult {
 }
 
 export class QpdfProcessingError extends Data.TaggedError("QpdfProcessingError")<{
-  readonly operation: "create-worker" | "optimize";
+  readonly operation: "create-worker" | "optimize" | "decrypt";
   readonly cause: unknown;
   readonly message: string;
 }> {}
@@ -62,6 +80,11 @@ export interface QpdfProcessingShape {
     input: Uint8Array,
     password?: string
   ) => Effect.Effect<QpdfOptimizationResult, QpdfProcessingError>;
+  // Takes ownership of input: its buffer is transferred to the worker.
+  readonly decrypt: (
+    input: ArrayBuffer,
+    password?: string
+  ) => Effect.Effect<Uint8Array<ArrayBuffer>, QpdfProcessingError>;
   readonly close: () => void;
 }
 
@@ -84,139 +107,145 @@ export function makeQpdfProcessing(options: QpdfProcessingOptions): QpdfProcessi
   let nextRequestId = 0;
   let closed = false;
 
-  return {
-    optimizeLosslessly(input, password) {
-      if (closed) {
-        return Effect.fail(
-          new QpdfProcessingError({
-            operation: "optimize",
-            cause: new Error("Qpdf processing has been closed"),
-            message: "Qpdf processing has been closed.",
-          })
-        );
-      }
+  type Operation = QpdfWorkerRequest["type"];
+  type Completion<A> = (
+    response: QpdfWorkerResultResponse | QpdfWorkerDecryptedResponse
+  ) => A | undefined;
 
-      if (input.byteLength === 0) {
-        return Effect.fail(
-          new QpdfProcessingError({
-            operation: "optimize",
-            cause: new Error("The input PDF is empty"),
-            message: "The input PDF is empty.",
-          })
-        );
-      }
+  const failure = (operation: Operation, cause: unknown, message: string) =>
+    Effect.fail(new QpdfProcessingError({ operation, cause, message }));
 
-      return Effect.callback<QpdfOptimizationResult, QpdfProcessingError>((resume) => {
-        let worker: QpdfWorkerPort;
-        try {
-          worker = workerFactory(options.workerUrl);
-        } catch (cause) {
-          resume(
-            Effect.fail(
-              new QpdfProcessingError({
-                operation: "create-worker",
-                cause,
-                message: errorMessage(cause, "Could not create the qpdf worker."),
-              })
-            )
-          );
+  const run = <A>(
+    operation: Operation,
+    input: ArrayBuffer,
+    password: string | undefined,
+    complete: Completion<A>
+  ): Effect.Effect<A, QpdfProcessingError> => {
+    if (closed) {
+      return failure(
+        operation,
+        new Error("Qpdf processing has been closed"),
+        "Qpdf processing has been closed."
+      );
+    }
+
+    if (input.byteLength === 0) {
+      return failure(operation, new Error("The input PDF is empty"), "The input PDF is empty.");
+    }
+
+    return Effect.callback<A, QpdfProcessingError>((resume) => {
+      let worker: QpdfWorkerPort;
+      try {
+        worker = workerFactory(options.workerUrl);
+      } catch (cause) {
+        resume(
+          Effect.fail(
+            new QpdfProcessingError({
+              operation: "create-worker",
+              cause,
+              message: errorMessage(cause, "Could not create the qpdf worker."),
+            })
+          )
+        );
+        return;
+      }
+      const id = `qpdf-${++nextRequestId}`;
+      let finished = false;
+      const cleanup = () => {
+        if (finished) return;
+        finished = true;
+        activeCancellations.delete(cancel);
+        worker.removeEventListener("message", onMessage);
+        worker.removeEventListener("error", onError);
+        worker.terminate();
+      };
+      const finish = (result: Effect.Effect<A, QpdfProcessingError>) => {
+        cleanup();
+        resume(result);
+      };
+      const onMessage = (event: MessageEvent<QpdfWorkerResponse>) => {
+        const response = event.data;
+        if (response.id !== id) return;
+
+        if (response.type === "error") {
+          finish(failure(operation, response, response.message));
           return;
         }
-        const id = `qpdf-${++nextRequestId}`;
-        let finished = false;
-        const cleanup = () => {
-          if (finished) return;
-          finished = true;
-          activeCancellations.delete(cancel);
-          worker.removeEventListener("message", onMessage);
-          worker.removeEventListener("error", onError);
-          worker.terminate();
-        };
-        const finish = (result: Effect.Effect<QpdfOptimizationResult, QpdfProcessingError>) => {
-          cleanup();
-          resume(result);
-        };
-        const onMessage = (event: MessageEvent<QpdfWorkerResponse>) => {
-          const response = event.data;
-          if (response.id !== id) return;
 
-          if (response.type === "error") {
-            finish(
-              Effect.fail(
-                new QpdfProcessingError({
-                  operation: "optimize",
-                  cause: response,
-                  message: response.message,
-                })
+        const result = complete(response);
+        finish(
+          result === undefined
+            ? failure(
+                operation,
+                response,
+                `The qpdf worker returned an unexpected ${response.type} response.`
               )
-            );
-            return;
-          }
+            : Effect.succeed(result)
+        );
+      };
+      const onError = (event: ErrorEvent) => {
+        finish(
+          failure(
+            operation,
+            event.error ?? event,
+            errorMessage(event.error ?? event.message, "The qpdf worker failed.")
+          )
+        );
+      };
 
-          const output = new Uint8Array(response.output);
-          finish(
-            Effect.succeed({
-              data: output,
-              inputBytes: response.inputSize,
-              candidateBytes: response.candidateSize,
-              outputBytes: output.byteLength,
-              reduced: response.reduced,
-            })
-          );
+      const cancel = () =>
+        finish(
+          failure(operation, new Error("Qpdf processing was closed"), "Qpdf processing was closed.")
+        );
+      activeCancellations.add(cancel);
+
+      worker.addEventListener("message", onMessage);
+      worker.addEventListener("error", onError);
+
+      const request: QpdfWorkerRequest = {
+        type: operation,
+        id,
+        input,
+        ...(password === undefined ? {} : { password }),
+      };
+
+      try {
+        worker.postMessage(request, [input]);
+      } catch (cause) {
+        finish(
+          failure(
+            operation,
+            cause,
+            errorMessage(cause, "Could not send the PDF to the qpdf worker.")
+          )
+        );
+      }
+
+      return Effect.sync(cleanup);
+    });
+  };
+
+  return {
+    optimizeLosslessly(input, password) {
+      // Never transfer the caller's view. A compression operation must not
+      // detach bytes that the editor may still need for another operation.
+      return run("optimize", input.slice().buffer, password, (response) => {
+        if (response.type !== "result") return undefined;
+        const output = new Uint8Array(response.output);
+        return {
+          data: output,
+          inputBytes: response.inputSize,
+          candidateBytes: response.candidateSize,
+          outputBytes: output.byteLength,
+          reduced: response.reduced,
         };
-        const onError = (event: ErrorEvent) => {
-          finish(
-            Effect.fail(
-              new QpdfProcessingError({
-                operation: "optimize",
-                cause: event.error ?? event,
-                message: errorMessage(event.error ?? event.message, "The qpdf worker failed."),
-              })
-            )
-          );
-        };
-
-        const cancel = () =>
-          finish(
-            Effect.fail(
-              new QpdfProcessingError({
-                operation: "optimize",
-                cause: new Error("Qpdf processing was closed"),
-                message: "Qpdf processing was closed.",
-              })
-            )
-          );
-        activeCancellations.add(cancel);
-
-        worker.addEventListener("message", onMessage);
-        worker.addEventListener("error", onError);
-
-        // Never transfer the caller's view. A compression operation must not
-        // detach bytes that the editor may still need for another operation.
-        const transferableInput = input.slice();
-        const request: QpdfWorkerOptimizeRequest = {
-          type: "optimize",
-          id,
-          input: transferableInput.buffer,
-          ...(password === undefined ? {} : { password }),
-        };
-
-        try {
-          worker.postMessage(request, [transferableInput.buffer]);
-        } catch (cause) {
-          finish(
-            Effect.fail(
-              new QpdfProcessingError({
-                operation: "optimize",
-                cause,
-                message: errorMessage(cause, "Could not send the PDF to the qpdf worker."),
-              })
-            )
-          );
-        }
-
-        return Effect.sync(cleanup);
       });
+    },
+
+    decrypt(input, password) {
+      return run("decrypt", input, password, (response) =>
+        response.type === "decrypted" ? new Uint8Array(response.output) : undefined
+      );
     },
 
     close() {

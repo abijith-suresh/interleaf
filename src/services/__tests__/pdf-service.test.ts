@@ -2,7 +2,7 @@ import { Effect, Exit, Fiber } from "effect";
 import { runFork, runPromise } from "effect/Effect";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { PDFPasswordRequiredError } from "../../types/interfaces";
-import { PDFService } from "../pdf-service";
+import { type PDFDecrypt, PDFService } from "../pdf-service";
 
 const getDocument = vi.hoisted(() => vi.fn<() => LoadingTask>());
 vi.mock("pdfjs-dist", () => ({ getDocument, GlobalWorkerOptions: { workerSrc: "" } }));
@@ -30,6 +30,7 @@ function makePage(width = 100, height = 200) {
 function makeDocument(page = makePage()) {
   return {
     numPages: 5,
+    getMetadata: vi.fn(async () => ({ info: {} as Record<string, unknown> })),
     getPage: vi.fn(async (_pageNumber: number) => page),
     cleanup: vi.fn(async () => {}),
   };
@@ -621,6 +622,76 @@ describe("PDFService", () => {
     ).rejects.toBeInstanceOf(PDFPasswordRequiredError);
     expect(getDocument).toHaveBeenLastCalledWith({
       data: new Uint8Array(await file.arrayBuffer()),
+    });
+  });
+
+  describe("export sources", () => {
+    const decrypt = vi.fn<PDFDecrypt>();
+
+    beforeEach(async () => {
+      await runPromise(service.dispose());
+      decrypt.mockReset().mockReturnValue(Effect.succeed(new Uint8Array([9])));
+      service = new PDFService({ decrypt });
+    });
+
+    const encrypt = () =>
+      pdf.getMetadata.mockResolvedValue({ info: { EncryptFilterName: "Standard" } });
+
+    it("returns an unencrypted source without decrypting it", async () => {
+      await runPromise(service.loadPDF(file));
+
+      await expect(runPromise(service.getExportSource(file))).resolves.toBe(file);
+      expect(decrypt).not.toHaveBeenCalled();
+    });
+
+    it("decrypts an unlocked source once with its password", async () => {
+      encrypt();
+      await runPromise(service.loadPDFWithPassword(file, "623"));
+
+      const source = await runPromise(service.getExportSource(file));
+      await expect(runPromise(service.getExportSource(file))).resolves.toBe(source);
+
+      expect(source).not.toBe(file);
+      expect(source.name).toBe(file.name);
+      expect(new Uint8Array(await source.arrayBuffer())).toEqual(new Uint8Array([9]));
+      expect(decrypt).toHaveBeenCalledExactlyOnceWith(await file.arrayBuffer(), "623");
+    });
+
+    it("decrypts an owner-password-only source without a password", async () => {
+      encrypt();
+      await runPromise(service.loadPDF(file));
+
+      await runPromise(service.getExportSource(file));
+
+      expect(decrypt).toHaveBeenCalledExactlyOnceWith(expect.any(ArrayBuffer), undefined);
+    });
+
+    it("retries a failed decryption and decrypts again after release", async () => {
+      encrypt();
+      decrypt.mockReturnValueOnce(Effect.fail(new Error("worker failed")));
+      await runPromise(service.loadPDF(file));
+
+      await expect(runPromise(service.getExportSource(file))).rejects.toMatchObject({
+        operation: "decrypt-source",
+        message: "worker failed",
+      });
+      await runPromise(service.getExportSource(file));
+      await runPromise(service.releaseFile(file));
+      await runPromise(service.loadPDF(file));
+      await runPromise(service.getExportSource(file));
+
+      expect(decrypt).toHaveBeenCalledTimes(3);
+    });
+
+    it("rejects an encrypted source when decryption is unavailable", async () => {
+      encrypt();
+      await runPromise(service.dispose());
+      service = new PDFService();
+      await runPromise(service.loadPDF(file));
+
+      await expect(runPromise(service.getExportSource(file))).rejects.toMatchObject({
+        operation: "decrypt-source",
+      });
     });
   });
 

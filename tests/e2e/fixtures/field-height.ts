@@ -96,7 +96,7 @@ export async function checkFieldHeight(height: number) {
     pngPixels = pixels(canvas);
     for (const kind of ["viewer", "thumbnail"]) {
       const generated = document.createElement("canvas");
-      await Effect.runPromise(service.renderPageState(states[0], generated, 4, 0, 4_000_000));
+      await Effect.runPromise(service.renderPageState(states[0], generated, 4, 0));
       if (kind === "viewer") viewerPixels = pixels(generated);
       else thumbnailPixels = pixels(generated);
     }

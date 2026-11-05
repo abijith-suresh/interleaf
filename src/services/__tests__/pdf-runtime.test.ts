@@ -25,6 +25,7 @@ const imageExportServiceMock = vi.hoisted(() => ({
 
 const qpdfProcessingMock = vi.hoisted(() => ({
   optimizeLosslessly: vi.fn(),
+  decrypt: vi.fn(),
   close: vi.fn(),
 }));
 
@@ -73,6 +74,7 @@ vi.mock("../qpdf-processing", async (importOriginal) => {
 import { PDFImageExportService } from "../pdf-image-export-service";
 import { PDFOperationsService } from "../pdf-operations-service";
 import { makePDFRuntime, PDFProcessing, type PDFRuntime } from "../pdf-runtime";
+import { PDFService } from "../pdf-service";
 
 let runtime: PDFRuntime;
 
@@ -295,6 +297,7 @@ it("passes the unlocked source PDF to compression and closes qpdf on disposal", 
     new Uint8Array(await file.arrayBuffer()),
     "623"
   );
+  expect(PDFService).toHaveBeenCalledWith({ decrypt: qpdfProcessingMock.decrypt });
 
   await runtime.dispose();
   expect(qpdfProcessingMock.close).toHaveBeenCalledTimes(1);

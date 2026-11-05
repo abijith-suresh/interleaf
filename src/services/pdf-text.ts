@@ -55,13 +55,11 @@ export async function validateAddedText(text: AddedText, geometry: PageGeometry)
   return measureAddedText(text, geometry, font);
 }
 
-// Raster output has physical-point coordinates with its origin at the visible box.
 export async function drawAddedText(
   document: PDFDocument,
   page: PDFPage,
   texts: readonly AddedText[],
-  geometry: PageGeometry,
-  raster = false
+  geometry: PageGeometry
 ) {
   if (!texts.length) return;
   const font = await document.embedFont(StandardFonts.Helvetica);
@@ -69,9 +67,9 @@ export async function drawAddedText(
     const { size } = measureAddedText(text, geometry, font);
     page.drawText(text.text, {
       font,
-      x: raster ? (text.x - geometry.bounds[0]) * geometry.userUnit : text.x,
-      y: raster ? (text.y - geometry.bounds[1]) * geometry.userUnit : text.y,
-      size: raster ? text.fontSize : size,
+      x: text.x,
+      y: text.y,
+      size,
       rotate: degrees(text.rotation),
     });
   }

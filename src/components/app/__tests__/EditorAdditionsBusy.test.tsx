@@ -77,7 +77,6 @@ it.each([
   );
   const runtime = makePDFRuntime();
   const operations = new PDFOperationsService({
-    renderPage: () => Effect.void,
     getPageGeometry: () => Effect.succeed(geometry),
   });
   const [pages, setPages] = createStore(createPageStates(file, 1));
