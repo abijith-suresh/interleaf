@@ -1061,7 +1061,98 @@ describe("missing references are null", () => {
     const popup = node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict).get(N("Popup"));
     expect(popup).toBeInstanceOf(PDFRef);
     expect(saved.context.lookup(popup)).toBeUndefined();
+    const xobject = node
+      .lookup(N("Resources"), PDFDict)
+      .lookup(N("XObject"), PDFDict)
+      .get(N("Gone"));
+    expect(xobject).toBeInstanceOf(PDFRef);
+    expect(saved.context.lookup(xobject)).toBeUndefined();
   });
+
+  it("drops missing /Annots entries and keeps the rest", async () => {
+    const doc = await PDFDocument.create(),
+      page = doc.addPage();
+    page.node.set(
+      N("Annots"),
+      doc.context.obj([
+        missing(doc, 100),
+        doc.context.register(doc.context.obj({ Subtype: "Text", Rect: [0, 0, 10, 10] })),
+      ])
+    );
+    const saved = await PDFDocument.load(await build([createPageState(file(await doc.save()), 1)]));
+    const annots = saved.getPage(0).node.lookup(N("Annots"), PDFArray);
+    expect(annots.size()).toBe(1);
+    expect(annots.lookup(0, PDFDict).lookup(N("Subtype"))).toBe(N("Text"));
+  });
+
+  // Each copy owns its field tree, so every exported widget keeps one parent
+  // whose Kids are that widget plus the missing (null) kid.
+  it.each([[[1]], [[1, 2]]])(
+    "keeps a missing field kid in place when exporting pages %j",
+    async (pages) => {
+      const doc = await PDFDocument.create(),
+        p1 = doc.addPage(),
+        p2 = doc.addPage(),
+        field = doc.getForm().createTextField("answer");
+      field.addToPage(p1);
+      field.addToPage(p2);
+      const gone = missing(doc, 100);
+      field.acroField.dict.lookup(N("Kids"), PDFArray).push(gone);
+      const bytes = await doc.save({ updateFieldAppearances: false }),
+        source = file(bytes);
+      const saved = await PDFDocument.load(
+        await build(pages.map((n) => createPageState(source, n)))
+      );
+      const kids = saved
+        .getPage(0)
+        .node.lookup(N("Annots"), PDFArray)
+        .lookup(0, PDFDict)
+        .lookup(N("Parent"), PDFDict)
+        .lookup(N("Kids"), PDFArray);
+      expect(kids.size()).toBe(2);
+      expect(saved.context.lookup(kids.get(1))).toBeUndefined();
+    }
+  );
+
+  it("treats missing link and page actions as absent", async () => {
+    const doc = await PDFDocument.create(),
+      page = doc.addPage();
+    page.node.set(N("AA"), missing(doc, 100));
+    page.node.addAnnot(
+      doc.context.register(
+        doc.context.obj({ Subtype: "Link", Rect: [0, 0, 10, 10], A: missing(doc, 101) })
+      )
+    );
+    const saved = await PDFDocument.load(await build([createPageState(file(await doc.save()), 1)]));
+    const node = saved.getPage(0).node;
+    expect(saved.context.lookup(node.get(N("AA")))).toBeUndefined();
+    const link = node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict);
+    expect(saved.context.lookup(link.get(N("A")))).toBeUndefined();
+  });
+
+  it.each(["Dest", "GoTo", "Page"] as const)(
+    "drops a link destination whose %s target is missing",
+    async (kind) => {
+      const doc = await PDFDocument.create(),
+        page = doc.addPage(),
+        gone = missing(doc, 100);
+      const link =
+        kind === "Dest"
+          ? { Dest: gone }
+          : kind === "GoTo"
+            ? { A: { S: "GoTo", D: gone } }
+            : { Dest: [gone, "Fit"] };
+      page.node.addAnnot(
+        doc.context.register(doc.context.obj({ Subtype: "Link", Rect: [0, 0, 10, 10], ...link }))
+      );
+      const saved = await PDFDocument.load(
+        await build([createPageState(file(await doc.save()), 1)])
+      );
+      const annot = saved.getPage(0).node.lookup(N("Annots"), PDFArray).lookup(0, PDFDict);
+      expect(annot.has(N("Dest"))).toBe(false);
+      expect(annot.has(N("A"))).toBe(false);
+    }
+  );
 
   it("walks arrays too large to spread into a call", async () => {
     const doc = await PDFDocument.create(),
