@@ -38,7 +38,7 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 
 - All PDF processing runs in the browser. Documents are processed in memory and discarded when you close the tab.
 - No uploads, no accounts, no analytics, no cookies.
-- Fonts are self-hosted; the site loads no third-party resources.
+- Fonts are self-hosted; the site loads no third-party resources. A security policy tells the browser to block connections to other sites.
 - The static host receives standard request metadata, such as IP address and user agent, when a page loads. Interleaf does not use it, and it never includes your files.
 
 You can check in your browser's network inspector that no file data is sent.
