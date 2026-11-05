@@ -3,15 +3,17 @@ import Layout from "../../layouts/Layout.astro";
 import { contentSlide } from "../../utils/transitions";
 import Footer from "../shared/Footer.astro";
 import Nav from "../shared/Nav.astro";
+import MarketingCta from "./MarketingCta.astro";
 
 interface Props {
   title: string;
   description?: string;
   currentPage?: string;
-  includeMain?: boolean;
+  /** The closing band above the footer. Every inner page ends with it; home has its own hero action. */
+  closingCta?: boolean;
 }
 
-const { title, description, currentPage, includeMain = true } = Astro.props;
+const { title, description, currentPage, closingCta = true } = Astro.props;
 ---
 
 <Layout title={title} description={description}>
@@ -19,15 +21,10 @@ const { title, description, currentPage, includeMain = true } = Astro.props;
     <Nav currentPage={currentPage} />
 
     <div class="marketing-content" transition:animate={contentSlide}>
-      {
-        includeMain ? (
-          <main id="main-content">
-            <slot />
-          </main>
-        ) : (
-          <slot />
-        )
-      }
+      <main id="main-content">
+        <slot />
+        {closingCta && <MarketingCta />}
+      </main>
     </div>
 
     <Footer />

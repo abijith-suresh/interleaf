@@ -2,8 +2,6 @@
 import MarketingLayout from "../components/marketing/MarketingLayout.astro";
 import MarketingHero from "../components/marketing/MarketingHero.astro";
 
-const base = import.meta.env.BASE_URL;
-
 const capabilities = [
   {
     title: "Bring a document together",
@@ -63,186 +61,25 @@ const capabilities = [
   description="What Interleaf does in your browser: bring PDFs and PNG or JPEG images together, shape their pages, and export the result."
   currentPage="features"
 >
-  <MarketingHero titleId="features-title">
-    <h1 slot="primary" id="features-title" class="marketing-hero-title">
-      Everything<br /><span>before the export.</span>
-    </h1>
+  <MarketingHero
+    titleId="features-title"
+    title="Everything before the export."
+    lede="Interleaf is a local workspace that runs entirely in your browser. The list below covers what it does today."
+  />
 
-    <div slot="secondary" class="hero-copy">
-      <p>
-        Interleaf is a local workspace that runs entirely in your browser. The list below covers
-        what it does today.
-      </p>
-      <a class="marketing-hero-action" href={`${base}app`}>Open editor</a>
-    </div>
-  </MarketingHero>
-
-  <section class="capability-section" aria-labelledby="capability-title">
+  <section class="marketing-section" aria-label="Features">
     <div class="marketing-container">
-      <div class="section-intro">
-        <p class="section-index">The work in between</p>
-        <h2 id="capability-title">What you can do today.</h2>
-      </div>
-
-      <div class="capability-list">
+      <ul class="marketing-rows">
         {
           capabilities.map((capability) => (
-            <article class="capability">
-              <span class="capability-marker" aria-hidden="true"></span>
-              <h3>{capability.title}</h3>
-              <p>{capability.description}</p>
-            </article>
+            <li class="marketing-row">
+              <span class="marketing-row-dot" aria-hidden="true"></span>
+              <h2 class="marketing-row-title">{capability.title}</h2>
+              <p class="marketing-row-body">{capability.description}</p>
+            </li>
           ))
         }
-        <p class="local-note">
-          <span class="local-note-marker" aria-hidden="true"></span>
-          <span class="local-note-copy">
-            <strong>Your files never leave your device.</strong> Interleaf runs entirely in your
-            browser. Nothing is uploaded.
-          </span>
-        </p>
-      </div>
+      </ul>
     </div>
   </section>
 </MarketingLayout>
-
-<style>
-  a:focus-visible {
-    outline: 2px solid var(--marketing-accent);
-    outline-offset: 4px;
-  }
-
-  h1,
-  h2,
-  h3,
-  p {
-    margin: 0;
-  }
-
-  h1 span {
-    color: var(--marketing-accent);
-  }
-
-  .hero-copy {
-    max-width: 26rem;
-  }
-
-  .hero-copy > p {
-    color: var(--marketing-muted);
-    font-size: clamp(1rem, 1.5vw, 1.15rem);
-    line-height: 1.55;
-    text-wrap: pretty;
-  }
-
-  .capability-section {
-    padding-block: clamp(3.75rem, 8vw, 6.5rem);
-  }
-
-  .section-intro {
-    display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
-    gap: 2rem;
-    align-items: baseline;
-  }
-
-  .section-index {
-    color: var(--marketing-muted);
-    font-size: 0.7rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  h2 {
-    max-width: 34rem;
-    font-size: clamp(2rem, 4.3vw, 3.5rem);
-    font-weight: 500;
-    letter-spacing: -0.07em;
-    line-height: 0.98;
-    text-wrap: balance;
-  }
-
-  .capability-list {
-    margin-top: clamp(2.5rem, 5vw, 4rem);
-    border-top: 1px solid var(--marketing-ink);
-  }
-
-  .capability {
-    display: grid;
-    grid-template-columns: 1rem minmax(14rem, 0.8fr) minmax(0, 1.2fr);
-    gap: 1.5rem;
-    align-items: baseline;
-    padding-block: 1.6rem;
-    border-bottom: 1px solid var(--marketing-rule);
-  }
-
-  .capability-marker,
-  .local-note-marker {
-    display: block;
-    width: 0.55rem;
-    height: 0.55rem;
-    border-radius: 50%;
-    background: var(--marketing-accent);
-  }
-
-  h3 {
-    font-size: clamp(1.05rem, 1.7vw, 1.3rem);
-    font-weight: 600;
-    letter-spacing: -0.03em;
-    line-height: 1.2;
-  }
-
-  .capability p {
-    max-width: 32rem;
-    color: var(--marketing-muted);
-    font-size: 0.95rem;
-    line-height: 1.55;
-  }
-
-  .local-note {
-    display: grid;
-    grid-template-columns: 1rem minmax(14rem, 0.8fr) minmax(0, 1.2fr);
-    gap: 1.5rem;
-    align-items: baseline;
-    padding-block: 1.6rem;
-    border-bottom: 1px solid var(--marketing-rule);
-    color: var(--marketing-muted);
-    font-size: 0.95rem;
-    line-height: 1.55;
-  }
-
-  .local-note-copy {
-    grid-column: 2 / -1;
-    max-width: 32rem;
-  }
-
-  .local-note strong {
-    color: var(--marketing-ink);
-    font-weight: 600;
-  }
-
-  @media (max-width: 48rem) {
-    .section-intro {
-      grid-template-columns: 1fr;
-      gap: 1.25rem;
-    }
-
-    .hero-copy {
-      max-width: 30rem;
-    }
-
-    .capability {
-      grid-template-columns: 1rem minmax(0, 1fr);
-      gap: 0.85rem 1rem;
-      padding-block: 1.35rem;
-    }
-
-    .capability p {
-      grid-column: 2;
-    }
-
-    .local-note {
-      grid-template-columns: 1rem minmax(0, 1fr);
-    }
-  }
-
-</style>

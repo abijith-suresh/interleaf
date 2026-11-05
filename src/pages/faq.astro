@@ -1,4 +1,5 @@
 ---
+import MarketingHero from "../components/marketing/MarketingHero.astro";
 import MarketingLayout from "../components/marketing/MarketingLayout.astro";
 
 const questions = [
@@ -42,27 +43,27 @@ const questions = [
   description="Short answers about using Interleaf in your browser, including privacy, browser support, file sizes, and offline use."
   currentPage="faq"
 >
-  <section class="page-intro" aria-labelledby="faq-title">
-    <div class="marketing-container">
-      <div class="page-intro-copy">
-        <h1 id="faq-title">Questions, answered.</h1>
-        <p>Short answers about using Interleaf in your browser.</p>
-      </div>
-    </div>
-  </section>
+  <MarketingHero
+    titleId="faq-title"
+    title="Questions, answered."
+    lede="Short answers about using Interleaf in your browser."
+  />
 
-  <section class="faq-content" aria-label="Frequently asked questions">
+  <section class="marketing-section" aria-label="Frequently asked questions">
     <div class="marketing-container">
-      <div class="faq-list">
+      <div class="marketing-rows">
         {
           questions.map((item, index) => (
-            <details open={index === 0}>
+            <details class="faq-item" open={index === 0}>
               <summary>
-                <span>{item.q}</span>
+                <span class="marketing-row-number" aria-hidden="true">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span class="marketing-row-title">{item.q}</span>
                 <span class="summary-mark" aria-hidden="true">+</span>
               </summary>
               <div class="faq-answer">
-                <p>{item.a}</p>
+                <p class="marketing-row-body">{item.a}</p>
               </div>
             </details>
           ))
@@ -73,57 +74,9 @@ const questions = [
 </MarketingLayout>
 
 <style>
-  a,
-  summary {
-    -webkit-tap-highlight-color: rgb(255 42 31 / 18%);
-    touch-action: manipulation;
-  }
-
-  a:focus-visible,
-  summary:focus-visible {
-    outline: 2px solid var(--marketing-accent);
-    outline-offset: 4px;
-  }
-
-  .page-intro {
-    padding-block: clamp(4.5rem, 10vw, 7.5rem) 0;
-  }
-
-  /* One column: the intro copy shares the answer list's width and centering. */
-  .page-intro-copy {
-    max-width: 54rem;
-    margin-inline: auto;
-  }
-
-  h1 {
-    margin: 0;
-    color: var(--marketing-ink);
-    font-size: clamp(3.25rem, 8vw, 6.25rem);
-    font-weight: 500;
-    letter-spacing: -0.09em;
-    line-height: 0.94;
-    text-wrap: balance;
-  }
-
-  .page-intro p {
-    max-width: 30rem;
-    margin: 1.75rem 0 0;
-    color: var(--marketing-muted);
-    font-size: clamp(1rem, 1.7vw, 1.15rem);
-    line-height: 1.55;
-  }
-
-  .faq-content {
-    padding-block: clamp(3rem, 7vw, 5.5rem) clamp(5rem, 10vw, 8rem);
-  }
-
-  .faq-list {
-    max-width: 54rem;
-    margin-inline: auto;
-    border-top: 1px solid var(--marketing-rule-strong);
-  }
-
-  details {
+  /* Each question is a row: the summary uses the row columns, and the answer
+     sits under the question. */
+  .faq-item {
     border-bottom: 1px solid var(--marketing-rule);
   }
 
@@ -133,39 +86,34 @@ const questions = [
      owns content-visibility: hidden and defers it via a 0s discrete transition
      delayed to the end of the collapse, so the browser cannot skip (and
      size-contain) the content mid-collapse; the open state reveals immediately. */
-  details::details-content {
+  .faq-item::details-content {
     display: grid;
     grid-template-rows: 0fr;
     opacity: 0;
     content-visibility: hidden;
     transition:
-      grid-template-rows 340ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+      grid-template-rows 340ms var(--ease-out),
       opacity 260ms ease,
       content-visibility 0s allow-discrete 340ms;
   }
 
-  details[open]::details-content {
+  .faq-item[open]::details-content {
     grid-template-rows: 1fr;
     opacity: 1;
     content-visibility: visible;
     transition:
-      grid-template-rows 340ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+      grid-template-rows 340ms var(--ease-out),
       opacity 260ms ease,
       content-visibility 0s allow-discrete;
   }
 
   summary {
-    display: flex;
-    min-height: 4.25rem;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1.5rem;
-    padding: 1.25rem 1.5rem;
-    color: var(--marketing-ink);
+    display: grid;
+    grid-template-columns: var(--row-marker) minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: var(--row-gap);
+    padding-block: 1.6rem;
     cursor: pointer;
-    font-size: clamp(1rem, 1.7vw, 1.15rem);
-    font-weight: 500;
-    line-height: 1.35;
     list-style: none;
     -webkit-user-select: none;
     user-select: none;
@@ -175,7 +123,7 @@ const questions = [
     display: none;
   }
 
-  summary:hover {
+  summary:hover .marketing-row-title {
     color: var(--marketing-accent);
   }
 
@@ -183,7 +131,7 @@ const questions = [
     display: grid;
     width: 1.5rem;
     height: 1.5rem;
-    flex: 0 0 auto;
+    align-self: center;
     place-items: center;
     border: 1px solid var(--marketing-rule-strong);
     border-radius: 50%;
@@ -191,60 +139,46 @@ const questions = [
     font-size: 1.1rem;
     font-weight: 300;
     line-height: 1;
-    transition: transform 340ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
+    transition: transform 340ms var(--ease-out);
   }
 
-  details[open] .summary-mark {
-    background: var(--marketing-accent);
+  .faq-item[open] .summary-mark {
     border-color: var(--marketing-accent);
-    color: #fff;
+    background: var(--marketing-accent);
+    color: var(--marketing-paper);
     transform: rotate(45deg);
   }
 
   .faq-answer {
-    max-width: 43rem;
     min-height: 0;
     overflow: clip;
-    padding: 0 4.5rem 0 1.5rem;
+    padding-left: calc(var(--row-marker) + var(--row-gap));
+    padding-right: calc(1.5rem + var(--row-gap));
   }
 
-  .faq-answer p {
-    margin: 0;
-    padding-bottom: 1.5rem;
-    color: var(--marketing-muted);
-    font-size: 0.98rem;
-    line-height: 1.65;
+  .faq-answer .marketing-row-body {
+    max-width: 43rem;
+    padding-bottom: 1.6rem;
   }
 
-  @media (max-width: 520px) {
-    .page-intro {
-      padding-top: 4rem;
-    }
-
+  @media (max-width: 47.99rem) {
     summary {
-      min-height: 4rem;
-      padding: 1.1rem 1rem;
+      padding-block: 1.35rem;
     }
 
     .faq-answer {
-      padding-right: 1rem;
-      padding-left: 1rem;
+      padding-right: 0;
+    }
+
+    .faq-answer .marketing-row-body {
+      padding-bottom: 1.35rem;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      animation-duration: 0.01ms;
-      animation-iteration-count: 1;
-      scroll-behavior: auto;
-      transition-duration: 0.01ms;
-    }
-
-    details::details-content,
-    details[open]::details-content,
-    details .summary-mark {
+    .faq-item::details-content,
+    .faq-item[open]::details-content,
+    .summary-mark {
       transition-duration: 0.01ms;
       transition-delay: 0s;
     }
