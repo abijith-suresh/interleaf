@@ -28,3 +28,14 @@ qpdf --password=wwwww --object-streams=generate --static-aes-iv --static-id \
 
 It opens without a password prompt. Its SHA-256 is
 `87483dc898d35bb92b6dbf95192832b0b6c31e20db1f15467f1bcffc6dfa3dcf`.
+
+`encrypted-128-bit-r3-latin1-password.b64` is `encrypted-40-bit-r3.b64` re-encrypted by the same
+qpdf 11.9.0 as an RC4 128-bit R3 file with the user password `é`, which R3 stores as the single
+PDFDocEncoding byte `0xE9`, and the owner password `owner`:
+
+```sh
+qpdf --password=623 --static-id --allow-weak-crypto \
+  --encrypt --user-password=é --owner-password=owner --bits=128 --use-aes=n -- in.pdf out.pdf
+```
+
+Its SHA-256 is `2eafb8cf2a4298c58562919c62a6a31d23168e30cb12dddfe12dc5edf00ff2f8`.

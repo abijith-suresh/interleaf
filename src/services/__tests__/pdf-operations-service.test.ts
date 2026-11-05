@@ -346,6 +346,7 @@ describe("PDFOperationsService", () => {
     it.each([
       { fixture: "encrypted-256-bit-r6", password: "wwwww", pageCount: 30 },
       { fixture: "encrypted-40-bit-r3", password: "623", pageCount: 1 },
+      { fixture: "encrypted-128-bit-r3-latin1-password", password: "é", pageCount: 1 },
       { fixture: "encrypted-256-bit-owner-only", password: undefined, pageCount: 30 },
     ])(
       "exports every page of $fixture as unencrypted vector pages with added text",
@@ -384,6 +385,35 @@ describe("PDFOperationsService", () => {
         expect(output.getPage(0).node.normalizedEntries().XObject?.keys() ?? []).toHaveLength(0);
       }
     );
+
+    it("merges decrypted and unencrypted sources in one export", async () => {
+      const encrypted = readQpdfFixture("encrypted-256-bit-r6");
+      const plain = await createPdfFile("plain.pdf", [{ width: 200, height: 300 }]);
+      const getExportSource = vi.fn((file: File) =>
+        file === encrypted ? decryptedSource("wwwww")(file) : Effect.succeed(file)
+      );
+      service = new PDFOperationsService({ getExportSource });
+
+      const result = await Effect.runPromise(
+        service.buildPDF([
+          createPageState(plain, 1),
+          createPageState(encrypted, 3),
+          createPageState(encrypted, 1, { rotation: 180 }),
+        ])
+      );
+      const output = await PDFDocument.load(result.data);
+
+      expect(output.isEncrypted).toBe(false);
+      expect(output.getPages().map((page) => page.getSize())).toEqual([
+        { width: 200, height: 300 },
+        { width: 612, height: 792 },
+        { width: 612, height: 792 },
+      ]);
+      expect(pageOperators(output.getPage(1))).toContain("(Potato 2)");
+      expect(pageOperators(output.getPage(2))).toContain("(Potato 0)");
+      expect(output.getPage(2).getRotation().angle).toBe(180);
+      expect(getExportSource).toHaveBeenCalledTimes(2);
+    });
 
     it("rejects an encrypted source without a decrypted export source", async () => {
       const file = readQpdfFixture("encrypted-256-bit-r6");

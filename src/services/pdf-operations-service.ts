@@ -106,6 +106,7 @@ interface ExportSource {
   readonly doc: PDFDocument;
   // The source File itself, or its decrypted copy when the source is encrypted.
   readonly file: File;
+  readonly decrypted: boolean;
 }
 
 export class PDFOperationsService {
@@ -123,7 +124,7 @@ export class PDFOperationsService {
             try: async () => PDFDocument.load(await file.arrayBuffer()),
             catch: (cause) => processingError("load-source", key.file, cause),
           });
-          return { doc, file };
+          return { doc, file, decrypted: file !== key.file };
         }),
       cleanup: () => Effect.void,
       releaseError: (file) =>
@@ -362,7 +363,7 @@ export class PDFOperationsService {
           });
           sourceDocuments.set(sourceFile, source);
         }
-        if (source.file !== sourceFile && page.fieldAnswers?.length)
+        if (source.decrypted && page.fieldAnswers?.length)
           return yield* Effect.fail(
             processingError(
               "fill-field",

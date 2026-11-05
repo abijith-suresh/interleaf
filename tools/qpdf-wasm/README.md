@@ -25,6 +25,10 @@ Decryption is a separate entry point. It writes the PDF with qpdf's default writ
 encryption, like `qpdf --decrypt`. Without a password, qpdf tries the empty user password, which
 opens owner-password-only PDFs. Compression still preserves the source's encryption.
 
+The worker sends passwords to qpdf as UTF-8, which R5 and R6 files use. If that fails and the
+password has non-ASCII characters, it retries with one byte per character, as PDF.js does for R2 to
+R4 files.
+
 qpdf reparses its output before returning it. It may still produce an output that is larger than the
 input. The worker returns the original bytes in that case and reports the candidate size, so a later
 product surface can honestly say that no reduction was available.

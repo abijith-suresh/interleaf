@@ -96,3 +96,19 @@ test("an owner-password-only PDF opens without a prompt and exports every page",
 
   expectVectorPages(await download(page, "owner-only.pdf"));
 });
+
+test("an R3 PDF with a non-ASCII password exports after unlocking", async ({ page }) => {
+  await page.goto("/app");
+  await page
+    .getByTestId("editor-upload-input")
+    .setInputFiles(await fixture("encrypted-128-bit-r3-latin1-password"));
+  await page.getByLabel("PDF password", { exact: true }).fill("é");
+  await page.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(page.locator(".password-modal")).toHaveCount(0);
+  await expect(page.getByTestId("editor-page-tile")).toHaveCount(1);
+
+  const pdf = await download(page, "latin1-password.pdf");
+  expect(pdf.isEncrypted).toBe(false);
+  expect(pdf.getPageCount()).toBe(1);
+  expect(operators(pdf.getPage(0))).toContain("(Potato)");
+});
