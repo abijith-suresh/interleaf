@@ -190,7 +190,8 @@ export default function Editor() {
             direction === "undo"
               ? { undo: current.undo.slice(0, -1), redo: [...current.redo, entry] }
               : { undo: [...current.undo, entry], redo: current.redo.slice(0, -1) },
-            pages
+            pages,
+            entry
           )
         );
         setStatusMessage(`${direction === "undo" ? "Undid" : "Redid"} ${entry.label}.`);
