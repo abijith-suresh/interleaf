@@ -16,7 +16,7 @@ interface Props {
 const { title, description, currentPage, closingCta = true } = Astro.props;
 ---
 
-<Layout title={title} description={description}>
+<Layout title={title} description={description} font="inter">
   <div class="marketing-page">
     <Nav currentPage={currentPage} />
 

@@ -73,7 +73,17 @@ const capabilities = [
         {
           capabilities.map((capability) => (
             <li class="marketing-row">
-              <span class="marketing-row-dot" aria-hidden="true"></span>
+              <span class="marketing-row-marker" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path
+                    d="M20 6 9 17l-5-5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"></path>
+                </svg>
+              </span>
               <h2 class="marketing-row-title">{capability.title}</h2>
               <p class="marketing-row-body">{capability.description}</p>
             </li>

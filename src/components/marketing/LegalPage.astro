@@ -37,7 +37,7 @@ const { title, description, heading, headingId, intro, sections } = Astro.props;
         {
           sections.map((section) => (
             <section id={section.id} class="marketing-row">
-              <span class="marketing-row-number">{section.num}</span>
+              <span class="marketing-row-marker">{section.num}</span>
               <h2 class="marketing-row-title">{section.title}</h2>
               <p class="marketing-row-body">
                 {section.body}

@@ -51,19 +51,25 @@ const questions = [
 
   <section class="marketing-section" aria-label="Frequently asked questions">
     <div class="marketing-container">
-      <div class="marketing-rows">
+      <div class="faq-list">
         {
           questions.map((item, index) => (
             <details class="faq-item" open={index === 0}>
               <summary>
-                <span class="marketing-row-number" aria-hidden="true">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <span class="marketing-row-title">{item.q}</span>
-                <span class="summary-mark" aria-hidden="true">+</span>
+                <span class="faq-question">{item.q}</span>
+                <svg class="faq-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="m6 9 6 6 6-6"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                  />
+                </svg>
               </summary>
               <div class="faq-answer">
-                <p class="marketing-row-body">{item.a}</p>
+                <p>{item.a}</p>
               </div>
             </details>
           ))
@@ -74,10 +80,19 @@ const questions = [
 </MarketingLayout>
 
 <style>
-  /* Each question is a row: the summary uses the row columns, and the answer
-     sits under the question. */
-  .faq-item {
-    border-bottom: 1px solid var(--marketing-rule);
+  @reference "../styles/global.css";
+
+  /* Cards' accordion inside one card: a line between items, a chevron that
+     turns over while open. */
+  .faq-list {
+    padding-inline: 1.5rem;
+    border-radius: var(--radius-2xl);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .faq-item + .faq-item {
+    border-top: 1px solid var(--color-line);
   }
 
   /* Smooth expand/collapse: ::details-content is a grid whose row interpolates
@@ -92,9 +107,9 @@ const questions = [
     opacity: 0;
     content-visibility: hidden;
     transition:
-      grid-template-rows 340ms var(--ease-out),
-      opacity 260ms ease,
-      content-visibility 0s allow-discrete 340ms;
+      grid-template-rows 160ms ease-out,
+      opacity 160ms ease-out,
+      content-visibility 0s allow-discrete 160ms;
   }
 
   .faq-item[open]::details-content {
@@ -102,17 +117,20 @@ const questions = [
     opacity: 1;
     content-visibility: visible;
     transition:
-      grid-template-rows 340ms var(--ease-out),
-      opacity 260ms ease,
+      grid-template-rows 200ms var(--ease-out-expo),
+      opacity 200ms var(--ease-out-expo),
       content-visibility 0s allow-discrete;
   }
 
   summary {
-    display: grid;
-    grid-template-columns: var(--row-marker) minmax(0, 1fr) auto;
-    align-items: baseline;
-    gap: var(--row-gap);
-    padding-block: 1.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-inline: -0.5rem;
+    padding: 1rem 0.5rem;
+    border-radius: var(--radius-md);
+    color: var(--color-fg);
     cursor: pointer;
     list-style: none;
     -webkit-user-select: none;
@@ -123,62 +141,54 @@ const questions = [
     display: none;
   }
 
-  summary:hover .marketing-row-title {
-    color: var(--marketing-accent);
+  .faq-question {
+    min-width: 0;
+    text-wrap: balance;
+    @apply text-ui-md;
   }
 
-  .summary-mark {
-    display: grid;
-    width: 1.5rem;
-    height: 1.5rem;
-    align-self: center;
-    place-items: center;
-    border: 1px solid var(--marketing-rule-strong);
-    border-radius: 50%;
-    color: var(--marketing-muted);
-    font-size: 1.1rem;
-    font-weight: 300;
-    line-height: 1;
-    transition: transform 340ms var(--ease-out);
+  .faq-chevron {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex: 0 0 auto;
+    color: var(--color-fg-subtle);
+    transition:
+      color 150ms var(--ease-tactile),
+      rotate 200ms var(--ease-tactile);
   }
 
-  .faq-item[open] .summary-mark {
-    border-color: var(--marketing-accent);
-    background: var(--marketing-accent);
-    color: var(--marketing-paper);
-    transform: rotate(45deg);
+  summary:hover .faq-chevron {
+    color: var(--color-fg-muted);
+  }
+
+  .faq-item[open] .faq-chevron {
+    rotate: 180deg;
   }
 
   .faq-answer {
     min-height: 0;
     overflow: clip;
-    padding-left: calc(var(--row-marker) + var(--row-gap));
-    padding-right: calc(1.5rem + var(--row-gap));
   }
 
-  .faq-answer .marketing-row-body {
+  .faq-answer p {
     max-width: 43rem;
-    padding-bottom: 1.6rem;
+    margin: 0;
+    padding-bottom: 1.25rem;
+    color: var(--color-fg-muted);
+    text-wrap: pretty;
+    @apply text-body-sm;
   }
 
   @media (max-width: 47.99rem) {
-    summary {
-      padding-block: 1.35rem;
-    }
-
-    .faq-answer {
-      padding-right: 0;
-    }
-
-    .faq-answer .marketing-row-body {
-      padding-bottom: 1.35rem;
+    .faq-list {
+      padding-inline: 1.25rem;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .faq-item::details-content,
     .faq-item[open]::details-content,
-    .summary-mark {
+    .faq-chevron {
       transition-duration: 0.01ms;
       transition-delay: 0s;
     }
