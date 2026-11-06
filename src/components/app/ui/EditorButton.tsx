@@ -8,6 +8,8 @@ type Props = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 export default function EditorButton(props: Props) {
+  // Icon-only buttons keep a 44px box around a smaller Cards visual.
+  const iconOnly = !("children" in props) ? " editor-button-icon" : "";
   const [local, rest] = splitProps(props, [
     "icon",
     "variant",
@@ -20,7 +22,7 @@ export default function EditorButton(props: Props) {
     <button
       {...rest}
       type={local.type ?? "button"}
-      class={`editor-button editor-button-${local.variant ?? "secondary"}${local.class ? ` ${local.class}` : ""}`}
+      class={`editor-button editor-button-${local.variant ?? "secondary"}${iconOnly}${local.class ? ` ${local.class}` : ""}`}
       classList={local.classList}
     >
       <Show when={local.icon}>{(icon) => <EditorIcon name={icon()} />}</Show>
