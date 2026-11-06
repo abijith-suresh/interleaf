@@ -148,6 +148,7 @@
     0 0 0 1px color-mix(in srgb, currentColor 14%, transparent),
     0 1px 2px 0 color-mix(in srgb, currentColor 16%, transparent);
   --shadow-focus: 0 0 0 2px #fff, 0 0 0 4px rgb(161 161 161 / 0.24);
+  --shadow-focus-danger: 0 0 0 2px #fff, 0 0 0 4px rgb(251 44 54 / 0.24);
   --shadow-menu:
     0 0 0 1px rgb(10 10 10 / 0.08), 0 1px 2px 0 rgb(10 10 10 / 0.12),
     0 4px 8px -4px rgb(10 10 10 / 0.16);
