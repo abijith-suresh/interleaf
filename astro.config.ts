@@ -20,6 +20,9 @@ const vercelHeaders = () =>
 export default defineConfig({
   integrations: [solid(), sitemap()],
   site: "https://www.interleaf.cc",
+  // Prefetch same-origin links once they are visible, so taps and quick clicks also land on a cached page.
+  // Astro skips this under Save-Data and on 2G connections.
+  prefetch: { prefetchAll: true, defaultStrategy: "viewport" },
   server: process.env.INTERLEAF_VERCEL_HEADERS ? { headers: vercelHeaders() } : {},
   vite: {
     plugins: [tailwindcss()],
