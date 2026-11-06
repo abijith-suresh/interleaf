@@ -2,134 +2,109 @@
 import MarketingHero from "./MarketingHero.astro";
 
 const base = import.meta.env.BASE_URL;
+
+const steps = [
+  {
+    title: "Bring together",
+    body: "Open PDFs and PNG or JPEG images in one place, and add more files as you work.",
+  },
+  {
+    title: "Shape pages",
+    body: "Reorder, rotate, and duplicate pages, mark pages for deletion, or extract a selection into a new PDF. Add text and checkmarks in Document view.",
+  },
+  {
+    title: "Keep it local",
+    body: "Everything runs in your browser. Nothing is uploaded.",
+  },
+];
 ---
 
-<div class="landing-page">
-  <main id="main-content">
-    <MarketingHero titleId="landing-title">
-      <div slot="primary" class="landing-hero-copy">
-        <h1 id="landing-title" class="marketing-hero-title landing-hero-title">
-          Make the<br />
-          <span>document ready.</span>
-        </h1>
-        <p>
-          Open PDFs and PNG or JPEG images together, review and shape their pages, and export the
-          result. Your files never leave your device.
-        </p>
-        <a class="marketing-hero-action" href={base + "app"}>
-          Open editor
-        </a>
-      </div>
+<MarketingHero variant="home" titleId="landing-title">
+  <div slot="primary" class="landing-hero-copy">
+    <h1 id="landing-title" class="marketing-hero-title landing-hero-title">
+      Make the<br />
+      <span>document ready.</span>
+    </h1>
+    <p class="marketing-lede">
+      Open PDFs and PNG or JPEG images together, review and shape their pages, and export the
+      result. Your files never leave your device.
+    </p>
+    <a class="marketing-button" href={base + "app"}>Open editor</a>
+  </div>
 
-      <div slot="secondary" class="workspace-cue" aria-hidden="true">
-        <div class="cue-top">
-          <span class="cue-dot"></span>
-          <span class="cue-rule"></span>
-          <span class="cue-rule cue-rule-short"></span>
-        </div>
-        <div class="cue-field">
-          <span class="sheet sheet-back"></span>
-          <span class="sheet sheet-middle"></span>
-          <span class="sheet sheet-front">
-            <span class="sheet-heading"></span>
-            <span class="sheet-line sheet-line-wide"></span>
-            <span class="sheet-line"></span>
-            <span class="sheet-line sheet-line-short"></span>
-            <span class="sheet-line"></span>
-          </span>
-          <span class="sheet-marker"></span>
-        </div>
-        <div class="cue-bottom">
-          <span class="cue-rule cue-rule-long"></span>
-          <span class="cue-dot cue-dot-small"></span>
-        </div>
-      </div>
-    </MarketingHero>
+  <div slot="secondary" class="workspace-cue" aria-hidden="true">
+    <div class="cue-top">
+      <span class="cue-dot"></span>
+      <span class="cue-rule"></span>
+      <span class="cue-rule cue-rule-short"></span>
+    </div>
+    <div class="cue-field">
+      <span class="sheet sheet-back"></span>
+      <span class="sheet sheet-middle"></span>
+      <span class="sheet sheet-front">
+        <span class="sheet-heading"></span>
+        <span class="sheet-line sheet-line-wide"></span>
+        <span class="sheet-line"></span>
+        <span class="sheet-line sheet-line-short"></span>
+        <span class="sheet-line"></span>
+      </span>
+      <span class="sheet-marker"></span>
+    </div>
+    <div class="cue-bottom">
+      <span class="cue-rule cue-rule-long"></span>
+      <span class="cue-dot cue-dot-small"></span>
+    </div>
+  </div>
+</MarketingHero>
 
-    <section class="workflow" aria-labelledby="workflow-title">
-      <div class="workflow-heading">
-        <h2 id="workflow-title">The work between opening a file and sending it.</h2>
-      </div>
+<section class="marketing-section" aria-labelledby="workflow-title">
+  <div class="marketing-container">
+    <div class="marketing-section-head">
+      <h2 id="workflow-title" class="marketing-section-title">
+        The work between opening a file and sending it.
+      </h2>
+    </div>
 
-      <div class="workflow-grid">
-        <article class="workflow-card">
-          <span class="workflow-number">01</span>
-          <h3>Bring together</h3>
-          <p>Open PDFs and PNG or JPEG images in one place, and add more files as you work.</p>
-        </article>
-        <article class="workflow-card">
-          <span class="workflow-number">02</span>
-          <h3>Shape pages</h3>
-          <p>Reorder, rotate, and duplicate pages, mark pages for deletion, or extract a selection into a new PDF. Add text and checkmarks in Document view.</p>
-        </article>
-        <article class="workflow-card">
-          <span class="workflow-number">03</span>
-          <h3>Keep it local</h3>
-          <p>Everything runs in your browser. Nothing is uploaded.</p>
-        </article>
-      </div>
-    </section>
-  </main>
-
-</div>
+    <ol class="marketing-rows">
+      {
+        steps.map((step, index) => (
+          <li class="marketing-row">
+            <span class="marketing-row-number" aria-hidden="true">
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <h3 class="marketing-row-title">{step.title}</h3>
+            <p class="marketing-row-body">{step.body}</p>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>
 
 <style>
-  .landing-page {
-    --ink: var(--marketing-ink);
-    --muted: var(--marketing-muted);
-    --line: var(--marketing-rule);
-    --line-soft: #ebe8e1;
-    --paper: var(--marketing-paper);
-    --canvas: var(--marketing-page);
-    --field: #f0eee8;
-    --accent: var(--marketing-accent);
-    background: var(--canvas);
-    color: var(--ink);
-    font-family: var(--font-body);
-  }
-
-  .landing-page a:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 4px;
-  }
-
-  .workflow {
-    width: min(calc(100% - 2rem), 72rem);
-    margin-inline: auto;
-  }
-
   .landing-hero-copy {
     max-width: 38rem;
   }
 
-  h1,
-  h2,
-  h3,
-  p {
-    margin: 0;
-  }
-
   .landing-hero-title span {
-    color: var(--accent);
+    color: var(--marketing-accent);
   }
 
-  .landing-hero-copy > p {
-    max-width: 31rem;
-    margin-top: clamp(1.5rem, 3vw, 2rem);
-    color: var(--muted);
-    font-size: clamp(1rem, 1.6vw, 1.15rem);
-    line-height: 1.55;
-    text-wrap: pretty;
+  .landing-hero-copy .marketing-button {
+    margin-top: 1.75rem;
   }
 
+  /* The workspace illustration. Its soft rule and field tints are its own. */
   .workspace-cue {
+    --cue-line-soft: #ebe8e1;
+    --cue-field: #f0eee8;
     width: min(100%, 25rem);
     aspect-ratio: 1.08;
     justify-self: end;
     overflow: hidden;
-    border: 1px solid var(--line);
+    border: 1px solid var(--marketing-rule);
     border-radius: 1.1rem;
-    background: var(--paper);
+    background: var(--marketing-paper);
     box-shadow: 0 1.5rem 4rem rgb(48 45 39 / 8%);
   }
 
@@ -143,12 +118,12 @@ const base = import.meta.env.BASE_URL;
   }
 
   .cue-top {
-    border-bottom: 1px solid var(--line-soft);
+    border-bottom: 1px solid var(--cue-line-soft);
   }
 
   .cue-bottom {
     justify-content: space-between;
-    border-top: 1px solid var(--line-soft);
+    border-top: 1px solid var(--cue-line-soft);
   }
 
   .cue-dot {
@@ -157,20 +132,20 @@ const base = import.meta.env.BASE_URL;
     height: 0.45rem;
     flex: 0 0 auto;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--marketing-accent);
   }
 
   .cue-dot-small {
     width: 0.35rem;
     height: 0.35rem;
-    background: var(--line);
+    background: var(--marketing-rule);
   }
 
   .cue-rule {
     display: block;
     width: 2.5rem;
     height: 1px;
-    background: var(--line);
+    background: var(--marketing-rule);
   }
 
   .cue-rule-short {
@@ -186,8 +161,8 @@ const base = import.meta.env.BASE_URL;
     min-height: 15rem;
     margin: 1.25rem;
     overflow: hidden;
-    border: 1px solid var(--line-soft);
-    background: var(--field);
+    border: 1px solid var(--cue-line-soft);
+    background: var(--cue-field);
   }
 
   .sheet {
@@ -195,8 +170,8 @@ const base = import.meta.env.BASE_URL;
     display: block;
     width: 42%;
     height: 69%;
-    border: 1px solid var(--line);
-    background: var(--paper);
+    border: 1px solid var(--marketing-rule);
+    background: var(--marketing-paper);
     box-shadow: 0 0.75rem 1.5rem rgb(48 45 39 / 8%);
   }
 
@@ -228,14 +203,14 @@ const base = import.meta.env.BASE_URL;
   .sheet-line {
     display: block;
     height: 0.28rem;
-    background: var(--line);
+    background: var(--marketing-rule);
   }
 
   .sheet-heading {
     width: 64%;
     height: 0.48rem;
     margin-bottom: 0.35rem;
-    background: var(--ink);
+    background: var(--marketing-ink);
   }
 
   .sheet-line-wide {
@@ -253,81 +228,14 @@ const base = import.meta.env.BASE_URL;
     width: 0.65rem;
     height: 0.65rem;
     border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 0 0.45rem rgb(255 42 31 / 13%);
+    background: var(--marketing-accent);
+    box-shadow: 0 0 0 0.45rem color-mix(in srgb, var(--marketing-accent) 13%, transparent);
   }
 
-  .workflow {
-    padding-block: 0 clamp(4.5rem, 9vw, 7rem);
-  }
-
-  .workflow-heading {
-    padding-block: 1.5rem 1.25rem;
-    border-top: 1px solid var(--line);
-  }
-
-  h2 {
-    max-width: 34rem;
-    font-size: clamp(1.8rem, 3.4vw, 2.65rem);
-    font-weight: 500;
-    letter-spacing: -0.075em;
-    line-height: 1;
-    text-wrap: balance;
-  }
-
-  .workflow-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    border-top: 1px solid var(--line);
-  }
-
-  .workflow-card {
-    min-height: 10rem;
-    padding: 1.25rem clamp(1rem, 2.5vw, 2rem) 1.5rem 0;
-  }
-
-  .workflow-card + .workflow-card {
-    padding-left: clamp(1rem, 2.5vw, 2rem);
-    border-left: 1px solid var(--line);
-  }
-
-  .workflow-number {
-    display: block;
-    margin-bottom: 2.5rem;
-    color: var(--accent);
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-  }
-
-  h3 {
-    font-size: 1rem;
-    font-weight: 600;
-    letter-spacing: -0.035em;
-  }
-
-  .workflow-card p {
-    max-width: 17rem;
-    margin-top: 0.45rem;
-    color: var(--muted);
-    font-size: 0.88rem;
-    line-height: 1.45;
-  }
-
-  @media (max-width: 48rem) {
+  @media (max-width: 47.99rem) {
     .workspace-cue {
       justify-self: center;
     }
-
-    .workflow-card {
-      min-height: 0;
-      padding-block: 1.25rem 1.5rem;
-    }
-
-    .workflow-number {
-      margin-bottom: 1.5rem;
-    }
-
   }
 
   @media (max-width: 36rem) {
@@ -337,26 +245,6 @@ const base = import.meta.env.BASE_URL;
 
     .cue-field {
       min-height: 13rem;
-    }
-
-    .workflow-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .workflow-card + .workflow-card {
-      padding-left: 0;
-      border-top: 1px solid var(--line);
-      border-left: 0;
-    }
-
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .landing-page *,
-    .landing-page *::before,
-    .landing-page *::after {
-      scroll-behavior: auto !important;
-      transition-duration: 0.01ms !important;
     }
   }
 </style>

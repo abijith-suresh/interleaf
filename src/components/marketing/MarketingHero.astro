@@ -1,14 +1,33 @@
 ---
-interface Props {
-  titleId: string;
-}
+/* "home" is the two-column landing hero (primary and secondary slots);
+   "page" stacks the title over one lede on every inner page. */
+type Props =
+  | { variant: "home"; titleId: string }
+  | { variant?: "page"; titleId: string; title: string; lede: string };
 
-const { titleId } = Astro.props;
+const props = Astro.props;
 ---
 
-<section class="marketing-hero" aria-labelledby={titleId}>
-  <div class="marketing-container marketing-hero-grid">
-    <div class="marketing-hero-primary"><slot name="primary" /></div>
-    <div class="marketing-hero-secondary"><slot name="secondary" /></div>
-  </div>
-</section>
+{
+  props.variant === "home" ? (
+    <section class="marketing-hero marketing-hero-home" aria-labelledby={props.titleId}>
+      <div class="marketing-container marketing-hero-grid">
+        <div class="marketing-hero-primary">
+          <slot name="primary" />
+        </div>
+        <div class="marketing-hero-secondary">
+          <slot name="secondary" />
+        </div>
+      </div>
+    </section>
+  ) : (
+    <section class="marketing-hero marketing-hero-page" aria-labelledby={props.titleId}>
+      <div class="marketing-container">
+        <h1 id={props.titleId} class="marketing-hero-title">
+          {props.title}
+        </h1>
+        <p class="marketing-lede">{props.lede}</p>
+      </div>
+    </section>
+  )
+}

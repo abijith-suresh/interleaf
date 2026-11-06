@@ -146,12 +146,24 @@ body {
   flex: 1;
 }
 
+/* Marketing components. Every page composes these; pages add no type or
+   spacing scales of their own. */
+
+/* Hero: "home" is the two-column landing hero; "page" stacks a title over
+   one lede for every inner page. */
 .marketing-hero {
+  border-bottom: 1px solid var(--marketing-rule, var(--color-border));
+}
+
+.marketing-hero-home {
   display: grid;
   align-items: center;
   min-height: min(35rem, calc(100svh - var(--marketing-nav-height)));
   padding-block: clamp(4rem, 8vw, 6rem) clamp(3.5rem, 7vw, 5.5rem);
-  border-bottom: 1px solid var(--marketing-rule, var(--color-border));
+}
+
+.marketing-hero-page {
+  padding-block: clamp(3.5rem, 7vw, 5.5rem) clamp(3rem, 6vw, 4.5rem);
 }
 
 .marketing-hero-grid {
@@ -177,37 +189,205 @@ body {
   text-wrap: balance;
 }
 
-.marketing-hero-action {
+.marketing-hero-page .marketing-hero-title {
+  font-size: clamp(2.75rem, 7vw, 5.5rem);
+  letter-spacing: -0.075em;
+  line-height: 0.95;
+}
+
+.marketing-lede {
+  max-width: 34rem;
+  margin: clamp(1.5rem, 3vw, 2rem) 0 0;
+  color: var(--marketing-muted, var(--color-muted));
+  font-size: clamp(1rem, 1.6vw, 1.15rem);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+/* The one primary action: the editor link in the header, the menu sheet,
+   the home hero, and the closing band. */
+.marketing-button {
   display: inline-flex;
   min-height: 3rem;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 1.15rem;
-  margin-top: 1.75rem;
-  padding: 0.8rem 1.1rem 0.8rem 1.25rem;
+  justify-content: center;
+  padding: 0.8rem 1.25rem;
   border-radius: var(--marketing-radius-sm, 0.45rem);
   background: var(--marketing-accent, var(--color-accent));
   color: var(--marketing-paper, var(--color-white));
+  font-family: var(--font-body);
   font-size: 0.85rem;
   font-weight: 600;
   letter-spacing: -0.01em;
-  text-decoration: none;
-  transition:
-    background-color 160ms ease,
-    transform 160ms ease;
-}
-
-.marketing-hero-action > span {
-  font-size: 1.1rem;
   line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
 }
 
-.marketing-hero-action:hover {
+.marketing-button:hover {
   background: var(--marketing-ink, var(--color-primary));
   transform: translateY(-1px);
 }
 
-.marketing-hero-action:active {
+.marketing-button:active {
   transform: translateY(0);
+}
+
+/* On the accent fill the page-wide accent ring would blend in. */
+.marketing-page .marketing-button:focus-visible {
+  outline: 2px solid var(--marketing-ink, var(--color-primary));
+  outline-offset: 3px;
+}
+
+.marketing-button-compact {
+  min-height: 2.75rem;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.8rem;
+}
+
+.marketing-button-block {
+  display: flex;
+  width: 100%;
+}
+
+.marketing-section {
+  padding-block: clamp(3rem, 6vw, 5rem);
+}
+
+.marketing-section-title {
+  max-width: 40rem;
+  margin: 0;
+  color: var(--marketing-ink, var(--color-primary));
+  font-size: clamp(1.9rem, 3.8vw, 3rem);
+  font-weight: 500;
+  letter-spacing: -0.07em;
+  line-height: 1;
+  text-wrap: balance;
+}
+
+.marketing-section-head {
+  margin-bottom: clamp(2rem, 4vw, 3rem);
+}
+
+/* Rows: a marker, a title, and a body under one ink rule. The FAQ accordion
+   shares the columns, rules, and type scale. */
+.marketing-rows {
+  --row-marker: 1.5rem;
+  --row-gap: 1.5rem;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--marketing-ink, var(--color-primary));
+  list-style: none;
+}
+
+.marketing-row {
+  display: grid;
+  grid-template-columns: var(--row-marker) minmax(0, 0.75fr) minmax(0, 1.25fr);
+  align-items: baseline;
+  gap: var(--row-gap);
+  padding-block: 1.6rem;
+  border-bottom: 1px solid var(--marketing-rule, var(--color-border));
+  scroll-margin-top: 1.5rem;
+}
+
+.marketing-row-number {
+  color: var(--marketing-muted, var(--color-muted));
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.marketing-row-dot {
+  display: block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--marketing-accent, var(--color-accent));
+}
+
+.marketing-row-title {
+  margin: 0;
+  color: var(--marketing-ink, var(--color-primary));
+  font-size: clamp(1.05rem, 1.7vw, 1.3rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.marketing-row-body {
+  max-width: 32rem;
+  margin: 0;
+  color: var(--marketing-muted, var(--color-muted));
+  font-size: 0.95rem;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.marketing-row-body a {
+  color: var(--marketing-ink, var(--color-primary));
+  text-decoration-line: underline;
+  text-decoration-color: var(--marketing-accent, var(--color-accent));
+  text-decoration-thickness: 0.1em;
+  text-underline-offset: 0.16em;
+}
+
+.marketing-row-body a:hover {
+  color: var(--marketing-accent, var(--color-accent));
+}
+
+/* The closing band above the footer on inner pages. */
+.marketing-cta {
+  padding-block: clamp(3rem, 6vw, 4.5rem);
+  border-top: 1px solid var(--marketing-rule, var(--color-border));
+}
+
+.marketing-cta-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.75rem 3rem;
+}
+
+.marketing-cta-copy {
+  margin: 0.85rem 0 0;
+  color: var(--marketing-muted, var(--color-muted));
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+@media (max-width: 47.99rem) {
+  .marketing-hero-home {
+    min-height: auto;
+    padding-block: 4rem 4.5rem;
+  }
+
+  .marketing-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 2.75rem;
+  }
+
+  .marketing-hero-home .marketing-hero-title {
+    font-size: clamp(3.4rem, 15vw, 5.5rem);
+  }
+
+  .marketing-rows {
+    --row-gap: 1rem;
+  }
+
+  .marketing-row {
+    grid-template-columns: var(--row-marker) minmax(0, 1fr);
+    row-gap: 0.85rem;
+    padding-block: 1.35rem;
+  }
+
+  .marketing-row-body {
+    grid-column: 2;
+  }
 }
 
 html:has(.marketing-page),
@@ -244,17 +424,6 @@ body:has(.marketing-page) {
 .skip-link:focus-visible {
   transform: translateY(0);
   outline: 2px solid var(--color-accent);
-  outline-offset: 3px;
-}
-
-/* Micro-interactions */
-
-.press-feedback:active {
-  transform: scale(0.97);
-}
-
-.press-feedback:focus-visible {
-  outline: 2px solid var(--color-primary);
   outline-offset: 3px;
 }
 
@@ -304,13 +473,25 @@ body:has(.marketing-page) {
   display: inline-flex;
   min-height: 2.75rem;
   align-items: center;
+  gap: 0.5rem;
   color: var(--marketing-ink, var(--color-primary));
   font-family: var(--font-body);
   font-size: 1.05rem;
   font-weight: 600;
-  letter-spacing: -0.055em;
+  letter-spacing: -0.04em;
   line-height: 1;
   text-decoration: none;
+}
+
+/* The same wordmark as the editor header (.editor-brand). */
+.site-brand::before,
+.footer-brand-link::before {
+  width: 0.55rem;
+  height: 0.55rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--marketing-accent, var(--color-accent));
+  content: "";
 }
 
 .site-brand {
@@ -374,41 +555,6 @@ body:has(.marketing-page) {
 .footer-brand-link:focus-visible {
   outline: 2px solid var(--marketing-accent, var(--color-accent));
   outline-offset: 4px;
-}
-
-/* The header CTA is desktop site chrome: one quiet outlined action.
-   It never competes with the page's own primary action (the accent pill
-   inside the page hero), and below 48rem it is hidden — the mobile menu
-   sheet carries the editor action instead. */
-.nav-editor-link {
-  display: inline-flex;
-  flex: 0 0 auto;
-  min-height: 2.75rem;
-  align-items: center;
-  padding: 0.55rem 1.15rem;
-  border: 1px solid var(--marketing-ink, var(--color-primary));
-  border-radius: var(--marketing-radius-sm, 0.45rem);
-  background: transparent;
-  color: var(--marketing-ink, var(--color-primary));
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1;
-  text-decoration: none;
-  white-space: nowrap;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    background-color 150ms var(--ease-out),
-    border-color 150ms var(--ease-out),
-    color 150ms var(--ease-out),
-    transform 150ms var(--ease-out);
-}
-
-.nav-editor-link:hover {
-  background: var(--marketing-ink, var(--color-primary));
-  color: var(--marketing-paper, var(--color-white));
 }
 
 .mobile-nav {
@@ -500,67 +646,17 @@ body:has(.marketing-page) {
   outline-offset: 2px;
 }
 
-/* The sheet's primary action: the one accent element inside the menu. */
-.mobile-nav-cta {
-  display: flex;
-  min-height: 2.75rem;
-  align-items: center;
-  justify-content: center;
+.mobile-nav-panel .marketing-button {
   margin-top: 0.35rem;
-  padding: 0.6rem 1rem;
-  border-radius: var(--marketing-radius-sm, 0.45rem);
-  background: var(--marketing-accent, var(--color-accent));
-  color: var(--marketing-paper, var(--color-white));
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1;
-  text-decoration: none;
-  white-space: nowrap;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    background-color 150ms var(--ease-out),
-    color 150ms var(--ease-out);
-}
-
-.mobile-nav-cta:hover {
-  background: var(--marketing-ink, var(--color-primary));
-}
-
-/* On the accent fill the page-wide accent ring would blend in. */
-.marketing-page .mobile-nav-cta:focus-visible {
-  outline: 2px solid var(--marketing-ink, var(--color-primary));
-  outline-offset: 3px;
 }
 
 @media (max-width: 47.99rem) {
-  .marketing-hero {
-    min-height: auto;
-    padding-block: 4rem 4.5rem;
-  }
-
-  .marketing-hero-grid {
-    grid-template-columns: 1fr;
-    gap: 2.75rem;
-  }
-
-  .marketing-hero-title {
-    font-size: clamp(3.4rem, 15vw, 5.5rem);
-  }
-
   .desktop-nav {
     display: none;
   }
 
   .mobile-nav {
     display: block;
-  }
-
-  /* Below 48rem the trigger is the header's single control; the editor
-     action lives inside the opened menu sheet. */
-  .nav-editor-link {
-    display: none;
   }
 }
 
@@ -628,17 +724,12 @@ body:has(.marketing-page) {
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .press-feedback:active,
-  .press-feedback:focus-visible {
-    transform: none;
-  }
-
-  .marketing-hero-action {
+  .marketing-button {
     transition: none;
   }
 
-  .marketing-hero-action:hover,
-  .marketing-hero-action:active {
+  .marketing-button:hover,
+  .marketing-button:active {
     transform: none;
   }
 
