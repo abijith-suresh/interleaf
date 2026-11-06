@@ -120,7 +120,7 @@ CI runs the suite in Chromium, Firefox, and WebKit.
 - Tailwind CSS v4 with CSS-first `@theme` tokens in `global.css`.
 - Editor-specific styles in `editor.css`.
 - Use existing utility classes and CSS custom properties.
-- Follow the Swiss-industrial aesthetic: minimal, typographic, high contrast.
+- Follow the [Cards](https://github.com/oliur/cards) design system defaults: white surfaces on a grey canvas, quiet neutrals, and color only for actions and state.
 
 ## Copy And Voice
 

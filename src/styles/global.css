@@ -82,23 +82,135 @@
   line-gap-override: 0%;
 }
 
+/* Inter for the marketing pages, self-hosted like Work Sans. The latin file
+   carries the weight and optical-size axes, so large headings get the
+   display cut. */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: optional;
+  src: url("/fonts/inter-latin-opsz-normal.woff2") format("woff2");
+}
+
+/* A metric-compatible Arial fallback for Inter, so the fallback-to-font
+   paint does not move lines. */
+@font-face {
+  font-family: "Inter Fallback";
+  font-style: normal;
+  src: local("Arial"), local("Liberation Sans");
+  size-adjust: 107.4%;
+  ascent-override: 90.2%;
+  descent-override: 22.48%;
+  line-gap-override: 0%;
+}
+
 @theme {
   --font-body: "Work Sans", "Work Sans Fallback", sans-serif;
-  --tracking-label: 0.15em;
   --color-white: #fff;
   --color-primary: #111;
   --color-accent: #ff0000;
-  --color-muted: #666;
-  --color-body: #444;
-  --color-border: #d6d6d1;
-  --color-border-strong: #8d8d86;
-  --color-hover: #f1f1ed;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Cards design system defaults (light mode), from
+   https://github.com/oliur/cards (MIT). The marketing pages use these; the
+   editor keeps its own palette in editor.css. */
+@theme {
+  --font-ui: "Inter Variable", "Inter Fallback", ui-sans-serif, system-ui, sans-serif;
+
+  --color-canvas: #f5f5f5;
+  --color-subtle: #fafafa;
+  --color-surface: #fff;
+  --color-track: #e5e5e5;
+  --color-inverse: #0a0a0a;
+  --color-fg: #0a0a0a;
+  --color-fg-muted: #525252;
+  --color-fg-subtle: #a1a1a1;
+  --color-fg-inverse: #fff;
+  --color-line: #e5e5e5;
+  --color-line-strong: #d4d4d4;
+  --color-line-focus: #0a0a0a;
+  --color-hover: rgb(10 10 10 / 0.04);
+  --color-selected: rgb(10 10 10 / 0.08);
+  --color-primary-hover: #121212;
+  --color-primary-active: #090909;
+  --color-primary-foreground: #fff;
+  --color-primary-subtle: rgb(0 0 0 / 0.1);
+  --color-primary-subtle-stronger: rgb(0 0 0 / 0.24);
+
+  --text-heading-1: 3.5rem;
+  --text-heading-1--line-height: 4rem;
+  --text-heading-1--letter-spacing: -0.01em;
+  --text-heading-1--font-weight: 500;
+  --text-heading-2: 3rem;
+  --text-heading-2--line-height: 3.5rem;
+  --text-heading-2--letter-spacing: -0.01em;
+  --text-heading-2--font-weight: 500;
+  --text-heading-3: 2.5rem;
+  --text-heading-3--line-height: 3rem;
+  --text-heading-3--letter-spacing: -0.01em;
+  --text-heading-3--font-weight: 500;
+  --text-heading-4: 2rem;
+  --text-heading-4--line-height: 2.5rem;
+  --text-heading-4--letter-spacing: -0.005em;
+  --text-heading-4--font-weight: 500;
+  --text-heading-5: 1.5rem;
+  --text-heading-5--line-height: 2rem;
+  --text-heading-5--letter-spacing: 0em;
+  --text-heading-5--font-weight: 500;
+  --text-ui-lg: 1.125rem;
+  --text-ui-lg--line-height: 1.5rem;
+  --text-ui-lg--letter-spacing: -0.015em;
+  --text-ui-lg--font-weight: 500;
+  --text-ui-md: 1rem;
+  --text-ui-md--line-height: 1.5rem;
+  --text-ui-md--letter-spacing: -0.011em;
+  --text-ui-md--font-weight: 500;
+  --text-ui-sm: 0.875rem;
+  --text-ui-sm--line-height: 1.25rem;
+  --text-ui-sm--letter-spacing: -0.006em;
+  --text-ui-sm--font-weight: 500;
+  --text-body-lg: 1.125rem;
+  --text-body-lg--line-height: 1.5rem;
+  --text-body-lg--letter-spacing: -0.015em;
+  --text-body-lg--font-weight: 400;
+  --text-body-md: 1rem;
+  --text-body-md--line-height: 1.5rem;
+  --text-body-md--letter-spacing: -0.011em;
+  --text-body-md--font-weight: 400;
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.25rem;
+  --text-body-sm--letter-spacing: -0.006em;
+  --text-body-sm--font-weight: 400;
+  --text-body-xs: 0.75rem;
+  --text-body-xs--line-height: 1rem;
+  --text-body-xs--letter-spacing: 0em;
+  --text-body-xs--font-weight: 400;
+
+  --radius-xs: 3px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 13px;
+  --radius-button: 8px;
+  --radius-button-sm: 6px;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.1);
+  --shadow-button: 0 0 0 1px rgb(10 10 10 / 0.08), 0 1px 2px 0 rgb(10 10 10 / 0.12);
+  --shadow-primary:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.16), 0 0 0 1px #000, 0 1px 2px 0 rgb(10 10 10 / 0.24),
+    0 3px 6px -2px rgb(10 10 10 / 0.2);
+  --shadow-menu:
+    0 0 0 1px rgb(10 10 10 / 0.08), 0 1px 2px 0 rgb(10 10 10 / 0.12),
+    0 4px 8px -4px rgb(10 10 10 / 0.16);
+
+  --ease-tactile: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 :root {
   color-scheme: light;
-  --marketing-page-default: #f7f5f0;
 }
 
 html {
@@ -111,34 +223,31 @@ body {
   background: var(--color-white);
 }
 
-/* Marketing pages use one shared paper palette and layout contract. */
+::selection {
+  background: var(--color-primary);
+  color: var(--color-white);
+}
+
+/* Marketing pages: Cards surfaces on a grey canvas. */
 .marketing-page {
-  --marketing-page: var(--marketing-page-default);
-  --marketing-paper: #fcfbf8;
-  --marketing-ink: #242421;
-  --marketing-body: #6a6860;
-  --marketing-muted: #6a6860;
-  --marketing-rule: #dedbd4;
-  --marketing-rule-strong: #c7c3ba;
-  --marketing-hover: #ebe8e1;
-  --marketing-accent: #ff2a1f;
-  --marketing-nav-height: 4.75rem;
-  --marketing-radius-sm: 0.45rem;
-  --marketing-radius-md: 0.75rem;
-  --color-white: var(--marketing-paper);
-  --color-primary: var(--marketing-ink);
-  --color-accent: var(--marketing-accent);
-  --color-muted: var(--marketing-muted);
-  --color-body: var(--marketing-body);
-  --color-border: var(--marketing-rule);
-  --color-border-strong: var(--marketing-rule-strong);
-  --color-hover: var(--marketing-hover);
+  /* Cards' primary. The editor theme keeps its own --color-primary. */
+  --color-primary: #000;
+  --nav-height: 4rem;
   display: flex;
   min-height: 100svh;
   flex-direction: column;
-  background: var(--marketing-page);
-  color: var(--marketing-ink);
-  font-family: var(--font-body);
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  font-family: var(--font-ui);
+  font-feature-settings: "cv11", "ss01";
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.marketing-page ::selection {
+  background: var(--color-primary-subtle-stronger);
+  color: inherit;
 }
 
 .marketing-content {
@@ -146,31 +255,34 @@ body {
   flex: 1;
 }
 
+html:has(.marketing-page),
+body:has(.marketing-page) {
+  background: var(--color-canvas);
+}
+
 /* Marketing components. Every page composes these; pages add no type or
    spacing scales of their own. */
 
-/* Hero: "home" is the two-column landing hero; "page" stacks a title over
-   one lede for every inner page. */
-.marketing-hero {
-  border-bottom: 1px solid var(--marketing-rule, var(--color-border));
+.marketing-container {
+  width: min(calc(100% - 2rem), 72rem);
+  margin-inline: auto;
 }
 
+/* Hero: "home" is the two-column landing hero; "page" stacks a title over
+   one lede for every inner page. */
 .marketing-hero-home {
-  display: grid;
-  align-items: center;
-  min-height: min(35rem, calc(100svh - var(--marketing-nav-height)));
-  padding-block: clamp(4rem, 8vw, 6rem) clamp(3.5rem, 7vw, 5.5rem);
+  padding-block: 5rem 4rem;
 }
 
 .marketing-hero-page {
-  padding-block: clamp(3.5rem, 7vw, 5.5rem) clamp(3rem, 6vw, 4.5rem);
+  padding-block: 4rem 2.5rem;
 }
 
 .marketing-hero-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(16rem, 0.8fr);
   align-items: center;
-  gap: clamp(2.5rem, 8vw, 8rem);
+  gap: 4rem;
 }
 
 .marketing-hero-primary,
@@ -179,74 +291,71 @@ body {
 }
 
 .marketing-hero-title {
-  max-width: 48rem;
+  max-width: 40rem;
   margin: 0;
-  color: var(--marketing-ink, var(--color-primary));
-  font-size: clamp(3.75rem, 8.7vw, 7.5rem);
-  font-weight: 500;
-  letter-spacing: -0.085em;
-  line-height: 0.9;
+  color: var(--color-fg);
   text-wrap: balance;
+  @apply text-heading-1;
 }
 
 .marketing-hero-page .marketing-hero-title {
-  font-size: clamp(2.75rem, 7vw, 5.5rem);
-  letter-spacing: -0.075em;
-  line-height: 0.95;
+  @apply text-heading-2;
 }
 
 .marketing-lede {
   max-width: 34rem;
-  margin: clamp(1.5rem, 3vw, 2rem) 0 0;
-  color: var(--marketing-muted, var(--color-muted));
-  font-size: clamp(1rem, 1.6vw, 1.15rem);
-  line-height: 1.55;
+  margin: 1rem 0 0;
+  color: var(--color-fg-muted);
   text-wrap: pretty;
+  @apply text-body-lg;
 }
 
-/* The one primary action: the editor link in the header, the menu sheet,
-   the home hero, and the closing band. */
+/* Every link and summary is a 44px touch target. Controls drawn smaller
+   than that extend their hit area with this pseudo-element. */
+.marketing-button::before,
+.marketing-link::before {
+  position: absolute;
+  top: min(0px, calc((100% - 2.75rem) / 2));
+  right: 0;
+  bottom: min(0px, calc((100% - 2.75rem) / 2));
+  left: 0;
+  content: "";
+}
+
+/* The one primary action: Cards' solid primary button. It is the editor
+   link in the header, the menu sheet, the home hero, and the closing card. */
 .marketing-button {
+  position: relative;
   display: inline-flex;
-  min-height: 3rem;
+  height: 2.25rem;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  padding: 0.8rem 1.25rem;
-  border-radius: var(--marketing-radius-sm, 0.45rem);
-  background: var(--marketing-accent, var(--color-accent));
-  color: var(--marketing-paper, var(--color-white));
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1;
+  padding-inline: 1rem;
+  border-radius: var(--radius-button);
+  background: var(--color-primary);
+  box-shadow: var(--shadow-primary);
+  color: var(--color-primary-foreground);
   text-decoration: none;
   white-space: nowrap;
-  transition:
-    background-color 160ms var(--ease-out),
-    transform 160ms var(--ease-out);
+  transition-property: color, background-color, box-shadow, scale;
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease-tactile);
+  @apply text-ui-sm;
 }
 
 .marketing-button:hover {
-  background: var(--marketing-ink, var(--color-primary));
-  transform: translateY(-1px);
+  background: var(--color-primary-hover);
 }
 
 .marketing-button:active {
-  transform: translateY(0);
-}
-
-/* On the accent fill the page-wide accent ring would blend in. */
-.marketing-page .marketing-button:focus-visible {
-  outline: 2px solid var(--marketing-ink, var(--color-primary));
-  outline-offset: 3px;
+  background: var(--color-primary-active);
+  scale: 0.97;
 }
 
 .marketing-button-compact {
-  min-height: 2.75rem;
-  padding: 0.55rem 1.1rem;
-  font-size: 0.8rem;
+  height: 2rem;
+  border-radius: var(--radius-button-sm);
 }
 
 .marketing-button-block {
@@ -255,149 +364,172 @@ body {
 }
 
 .marketing-section {
-  padding-block: clamp(3rem, 6vw, 5rem);
+  padding-bottom: 3rem;
+}
+
+.marketing-section:last-child {
+  padding-bottom: 4rem;
+}
+
+.marketing-section-head {
+  margin-bottom: 1.5rem;
 }
 
 .marketing-section-title {
   max-width: 40rem;
   margin: 0;
-  color: var(--marketing-ink, var(--color-primary));
-  font-size: clamp(1.9rem, 3.8vw, 3rem);
-  font-weight: 500;
-  letter-spacing: -0.07em;
-  line-height: 1;
+  color: var(--color-fg);
   text-wrap: balance;
+  @apply text-heading-4;
 }
 
-.marketing-section-head {
-  margin-bottom: clamp(2rem, 4vw, 3rem);
-}
-
-/* Rows: a marker, a title, and a body under one ink rule. The FAQ accordion
-   shares the columns, rules, and type scale. */
+/* Rows: one card, with a marker, a title, and a body in each row and a
+   full-bleed line between rows. */
 .marketing-rows {
-  --row-marker: 1.5rem;
-  --row-gap: 1.5rem;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--marketing-ink, var(--color-primary));
+  border-radius: var(--radius-2xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
   list-style: none;
 }
 
 .marketing-row {
   display: grid;
-  grid-template-columns: var(--row-marker) minmax(0, 0.75fr) minmax(0, 1.25fr);
-  align-items: baseline;
-  gap: var(--row-gap);
-  padding-block: 1.6rem;
-  border-bottom: 1px solid var(--marketing-rule, var(--color-border));
+  grid-template-columns: 2.5rem minmax(0, 0.75fr) minmax(0, 1.25fr);
+  align-items: start;
+  gap: 0.25rem 1.5rem;
+  padding: 1.25rem 1.5rem;
   scroll-margin-top: 1.5rem;
 }
 
-.marketing-row-number {
-  color: var(--marketing-muted, var(--color-muted));
-  font-size: 0.7rem;
-  font-variant-numeric: tabular-nums;
+.marketing-row + .marketing-row {
+  border-top: 1px solid var(--color-line);
 }
 
-.marketing-row-dot {
-  display: block;
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 50%;
-  background: var(--marketing-accent, var(--color-accent));
+/* Cards' icon-in-ring: a number or an icon. */
+.marketing-row-marker {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-fg-muted);
+  font-variant-numeric: tabular-nums;
+  @apply text-ui-sm;
+}
+
+.marketing-row-marker svg {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .marketing-row-title {
   margin: 0;
-  color: var(--marketing-ink, var(--color-primary));
-  font-size: clamp(1.05rem, 1.7vw, 1.3rem);
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  line-height: 1.2;
+  padding-top: 0.5rem;
+  color: var(--color-fg);
   text-wrap: balance;
+  @apply text-ui-md;
 }
 
 .marketing-row-body {
   max-width: 32rem;
   margin: 0;
-  color: var(--marketing-muted, var(--color-muted));
-  font-size: 0.95rem;
-  line-height: 1.55;
+  padding-top: 0.625rem;
+  color: var(--color-fg-muted);
   text-wrap: pretty;
+  @apply text-body-sm;
 }
 
 .marketing-row-body a {
-  color: var(--marketing-ink, var(--color-primary));
+  color: var(--color-fg);
   text-decoration-line: underline;
-  text-decoration-color: var(--marketing-accent, var(--color-accent));
-  text-decoration-thickness: 0.1em;
-  text-underline-offset: 0.16em;
+  text-decoration-color: var(--color-line-strong);
+  text-underline-offset: 4px;
 }
 
 .marketing-row-body a:hover {
-  color: var(--marketing-accent, var(--color-accent));
+  text-decoration-color: currentColor;
 }
 
-/* The closing band above the footer on inner pages. */
+/* The closing card above the footer on inner pages. */
 .marketing-cta {
-  padding-block: clamp(3rem, 6vw, 4.5rem);
-  border-top: 1px solid var(--marketing-rule, var(--color-border));
+  padding-bottom: 4rem;
 }
 
 .marketing-cta-inner {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 1.75rem 3rem;
+  gap: 1.5rem 3rem;
+  padding: 2rem;
+  border-radius: var(--radius-2xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.marketing-cta .marketing-section-title {
+  @apply text-heading-5;
 }
 
 .marketing-cta-copy {
-  margin: 0.85rem 0 0;
-  color: var(--marketing-muted, var(--color-muted));
-  font-size: 0.95rem;
-  line-height: 1.55;
+  margin: 0.25rem 0 0;
+  color: var(--color-fg-muted);
+  @apply text-body-md;
 }
 
 @media (max-width: 47.99rem) {
   .marketing-hero-home {
-    min-height: auto;
-    padding-block: 4rem 4.5rem;
+    padding-block: 3rem;
+  }
+
+  .marketing-hero-page {
+    padding-block: 3rem 2rem;
   }
 
   .marketing-hero-grid {
     grid-template-columns: 1fr;
-    gap: 2.75rem;
+    gap: 3rem;
   }
 
-  .marketing-hero-home .marketing-hero-title {
-    font-size: clamp(3.4rem, 15vw, 5.5rem);
+  .marketing-hero-title {
+    @apply text-heading-3;
   }
 
-  .marketing-rows {
-    --row-gap: 1rem;
+  .marketing-hero-page .marketing-hero-title {
+    @apply text-heading-4;
+  }
+
+  .marketing-lede {
+    @apply text-body-md;
+  }
+
+  /* Cards' buttons grow to 44px on phones. */
+  .marketing-button,
+  .marketing-button-compact {
+    height: 2.75rem;
+  }
+
+  .marketing-section-title {
+    @apply text-heading-5;
   }
 
   .marketing-row {
-    grid-template-columns: var(--row-marker) minmax(0, 1fr);
-    row-gap: 0.85rem;
-    padding-block: 1.35rem;
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    column-gap: 1rem;
+    padding: 1rem 1.25rem;
   }
 
   .marketing-row-body {
     grid-column: 2;
+    padding-top: 0;
   }
-}
 
-html:has(.marketing-page),
-body:has(.marketing-page) {
-  background: var(--marketing-page-default);
-}
-
-::selection {
-  background: var(--color-primary);
-  color: var(--color-white);
+  .marketing-cta-inner {
+    padding: 1.5rem;
+  }
 }
 
 /* Page swaps are instant: no default view-transition crossfade. Any
@@ -427,25 +559,17 @@ body:has(.marketing-page) {
   outline-offset: 3px;
 }
 
-.marketing-container {
-  width: min(calc(100% - 2rem), 72rem);
-  margin-inline: auto;
+body:has(.marketing-page) .skip-link {
+  border-radius: var(--radius-lg);
+  background: var(--color-inverse);
+  color: var(--color-fg-inverse);
+  font-family: var(--font-ui);
+  @apply text-ui-sm;
 }
 
-.site-nav-inner,
-.site-footer-inner {
-  width: min(calc(100% - 2rem), 72rem);
-  max-width: 72rem;
-  margin-right: auto;
-  margin-left: auto;
-}
-
-.site-nav {
-  position: relative;
-  z-index: 30;
-  border-bottom: 1px solid var(--marketing-rule, var(--color-border));
-  background: var(--marketing-page, var(--color-white));
-  font-family: var(--font-body);
+body:has(.marketing-page) .skip-link:focus-visible {
+  outline-color: var(--color-line-focus);
+  outline-offset: 2px;
 }
 
 .marketing-page a,
@@ -456,13 +580,27 @@ body:has(.marketing-page) {
 
 .marketing-page a:focus-visible,
 .marketing-page summary:focus-visible {
-  outline: 2px solid var(--marketing-accent, var(--color-accent));
-  outline-offset: 4px;
+  outline: 2px solid var(--color-line-focus);
+  outline-offset: 2px;
+}
+
+/* Header: a surface bar over the canvas. */
+.site-nav-inner,
+.site-footer-inner {
+  width: min(calc(100% - 2rem), 72rem);
+  margin-inline: auto;
+}
+
+.site-nav {
+  position: relative;
+  z-index: 30;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface);
 }
 
 .site-nav-inner {
   display: flex;
-  min-height: var(--marketing-nav-height, 4.75rem);
+  min-height: var(--nav-height);
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
@@ -473,181 +611,158 @@ body:has(.marketing-page) {
   display: inline-flex;
   min-height: 2.75rem;
   align-items: center;
-  gap: 0.5rem;
-  color: var(--marketing-ink, var(--color-primary));
-  font-family: var(--font-body);
-  font-size: 1.05rem;
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 1;
+  border-radius: var(--radius-md);
+  color: var(--color-fg);
   text-decoration: none;
-}
-
-/* The same wordmark as the editor header (.editor-brand). */
-.site-brand::before,
-.footer-brand-link::before {
-  width: 0.55rem;
-  height: 0.55rem;
-  flex: 0 0 auto;
-  border-radius: 999px;
-  background: var(--marketing-accent, var(--color-accent));
-  content: "";
-}
-
-.site-brand {
   white-space: nowrap;
+  @apply text-ui-lg;
 }
 
 .nav-actions {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: clamp(0.5rem, 2vw, 1.5rem);
 }
 
 .desktop-nav {
   display: flex;
   align-items: center;
-  gap: clamp(0.75rem, 2vw, 1.5rem);
+  gap: 0.25rem;
 }
 
+.desktop-nav .marketing-button {
+  margin-left: 0.75rem;
+}
+
+/* Cards' neutral ghost button: header and footer links. */
 .marketing-link {
   position: relative;
   display: inline-flex;
-  min-height: 2.75rem;
+  height: 2.25rem;
   align-items: center;
-  color: var(--marketing-muted, var(--color-muted));
-  font-size: 0.8rem;
-  font-weight: 500;
-  line-height: 1;
+  padding-inline: 0.75rem;
+  border-radius: var(--radius-button);
+  color: var(--color-fg-muted);
   text-decoration: none;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
+  transition-property: color, background-color;
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease-tactile);
+  @apply text-ui-sm;
 }
 
-.marketing-link::after {
-  position: absolute;
-  right: 0;
-  bottom: 0.35rem;
-  left: 0;
-  height: 2px;
-  background: var(--marketing-accent, var(--color-accent));
-  content: "";
-  transform: scaleX(0);
-  transform-origin: right center;
-  transition: transform 180ms var(--ease-out);
+.marketing-link:hover {
+  background: var(--color-hover);
+  color: var(--color-fg);
 }
 
-.marketing-link:hover,
 .marketing-link.is-current {
-  color: var(--marketing-ink, var(--color-primary));
-}
-
-.marketing-link:hover::after,
-.marketing-link.is-current::after,
-.marketing-link:focus-visible::after {
-  transform: scaleX(1);
-  transform-origin: left center;
-}
-
-.marketing-link:focus-visible,
-.site-brand:focus-visible,
-.footer-brand-link:focus-visible {
-  outline: 2px solid var(--marketing-accent, var(--color-accent));
-  outline-offset: 4px;
+  background: var(--color-selected);
+  color: var(--color-fg);
 }
 
 .mobile-nav {
   display: none;
 }
 
+/* Cards' white button, with a turning chevron. */
 .mobile-nav-trigger {
   display: inline-flex;
-  min-height: 2.75rem;
+  height: 2.75rem;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0 0.85rem;
-  border: 1px solid var(--marketing-rule-strong, var(--color-border-strong));
-  border-radius: var(--marketing-radius-sm, 0.45rem);
-  background: transparent;
-  color: var(--marketing-ink, var(--color-primary));
+  gap: 0.25rem;
+  padding-inline: 1rem 0.75rem;
+  border-radius: var(--radius-button);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-button);
+  color: var(--color-fg);
   cursor: pointer;
-  font-size: 0.8rem;
-  font-weight: 500;
-  line-height: 1;
   list-style: none;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
+  transition-property: background-color, scale;
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease-tactile);
+  @apply text-ui-sm;
 }
 
-.mobile-nav-trigger:hover {
-  background: var(--marketing-hover, var(--color-hover));
-}
-
+.mobile-nav-trigger:hover,
 .mobile-nav[open] .mobile-nav-trigger {
-  border-color: var(--marketing-ink, var(--color-primary));
+  background: var(--color-subtle);
 }
 
-.mobile-nav-chevron {
-  flex: 0 0 auto;
-  color: var(--marketing-muted, var(--color-muted));
-  transition: transform 180ms var(--ease-out);
-}
-
-.mobile-nav[open] .mobile-nav-chevron {
-  transform: rotate(180deg);
+.mobile-nav-trigger:active {
+  scale: 0.97;
 }
 
 .mobile-nav-trigger::-webkit-details-marker {
   display: none;
 }
 
-/* The panel is an overlay pinned to the header, so opening it never
-   shifts the page layout. It spans the nav gutter width for
-   comfortable touch targets. */
+.mobile-nav-chevron {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  color: var(--color-fg-subtle);
+  transition: rotate 150ms var(--ease-tactile);
+}
+
+.mobile-nav[open] .mobile-nav-chevron {
+  rotate: 180deg;
+}
+
+/* Cards' menu: an overlay pinned to the header, so opening it never shifts
+   the page layout. It spans the nav gutter width. */
 .mobile-nav-panel {
+  --menu-padding: 0.5rem;
   position: absolute;
-  top: calc(100% + 0.4rem);
+  top: calc(100% + 0.5rem);
   right: 1rem;
   left: 1rem;
   z-index: 20;
   display: grid;
-  gap: 0.15rem;
-  padding: 0.5rem;
-  border: 1px solid var(--marketing-rule, var(--color-border));
-  border-radius: var(--marketing-radius-md, 0.75rem);
-  background: var(--marketing-paper, var(--color-white));
-  box-shadow: 0 1rem 2rem rgb(36 36 33 / 10%);
+  gap: 0.25rem;
+  padding: var(--menu-padding);
+  border-radius: var(--radius-2xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-menu);
   overscroll-behavior: contain;
+  transform-origin: top right;
+  animation: marketing-menu-in 150ms var(--ease-tactile);
+}
+
+@keyframes marketing-menu-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+
+/* Items keep concentric corners with the panel. */
+.mobile-nav-link,
+.mobile-nav-panel .marketing-button {
+  border-radius: calc(var(--radius-2xl) - var(--menu-padding));
 }
 
 .mobile-nav-link {
   display: flex;
   min-height: 2.75rem;
   align-items: center;
-  padding: 0.65rem 0.8rem;
-  border-radius: var(--marketing-radius-sm, 0.45rem);
-  color: var(--marketing-body, var(--color-body));
-  font-size: 0.8rem;
-  font-weight: 500;
+  padding-inline: 0.75rem;
+  color: var(--color-fg-muted);
   text-decoration: none;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
+  @apply text-body-sm;
 }
 
-.mobile-nav-link:hover,
+.mobile-nav-link:hover {
+  background: var(--color-hover);
+  color: var(--color-fg);
+}
+
 .mobile-nav-link.is-current {
-  background: var(--marketing-hover, var(--color-hover));
-  color: var(--marketing-ink, var(--color-primary));
-}
-
-.mobile-nav-link:focus-visible {
-  outline: 2px solid var(--marketing-accent, var(--color-accent));
-  outline-offset: 2px;
+  background: var(--color-selected);
+  color: var(--color-fg);
 }
 
 .mobile-nav-panel .marketing-button {
-  margin-top: 0.35rem;
+  margin-top: 0.25rem;
 }
 
 @media (max-width: 47.99rem) {
@@ -660,45 +775,37 @@ body:has(.marketing-page) {
   }
 }
 
+/* Footer: a surface bar under the canvas. */
 .marketing-footer {
-  border-top: 1px solid var(--marketing-rule, var(--color-border));
-  background: var(--marketing-paper, var(--color-white));
-  font-family: var(--font-body);
+  border-top: 1px solid var(--color-line);
+  background: var(--color-surface);
 }
 
 .site-footer-inner {
-  padding-top: clamp(3rem, 6vw, 4.5rem);
-  padding-bottom: 1.25rem;
+  padding-block: 3rem 1.5rem;
 }
 
 .footer-main {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 2.25rem;
+  gap: 2rem;
   align-items: start;
 }
 
-.footer-brand-link {
-  min-height: auto;
-}
-
-.footer-brand p,
-.footer-bottom {
-  color: var(--marketing-muted, var(--color-muted));
-  font-size: 0.8rem;
-  line-height: 1.5;
-}
-
 .footer-brand p {
-  max-width: 15rem;
-  margin: 0.75rem 0 0;
+  max-width: 20rem;
+  margin: 0.25rem 0 0;
+  color: var(--color-fg-muted);
+  @apply text-body-sm;
 }
 
+/* Ghost links carry their own padding; pull the row out to the edges. */
 .footer-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1.25rem;
+  gap: 0.5rem 0.25rem;
   align-items: center;
+  margin-inline: -0.75rem;
 }
 
 .footer-bottom {
@@ -707,8 +814,10 @@ body:has(.marketing-page) {
   justify-content: space-between;
   gap: 0.5rem 1rem;
   margin-top: 2.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--marketing-rule, var(--color-border));
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-line);
+  color: var(--color-fg-muted);
+  @apply text-body-xs;
 }
 
 @media (min-width: 768px) {
@@ -724,13 +833,9 @@ body:has(.marketing-page) {
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .marketing-button {
-    transition: none;
-  }
-
-  .marketing-button:hover,
-  .marketing-button:active {
-    transform: none;
+  .marketing-button:active,
+  .mobile-nav-trigger:active {
+    scale: none;
   }
 
   *,
