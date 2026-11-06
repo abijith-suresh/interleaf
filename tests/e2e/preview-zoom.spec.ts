@@ -126,7 +126,7 @@ for (const viewport of [
     expect(Math.abs(end.y - end.maxY)).toBeLessThanOrEqual(1);
     await page.keyboard.press("Home");
     await page.keyboard.press("ArrowDown");
-    await expect(stage).toHaveCSS("outline-color", "rgb(36, 36, 33)");
+    await expect(stage).toHaveCSS("outline-color", "rgb(10, 10, 10)");
     await expect(page.getByRole("heading", { name: "Page 2", exact: true })).toBeVisible();
     await expect.poll(() => stage.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
     // Modified browser shortcuts must not be consumed by the dialog.

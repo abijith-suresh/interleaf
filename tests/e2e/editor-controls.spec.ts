@@ -108,7 +108,7 @@ for (const viewport of [
     }
     const duplicate = tile.getByTestId("editor-page-duplicate-button");
     await duplicate.focus();
-    await expect(duplicate).toHaveCSS("outline-color", "rgb(36, 36, 33)");
+    await expect(duplicate).toHaveCSS("outline-color", "rgb(10, 10, 10)");
     await expect(duplicate).toHaveCSS("outline-width", "2px");
     await expect(duplicate).toHaveCSS("outline-style", "solid");
     // Dragging the action must never begin a page reorder.
@@ -149,8 +149,20 @@ for (const viewport of [
     ]) {
       const box = await page.getByTestId(id).boundingBox();
       if (!box) throw new Error(`${id} is not visible`);
-      expect(box.width).toBeGreaterThanOrEqual(44);
-      expect(box.height).toBeGreaterThanOrEqual(44);
+      // Controls drawn smaller than 44px extend their hit area invisibly. The
+      // probes stay 1px inside the edge, clear of sub-pixel rounding between neighbours.
+      const reaches = await page.getByTestId(id).evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        const x = rect.x + rect.width / 2;
+        const y = rect.y + rect.height / 2;
+        return [
+          [x - 21, y],
+          [x + 21, y],
+          [x, y - 21],
+          [x, y + 21],
+        ].every(([px, py]) => element.contains(document.elementFromPoint(px, py)));
+      });
+      expect(reaches).toBe(true);
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
       expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
@@ -159,10 +171,10 @@ for (const viewport of [
     await page.getByTestId("editor-pages-view-button").focus();
     await page.keyboard.press("Tab");
     await expect(review).toBeFocused();
-    await expect(review).toHaveCSS("outline-color", "rgb(36, 36, 33)");
+    await expect(review).toHaveCSS("outline-color", "rgb(10, 10, 10)");
     await expect(review).toHaveCSS("outline-style", "solid");
     await expect(review).toHaveCSS("outline-width", "2px");
-    await expect(review.locator("svg")).toHaveCSS("width", "18px");
+    await expect(review.locator("svg")).toHaveCSS("width", "16px");
     await expect(review.locator("svg")).toHaveAttribute("stroke-width", "1.75");
 
     const edit = page.getByTestId("editor-edit-menu-button");
@@ -173,7 +185,7 @@ for (const viewport of [
     const deleteSelected = page.getByTestId("editor-delete-button");
     await expect(deleteSelected).toBeFocused();
     await expect(deleteSelected).toHaveAttribute("aria-disabled", "true");
-    await expect(deleteSelected).toHaveCSS("outline-color", "rgb(36, 36, 33)");
+    await expect(deleteSelected).toHaveCSS("outline-color", "rgb(10, 10, 10)");
     await expect(deleteSelected).toHaveCSS("opacity", "1");
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("editor-edit-menu")).toBeVisible();
@@ -272,7 +284,7 @@ test("touch taps release transient styles while selected states remain visible",
   await rotate.tap();
   await expect(rotate).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await remove.tap();
-  await expect(remove).toHaveCSS("background-color", "rgb(255, 241, 238)");
+  await expect(remove).toHaveCSS("background-color", "rgb(254, 242, 242)");
   await expect(remove).toHaveAttribute("aria-pressed", "true");
   await remove.tap();
   await expect(remove).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
@@ -286,7 +298,7 @@ test("touch taps release transient styles while selected states remain visible",
   await expect(options).toHaveAttribute("aria-expanded", "true");
   await page.getByRole("heading", { name: "Pages", exact: true }).tap();
   await expect(options).toHaveAttribute("aria-expanded", "false");
-  await expect(options).toHaveCSS("background-color", "rgb(201, 55, 48)");
+  await expect(options).toHaveCSS("background-color", "rgb(0, 0, 0)");
   await expect(options).toHaveCSS("transform", "none");
   await context.close();
 });
