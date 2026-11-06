@@ -18,10 +18,6 @@ const pages: Record<string, { title: string; description: string }> = {
     title: "Features",
     description: "Everything before the export.",
   },
-  about: {
-    title: "About",
-    description: "Work with PDFs. Keep the file local.",
-  },
   privacy: {
     title: "Privacy",
     description: "Your files never leave your device. Nothing is uploaded.",
