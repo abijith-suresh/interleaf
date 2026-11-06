@@ -165,7 +165,7 @@ export default function EditorSelectionBar(props: Props) {
     if (items.length === 0) return;
 
     const currentIndex = items.indexOf(event.target as HTMLButtonElement);
-    let nextIndex = currentIndex < 0 ? 0 : currentIndex;
+    let nextIndex = Math.max(currentIndex, 0);
     if (event.key === "ArrowDown") nextIndex = (nextIndex + 1) % items.length;
     if (event.key === "ArrowUp") nextIndex = (nextIndex - 1 + items.length) % items.length;
     if (event.key === "Home") nextIndex = 0;
