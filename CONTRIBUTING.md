@@ -9,7 +9,7 @@ Do not expand product scope unless the Product Truth section of `AGENTS.md` is u
 ## Setup
 
 - [Bun](https://bun.sh) via [mise](https://mise.jdx.dev) (`mise.toml` pins the exact version)
-- Node.js 24+ (for Astro compatibility in CI)
+- Node.js, pinned in `mise.toml` (Astro needs it)
 
 ```sh
 bun install
@@ -66,6 +66,12 @@ CI runs on every PR to `main`:
 - **dependency-review**: audits dependency changes
 - **qpdf**: builds and smoke-tests the qpdf WASM module when its files change
 
+Other workflows run outside the PR checks:
+
+- **release-please**: opens and updates release PRs from Conventional Commits
+- **dependabot-auto-merge**: merges eligible Dependabot updates
+- **vercel-preview-cleanup**: removes a pull request's Vercel previews when it closes
+
 ## Versioning And Releases
 
 Releases are automated by release-please from Conventional Commits. Versioning restarted at `0.0.1` for a fresh development phase.
@@ -80,8 +86,8 @@ Follow the existing Astro, SolidJS, TypeScript, and Tailwind patterns. The code 
 
 ### Architecture
 
-- **Services** (`src/services/`): PDF loading, rendering, and manipulation. No DOM, no UI.
-- **Controllers** (`src/controllers/`): Pure stateless helpers for page-state logic.
+- **Services** (`src/services/`): PDF loading, rendering, and manipulation, plus error helpers. No DOM, no UI.
+- **Controllers** (`src/controllers/`): Page-state logic, including editor history and workspace state. No DOM, no UI.
 - **Components** (`src/components/app/`): SolidJS editor UI. Delegate to services/controllers.
 - **Shared components** (`src/components/shared/`): Astro chrome for marketing pages.
 - **Utils** (`src/utils/`): Browser utilities (download, password prompt, toast, transitions).

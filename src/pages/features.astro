@@ -8,17 +8,37 @@ const capabilities = [
   {
     title: "Bring a document together",
     description:
-      "Open PDFs and PNG or JPEG images in the same workspace. Add more files later, or extract selected pages into a separate PDF.",
+      "Open PDFs and PNG or JPEG images in the same workspace. Images become PDF pages. Add more files later, or remove a source file and its pages.",
   },
   {
     title: "Shape the pages",
     description:
-      "Reorder pages with drag and drop, rotate them in 90-degree steps, and mark the ones you no longer need.",
+      "Reorder pages with drag and drop, rotate them in 90-degree steps, and mark the ones you no longer need. Duplicate a page to rotate, mark, or move each copy on its own.",
   },
   {
     title: "Review every page",
     description:
-      "Move through pages one at a time with previous and next controls, or jump straight to a page from the filmstrip.",
+      "Switch between Pages to organize and Document to read. Move through pages with previous and next controls, or use the filmstrip. Zoom up to 4 times the fitted size.",
+  },
+  {
+    title: "Undo and redo",
+    description:
+      "Undo or redo up to 32 changes in the current session, including page, source, text, checkmark, and field changes. History keeps up to 48 MiB of inactive source files.",
+  },
+  {
+    title: "Add text",
+    description:
+      "Add one line of printable basic Latin text in Document view, using Helvetica. Drag, rotate, edit, or delete it.",
+  },
+  {
+    title: "Fill supported form fields",
+    description:
+      "Fill embedded, unencrypted, single-line PDF text fields with basic Latin answers, using Helvetica. Other field types stay read-only.",
+  },
+  {
+    title: "Mark flat forms",
+    description:
+      "Add checkmarks to flat or scanned forms in Document view. Move, resize, rotate, or delete each one.",
   },
   {
     title: "Open protected files",
@@ -33,14 +53,14 @@ const capabilities = [
   {
     title: "Take pages with you",
     description:
-      "Export selected pages, or every page not marked for deletion, as PNG images in a ZIP archive.",
+      "Extract selected pages into a new PDF. You can also export selected pages, or every exportable page, as PNG images in a ZIP archive. Saved text, checkmarks, and answers appear in both.",
   },
 ];
 ---
 
 <MarketingLayout
   title="Features — Interleaf"
-  description="What Interleaf does in your browser: bring PDFs and images together, shape their pages, and export the result."
+  description="What Interleaf does in your browser: bring PDFs and PNG or JPEG images together, shape their pages, and export the result."
   currentPage="features"
 >
   <MarketingHero titleId="features-title">
@@ -50,8 +70,8 @@ const capabilities = [
 
     <div slot="secondary" class="hero-copy">
       <p>
-        Interleaf is a local workspace that runs entirely in your browser. The list below is the
-        full current scope.
+        Interleaf is a local workspace that runs entirely in your browser. The list below covers
+        what it does today.
       </p>
       <a class="marketing-hero-action" href={`${base}app`}>Open editor</a>
     </div>
