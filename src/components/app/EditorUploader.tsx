@@ -33,7 +33,7 @@ export default function EditorUploader(props: Props) {
   return (
     <section
       class="editor-uploader"
-      aria-label="File upload"
+      aria-label="Open files"
       onDragOver={preventBusyDrop}
       onDrop={preventBusyDrop}
     >

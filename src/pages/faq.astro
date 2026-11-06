@@ -3,12 +3,12 @@ import MarketingLayout from "../components/marketing/MarketingLayout.astro";
 
 const questions = [
   {
-    q: "How does client-side processing work?",
-    a: "Interleaf uses JavaScript libraries that run entirely in your browser. When you choose a PDF or image, the browser reads it into memory and processes it locally. No data is sent to a server.",
+    q: "How does Interleaf process files?",
+    a: "Everything runs in your browser. Nothing is uploaded. When you choose a PDF or image, the browser reads it into memory and processes it there.",
   },
   {
     q: "Is my data private?",
-    a: "Yes. Your files never leave your device. There are no uploads, server-side processing, or data collection. You can verify this in your browser's network inspector.",
+    a: "Yes. Your files never leave your device. Interleaf has no uploads, server-side processing, accounts, analytics, or tracking. Like any website, the host receives standard request metadata when the page loads. You can check in your browser's network inspector that no file data is sent.",
   },
   {
     q: "Which browsers are supported?",
@@ -16,7 +16,7 @@ const questions = [
   },
   {
     q: "Is there a file size limit?",
-    a: "There is no fixed file size limit. Operations run in your browser's available memory, so very large files can be slower or fail, depending on your device.",
+    a: "Interleaf sets no limit on the size of a PDF or image. Operations run in your browser's available memory, so very large files can be slower or fail, depending on your device. One PNG export is capped at 128 MiB. Export fewer pages if you reach it.",
   },
   {
     q: "Is Interleaf free to use?",
@@ -28,11 +28,11 @@ const questions = [
   },
   {
     q: "Does Interleaf work offline?",
-    a: "After the page loads, most operations work without an internet connection. Loading the editor needs a connection the first time.",
+    a: "Interleaf has no offline mode. The editor loads its code from this site, and may load more while you work, so keep your connection on until you finish. Your files are never sent.",
   },
   {
     q: "What PDF operations are supported?",
-    a: "Interleaf opens PDFs and PNG or JPEG images together, converts images to PDF pages, reviews pages one at a time, reorders and rotates pages, marks pages for deletion, extracts selected pages into a new PDF, exports pages as PNG images, unlocks password-protected PDFs, and compresses one untouched PDF. All operations run in your browser.",
+    a: "Interleaf opens PDFs and PNG or JPEG images together, converts images to PDF pages, and reviews pages one at a time with zoom. It reorders, rotates, and duplicates pages, marks pages for deletion, and undoes or redoes up to 32 changes. It adds one-line basic Latin text and checkmarks, and fills supported single-line PDF text fields. It extracts selected pages into a new PDF, exports pages as PNG images, unlocks password-protected PDFs, and compresses one untouched PDF. All operations run in your browser.",
   },
 ];
 ---
