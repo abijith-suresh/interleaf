@@ -18,6 +18,7 @@ interface Props {
   disabled?: boolean;
   onOpen: () => void;
   onClose: () => void;
+  onDraftChange?: (open: boolean) => void;
   focusInput: (input: HTMLElement, reveal?: HTMLElement) => void;
   onChange: (pageId: string, fieldRef: string, value: string, originalValue: string) => void;
 }
@@ -200,6 +201,8 @@ export default function EditorFieldsEditor(props: Props) {
       void Effect.runPromise(Fiber.interrupt(fiber)).catch(() => undefined);
     });
   });
+  createEffect(() => props.onDraftChange?.(Boolean(selected())));
+  let draftOwner: { pageId: string; file: File; group?: string } | undefined;
   createEffect(() => {
     const pageId = props.page.id,
       file = props.page.sourceFile,
@@ -213,8 +216,13 @@ export default function EditorFieldsEditor(props: Props) {
       ownCommit.rotation === rotation &&
       ownCommit.answers === answers;
     ownCommit = undefined;
+    // Unsaved answers for other fields belong to this logical page. Keep them
+    // across history changes to the same page; drop them only for another page.
+    const samePage =
+      draftOwner?.pageId === pageId && draftOwner.file === file && draftOwner.group === group;
+    draftOwner = { pageId, file, group };
     untrack(() => {
-      if (!own) drafts.clear();
+      if (!own && !samePage) drafts.clear();
       generation++;
       setSelected(undefined);
       setError("");
@@ -225,6 +233,7 @@ export default function EditorFieldsEditor(props: Props) {
   onCleanup(() => {
     disposed = true;
     generation++;
+    props.onDraftChange?.(false);
     if (savingFiber) void Effect.runPromise(Fiber.interrupt(savingFiber)).catch(() => undefined);
     document.removeEventListener("focusin", trackFocus);
     document.removeEventListener("pointerdown", trackFocus, true);

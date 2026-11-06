@@ -173,6 +173,10 @@ for (const width of [320, 1280])
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
       await select(hits.first());
       await expect(input).toHaveValue("INHERITED");
+      // History waits while an answer is open, then offers the saved answer.
+      await expect(page.getByTestId("editor-undo-button")).toBeDisabled();
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      await expect(input).toHaveCount(0);
       await expect(page.getByTestId("editor-undo-button")).toBeEnabled({
         enabled: action === "Save",
       });

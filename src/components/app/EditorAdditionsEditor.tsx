@@ -62,6 +62,8 @@ interface Props {
   registerGesture: (gesture: AdditionsGesture | null) => void;
   registerTap: (handler: ((event: PointerEvent) => void) | null) => void;
   onEditing: (id: string | null) => void;
+  /** Reports whether an unsaved text, checkmark, or field answer is open. */
+  onDraftChange?: (open: boolean) => void;
 }
 
 export default function EditorAdditionsEditor(props: Props) {
@@ -74,6 +76,7 @@ export default function EditorAdditionsEditor(props: Props) {
   const [error, setError] = createSignal("");
   const [saving, setSaving] = createSignal(false);
   const [settings, setSettings] = createSignal(true);
+  const [fieldOpen, setFieldOpen] = createSignal(false);
   let layer!: HTMLDivElement;
   let fieldPanel!: HTMLDivElement;
   let input: HTMLInputElement | undefined;
@@ -250,6 +253,7 @@ export default function EditorAdditionsEditor(props: Props) {
     });
   });
 
+  createEffect(() => props.onDraftChange?.(Boolean(draft()) || fieldOpen()));
   createEffect(() => props.registerTap(mode() === "place" || mode() === "edit" ? place : null));
   props.registerGesture({
     key: previewKey,
@@ -266,6 +270,7 @@ export default function EditorAdditionsEditor(props: Props) {
     disposed = true;
     generation++;
     props.onEditing(null);
+    props.onDraftChange?.(false);
     props.registerTap(null);
     props.registerGesture(null);
     document.removeEventListener("focusin", trackFocus);
@@ -812,6 +817,7 @@ export default function EditorAdditionsEditor(props: Props) {
           disabled={props.disabled}
           onOpen={() => setToolsOpen(true)}
           onClose={() => setToolsOpen(false)}
+          onDraftChange={setFieldOpen}
           focusInput={focusElement}
           onChange={(pageId, fieldRef, value, originalValue) =>
             props.onFieldChange?.(pageId, fieldRef, value, originalValue)

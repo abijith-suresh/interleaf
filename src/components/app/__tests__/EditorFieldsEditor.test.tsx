@@ -208,3 +208,71 @@ it.each(["Save", "Cancel"])(
     }
   }
 );
+
+it("reports the open answer and keeps other unsaved answers across history on the same page", async () => {
+  validate.mockReset().mockReturnValue(Effect.void);
+  const runtime = makePDFRuntime();
+  const [page, setPage] = createSignal<PageState>({
+    id: "page",
+    sourceFile: new File(["pdf"], "same.pdf"),
+    sourcePageNumber: 1,
+    rotation: 0,
+    markedForDeletion: false,
+    fieldGroupId: "group",
+  });
+  const toolbar = document.createElement("div"),
+    stage = document.createElement("section");
+  document.body.append(toolbar, stage);
+  const reports: boolean[] = [];
+  const onChange = vi.fn((_: string, fieldRef: string, value: string) =>
+    setPage({ ...page(), fieldAnswers: [{ fieldRef, value }] })
+  );
+  const view = render(() => (
+    <EditorFieldsEditor
+      page={page()}
+      groupPageNumbers={[1]}
+      runtime={runtime}
+      toolbar={toolbar}
+      stage={stage}
+      geometry={{
+        bounds: [0, 0, 400, 600],
+        userUnit: 1,
+        width: 400,
+        height: 600,
+        transform: [1, 0, 0, -1, 0, 600],
+      }}
+      rotation={0}
+      onOpen={() => {}}
+      onClose={() => {}}
+      onDraftChange={(open) => reports.push(open)}
+      focusInput={(input) => input.focus()}
+      onChange={onChange}
+    />
+  ));
+  const open = () => reports.at(-1);
+  try {
+    expect(open()).toBe(false);
+    const hits = await screen.findAllByRole("button", { name: "Fill field: Answer" });
+    fireEvent.click(hits[0]);
+    expect(open()).toBe(true);
+    fireEvent.input(screen.getByRole("textbox"), { target: { value: "Draft A" } });
+    fireEvent.click(screen.getByRole("button", { name: "Fill field: Other" }));
+    expect(open()).toBe(true);
+    fireEvent.input(screen.getByRole("textbox"), { target: { value: "Saved B" } });
+    fireEvent.submit(screen.getByRole("textbox").closest("form")!);
+    await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(open()).toBe(false);
+    // Undo of the saved answer restores the page without changing its identity.
+    setPage({ ...page(), fieldAnswers: [] });
+    fireEvent.click(hits[0]);
+    expect(screen.getByRole("textbox")).toHaveValue("Draft A");
+    view.unmount();
+    expect(open()).toBe(false);
+  } finally {
+    view.unmount();
+    await runtime.dispose();
+    toolbar.remove();
+    stage.remove();
+  }
+});

@@ -114,6 +114,7 @@ export default function Editor() {
   const [filesOpen, setFilesOpen] = createSignal(false);
   const [workspaceView, setWorkspaceView] = createSignal<"pages" | "document">("pages");
   const [activePageId, setActivePageId] = createSignal<string | null>(null);
+  const [draftOpen, setDraftOpen] = createSignal(false);
   const [operation, setOperation] = createSignal<EditorOperation>("idle");
   const [filesNotice, setFilesNotice] = createSignal("");
   const [statusMessage, setStatusMessage] = createSignal("Your files never leave your device.");
@@ -139,8 +140,10 @@ export default function Editor() {
   const selectedDeletionAction = () => getDeletionAction(pages, selectedIndices());
   const deletionCopy = () => deletionActionCopy[selectedDeletionAction()];
 
+  // An unsaved text, checkmark, or field answer would be discarded by any
+  // history change to its page, so history waits until it is saved or canceled.
   const historyUnavailable = () =>
-    isBusy() || dragSourceIndex() !== null || filesOpen() || filePickerOpen();
+    isBusy() || dragSourceIndex() !== null || filesOpen() || filePickerOpen() || draftOpen();
 
   function organizationSnapshot() {
     return snapshotOrganization(pages, selectedIndices(), activePageId());
@@ -331,7 +334,11 @@ export default function Editor() {
         : key === "y" && event.ctrlKey && !event.metaKey && !event.shiftKey
           ? "redo"
           : null;
-    if (direction && restoreOrganization(direction)) event.preventDefault();
+    if (!direction) return;
+    // Outside its input, the browser's own undo would still rewrite an open
+    // draft's text. Leave the draft exactly as it is until it is saved or canceled.
+    if (draftOpen()) event.preventDefault();
+    else if (restoreOrganization(direction)) event.preventDefault();
   }
 
   function getUnmodifiedSourceFile(): File | null {
@@ -1446,6 +1453,9 @@ export default function Editor() {
                 undoLabel={history().undo.at(-1)?.label}
                 redoLabel={history().redo.at(-1)?.label}
                 unavailable={historyUnavailable()}
+                blockedReason={
+                  draftOpen() ? "Save or cancel the open edit to use undo and redo." : undefined
+                }
                 onUndo={() => restoreOrganization("undo")}
                 onRedo={() => restoreOrganization("redo")}
               />
@@ -1483,6 +1493,7 @@ export default function Editor() {
                     activePageId={activePageId()}
                     runtime={pdfRuntime}
                     onActivePageChange={(pageId) => setActivePageId(pageId)}
+                    onDraftChange={setDraftOpen}
                     onCheckmarksChange={(pageId, marks, label) =>
                       organize(label, () => {
                         const index = pages.findIndex((page) => page.id === pageId);

@@ -466,3 +466,64 @@ test.describe("touch text placement", () => {
     ).toBeVisible();
   });
 });
+
+test("undo and redo wait for open text and field drafts instead of discarding them", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 844 });
+  await open(page);
+  await place(page, "Saved A");
+  const undo = page.getByTestId("editor-undo-button");
+  await expect(undo).toHaveAttribute("aria-label", "Undo Add text");
+  await expect(undo).toHaveAttribute("aria-disabled", "false");
+
+  await page.getByRole("button", { name: "Add text", exact: true }).click();
+  await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
+  const start = await point(page, 0.6, 0.3);
+  await page.mouse.click(start.x, start.y);
+  const input = page.getByLabel("Added text", { exact: true });
+  await input.fill("Hello");
+  await expect(undo).toHaveAttribute("aria-disabled", "true");
+  await expect(undo).toHaveAccessibleDescription(
+    "Save or cancel the open edit to use undo and redo."
+  );
+  const draft = page.getByRole("button", { name: "Drag text to move it" });
+  const box = await draft.boundingBox();
+  if (!box) throw new Error("Missing draft");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2 + 30, { steps: 5 });
+  await page.mouse.up();
+  await expect(input).not.toBeFocused();
+  await expect(input).toHaveValue("Hello");
+  // Neither the workspace history nor the browser's native undo may touch the draft.
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(input).toHaveValue("Hello");
+  // Force clicks the aria-disabled control to prove a click cannot bypass the block.
+  await undo.click({ force: true });
+  await expect(input).toHaveValue("Hello");
+  await expect(draft).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit added text: Saved A" })).toBeVisible();
+  await expect(undo).toHaveAttribute("aria-label", "Undo Add text");
+  await expect(page.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
+
+  await page.getByRole("button", { name: "Save text", exact: true }).click();
+  await expect(input).toHaveCount(0);
+  await ready(page);
+  await expect(undo).toHaveAttribute("aria-disabled", "false");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(page.getByRole("button", { name: "Edit added text: Hello" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Edit added text: Saved A" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Fill fields", exact: true }).click();
+  await page.getByRole("button", { name: "Fill field: original-field" }).click();
+  const answer = page.getByRole("textbox", { name: "Answer for original-field" });
+  await answer.fill("Unsaved answer");
+  await expect(undo).toHaveAttribute("aria-disabled", "true");
+  await undo.click({ force: true });
+  await page.getByTestId("editor-redo-button").click({ force: true });
+  await expect(answer).toHaveValue("Unsaved answer");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(answer).toHaveCount(0);
+  await expect(undo).toHaveAttribute("aria-disabled", "false");
+});

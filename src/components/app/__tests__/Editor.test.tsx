@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { Deferred, Effect } from "effect";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { PDFPasswordRequiredError, PDFProcessingError } from "@/types/interfaces";
 
 const pdfServiceMocks = vi.hoisted(() => ({
@@ -10,6 +10,7 @@ const pdfServiceMocks = vi.hoisted(() => ({
   getPassword: vi.fn(),
   getPageRotation: vi.fn(),
   getPageSize: vi.fn(),
+  getPageGeometry: vi.fn(),
   renderPage: vi.fn(),
   releaseFile: vi.fn(),
   reset: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock("@/services/pdf-service", () => ({
     getPassword = pdfServiceMocks.getPassword;
     getPageRotation = pdfServiceMocks.getPageRotation;
     getPageSize = pdfServiceMocks.getPageSize;
+    getPageGeometry = pdfServiceMocks.getPageGeometry;
     renderPage = pdfServiceMocks.renderPage;
     releaseFile = pdfServiceMocks.releaseFile;
     reset = pdfServiceMocks.reset;
@@ -120,6 +122,15 @@ describe("Editor", () => {
     pdfServiceMocks.getPageCount.mockReturnValue(3);
     pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(0));
     pdfServiceMocks.getPageSize.mockReturnValue(Effect.succeed({ width: 100, height: 200 }));
+    pdfServiceMocks.getPageGeometry.mockReturnValue(
+      Effect.succeed({
+        bounds: [0, 0, 100, 200],
+        userUnit: 1,
+        width: 100,
+        height: 200,
+        transform: [1, 0, 0, -1, 0, 200],
+      })
+    );
     pdfServiceMocks.loadPDF.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.loadPDFWithPassword.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.renderPage.mockReturnValue(Effect.succeed(undefined));
@@ -751,6 +762,66 @@ describe("Editor", () => {
     fireEvent.keyDown(next, { key: "y", ctrlKey: true });
     await waitFor(() => expect(screen.getByRole("button", { name: "View page 2" })).toHaveFocus());
     expect(next).toBeDisabled();
+  });
+
+  it("keeps history unavailable while a Document draft is open and never discards it", async () => {
+    const spies = [
+      vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+        drawImage: vi.fn(),
+      } as unknown as RenderingContext),
+      vi
+        .spyOn(HTMLElement.prototype, "getClientRects")
+        .mockReturnValue([new DOMRect(0, 0, 100, 200)] as unknown as DOMRectList),
+      vi
+        .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+        .mockReturnValue(new DOMRect(0, 0, 100, 200)),
+    ];
+    onTestFinished(() => {
+      for (const spy of spies) spy.mockRestore();
+    });
+    await openPDF();
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 1 90 degrees" }));
+    fireEvent.click(screen.getByTestId("editor-document-view-button"));
+    const undo = screen.getByTestId("editor-undo-button");
+    expect(undo).toHaveAttribute("aria-disabled", "false");
+    const undoName = undo.getAttribute("aria-label");
+    const addText = await screen.findByRole("button", { name: "Add text" });
+    await waitFor(() => expect(addText).toBeEnabled());
+    fireEvent.click(addText);
+    const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+    await waitFor(() =>
+      expect(document.querySelector(".editor-text-layer")).toHaveAttribute(
+        "data-geometry-ready",
+        "true"
+      )
+    );
+    fireEvent.keyDown(stage, { key: "Enter" });
+    const input = await screen.findByLabelText("Added text", { exact: true });
+    fireEvent.input(input, { target: { value: "Hello" } });
+    expect(undo).toHaveAttribute("aria-disabled", "true");
+    expect(undo).toHaveAccessibleDescription("Save or cancel the open edit to use undo and redo.");
+    for (const target of [stage, document.body]) {
+      const shortcut = new KeyboardEvent("keydown", {
+        key: "z",
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      target.dispatchEvent(shortcut);
+      // Claimed so the browser's own undo cannot rewrite the draft input either.
+      expect(shortcut.defaultPrevented).toBe(true);
+    }
+    fireEvent.click(undo);
+    expect(screen.getByLabelText("Added text", { exact: true })).toHaveValue("Hello");
+    expect(undo).toHaveAttribute("aria-label", undoName);
+    expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(undo).toHaveAttribute("aria-disabled", "false"));
+    expect(undo).toHaveAccessibleDescription(undoName ?? "");
+    fireEvent.click(undo);
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false")
+    );
   });
 
   it("keeps marked pages inspectable after history restores their selection in Document", async () => {

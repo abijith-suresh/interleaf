@@ -36,6 +36,7 @@ interface Props {
   onFieldChange?: (pageId: string, fieldRef: string, value: string, originalValue: string) => void;
   onTextChange?: (pageId: string, texts: readonly AddedText[], label: string) => void;
   onActivePageChange: (pageId: string) => void;
+  onDraftChange?: (open: boolean) => void;
 }
 
 export default function EditorPageViewer(props: Props) {
@@ -674,6 +675,7 @@ export default function EditorPageViewer(props: Props) {
                     onChange={onChange()}
                     onCheckmarksChange={props.onCheckmarksChange}
                     onEditing={setEditingTextId}
+                    onDraftChange={props.onDraftChange}
                     registerGesture={(handler) => {
                       textGesture = handler;
                     }}
