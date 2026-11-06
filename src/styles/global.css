@@ -323,7 +323,7 @@ body:has(.marketing-page) {
 }
 
 /* The one primary action: Cards' solid primary button. It is the editor
-   link in the header, the menu sheet, the home hero, and the closing card. */
+   link in the header, the home hero, and the closing card. */
 .marketing-button {
   position: relative;
   display: inline-flex;
@@ -619,9 +619,11 @@ body:has(.marketing-page) .skip-link:focus-visible {
 }
 
 .nav-actions {
+  position: relative;
   display: flex;
   min-width: 0;
   align-items: center;
+  gap: 0.5rem;
 }
 
 .desktop-nav {
@@ -630,8 +632,8 @@ body:has(.marketing-page) .skip-link:focus-visible {
   gap: 0.25rem;
 }
 
-.desktop-nav .marketing-button {
-  margin-left: 0.75rem;
+.nav-actions > .marketing-button {
+  margin-left: 0.5rem;
 }
 
 /* Cards' neutral ghost button: header and footer links. */
@@ -660,70 +662,70 @@ body:has(.marketing-page) .skip-link:focus-visible {
   color: var(--color-fg);
 }
 
+/* Cards' white icon button. It stays white and only its icon changes when
+   the menu is open, like Cards' select trigger. */
 .mobile-nav {
   display: none;
 }
 
-/* Cards' white button, with a turning chevron. */
 .mobile-nav-trigger {
+  position: relative;
   display: inline-flex;
+  width: 2.75rem;
   height: 2.75rem;
   align-items: center;
-  gap: 0.25rem;
-  padding-inline: 1rem 0.75rem;
+  justify-content: center;
   border-radius: var(--radius-button);
   background: var(--color-surface);
   box-shadow: var(--shadow-button);
-  color: var(--color-fg);
+  color: var(--color-fg-muted);
   cursor: pointer;
   list-style: none;
-  transition-property: background-color, scale;
+  transition-property: color, background-color, scale;
   transition-duration: 150ms;
   transition-timing-function: var(--ease-tactile);
-  @apply text-ui-sm;
 }
 
 .mobile-nav-trigger:hover,
 .mobile-nav[open] .mobile-nav-trigger {
   background: var(--color-subtle);
+  color: var(--color-fg);
 }
 
 .mobile-nav-trigger:active {
-  scale: 0.97;
+  scale: 0.94;
 }
 
 .mobile-nav-trigger::-webkit-details-marker {
   display: none;
 }
 
-.mobile-nav-chevron {
+.mobile-nav-icon {
   width: 1rem;
   height: 1rem;
-  flex: 0 0 auto;
-  color: var(--color-fg-subtle);
-  transition: rotate 150ms var(--ease-tactile);
 }
 
-.mobile-nav[open] .mobile-nav-chevron {
-  rotate: 180deg;
+.mobile-nav[open] .mobile-nav-icon-menu,
+.mobile-nav:not([open]) .mobile-nav-icon-close {
+  display: none;
 }
 
-/* Cards' menu: an overlay pinned to the header, so opening it never shifts
-   the page layout. It spans the nav gutter width. */
+/* Cards' dropdown menu: it opens from the trigger's right edge, spans the
+   header actions, and floats over the page, so opening it never shifts the
+   layout. */
 .mobile-nav-panel {
   --menu-padding: 0.5rem;
   position: absolute;
   top: calc(100% + 0.5rem);
-  right: 1rem;
-  left: 1rem;
+  right: 0;
   z-index: 20;
   display: grid;
+  width: max(100%, 10rem);
   gap: 0.25rem;
   padding: var(--menu-padding);
   border-radius: var(--radius-2xl);
   background: var(--color-surface);
   box-shadow: var(--shadow-menu);
-  overscroll-behavior: contain;
   transform-origin: top right;
   animation: marketing-menu-in 150ms var(--ease-tactile);
 }
@@ -735,34 +737,35 @@ body:has(.marketing-page) .skip-link:focus-visible {
   }
 }
 
-/* Items keep concentric corners with the panel. */
-.mobile-nav-link,
-.mobile-nav-panel .marketing-button {
-  border-radius: calc(var(--radius-2xl) - var(--menu-padding));
-}
-
+/* Cards' menu item, grown to a 44px touch target. The current page takes
+   the chosen fill; hover and focus stay a step lighter. */
 .mobile-nav-link {
   display: flex;
   min-height: 2.75rem;
   align-items: center;
-  padding-inline: 0.75rem;
+  padding-inline: 0.5rem;
+  border-radius: calc(var(--radius-2xl) - var(--menu-padding));
   color: var(--color-fg-muted);
   text-decoration: none;
+  transition-property: color, background-color;
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease-tactile);
   @apply text-body-sm;
 }
 
-.mobile-nav-link:hover {
+.mobile-nav-link:hover,
+.mobile-nav-link:focus-visible {
   background: var(--color-hover);
   color: var(--color-fg);
+}
+
+.marketing-page .mobile-nav-link:focus-visible {
+  outline-offset: 0;
 }
 
 .mobile-nav-link.is-current {
   background: var(--color-selected);
   color: var(--color-fg);
-}
-
-.mobile-nav-panel .marketing-button {
-  margin-top: 0.25rem;
 }
 
 @media (max-width: 47.99rem) {
@@ -772,6 +775,10 @@ body:has(.marketing-page) .skip-link:focus-visible {
 
   .mobile-nav {
     display: block;
+  }
+
+  .nav-actions > .marketing-button {
+    margin-left: 0;
   }
 }
 

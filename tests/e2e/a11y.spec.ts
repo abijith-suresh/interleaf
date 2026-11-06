@@ -13,9 +13,21 @@ test("the mobile menu closes on Escape, outside click, and link navigation", asy
   await page.goto("/");
   const menu = page.locator("details.mobile-nav");
   const summary = menu.locator("summary");
+  const nav = page.getByRole("navigation", { name: "Main navigation" });
 
-  await summary.click();
+  // The editor action stays in the header; the menu holds only the page links.
+  await expect(nav.getByRole("link", { name: "Open editor" })).toBeVisible();
+  await expect(summary).toHaveAccessibleName("Menu");
+
+  await summary.focus();
+  await page.keyboard.press("Enter");
   await expect(menu).toHaveJSProperty("open", true);
+  await expect(menu.getByRole("link")).toHaveText(["Features", "FAQ"]);
+  // The dropdown hangs from the trigger's right edge.
+  const rightEdge = (selector: string) =>
+    page.locator(selector).evaluate((node) => Math.round(node.getBoundingClientRect().right));
+  expect(await rightEdge(".mobile-nav-panel")).toBe(await rightEdge(".mobile-nav-trigger"));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   await page.keyboard.press("Escape");
   await expect(menu).toHaveJSProperty("open", false);
   await expect(summary).toBeFocused();

@@ -32,20 +32,28 @@ const links = [
             </a>
           ))
         }
-        <a href={`${base}app`} class="marketing-button marketing-button-compact">Open editor</a>
       </div>
 
-      {/* Below 48rem the menu replaces the desktop links and carries the editor action. */}
+      <a href={`${base}app`} class="marketing-button marketing-button-compact">Open editor</a>
+
+      {/* Below 48rem the page links move into a dropdown under this button. */}
       <details class="mobile-nav">
         <summary class="mobile-nav-trigger">
-          Menu
-          <svg class="mobile-nav-chevron" viewBox="0 0 24 24" aria-hidden="true">
+          <span class="sr-only">Menu</span>
+          <svg class="mobile-nav-icon mobile-nav-icon-menu" viewBox="0 0 24 24" aria-hidden="true">
             <path
-              d="m6 9 6 6 6-6"
+              d="M4 7h16M4 12h16M4 17h16"
               fill="none"
               stroke="currentColor"
               stroke-linecap="round"
-              stroke-linejoin="round"
+              stroke-width="2.25"></path>
+          </svg>
+          <svg class="mobile-nav-icon mobile-nav-icon-close" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M6 6l12 12M18 6 6 18"
+              fill="none"
+              stroke="currentColor"
+              stroke-linecap="round"
               stroke-width="2.25"></path>
           </svg>
         </summary>
@@ -61,9 +69,6 @@ const links = [
               </a>
             ))
           }
-          <a href={`${base}app`} class="marketing-button marketing-button-compact marketing-button-block">
-            Open editor
-          </a>
         </div>
       </details>
     </div>
