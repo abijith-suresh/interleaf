@@ -25,13 +25,13 @@ test("the mobile menu closes on Escape, outside click, and link navigation", asy
   await expect(menu).toHaveJSProperty("open", false);
 
   await summary.click();
-  await menu.getByRole("link", { name: "About" }).click();
-  await expect(page).toHaveURL(/\/about\/?$/);
+  await menu.getByRole("link", { name: "FAQ" }).click();
+  await expect(page).toHaveURL(/\/faq\/?$/);
   await expect(page.locator("details.mobile-nav")).toHaveJSProperty("open", false);
 
   // A link to the page already shown never swaps the page, so it must close the menu itself.
   await page.locator("details.mobile-nav summary").click();
-  await page.locator("details.mobile-nav").getByRole("link", { name: "About" }).click();
+  await page.locator("details.mobile-nav").getByRole("link", { name: "FAQ" }).click();
   await expect(page.locator("details.mobile-nav")).toHaveJSProperty("open", false);
 });
 
