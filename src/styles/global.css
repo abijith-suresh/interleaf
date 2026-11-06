@@ -220,27 +220,12 @@ body:has(.marketing-page) {
   color: var(--color-white);
 }
 
-/* View Transition keyframes */
-@keyframes contentFadeOut {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-}
-
-@keyframes contentFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* Page swaps are instant: no default view-transition crossfade. Any
+   animation here delays every navigation click until it ends. */
+::view-transition-group(*),
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation: none;
 }
 
 .skip-link {
@@ -663,12 +648,6 @@ body:has(.marketing-page) {
     animation-duration: 0.01ms;
     animation-iteration-count: 1;
     transition-duration: 0.01ms;
-  }
-
-  ::view-transition-group(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation: none !important;
   }
 }
 
