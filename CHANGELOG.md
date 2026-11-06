@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.0.13](https://github.com/abijith-suresh/interleaf/compare/0.0.12...v0.0.13) (2026-11-06)
+
+
+### Features
+
+* add content security policy and security headers ([#345](https://github.com/abijith-suresh/interleaf/issues/345)) ([fbbc8ff](https://github.com/abijith-suresh/interleaf/commit/fbbc8ffda7ee57a6acbc042197b8272f13079108))
+
+
+### Bug Fixes
+
+* **a11y:** address accessibility audit findings ([#352](https://github.com/abijith-suresh/interleaf/issues/352)) ([4af5060](https://github.com/abijith-suresh/interleaf/commit/4af5060091f678387d655de67692acafe7acb069))
+* allow form filling when OpenAction is a destination or GoTo ([#341](https://github.com/abijith-suresh/interleaf/issues/341)) ([4c77157](https://github.com/abijith-suresh/interleaf/commit/4c77157c4bc5906902a34e6a63e401bf53c3108b))
+* block undo and redo while a Document draft is open ([#353](https://github.com/abijith-suresh/interleaf/issues/353)) ([32f0c95](https://github.com/abijith-suresh/interleaf/commit/32f0c955faef0b89a6db8170ab5b7fc7073fff82))
+* cap canvas pixel sizes for PNG export and thumbnails ([#355](https://github.com/abijith-suresh/interleaf/issues/355)) ([2219c98](https://github.com/abijith-suresh/interleaf/commit/2219c9883992c6851c2d6f808c6f737a3ab11f28))
+* copy export pages in batches to share resources ([#351](https://github.com/abijith-suresh/interleaf/issues/351)) ([413a153](https://github.com/abijith-suresh/interleaf/commit/413a153a800086bfa49eff34edff371b0df78841))
+* **editor:** harden insecure contexts, no-op saves, stuck cleanup ([#346](https://github.com/abijith-suresh/interleaf/issues/346)) ([f091b64](https://github.com/abijith-suresh/interleaf/commit/f091b64b7ce84c28e5833cfe8bebafbb7afb876d))
+* evict history only where it frees inactive source size ([#342](https://github.com/abijith-suresh/interleaf/issues/342)) ([a652b0e](https://github.com/abijith-suresh/interleaf/commit/a652b0e323771762eda8c78041d348ba1e5e272d))
+* export password-protected PDFs from a qpdf-decrypted copy ([#349](https://github.com/abijith-suresh/interleaf/issues/349)) ([767b5d4](https://github.com/abijith-suresh/interleaf/commit/767b5d466d1394eadac729931c54989e0682609d))
+* orient EXIF transpose and transverse JPEGs correctly ([#340](https://github.com/abijith-suresh/interleaf/issues/340)) ([01ce428](https://github.com/abijith-suresh/interleaf/commit/01ce428d073b76279f50b918f3eae48f9c5543d8))
+* reuse pdf.js workers and edited-page builds ([#357](https://github.com/abijith-suresh/interleaf/issues/357)) ([4c86329](https://github.com/abijith-suresh/interleaf/commit/4c86329174f0ad8567eabd232750649783ba7d1c))
+* treat missing PDF references as null during export ([#343](https://github.com/abijith-suresh/interleaf/issues/343)) ([3c63aa7](https://github.com/abijith-suresh/interleaf/commit/3c63aa7aea404353a32c902a7027a0f651eadcb0))
+
+
+### Performance Improvements
+
+* make marketing page navigation instant ([#360](https://github.com/abijith-suresh/interleaf/issues/360)) ([4433385](https://github.com/abijith-suresh/interleaf/commit/443338574e3cbd51e51af16fc6f318ccc9eb2706))
+
 ## [0.0.12](https://github.com/abijith-suresh/interleaf/compare/0.0.11...0.0.12) (2026-10-21)
 
 
