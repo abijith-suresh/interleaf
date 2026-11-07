@@ -1,0 +1,955 @@
+---
+/* A drawn copy of the editor's Pages view. It plays a short loop of real
+   operations: two files merge, a page moves to the front and turns upright,
+   is selected, another page is marked for deletion, and the set is ready to
+   download. The markup is the finished state, so it is what shows without
+   JavaScript, under reduced motion, and before the loop starts. */
+---
+
+<figure class="hero-demo">
+  <div
+    class="demo-frame is-merged is-moved is-rotated is-selected is-marked"
+    data-hero-demo
+    aria-hidden="true"
+  >
+    <div class="demo-head">
+      <span class="demo-title">Pages</span>
+      <span class="demo-count">
+        <span class="demo-count-files">2 files</span>
+        <span class="demo-count-pages">3 pages.</span>
+        <span class="demo-count-marked">2 of 3 pages exportable.</span>
+      </span>
+    </div>
+
+    <div class="demo-body">
+      <div class="demo-file demo-file-a">
+        <svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg>
+        <span><b>invoice.pdf</b>2 pages</span>
+      </div>
+      <div class="demo-file demo-file-b">
+        <svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg>
+        <span><b>signed-form.pdf</b>1 page</span>
+      </div>
+
+      <ul class="demo-grid">
+        <li class="demo-tile" data-page="invoice-1">
+          <div class="demo-preview">
+            <div class="demo-canvas">
+              <div class="demo-sheet sheet-invoice">
+                <div class="sheet-row">
+                  <span class="sheet-title">Invoice</span>
+                  <span class="sheet-stack sheet-end">
+                    <i style="--w: 2.4em"></i><i style="--w: 1.9em"></i><i style="--w: 2.1em"></i>
+                  </span>
+                </div>
+                <span class="sheet-stack">
+                  <i class="ink" style="--w: 2em"></i><i style="--w: 3.2em"></i><i style="--w: 2.6em"></i>
+                </span>
+                <span class="sheet-table">
+                  <span class="sheet-row sheet-th"><i class="ink" style="--w: 1.6em"></i><i class="ink" style="--w: 0.9em"></i></span>
+                  <span class="sheet-row"><i style="--w: 4.2em"></i><i style="--w: 0.9em"></i></span>
+                  <span class="sheet-row"><i style="--w: 3.4em"></i><i style="--w: 0.8em"></i></span>
+                  <span class="sheet-row"><i style="--w: 4.6em"></i><i style="--w: 1em"></i></span>
+                  <span class="sheet-row"><i style="--w: 2.9em"></i><i style="--w: 0.8em"></i></span>
+                  <span class="sheet-row"><i style="--w: 3.8em"></i><i style="--w: 0.9em"></i></span>
+                </span>
+                <span class="sheet-row sheet-total">
+                  <span>Total</span><i class="ink" style="--w: 1.4em"></i>
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="demo-controls">
+            <span class="demo-label"><span class="n-before">1</span><span class="n-after">2</span></span>
+            <span class="demo-actions">
+              <span class="demo-action"><svg viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></span>
+              <span class="demo-action"><svg viewBox="0 0 24 24"><path d="M10 11v6M14 11v6M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>
+              <span class="demo-action"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></svg></span>
+            </span>
+          </div>
+        </li>
+
+        <li class="demo-tile" data-page="invoice-2">
+          <div class="demo-preview">
+            <div class="demo-canvas">
+              <div class="demo-sheet sheet-invoice">
+                <div class="sheet-row">
+                  <span class="sheet-kicker">Invoice</span><i style="--w: 0.8em"></i>
+                </div>
+                <i class="ink sheet-heading" style="--w: 3.6em"></i>
+                <span class="sheet-stack">
+                  <i style="--w: 7.4em"></i><i style="--w: 7.1em"></i><i style="--w: 7.6em"></i><i style="--w: 4.8em"></i>
+                </span>
+                <i class="ink sheet-heading" style="--w: 2.8em"></i>
+                <span class="sheet-table">
+                  <span class="sheet-row"><i style="--w: 2.2em"></i><i style="--w: 3em"></i></span>
+                  <span class="sheet-row"><i style="--w: 1.8em"></i><i style="--w: 3.6em"></i></span>
+                  <span class="sheet-row"><i style="--w: 2.4em"></i><i style="--w: 2.6em"></i></span>
+                </span>
+                <span class="sheet-stack sheet-foot">
+                  <i style="--w: 6.4em"></i><i style="--w: 5.2em"></i>
+                </span>
+              </div>
+            </div>
+            <span class="demo-marked">Marked</span>
+          </div>
+          <div class="demo-controls">
+            <span class="demo-label"><span class="n-before">2</span><span class="n-after">3</span></span>
+            <span class="demo-actions">
+              <span class="demo-action"><svg viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></span>
+              <span class="demo-action demo-action-delete">
+                <svg class="icon-delete" viewBox="0 0 24 24"><path d="M10 11v6M14 11v6M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                <svg class="icon-restore" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+              </span>
+              <span class="demo-action"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></svg></span>
+            </span>
+          </div>
+        </li>
+
+        <li class="demo-tile" data-page="form">
+          <div class="demo-preview">
+            <div class="demo-canvas">
+              <div class="demo-stage">
+                <div class="demo-sheet sheet-form">
+                  <span class="sheet-title">Form</span>
+                  <span class="sheet-stack"><i style="--w: 6.8em"></i><i style="--w: 5.4em"></i></span>
+                  <span class="sheet-field"><i style="--w: 1.6em"></i><span class="sheet-box"><i class="ink" style="--w: 2.6em"></i></span></span>
+                  <span class="sheet-field"><i style="--w: 2.2em"></i><span class="sheet-box"><i class="ink" style="--w: 3.4em"></i></span></span>
+                  <span class="sheet-check"><span class="sheet-tick"></span><i style="--w: 4.6em"></i></span>
+                  <span class="sheet-check"><span class="sheet-tick"></span><i style="--w: 3.8em"></i></span>
+                  <span class="sheet-sign">
+                    <svg viewBox="0 0 60 16"><path d="M2 12c4-9 7-10 7-5s-2 6 1 2 5-8 6-4-2 6 2 3 4-6 6-3 1 4 4 2 5-4 8-3 6 1 9-1"></path></svg>
+                    <span class="sheet-row"><i style="--w: 2.4em"></i><i style="--w: 1.6em"></i></span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="demo-controls">
+            <span class="demo-label"><span class="n-before">3</span><span class="n-after">1</span></span>
+            <span class="demo-actions">
+              <span class="demo-action"><svg viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></span>
+              <span class="demo-action"><svg viewBox="0 0 24 24"><path d="M10 11v6M14 11v6M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>
+              <span class="demo-action demo-action-rotate"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></svg></span>
+            </span>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <div class="demo-bar">
+      <span class="demo-summary">
+        <span class="demo-summary-all">All 3 exportable</span>
+        <span class="demo-summary-selected">1 selected</span>
+      </span>
+      <span class="demo-edit">
+        <svg viewBox="0 0 24 24"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.38 2.63a2.12 2.12 0 1 1 3 3L12.36 14.65a2 2 0 0 1-.85.5l-2.87.84a.5.5 0 0 1-.62-.62l.84-2.87a2 2 0 0 1 .5-.85Z"></path></svg>
+        Edit pages
+        <svg class="demo-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg>
+      </span>
+      <span class="demo-download">
+        <span class="demo-download-action">Download PDF</span>
+        <span class="demo-download-more"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></span>
+      </span>
+    </div>
+
+    <svg class="demo-cursor" viewBox="0 0 24 24"><path d="M5 3l14 8-6.2 1.6L10 19z"></path></svg>
+  </div>
+  <figcaption class="hero-demo-caption">
+    Two PDFs merged into one set, a scanned page moved to the front and turned upright, and an
+    extra page marked for deletion before download.
+  </figcaption>
+</figure>
+
+<script>
+  // One step of the loop: the classes it adds, the class it removes, where the
+  // cursor points, and how long to wait before it runs.
+  type Step = { wait: number; add?: string[]; remove?: string[]; cursor?: string; click?: boolean };
+
+  const STATES = ["is-merged", "is-lifted", "is-moved", "is-rotated", "is-selected", "is-marked"];
+  const STEPS: Step[] = [
+    { wait: 700, add: ["is-merged"], cursor: "form" },
+    { wait: 1500, add: ["is-lifted"], click: true },
+    { wait: 450, add: ["is-moved"], cursor: "front" },
+    { wait: 950, remove: ["is-lifted"] },
+    { wait: 700, cursor: "rotate" },
+    { wait: 800, add: ["is-rotated"], click: true },
+    { wait: 1300, cursor: "front-page" },
+    { wait: 800, add: ["is-selected"], click: true },
+    { wait: 1200, cursor: "delete" },
+    { wait: 800, add: ["is-marked"], click: true },
+    { wait: 1300, cursor: "download" },
+    { wait: 900, click: true },
+  ];
+  const HOLD_FINISHED = 2800;
+  const FADE = 320;
+
+  const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let stop: (() => void) | undefined;
+
+  function play(frame: HTMLElement) {
+    let index = -1; // -1 holds the finished frame before the loop starts.
+    let timer = 0;
+    let visible = false;
+
+    const set = (name: string, on: boolean) => frame.classList.toggle(name, on);
+
+    const restart = () => {
+      set("is-resetting", true);
+      timer = window.setTimeout(() => {
+        set("is-instant", true);
+        for (const state of STATES) set(state, false);
+        frame.dataset.cursor = "";
+        void frame.offsetWidth;
+        set("is-instant", false);
+        set("is-resetting", false);
+        set("is-playing", true);
+        index = 0;
+        schedule();
+      }, FADE);
+    };
+
+    const run = (step: Step) => {
+      for (const name of step.add ?? []) set(name, true);
+      for (const name of step.remove ?? []) set(name, false);
+      if (step.cursor) frame.dataset.cursor = step.cursor;
+      if (step.click) {
+        set("is-clicking", true);
+        window.setTimeout(() => set("is-clicking", false), 180);
+      }
+    };
+
+    const schedule = () => {
+      if (!visible || !frame.isConnected) return;
+      const step = STEPS[index];
+      timer = window.setTimeout(
+        () => {
+          if (!step) return restart();
+          run(step);
+          index += 1;
+          schedule();
+        },
+        step ? step.wait : HOLD_FINISHED
+      );
+    };
+
+    // Run only while the frame is on screen; resume from the same step.
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      window.clearTimeout(timer);
+      if (visible) schedule();
+    });
+    observer.observe(frame);
+
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timer);
+      for (const name of ["is-playing", "is-resetting", "is-instant", "is-clicking", "is-lifted"]) {
+        set(name, false);
+      }
+      for (const state of STATES) if (state !== "is-lifted") set(state, true);
+      frame.dataset.cursor = "";
+    };
+  }
+
+  function init() {
+    stop?.();
+    stop = undefined;
+    const frame = document.querySelector<HTMLElement>("[data-hero-demo]");
+    if (frame && !motion.matches) stop = play(frame);
+  }
+
+  document.addEventListener("astro:page-load", init);
+  motion.addEventListener("change", init);
+</script>
+
+<style>
+  .hero-demo {
+    width: 100%;
+    margin: 0;
+    container-type: inline-size;
+  }
+
+  /* Everything inside is sized in em, and 1em is 1/36 of the frame width,
+     so the whole frame scales as one picture and never changes height. At
+     576px wide it matches the editor at its real size. */
+  .demo-frame {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.8125em;
+    background: var(--color-canvas);
+    box-shadow:
+      0 0 0 1px rgb(10 10 10 / 0.06),
+      0 1px 2px 0 rgb(10 10 10 / 0.06),
+      0 24px 48px -24px rgb(10 10 10 / 0.24);
+    color: var(--color-fg);
+    font-size: calc(100cqi / 36);
+    line-height: 1.25;
+    letter-spacing: -0.006em;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .demo-frame svg {
+    width: 1em;
+    height: 1em;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+  }
+
+  .demo-head {
+    display: flex;
+    height: 3.5em;
+    align-items: center;
+    justify-content: space-between;
+    padding-inline: 1.25em;
+  }
+
+  .demo-title {
+    font-size: 1.25em;
+    font-weight: 500;
+  }
+
+  .demo-count {
+    color: var(--color-fg-muted);
+    font-size: 0.875em;
+  }
+
+  .demo-count > span,
+  .demo-summary > span {
+    display: none;
+  }
+
+  .demo-frame:not(.is-merged) .demo-count-files,
+  .is-merged:not(.is-marked) .demo-count-pages,
+  .is-marked .demo-count-marked,
+  .is-merged:not(.is-selected) .demo-summary-all,
+  .is-selected .demo-summary-selected {
+    display: inline;
+  }
+
+  .demo-body {
+    position: relative;
+    height: 18.25em;
+    padding: 0.5em 1.25em 0;
+    transition: opacity 320ms var(--ease-tactile);
+  }
+
+  .is-resetting .demo-body,
+  .is-resetting .demo-cursor {
+    opacity: 0;
+  }
+
+  /* Before the merge: the two files about to open. */
+  .demo-file {
+    position: absolute;
+    top: 6.5em;
+    display: flex;
+    width: 13em;
+    align-items: center;
+    gap: 0.75em;
+    padding: 1em;
+    border-radius: 0.625em;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-button);
+    color: var(--color-fg-muted);
+    transition-property: opacity, translate, scale;
+    transition-duration: 500ms;
+    transition-timing-function: var(--ease-tactile);
+  }
+
+  .demo-file svg {
+    width: 1.5em;
+    height: 1.5em;
+    stroke-width: 1.5;
+  }
+
+  .demo-file span {
+    display: grid;
+    font-size: 0.875em;
+  }
+
+  .demo-file b {
+    color: var(--color-fg);
+    font-weight: 500;
+  }
+
+  .demo-file-a {
+    left: 3.5em;
+  }
+
+  .demo-file-b {
+    right: 3.5em;
+  }
+
+  .is-merged .demo-file {
+    opacity: 0;
+    scale: 0.9;
+  }
+
+  .is-merged .demo-file-a {
+    translate: 4em 0;
+  }
+
+  .is-merged .demo-file-b {
+    translate: -4em 0;
+  }
+
+  .demo-grid {
+    position: relative;
+    height: 16.5em;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* A page tile, drawn like the editor's: a Cards card with the page, its
+     number badge, and duplicate, delete, and rotate actions. */
+  .demo-tile {
+    --slot: 0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    width: 10.5em;
+    flex-direction: column;
+    padding: 0.5em 0.5em 0.25em;
+    border-radius: 0.625em;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+    translate: calc(var(--slot) * 11.5em) 0;
+    transition-property: translate, scale, opacity, box-shadow;
+    transition-duration: 700ms, 250ms, 450ms, 200ms;
+    transition-timing-function: cubic-bezier(0.65, 0, 0.35, 1), var(--ease-tactile),
+      var(--ease-tactile), var(--ease-tactile);
+  }
+
+  .demo-frame:not(.is-merged) .demo-tile {
+    opacity: 0;
+    scale: 0.94;
+  }
+
+  .is-merged [data-page="invoice-2"] {
+    transition-delay: 0ms, 0ms, 90ms, 0ms;
+  }
+
+  .is-merged [data-page="form"] {
+    transition-delay: 0ms, 0ms, 180ms, 0ms;
+  }
+
+  [data-page="invoice-2"] {
+    --slot: 1;
+  }
+
+  [data-page="form"] {
+    --slot: 2;
+    z-index: 1;
+  }
+
+  .is-moved [data-page="invoice-1"] {
+    --slot: 1;
+  }
+
+  .is-moved [data-page="invoice-2"] {
+    --slot: 2;
+  }
+
+  .is-moved [data-page="form"] {
+    --slot: 0;
+  }
+
+  .is-lifted [data-page="form"] {
+    box-shadow: var(--shadow-lg);
+    scale: 1.04;
+  }
+
+  .is-playing[data-cursor="form"] [data-page="form"],
+  .is-playing[data-cursor="front-page"]:not(.is-selected) [data-page="form"] {
+    box-shadow:
+      0 0 0 1px var(--color-line-strong),
+      var(--shadow-sm);
+  }
+
+  /* Selected: the accent ring and a solid page-number badge. */
+  .is-selected [data-page="form"] {
+    box-shadow:
+      0 0 0 2px var(--color-accent),
+      var(--shadow-sm);
+  }
+
+  .demo-preview {
+    position: relative;
+  }
+
+  .demo-canvas {
+    position: relative;
+    height: 12.6667em;
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--color-subtle);
+    box-shadow: inset 0 0 0 1px var(--color-line);
+    transition: opacity 200ms var(--ease-tactile);
+  }
+
+  /* Marked for deletion: a dimmed page under Cards' soft danger badge. */
+  .is-marked [data-page="invoice-2"] .demo-canvas {
+    opacity: 0.45;
+  }
+
+  .demo-marked {
+    position: absolute;
+    top: 0.375em;
+    right: 0.375em;
+    display: inline-flex;
+    height: 1.25em;
+    align-items: center;
+    padding-inline: 0.5em;
+    border-radius: 999px;
+    background: var(--color-danger-subtle);
+    box-shadow: var(--shadow-badge);
+    color: var(--color-danger-fg);
+    font-size: 0.75em;
+    line-height: 1;
+    opacity: 0;
+    scale: 0.9;
+    transition-property: opacity, scale;
+    transition-duration: 200ms;
+    transition-timing-function: var(--ease-tactile);
+  }
+
+  .is-marked .demo-marked {
+    opacity: 1;
+    scale: 1;
+  }
+
+  .demo-controls {
+    display: flex;
+    height: 2.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.25em;
+  }
+
+  .demo-label {
+    display: inline-flex;
+    min-width: 1.25em;
+    height: 1.25em;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.375em;
+    border-radius: 999px;
+    color: var(--color-fg-muted);
+    font-size: 0.75em;
+    font-variant-numeric: tabular-nums;
+    transition-property: background-color, color;
+    transition-duration: 200ms;
+  }
+
+  .demo-label .n-after,
+  .is-moved .demo-label .n-before {
+    display: none;
+  }
+
+  .is-moved .demo-label .n-after {
+    display: inline;
+  }
+
+  .is-selected [data-page="form"] .demo-label {
+    background: var(--color-accent);
+    color: var(--color-white);
+  }
+
+  .demo-actions {
+    display: flex;
+  }
+
+  .demo-action {
+    display: grid;
+    width: 2.75em;
+    height: 2.75em;
+    place-items: center;
+    color: var(--color-fg-muted);
+  }
+
+  .demo-action::before {
+    grid-area: 1 / 1;
+    width: 2em;
+    height: 2em;
+    border-radius: 0.375em;
+    content: "";
+    transition-property: background-color, box-shadow;
+    transition-duration: 150ms;
+  }
+
+  .demo-action svg {
+    grid-area: 1 / 1;
+  }
+
+  .is-playing[data-cursor="rotate"] [data-page="form"] .demo-action-rotate,
+  .is-playing[data-cursor="delete"] [data-page="invoice-2"] .demo-action-delete {
+    color: var(--color-fg);
+  }
+
+  .is-playing[data-cursor="rotate"] [data-page="form"] .demo-action-rotate::before {
+    background: var(--color-hover);
+  }
+
+  .is-playing[data-cursor="delete"]:not(.is-marked) [data-page="invoice-2"] .demo-action-delete::before {
+    background: var(--color-hover);
+  }
+
+  .demo-action-delete .icon-restore,
+  .is-marked .demo-action-delete .icon-delete {
+    display: none;
+  }
+
+  .is-marked .demo-action-delete .icon-restore {
+    display: block;
+  }
+
+  .is-marked .demo-action-delete {
+    color: var(--color-danger-fg);
+  }
+
+  .is-marked .demo-action-delete::before {
+    background: var(--color-danger-subtle);
+    box-shadow: inset 0 0 0 1px var(--color-danger-line);
+  }
+
+  /* The pages, drawn at thumbnail scale. */
+  .demo-sheet {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55em;
+    padding: 0.85em 0.8em;
+    background: var(--color-white);
+    font-family: Helvetica, Arial, sans-serif;
+  }
+
+  .demo-sheet i {
+    display: block;
+    width: var(--w);
+    height: 0.16em;
+    flex: none;
+    border-radius: 999px;
+    background: var(--color-line-strong);
+  }
+
+  .demo-sheet i.ink {
+    background: var(--color-fg-subtle);
+  }
+
+  .demo-sheet .sheet-heading {
+    height: 0.24em;
+    margin-top: 0.15em;
+    background: var(--color-fg-muted);
+  }
+
+  .sheet-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4em;
+  }
+
+  .sheet-stack {
+    display: grid;
+    gap: 0.28em;
+  }
+
+  .sheet-end {
+    justify-items: end;
+  }
+
+  .sheet-title {
+    font-size: 0.62em;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .sheet-kicker {
+    color: var(--color-fg-subtle);
+    font-size: 0.36em;
+  }
+
+  .sheet-table {
+    display: grid;
+    gap: 0.36em;
+  }
+
+  .sheet-table .sheet-row + .sheet-row {
+    padding-top: 0.36em;
+    border-top: 1px solid var(--color-line);
+  }
+
+  .sheet-th {
+    padding-bottom: 0.1em;
+  }
+
+  .sheet-total {
+    justify-content: flex-end;
+    gap: 0.6em;
+    margin-top: auto;
+    font-size: 0.36em;
+    font-weight: 700;
+  }
+
+  .sheet-total i {
+    width: 3.6em;
+    height: 0.6em;
+  }
+
+  .sheet-foot {
+    margin-top: auto;
+  }
+
+  .sheet-form {
+    gap: 0.6em;
+  }
+
+  .sheet-field {
+    display: grid;
+    gap: 0.22em;
+  }
+
+  .sheet-box {
+    display: flex;
+    height: 0.9em;
+    align-items: center;
+    padding-inline: 0.3em;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 1px;
+  }
+
+  .sheet-check {
+    display: flex;
+    align-items: center;
+    gap: 0.35em;
+  }
+
+  .sheet-tick {
+    position: relative;
+    width: 0.62em;
+    height: 0.62em;
+    flex: none;
+    border: 1px solid var(--color-fg-subtle);
+    border-radius: 1px;
+  }
+
+  .sheet-tick::after {
+    position: absolute;
+    top: 0.04em;
+    left: 0.17em;
+    width: 0.18em;
+    height: 0.34em;
+    border: solid var(--color-fg);
+    border-width: 0 0.08em 0.08em 0;
+    content: "";
+    rotate: 45deg;
+  }
+
+  .sheet-sign {
+    display: grid;
+    gap: 0.25em;
+    margin-top: auto;
+  }
+
+  .demo-frame .sheet-sign svg {
+    width: 4.2em;
+    height: 1.1em;
+    padding-bottom: 0.1em;
+    border-bottom: 1px solid var(--color-fg-subtle);
+    stroke: #1e3a8a;
+    stroke-width: 1.4;
+  }
+
+  /* The scanned form arrives on its side; rotating it turns it upright,
+     and the page grows to fill the tile as the editor's preview does. */
+  .demo-stage {
+    position: absolute;
+    inset: 0;
+    rotate: -90deg;
+    scale: 0.75;
+    transition-property: rotate, scale;
+    transition-duration: 550ms;
+    transition-timing-function: var(--ease-tactile);
+  }
+
+  .is-rotated .demo-stage {
+    rotate: 0deg;
+    scale: 1;
+  }
+
+  .demo-bar {
+    display: flex;
+    height: 4em;
+    align-items: center;
+    gap: 0.75em;
+    padding-inline: 1.25em;
+    border-top: 1px solid var(--color-line);
+    background: var(--color-surface);
+  }
+
+  .demo-summary {
+    min-width: 0;
+    flex: 1;
+    font-size: 0.875em;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .demo-edit,
+  .demo-download {
+    display: inline-flex;
+    height: 2.25em;
+    align-items: center;
+    border-radius: 0.5em;
+    white-space: nowrap;
+    transition: opacity 300ms var(--ease-tactile);
+  }
+
+  .demo-frame:not(.is-merged) .demo-edit,
+  .demo-frame:not(.is-merged) .demo-download {
+    opacity: 0.4;
+  }
+
+  .demo-edit {
+    gap: 0.4em;
+    padding-inline: 0.75em;
+    background: var(--color-control);
+    box-shadow: var(--shadow-button);
+    font-size: 0.875em;
+    font-weight: 500;
+  }
+
+  .demo-edit svg {
+    width: 1.15em;
+    height: 1.15em;
+  }
+
+  .demo-edit .demo-chevron {
+    color: var(--color-fg-muted);
+  }
+
+  .demo-download {
+    background: var(--color-primary);
+    box-shadow: var(--shadow-primary);
+    color: var(--color-primary-foreground);
+    transition-property: opacity, background-color, scale;
+    transition-duration: 150ms;
+  }
+
+  .demo-download-action {
+    display: inline-flex;
+    min-width: 10.3em;
+    justify-content: center;
+    font-size: 0.875em;
+    font-weight: 500;
+  }
+
+  .demo-download-more {
+    display: grid;
+    width: 2.25em;
+    height: 100%;
+    place-items: center;
+    box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.24);
+  }
+
+  .is-playing[data-cursor="download"] .demo-download {
+    background: var(--color-primary-hover);
+  }
+
+  .is-playing[data-cursor="download"].is-clicking .demo-download {
+    scale: 0.97;
+  }
+
+  /* The pointer is only part of the loop, never the still frame. */
+  .demo-cursor {
+    --x: 31em;
+    --y: 20em;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 3;
+    opacity: 0;
+    translate: var(--x) var(--y);
+    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.25));
+    transition-property: translate, opacity, scale;
+    transition-duration: 700ms, 250ms, 120ms;
+    transition-timing-function: cubic-bezier(0.65, 0, 0.35, 1), ease, ease;
+  }
+
+  .demo-frame .demo-cursor {
+    width: 1.5em;
+    height: 1.5em;
+    fill: var(--color-fg);
+    stroke: var(--color-white);
+    stroke-width: 1.5;
+    transform-origin: 0.3em 0.2em;
+  }
+
+  .is-playing[data-cursor] .demo-cursor {
+    opacity: 1;
+  }
+
+  .is-playing[data-cursor=""] .demo-cursor {
+    opacity: 0;
+  }
+
+  .is-clicking .demo-cursor {
+    scale: 0.85;
+  }
+
+  /* Cursor targets, from the tile and bar geometry above (the tip sits at
+     0.3em, 0.2em of the icon). */
+  [data-cursor="form"] .demo-cursor {
+    --x: 29.2em;
+    --y: 10.4em;
+  }
+
+  [data-cursor="front"] .demo-cursor {
+    --x: 6.2em;
+    --y: 10.4em;
+  }
+
+  [data-cursor="rotate"] .demo-cursor {
+    --x: 9.6em;
+    --y: 18.6em;
+  }
+
+  [data-cursor="front-page"] .demo-cursor {
+    --x: 6.4em;
+    --y: 8.6em;
+  }
+
+  [data-cursor="delete"] .demo-cursor {
+    --x: 29.85em;
+    --y: 18.6em;
+  }
+
+  [data-cursor="download"] .demo-cursor {
+    --x: 29.9em;
+    --y: 24em;
+  }
+
+  .is-instant,
+  .is-instant * {
+    transition: none !important;
+  }
+
+  .hero-demo-caption {
+    max-width: 30rem;
+    margin-top: 1rem;
+    color: var(--color-fg-muted);
+    text-wrap: pretty;
+    font-size: var(--text-body-sm);
+    line-height: var(--text-body-sm--line-height);
+    letter-spacing: var(--text-body-sm--letter-spacing);
+  }
+</style>

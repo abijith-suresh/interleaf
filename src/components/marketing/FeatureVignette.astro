@@ -1,0 +1,102 @@
+---
+/* A cropped page from Document view, drawn the way the editor shows it:
+   saved text with its dashed outline, or filled form fields with the
+   selected one outlined. Decorative; the row's copy says the same. */
+interface Props {
+  kind: "text" | "field";
+}
+
+const { kind } = Astro.props;
+---
+
+<div class="vignette" aria-hidden="true">
+  {
+    kind === "text" ? (
+      <div class="vignette-page">
+        <i style="--w: 82%" />
+        <i style="--w: 64%" />
+        <span class="vignette-text">Approved for payment</span>
+        <i style="--w: 74%" />
+      </div>
+    ) : (
+      <div class="vignette-page vignette-fields">
+        <span class="vignette-label">Department</span>
+        <span class="vignette-field is-selected">Facilities</span>
+        <span class="vignette-label">Reference</span>
+        <span class="vignette-field" />
+      </div>
+    )
+  }
+</div>
+
+<style>
+  .vignette {
+    max-width: 18rem;
+    margin-top: 1rem;
+    padding: 0.5rem;
+    border-radius: var(--radius-xl);
+    background: var(--color-subtle);
+    box-shadow: inset 0 0 0 1px var(--color-line);
+  }
+
+  .vignette-page {
+    display: grid;
+    justify-items: start;
+    gap: 0.625rem;
+    padding: 1rem 0.875rem;
+    border-radius: var(--radius-xs);
+    background: var(--color-white);
+    box-shadow: var(--shadow-xs);
+    color: #000;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+
+  .vignette-page i {
+    display: block;
+    width: var(--w);
+    height: 0.25rem;
+    border-radius: 999px;
+    background: var(--color-line-strong);
+  }
+
+  /* Saved text: the editor's dashed outline around a Helvetica line. */
+  .vignette-text {
+    margin-block: 0.25rem;
+    font-size: 0.875rem;
+    line-height: 1;
+    white-space: nowrap;
+    outline: 1px dashed var(--color-line-focus);
+    outline-offset: 3px;
+  }
+
+  .vignette-fields {
+    gap: 0.25rem;
+  }
+
+  .vignette-label {
+    color: var(--color-fg-muted);
+    font-size: 0.6875rem;
+    line-height: 1rem;
+  }
+
+  .vignette-label:not(:first-child) {
+    margin-top: 0.375rem;
+  }
+
+  /* A supported text field: dashed, and outlined while selected. */
+  .vignette-field {
+    display: flex;
+    width: 100%;
+    height: 1.75rem;
+    align-items: center;
+    padding-inline: 0.375rem;
+    border: 1px dashed var(--color-line-focus);
+    border-radius: 2px;
+    font-size: 0.875rem;
+  }
+
+  .vignette-field.is-selected {
+    outline: 2px solid var(--color-line-focus);
+    outline-offset: 2px;
+  }
+</style>

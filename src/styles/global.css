@@ -231,6 +231,24 @@ body {
   min-width: 0;
 }
 
+/* Home leads with the editor at work, so the picture gets the wider column
+   and stacks under the copy until there is room for both. */
+.marketing-hero-home .marketing-hero-grid {
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 3.5rem;
+}
+
+@media (max-width: 63.99rem) {
+  .marketing-hero-home .marketing-hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3rem;
+  }
+
+  .marketing-hero-home .marketing-hero-secondary {
+    max-width: 36rem;
+  }
+}
+
 .marketing-hero-title {
   max-width: 40rem;
   margin: 0;
