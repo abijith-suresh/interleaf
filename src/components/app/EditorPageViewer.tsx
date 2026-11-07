@@ -13,7 +13,10 @@ import { hasPageAdditions } from "../../controllers/editor-additions-state";
 import { copyOrganizationPages } from "../../controllers/editor-history";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { AddedCheckmark, AddedText, PageState } from "../../types/interfaces";
-import EditorAdditionsEditor, { type AdditionsGesture } from "./EditorAdditionsEditor";
+import EditorAdditionsEditor, {
+  type AdditionsGesture,
+  type DraftCommit,
+} from "./EditorAdditionsEditor";
 import EditorPageCanvas from "./EditorPageCanvas";
 import EditorButton from "./ui/EditorButton";
 
@@ -37,6 +40,7 @@ interface Props {
   onTextChange?: (pageId: string, texts: readonly AddedText[], label: string) => void;
   onActivePageChange: (pageId: string) => void;
   onDraftChange?: (open: boolean) => void;
+  registerDraftCommit?: (commit: DraftCommit | null) => void;
 }
 
 export default function EditorPageViewer(props: Props) {
@@ -50,6 +54,7 @@ export default function EditorPageViewer(props: Props) {
   const [editingTextId, setEditingTextId] = createSignal<string | null>(null);
   let textGesture: AdditionsGesture | null = null;
   let pageTap: ((event: PointerEvent) => void) | null = null;
+  let draftCommit: DraftCommit | null = null;
   let tapStart: { x: number; y: number; pointer: number } | null = null;
   let previousPageKey = "";
   let textHeader!: HTMLDivElement;
@@ -425,16 +430,26 @@ export default function EditorPageViewer(props: Props) {
     requestResizeRender();
   }
 
+  /** Leaves the current page only once its open draft is saved. */
+  function afterDraft(action: () => void): void {
+    const settled = draftCommit?.() ?? true;
+    if (settled === true) action();
+    else if (settled) void settled.then((saved) => saved && !disposed && action());
+  }
+
   function selectPage(pageId: string): void {
-    if (navigationPages().some((page) => page.id === pageId)) {
-      props.onActivePageChange(pageId);
-    }
+    afterDraft(() => {
+      if (navigationPages().some((page) => page.id === pageId)) {
+        props.onActivePageChange(pageId);
+      }
+    });
   }
 
   function moveBy(offset: number): void {
-    const nextIndex = currentNavigationIndex() + offset;
-    const nextPage = navigationPages()[nextIndex];
-    if (nextPage) selectPage(nextPage.id);
+    afterDraft(() => {
+      const nextPage = navigationPages()[currentNavigationIndex() + offset];
+      if (nextPage) props.onActivePageChange(nextPage.id);
+    });
   }
 
   function retryRender(): void {
@@ -676,6 +691,10 @@ export default function EditorPageViewer(props: Props) {
                     onCheckmarksChange={props.onCheckmarksChange}
                     onEditing={setEditingTextId}
                     onDraftChange={props.onDraftChange}
+                    registerCommit={(commit) => {
+                      draftCommit = commit;
+                      props.registerDraftCommit?.(commit);
+                    }}
                     registerGesture={(handler) => {
                       textGesture = handler;
                     }}

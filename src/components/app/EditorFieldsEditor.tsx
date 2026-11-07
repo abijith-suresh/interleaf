@@ -5,6 +5,7 @@ import { answerField, orderFieldWidgets } from "../../controllers/editor-field-s
 import { pdfToViewport } from "../../controllers/text-geometry";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { PageGeometry, PageState, PDFFields, TextFieldWidget } from "../../types/interfaces";
+import type { DraftCommit } from "./EditorAdditionsEditor";
 import EditorButton from "./ui/EditorButton";
 
 interface Props {
@@ -19,6 +20,7 @@ interface Props {
   onOpen: () => void;
   onClose: () => void;
   onDraftChange?: (open: boolean) => void;
+  registerCommit?: (commit: DraftCommit | null) => void;
   focusInput: (input: HTMLElement, reveal?: HTMLElement) => void;
   onChange: (pageId: string, fieldRef: string, value: string, originalValue: string) => void;
 }
@@ -43,6 +45,7 @@ export default function EditorFieldsEditor(props: Props) {
   let generation = 0;
   let focusRevision = 0;
   let savingFiber: Fiber.Fiber<unknown, unknown> | undefined;
+  let pendingSave: Promise<boolean> | undefined;
   const trackFocus = () => focusRevision++;
   document.addEventListener("focusin", trackFocus);
   document.addEventListener("pointerdown", trackFocus, true);
@@ -111,10 +114,46 @@ export default function EditorFieldsEditor(props: Props) {
     const next = navigable()[position() + offset];
     if (next) choose(next);
   }
-  /** Saves the answer, then opens the field `offset` steps away, or closes when there is none. */
-  async function save(offset = 0) {
+  function commitAnswer(): boolean | Promise<boolean> {
+    if (pendingSave) return pendingSave;
     const widget = selected();
-    if (!widget || saving() || props.disabled) return;
+    if (!widget) return true;
+    if (answer() === currentValue(widget)) {
+      finish();
+      return true;
+    }
+    return save(true);
+  }
+  /** Keeps the user on an answer they tried to leave, with its reason in view. */
+  function showFailure(message: string) {
+    setError(message);
+    props.onOpen();
+    focusLater(() => input);
+  }
+  /**
+   * Saves the answer, then opens the field `offset` steps away, or closes when there is none.
+   * A `leaving` save keeps the user on the answer when it fails.
+   */
+  function save(leaving = false, offset = 0): Promise<boolean> {
+    if (pendingSave) return pendingSave;
+    const widget = selected();
+    if (!widget || props.disabled) {
+      if (leaving && widget)
+        showFailure("An operation is in progress. Save your answer when it finishes.");
+      return Promise.resolve(false);
+    }
+    const request = persist(widget, leaving, offset);
+    pendingSave = request;
+    void request.finally(() => {
+      if (pendingSave === request) pendingSave = undefined;
+    });
+    return request;
+  }
+  async function persist(
+    widget: TextFieldWidget,
+    leaving: boolean,
+    offset: number
+  ): Promise<boolean> {
     const version = generation;
     const pageId = props.page.id;
     const value = answer();
@@ -132,11 +171,13 @@ export default function EditorFieldsEditor(props: Props) {
     savingFiber = fiber;
     try {
       await Effect.runPromise(Fiber.join(fiber));
-      if (disposed || generation !== version) return;
+      if (disposed || generation !== version) return false;
       if (props.disabled) {
         setSaving(false);
-        setError("An operation is in progress. Save your answer when it finishes.");
-        return;
+        const message = "An operation is in progress. Save your answer when it finishes.";
+        if (leaving) showFailure(message);
+        else setError(message);
+        return false;
       }
       // A later unrelated focus change may not be stolen by Save completion.
       const restore =
@@ -163,22 +204,29 @@ export default function EditorFieldsEditor(props: Props) {
       setSaving(false);
       if (next && restore) {
         choose(next);
-        return;
+        return true;
       }
       generation++;
       setSelected(undefined);
       props.onClose();
       if (restore) focusLater(() => hit(widget) ?? props.stage);
+      return true;
     } catch (cause) {
-      if (disposed || generation !== version) return;
+      if (disposed || generation !== version) return false;
       setSaving(false);
-      setError(cause instanceof Error ? cause.message : "Could not save the answer.");
+      const message = cause instanceof Error ? cause.message : "Could not save the answer.";
+      if (leaving) {
+        showFailure(message);
+        return false;
+      }
+      setError(message);
       if (
         revision === focusRevision &&
         owned &&
         (ownedFocus() || document.activeElement === document.body)
       )
         focusLater(() => input);
+      return false;
     } finally {
       if (savingFiber === fiber) savingFiber = undefined;
     }
@@ -210,6 +258,7 @@ export default function EditorFieldsEditor(props: Props) {
     });
   });
   createEffect(() => props.onDraftChange?.(Boolean(selected())));
+  props.registerCommit?.(commitAnswer);
   let draftOwner: { pageId: string; file: File; group?: string } | undefined;
   createEffect(() => {
     const pageId = props.page.id,
@@ -244,6 +293,7 @@ export default function EditorFieldsEditor(props: Props) {
     disposed = true;
     generation++;
     props.onDraftChange?.(false);
+    props.registerCommit?.(null);
     if (savingFiber) void Effect.runPromise(Fiber.interrupt(savingFiber)).catch(() => undefined);
     document.removeEventListener("focusin", trackFocus);
     document.removeEventListener("pointerdown", trackFocus, true);
@@ -312,7 +362,7 @@ export default function EditorFieldsEditor(props: Props) {
                         if (event.ctrlKey || event.metaKey || event.altKey) return;
                         // Enter saves and moves on. Shift+Enter saves and goes back.
                         event.preventDefault();
-                        void save(event.shiftKey ? -1 : 1);
+                        void save(false, event.shiftKey ? -1 : 1);
                       }}
                       onInput={(event) => {
                         setAnswer(event.currentTarget.value);

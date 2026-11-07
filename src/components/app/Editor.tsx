@@ -33,8 +33,10 @@ import type { PageState } from "../../types/interfaces";
 import { PDFProcessingError } from "../../types/interfaces";
 import { downloadFile, downloadPDF } from "../../utils/download";
 import { getSupportedFileKind } from "../../utils/file-types";
+import { guardLeave } from "../../utils/leave-guard";
 import { promptForPassword } from "../../utils/password-prompt";
 import { showToast as dispatchToast, TOAST_EVENT_NAME, type ToastDetail } from "../../utils/toast";
+import type { DraftCommit } from "./EditorAdditionsEditor";
 import EditorFilesDialog from "./EditorFilesDialog";
 import EditorHistoryControls from "./EditorHistoryControls";
 import EditorPageGrid from "./EditorPageGrid";
@@ -98,6 +100,7 @@ export default function Editor() {
   let disposed = false;
   let filesFocusGeneration = 0;
   let restoreFilesAfterRemoval: (() => void) | undefined;
+  let draftCommit: DraftCommit | null = null;
 
   function invalidateFilesFocus(): void {
     filesFocusGeneration++;
@@ -144,6 +147,15 @@ export default function Editor() {
   // history change to its page, so history waits until it is saved or canceled.
   const historyUnavailable = () =>
     isBusy() || dragSourceIndex() !== null || filesOpen() || filePickerOpen() || draftOpen();
+
+  // Leaving an open Document draft saves it, so nothing exported or shown
+  // elsewhere differs from the page on screen. A draft that cannot be saved
+  // stays open with its reason, and the action waits.
+  function afterDraft(action: () => unknown): void {
+    const settled = draftCommit?.() ?? true;
+    if (settled === true) void action();
+    else if (settled) void settled.then((saved) => saved && !disposed && action());
+  }
 
   function organizationSnapshot() {
     return snapshotOrganization(pages, selectedIndices(), activePageId());
@@ -470,6 +482,8 @@ export default function Editor() {
     document.addEventListener("keydown", handleHistoryKeyDown);
     document.addEventListener("focusin", rememberFocus);
     window.addEventListener("resize", retainVisibleFocus);
+    // The workspace lives only in this page, so leaving it loses every page.
+    onCleanup(guardLeave(() => !disposed && pages.length > 0));
     onCleanup(() => {
       document.removeEventListener("keydown", handleHistoryKeyDown);
       document.removeEventListener("focusin", rememberFocus);
@@ -1402,7 +1416,7 @@ export default function Editor() {
                   data-view="pages"
                   aria-pressed={workspaceView() === "pages"}
                   aria-controls="editor-workspace-content"
-                  onClick={() => changeWorkspaceView("pages")}
+                  onClick={() => afterDraft(() => changeWorkspaceView("pages"))}
                   icon="pages"
                 >
                   Pages
@@ -1442,7 +1456,7 @@ export default function Editor() {
                   aria-controls="editor-files-dialog"
                   aria-expanded={filesOpen()}
                   title={filesButtonLabel()}
-                  onClick={() => setFilesOpen(true)}
+                  onClick={() => afterDraft(() => setFilesOpen(true))}
                   disabled={isBusy() || pages.length === 0}
                   icon="files"
                 >
@@ -1494,6 +1508,9 @@ export default function Editor() {
                     runtime={pdfRuntime}
                     onActivePageChange={(pageId) => setActivePageId(pageId)}
                     onDraftChange={setDraftOpen}
+                    registerDraftCommit={(commit) => {
+                      draftCommit = commit;
+                    }}
                     onCheckmarksChange={(pageId, marks, label) =>
                       organize(label, () => {
                         const index = pages.findIndex((page) => page.id === pageId);
@@ -1584,11 +1601,11 @@ export default function Editor() {
                   deletionAriaLabel={deletionCopy().ariaLabel}
                   onSelectAll={handleSelectAll}
                   onClearSelection={clearSelection}
-                  onRotate={handleRotateSelected}
+                  onRotate={() => afterDraft(handleRotateSelected)}
                   onDelete={handleDeleteSelected}
-                  onDownload={handleDownload}
-                  onExportImages={handleExportImages}
-                  onCompress={handleCompress}
+                  onDownload={() => afterDraft(handleDownload)}
+                  onExportImages={() => afterDraft(handleExportImages)}
+                  onCompress={() => afterDraft(handleCompress)}
                   compressionAvailable={getUnmodifiedSourceFile() !== null}
                   compressionDisabledReason={compressionDisabledReason()}
                 />
