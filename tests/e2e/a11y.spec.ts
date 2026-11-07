@@ -114,15 +114,16 @@ test("dismissing a toast from the keyboard moves focus back into the editor", as
     .toBe(false);
 });
 
-test("the page delete toggle keeps one name and exposes its state through aria-pressed", async ({
-  page,
-}) => {
+test("the page delete button names the action it takes", async ({ page }) => {
   await page.goto("/app");
   await page.getByTestId("editor-upload-input").setInputFiles(await source("one.pdf"));
-  const toggle = page.getByRole("button", { name: "Mark page 1 for deletion", exact: true });
+  const toggle = page.getByTestId("editor-page-delete-button");
 
-  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await expect(toggle).toHaveAccessibleName("Mark page 1 for deletion");
+  await expect(toggle).not.toHaveAttribute("aria-pressed");
   await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(toggle).toHaveAccessibleName("Restore page 1");
+  await expect(toggle).not.toHaveAttribute("aria-pressed");
+  await toggle.click();
   await expect(toggle).toHaveAccessibleName("Mark page 1 for deletion");
 });

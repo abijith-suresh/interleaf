@@ -27,6 +27,7 @@ import {
   type DeletionAction,
   duplicatePageState,
   getDeletionAction,
+  remapSelectionAfterInsert,
   remapSelectionAfterMove,
   toggleSelectAll,
   toggleSelection,
@@ -152,8 +153,9 @@ export default function Editor() {
 
   // An unsaved text, checkmark, or field answer would be discarded by any
   // history change to its page, so history waits until it is saved or canceled.
+  // The Files dialog lists the restored files, so history stays available there.
   const historyUnavailable = () =>
-    isBusy() || dragSourceIndex() !== null || filesOpen() || filePickerOpen() || draftOpen();
+    isBusy() || dragSourceIndex() !== null || filePickerOpen() || draftOpen();
 
   // Leaving an open Document draft saves it, so nothing exported or shown
   // elsewhere differs from the page on screen. A draft that cannot be saved
@@ -186,6 +188,8 @@ export default function Editor() {
     const focusedInWorkspace = focused instanceof HTMLElement && editorRoot.contains(focused);
     const focusedView = workspaceView();
     const focusedInViewer = focused instanceof HTMLElement && !!focused.closest("#editor-document");
+    const focusedInFiles =
+      focused instanceof HTMLElement && !!focused.closest("#editor-files-dialog");
     const focusedRow =
       focused instanceof HTMLElement
         ? focused.closest<HTMLElement>(".editor-page-grid > li[data-page-index]")
@@ -211,7 +215,13 @@ export default function Editor() {
             ? snapshot.activePageId
             : (reviewIds[0] ?? null)
         );
-        if (pages.length === 0) setWorkspaceView("pages");
+        if (pages.length === 0) {
+          setWorkspaceView("pages");
+          if (filesOpen()) {
+            invalidateFilesFocus();
+            setFilesOpen(false);
+          }
+        }
         setHistory(
           trimOrganizationHistory(
             direction === "undo"
@@ -221,7 +231,9 @@ export default function Editor() {
             entry
           )
         );
-        setStatusMessage(`${direction === "undo" ? "Undid" : "Redid"} ${entry.label}.`);
+        const message = `${direction === "undo" ? "Undid" : "Redid"} ${entry.label}.`;
+        setStatusMessage(message);
+        if (filesOpen()) setFilesNotice(message);
       });
     // Reordering can blur a moved tile; undoing a copy can remove it entirely.
     // Restore only focus that belonged to that page, never an unrelated control.
@@ -233,7 +245,13 @@ export default function Editor() {
           if (document.activeElement !== document.body && document.activeElement !== focused)
             return;
           if (pages.length === 0) {
-            if (focused.isConnected && !focused.matches(":disabled") && !focusedInViewer) return;
+            if (
+              focused.isConnected &&
+              !focused.matches(":disabled") &&
+              !focusedInViewer &&
+              !focusedInFiles
+            )
+              return;
             editorRoot
               .querySelector<HTMLButtonElement>(`[data-testid="editor-${direction}-button"]`)
               ?.focus();
@@ -246,7 +264,9 @@ export default function Editor() {
             }
             const fallback = focusedInViewer
               ? '.editor-review-filmstrip-item[aria-current="page"]'
-              : `[data-testid="editor-${direction}-button"]`;
+              : focusedInFiles && filesOpen()
+                ? '#editor-files-dialog [data-testid="editor-file-item"], [data-testid="editor-files-close-button"]'
+                : `[data-testid="editor-${direction}-button"]`;
             editorRoot.querySelector<HTMLButtonElement>(fallback)?.focus();
             return;
           }
@@ -335,15 +355,23 @@ export default function Editor() {
       (target !== document.body && !editorRoot.contains(target))
     )
       return;
+    // History reaches into the Files dialog, whose list follows the restored files.
+    const filesDialog = filesOpen()
+      ? editorRoot.querySelector<HTMLElement>("#editor-files-dialog")
+      : null;
+    const dialogTarget = target.closest('[role="dialog"], dialog');
     if (
       target.isContentEditable ||
       target.closest(
-        'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="menu"], [role="dialog"], dialog'
-      )
+        'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="menu"]'
+      ) ||
+      (dialogTarget && dialogTarget !== filesDialog)
     )
       return;
-    if (document.querySelector('dialog[open], [role="dialog"][aria-modal="true"], [role="menu"]'))
-      return;
+    const openOverlays = document.querySelectorAll(
+      'dialog[open], [role="dialog"][aria-modal="true"], [role="menu"]'
+    );
+    if (Array.from(openOverlays).some((overlay) => overlay !== filesDialog)) return;
     const key = event.key.toLowerCase();
     const direction =
       key === "z"
@@ -940,7 +968,7 @@ export default function Editor() {
     setFilesNotice(
       remainingPages.length === 0
         ? ""
-        : `Removed ${removedFileName} and ${formatPageCount(removedPageCount)}. Close this dialog and press Ctrl/Cmd+Z to undo.`
+        : `Removed ${removedFileName} and ${formatPageCount(removedPageCount)}. Press Ctrl/Cmd+Z to undo.`
     );
     try {
       await runPDF(
@@ -993,12 +1021,13 @@ export default function Editor() {
     const page = pages[index];
     if (!page) return;
     const copy = duplicatePageState(page);
+    // Download exports only selected pages, so the copy never changes the selection.
     organize("page duplication", () => {
       setPages(produce((draft) => draft.splice(index + 1, 0, copy)));
-      setSelectedIndices(new Set([index + 1]));
-      setActivePageId(copy.id);
+      setSelectedIndices((selection) => remapSelectionAfterInsert(selection, index + 1));
+      if (selectedIndices().size === 0) setActivePageId(copy.id);
     });
-    setStatusMessage(`Duplicated page ${index + 1}. Page ${index + 2} selected.`);
+    setStatusMessage(`Duplicated page ${index + 1} as page ${index + 2}.`);
     queueMicrotask(() =>
       editorRoot
         .querySelector<HTMLButtonElement>(
@@ -1010,6 +1039,10 @@ export default function Editor() {
 
   function handlePageRotate(index: number, e: MouseEvent): void {
     e.stopPropagation();
+    rotatePage(index);
+  }
+
+  function rotatePage(index: number): void {
     if (isBusy() || !pages[index]) return;
     organize("page rotation", () => setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360));
     setStatusMessage(`Rotated page ${index + 1}.`);
@@ -1017,6 +1050,10 @@ export default function Editor() {
 
   function handlePageDelete(index: number, e: MouseEvent): void {
     e.stopPropagation();
+    togglePageDeletion(index);
+  }
+
+  function togglePageDeletion(index: number): void {
     if (isBusy()) return;
 
     if (!pages[index]) return;
@@ -1201,7 +1238,18 @@ export default function Editor() {
   }
 
   function handlePageKeyDown(index: number, e: KeyboardEvent): void {
-    if (isBusy() || !e.altKey) return;
+    if (isBusy() || e.isComposing) return;
+    if (!e.altKey && !e.ctrlKey && !e.metaKey) {
+      if (e.key === "r" || e.key === "R") {
+        e.preventDefault();
+        rotatePage(index);
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        togglePageDeletion(index);
+      }
+      return;
+    }
+    if (!e.altKey) return;
 
     const to = e.key === "ArrowLeft" ? index - 1 : e.key === "ArrowRight" ? index + 1 : index;
     if (to === index || to < 0 || to >= pages.length) return;

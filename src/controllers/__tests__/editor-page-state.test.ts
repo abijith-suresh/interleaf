@@ -5,6 +5,8 @@ import {
   createPageStates,
   duplicatePageState,
   getDeletionAction,
+  gridNavigationTarget,
+  remapSelectionAfterInsert,
   remapSelectionAfterMove,
   toggleSelectAll,
   toggleSelection,
@@ -106,5 +108,31 @@ describe("editor page state controller", () => {
   it("remaps selections when an item moves backward", () => {
     const remapped = remapSelectionAfterMove(new Set([1, 2, 4]), 4, 1);
     expect(remapped).toEqual(new Set([2, 3, 1]));
+  });
+
+  it("keeps the same pages selected after a page is inserted", () => {
+    expect(remapSelectionAfterInsert(new Set([0, 2, 5]), 3)).toEqual(new Set([0, 2, 6]));
+    expect(remapSelectionAfterInsert(new Set([3]), 3)).toEqual(new Set([4]));
+    expect(remapSelectionAfterInsert(new Set(), 1)).toEqual(new Set());
+  });
+
+  it("moves grid focus by row and column and stops at the edges", () => {
+    // 7 pages in 3 columns: rows [0 1 2] [3 4 5] [6].
+    const move = (key: string, index: number) => gridNavigationTarget(key, index, 7, 3);
+    expect(move("ArrowRight", 2)).toBe(3);
+    expect(move("ArrowLeft", 3)).toBe(2);
+    expect(move("ArrowLeft", 0)).toBeNull();
+    expect(move("ArrowRight", 6)).toBeNull();
+    expect(move("ArrowDown", 1)).toBe(4);
+    expect(move("ArrowUp", 4)).toBe(1);
+    expect(move("ArrowUp", 2)).toBeNull();
+    expect(move("ArrowDown", 5)).toBe(6);
+    expect(move("ArrowDown", 6)).toBeNull();
+    expect(move("Home", 4)).toBe(0);
+    expect(move("End", 4)).toBe(6);
+    expect(move("Home", 0)).toBeNull();
+    expect(move("Enter", 0)).toBeNull();
+    expect(gridNavigationTarget("ArrowDown", 0, 3, 0)).toBe(1);
+    expect(gridNavigationTarget("ArrowDown", 0, 0, 3)).toBeNull();
   });
 });

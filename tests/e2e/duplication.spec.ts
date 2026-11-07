@@ -87,6 +87,12 @@ test("copies retain independent organization, real PDF/PNG content and source re
   await page.keyboard.press("Enter");
   await expect(tiles).toHaveCount(3);
   await expect(tiles.nth(1)).toBeFocused();
+  // The copy is not selected, so the next download still covers every page.
+  await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByTestId("editor-status-message")).toHaveText(
+    "Duplicated page 1 as page 2."
+  );
+  await page.keyboard.press("Space");
   await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "true");
   await expect(tiles.nth(0)).toHaveAttribute("data-marked-for-deletion", "true");
   await expect(tiles.nth(1)).toHaveAttribute("data-marked-for-deletion", "false");
@@ -133,8 +139,9 @@ test("copies retain independent organization, real PDF/PNG content and source re
   await page.getByRole("button", { name: "Rotate page 3 90 degrees", exact: true }).click();
   await page.getByRole("button", { name: "Mark page 3 for deletion", exact: true }).click();
   await expect(tiles.nth(1)).toHaveAttribute("data-marked-for-deletion", "false");
-  await page.getByRole("button", { name: "Mark page 3 for deletion", exact: true }).click();
+  await page.getByRole("button", { name: "Restore page 3", exact: true }).click();
   await tiles.nth(2).focus();
+  await page.keyboard.press("Space");
   await page.keyboard.press("Alt+ArrowRight");
   await expect(tiles.nth(3)).toHaveAttribute("aria-pressed", "true");
   await expect(tiles.nth(3)).toBeFocused();
@@ -183,6 +190,7 @@ test("repeated form source pages keep the existing separate copyPages export bas
   await page.getByTestId("editor-redo-button").click();
   await page.getByTestId("editor-page-tile").nth(0).click();
   await page.getByTestId("editor-page-tile").nth(1).click();
+  await page.getByTestId("editor-page-tile").nth(2).click();
   const reader = await context.newPage();
   await reader.goto(`${url}duplicate-test`);
   const exported = await inspect(

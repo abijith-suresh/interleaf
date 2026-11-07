@@ -298,10 +298,6 @@ test("point placement, validation, editing, movement, rotation and history retai
   await page.getByRole("button", { name: "Edit added text: Changed", exact: true }).click();
   await page.getByLabel("Added text", { exact: true }).fill("Copy");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
-  // Duplication selects the copy. Clear the scope to navigate to the original.
-  await page.getByTestId("editor-pages-view-button").click();
-  await page.getByRole("button", { name: "Page 2", exact: true }).click();
-  await page.getByTestId("editor-document-view-button").click();
   await page.getByRole("button", { name: "Previous page", exact: true }).click();
   await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 1");
   await page.getByRole("button", { name: "Select additions" }).click();
