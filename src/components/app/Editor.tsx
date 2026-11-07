@@ -1,4 +1,4 @@
-import { Effect, Exit, Fiber } from "effect";
+import { Effect, Fiber } from "effect";
 import { batch, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
 import {
@@ -15,7 +15,12 @@ import {
   snapshotOrganization,
   trimOrganizationHistory,
 } from "../../controllers/editor-history";
-import { planUploadGroups } from "../../controllers/editor-import";
+import {
+  describeImportOutcome,
+  describeSkippedFile,
+  planUploadGroups,
+  type SkippedFile,
+} from "../../controllers/editor-import";
 import {
   areAllPagesSelected,
   createPageStates,
@@ -27,11 +32,13 @@ import {
   toggleSelection,
 } from "../../controllers/editor-page-state";
 import { groupWorkspaceFiles, type WorkspaceFile } from "../../controllers/editor-workspace";
+import { isInvalidPDFError } from "../../services/pdf-errors";
 import { makePDFRuntime, PDFProcessing, type PDFProcessingShape } from "../../services/pdf-runtime";
 import { QpdfProcessingError } from "../../services/qpdf-processing";
 import type { PageState } from "../../types/interfaces";
 import { PDFProcessingError } from "../../types/interfaces";
 import { downloadFile, downloadPDF } from "../../utils/download";
+import { formatSavedPercent, formatSizeChange } from "../../utils/file-size";
 import { getSupportedFileKind } from "../../utils/file-types";
 import { guardLeave } from "../../utils/leave-guard";
 import { promptForPassword } from "../../utils/password-prompt";
@@ -378,6 +385,9 @@ export default function Editor() {
     if (pages.length === 0 || activePageCount() === 0) {
       return "Restore marked pages to compress the original PDF";
     }
+    if (new Set(pages.map((page) => page.sourceFile)).size > 1) {
+      return "Compress works on a single opened PDF";
+    }
     return "Compress only before page edits";
   }
 
@@ -532,20 +542,20 @@ export default function Editor() {
     return `${pageCount} page${pageCount === 1 ? "" : "s"}`;
   }
 
-  function formatFileSize(bytes: number) {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  function getSkippedFile(file: File, error: unknown): SkippedFile {
+    if (isInvalidPDFError(error)) return { kind: "invalid-pdf", name: file.name };
+    return {
+      kind: "load-error",
+      name: file.name,
+      message: error instanceof Error ? error.message : "",
+    };
   }
 
-  function getLoadErrorMessage(file: File, error: unknown) {
-    if (error instanceof Error && error.message) {
-      return `Failed to load ${file.name}: ${error.message}`;
-    }
-    return `Failed to load ${file.name}.`;
-  }
-
-  function loadPdfFile(service: PDFProcessingShape, file: File) {
+  /** Open one PDF, asking for its password when needed. Failures become skips. */
+  function openPdfFile(
+    service: PDFProcessingShape,
+    file: File
+  ): Effect.Effect<number | SkippedFile, never, never> {
     const unlock = (isRetry: boolean): Effect.Effect<boolean, unknown> =>
       Effect.gen(function* () {
         const password = yield* Effect.tryPromise({
@@ -565,13 +575,21 @@ export default function Editor() {
       Effect.catchTag("PDFPasswordRequiredError", (error) =>
         unlock(error.reason === "wrong-password")
       ),
-      Effect.catch((error) =>
-        Effect.sync(() => {
-          dispatchToast(getLoadErrorMessage(file, error), "error");
-          return false;
-        })
+      Effect.flatMap(
+        (loaded): Effect.Effect<number | SkippedFile, unknown> =>
+          loaded ? service.getPageCount : Effect.succeed({ kind: "locked", name: file.name })
       ),
-      Effect.flatMap((loaded) => (loaded ? service.getPageCount : Effect.succeed(null)))
+      Effect.catch((error) => Effect.succeed(getSkippedFile(file, error)))
+    );
+  }
+
+  function loadPdfFile(service: PDFProcessingShape, file: File) {
+    return openPdfFile(service, file).pipe(
+      Effect.map((result) => {
+        if (typeof result === "number") return result;
+        if (result.kind !== "locked") dispatchToast(describeSkippedFile(result), "error");
+        return null;
+      })
     );
   }
 
@@ -639,8 +657,10 @@ export default function Editor() {
     if (disposed || isBusy() || files.length === 0) return false;
     invalidateFilesFocus();
 
-    const unsupportedFiles = files.filter((file) => getSupportedFileKind(file) === null);
-    if (unsupportedFiles.length > 0) {
+    const skipped: SkippedFile[] = files
+      .filter((file) => getSupportedFileKind(file) === null)
+      .map((file) => ({ kind: "unsupported", name: file.name }));
+    if (skipped.length === files.length) {
       dispatchToast("Choose PDF, PNG, or JPEG files.", "error");
       return false;
     }
@@ -656,6 +676,7 @@ export default function Editor() {
       PDFProcessing.use((service) =>
         Effect.suspend(() => {
           const loadedFiles: LoadedWorkspaceFile[] = [];
+          let committed = false;
           let pdfCount = 0;
           let imageCount = 0;
 
@@ -663,7 +684,6 @@ export default function Editor() {
             for (const group of groups) {
               let pdfFile: File;
               if (group.kind === "images") {
-                imageCount += group.files.length;
                 setOperation("building");
                 setStatusMessage(`Creating PDF from images… 0/${group.files.length}`);
                 const generatedFile = yield* service
@@ -688,36 +708,65 @@ export default function Editor() {
                     ),
                     Effect.catch((error) =>
                       Effect.sync(() => {
-                        dispatchToast(
-                          error instanceof PDFProcessingError
-                            ? error.message
-                            : "Failed to create a PDF from the selected images.",
-                          "error"
-                        );
+                        skipped.push({
+                          kind: "image-error",
+                          count: group.files.length,
+                          message:
+                            error instanceof PDFProcessingError
+                              ? error.message
+                              : "Failed to create a PDF from the selected images.",
+                        });
                         return null;
                       })
                     )
                   );
-                if (!generatedFile || disposed) return false;
+                if (disposed) return false;
+                if (!generatedFile) continue;
                 pdfFile = generatedFile;
               } else {
-                pdfCount += group.files.length;
                 pdfFile = group.files[0];
               }
 
               setOperation(mode === "upload" && loadedFiles.length === 0 ? "uploading" : "adding");
               setStatusMessage(`Loading ${pdfFile.name}…`);
-              const pageCount = yield* loadPdfFile(service, pdfFile);
-              if (pageCount === null || disposed) return false;
-              loadedFiles.push({ file: pdfFile, pageCount });
+              const result = yield* openPdfFile(service, pdfFile);
+              if (disposed) return false;
+              if (typeof result !== "number") {
+                if (group.kind === "images") {
+                  // The generated PDF is internal; report the images it came from.
+                  skipped.push({
+                    kind: "image-error",
+                    count: group.files.length,
+                    message: "Failed to create a PDF from the selected images.",
+                  });
+                } else {
+                  skipped.push(result);
+                }
+                continue;
+              }
+              if (group.kind === "images") imageCount += group.files.length;
+              else pdfCount += group.files.length;
+              loadedFiles.push({ file: pdfFile, pageCount: result });
             }
 
+            const opened = pdfCount + imageCount;
+            const outcome = describeImportOutcome(mode, files.length, opened, skipped);
+            if (opened === 0) {
+              if (outcome) dispatchToast(outcome, "error");
+              return false;
+            }
             commitWorkspaceFiles(loadedFiles, phase() === "upload");
-            setStatusMessage(describeLoadedFiles(mode, pdfCount, imageCount));
+            committed = true;
+            if (outcome) {
+              dispatchToast(outcome, "error");
+              setStatusMessage(outcome);
+            } else {
+              setStatusMessage(describeLoadedFiles(mode, pdfCount, imageCount));
+            }
             return true;
           }).pipe(
-            Effect.onExit((exit) =>
-              Exit.isSuccess(exit) && exit.value
+            Effect.onExit(() =>
+              committed
                 ? Effect.void
                 : Effect.forEach(
                     loadedFiles.filter(({ file }) => !existingFiles.has(file)),
@@ -726,9 +775,9 @@ export default function Editor() {
                     { discard: true }
                   )
             ),
-            Effect.onExit((exit) =>
+            Effect.onExit(() =>
               Effect.sync(() => {
-                if (Exit.isSuccess(exit) && exit.value) {
+                if (committed) {
                   if (!disposed) setOperation("idle");
                 } else setReadyStatus();
               })
@@ -1107,16 +1156,11 @@ export default function Editor() {
       const result = await runPDF(PDFProcessing.use((service) => service.compressPDF(file)));
       if (disposed) return;
       downloadPDF(result);
-      if (result.reduced) {
-        dispatchToast(
-          `Compressed ${formatFileSize(result.inputBytes)} to ${formatFileSize(result.outputBytes)}.`,
-          "success"
-        );
-        setStatusMessage("Export started.");
-      } else {
-        dispatchToast("No smaller file was available. The original PDF was exported.", "info");
-        setStatusMessage("Export started.");
-      }
+      const outcome = result.reduced
+        ? `Saved ${formatSavedPercent(result.inputBytes, result.outputBytes)} (${formatSizeChange(result.inputBytes, result.outputBytes)}).`
+        : "Already optimal. Exported the original.";
+      dispatchToast(outcome, result.reduced ? "success" : "info");
+      setStatusMessage(`Export started. ${outcome}`);
     } catch (error) {
       if (disposed) return;
       dispatchToast(

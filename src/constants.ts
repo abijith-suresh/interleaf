@@ -16,9 +16,6 @@ export const TOAST_DISMISS_TIMEOUT_MS = 3000;
 /** Milliseconds before an error toast auto-dismisses (WCAG 2.2.1 needs more time to read) */
 export const TOAST_ERROR_DISMISS_TIMEOUT_MS = 8000;
 
-/** Default file name for the merged/reordered PDF output */
-export const OUTPUT_FILENAME = "interleaf-output.pdf";
-
 /** Default file name for PDFs created from image files */
 export const IMAGES_TO_PDF_FILENAME = "interleaf-images.pdf";
 

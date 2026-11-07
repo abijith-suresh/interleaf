@@ -648,16 +648,11 @@ describe("Editor", () => {
     fireEvent.click(screen.getByTestId("editor-download-button"));
     await waitFor(() => expectLastToast("Failed to export the PDF."));
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
-    const broken = makeFile("broken.pdf");
     pdfServiceMocks.loadPDF
-      .mockReturnValueOnce(Effect.void)
+      .mockReturnValueOnce(Effect.fail(new Error("invalid PDF")))
       .mockReturnValueOnce(Effect.fail(new Error("invalid PDF")));
-    selectFiles("add", [makeFile("staged.pdf"), broken]);
-    await waitFor(() =>
-      expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "staged.pdf" })
-      )
-    );
+    selectFiles("add", [makeFile("broken-one.pdf"), makeFile("broken-two.pdf")]);
+    await waitFor(() => expectLastToast("Could not open 2 files."));
     await waitFor(() =>
       expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
     );
@@ -1014,6 +1009,16 @@ describe("Editor", () => {
     expect(pdfCompressionMocks.compressPDF).not.toHaveBeenCalled();
   });
 
+  it("explains that compression needs a single PDF when several are open", async () => {
+    await openPDF(makeFile("one.pdf"));
+    selectFiles("add", [makeFile("two.pdf")]);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    await openDownloadMenu();
+    const compress = screen.getByTestId("editor-compress-button");
+    expect(compress).toHaveAttribute("aria-disabled", "true");
+    expect(compress).toHaveAccessibleName("Compress works on a single opened PDF");
+  });
+
   it("rejects unsupported files with an error toast", async () => {
     render(() => <Editor />);
 
@@ -1162,8 +1167,10 @@ describe("Editor", () => {
     ]);
   });
 
-  it("does not partially commit a batch when a later file fails", async () => {
+  it("opens the valid files in a batch and names the invalid one", async () => {
     const failedFile = makeFile("broken.pdf");
+    const invalid = new Error("Invalid PDF structure.");
+    invalid.name = "InvalidPDFException";
     pdfServiceMocks.loadPDF
       .mockReturnValueOnce(Effect.succeed(undefined))
       .mockReturnValueOnce(Effect.succeed(undefined))
@@ -1172,8 +1179,8 @@ describe("Editor", () => {
           new PDFProcessingError({
             operation: "load-pdf-js",
             file: failedFile,
-            cause: new Error("Invalid PDF"),
-            message: "Invalid PDF",
+            cause: invalid,
+            message: invalid.message,
           })
         )
       );
@@ -1181,17 +1188,52 @@ describe("Editor", () => {
 
     selectFiles("upload", [makeFile("good.pdf"), makeImageFile(), failedFile]);
 
-    expect(await screen.findByTestId("editor-toast")).toHaveTextContent(
-      "Failed to load broken.pdf"
+    expect(await findPages()).toHaveLength(6);
+    expectLastToast("Opened 2 of 3 files. broken.pdf isn't a valid PDF.");
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Opened 2 of 3 files. broken.pdf isn't a valid PDF."
+    );
+    expect(pdfServiceMocks.releaseFile).not.toHaveBeenCalled();
+  });
+
+  it("opens the unlocked and valid files when another file in the batch is broken", async () => {
+    const locked = makeFile("locked.pdf");
+    pdfServiceMocks.loadPDF
+      .mockReturnValueOnce(Effect.fail(new PDFPasswordRequiredError(locked, "needs-password")))
+      .mockReturnValueOnce(Effect.fail(new Error("bad xref")))
+      .mockReturnValueOnce(Effect.succeed(undefined));
+    promptForPassword.mockResolvedValue("623");
+    render(() => <Editor />);
+
+    selectFiles("upload", [locked, makeFile("broken.pdf"), makeFile("good.pdf")]);
+
+    expect(await findPages()).toHaveLength(6);
+    expect(pdfServiceMocks.loadPDFWithPassword).toHaveBeenCalledWith(locked, "623");
+    expectLastToast("Opened 2 of 3 files. Failed to load broken.pdf: bad xref.");
+  });
+
+  it("stays on the uploader with the error when every file in a batch fails", async () => {
+    pdfServiceMocks.loadPDF.mockReturnValue(Effect.fail(new Error("bad xref")));
+    render(() => <Editor />);
+
+    selectFiles("upload", [makeFile("one.pdf"), makeFile("two.pdf")]);
+
+    await waitFor(() =>
+      expectLastToast(
+        "Could not open 2 files. Failed to load one.pdf: bad xref. Failed to load two.pdf: bad xref."
+      )
     );
     expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
-    await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledTimes(2));
-    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "good.pdf" })
-    );
-    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "interleaf-images.pdf" })
-    );
+    expect(screen.getByTestId("editor-upload-input")).toBeEnabled();
+  });
+
+  it("opens the supported files and names an unsupported one", async () => {
+    render(() => <Editor />);
+
+    selectFiles("upload", [makeFile("good.pdf"), new File(["text"], "notes.txt")]);
+
+    expect(await findPages()).toHaveLength(3);
+    expectLastToast("Opened 1 of 2 files. notes.txt isn't a PDF, PNG, or JPEG file.");
   });
 
   it("loads multiple selected PDFs into the same workspace", async () => {
@@ -1377,7 +1419,7 @@ describe("Editor", () => {
     );
   });
 
-  it("does not partially add a batch when a later workspace file fails", async () => {
+  it("adds the valid files to a workspace and names the one that failed", async () => {
     const failedFile = makeFile("broken-add.pdf");
     pdfServiceMocks.loadPDF
       .mockReturnValueOnce(Effect.succeed(undefined))
@@ -1396,29 +1438,26 @@ describe("Editor", () => {
 
     selectFiles("add", [makeFile("good-add.pdf"), failedFile]);
 
-    expect(await screen.findByTestId("editor-toast")).toHaveTextContent(
-      "Failed to load broken-add.pdf"
-    );
-    expect(await findPages()).toHaveLength(3);
-    await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledTimes(1));
-    expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "good-add.pdf" })
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    expectLastToast("Added 1 of 2 files. Failed to load broken-add.pdf: Invalid PDF.");
+    expect(pdfServiceMocks.releaseFile).not.toHaveBeenCalled();
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute(
+      "aria-label",
+      "Undo source addition"
     );
   });
 
-  it("keeps a failed batch busy until staged resources are released", async () => {
-    const failedFile = makeFile("protected-add.pdf");
-    const release = Deferred.makeUnsafe<void>();
-    pdfServiceMocks.releaseFile.mockReturnValueOnce(Deferred.await(release));
+  it("adds the other files when a password prompt in the batch is canceled", async () => {
+    const lockedFile = makeFile("protected-add.pdf");
     pdfServiceMocks.loadPDF
       .mockReturnValueOnce(Effect.succeed(undefined))
       .mockReturnValueOnce(Effect.succeed(undefined))
-      .mockReturnValueOnce(Effect.fail(new PDFPasswordRequiredError(failedFile, "needs-password")));
+      .mockReturnValueOnce(Effect.fail(new PDFPasswordRequiredError(lockedFile, "needs-password")));
     promptForPassword.mockResolvedValue(null);
 
     await openPDF(makeFile("existing.pdf"));
 
-    selectFiles("add", [makeFile("good-add.pdf"), failedFile]);
+    selectFiles("add", [makeFile("good-add.pdf"), lockedFile]);
 
     await waitFor(() =>
       expect(promptForPassword).toHaveBeenCalledWith(
@@ -1427,13 +1466,8 @@ describe("Editor", () => {
         expect.any(AbortSignal)
       )
     );
-    expect(screen.getByLabelText("Choose additional PDF or image files")).toBeDisabled();
-
-    await Effect.runPromise(Deferred.succeed(release, undefined));
-    await waitFor(() =>
-      expect(screen.getByLabelText("Choose additional PDF or image files")).toBeEnabled()
-    );
-    expect(await findPages()).toHaveLength(3);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    expectLastToast("Added 1 of 2 files. protected-add.pdf is still locked.");
   });
 
   it("interrupts an import and rolls back staged files before disposing the editor", async () => {
@@ -1992,7 +2026,10 @@ describe("Editor", () => {
     expect(pdfCompressionMocks.compressPDF).toHaveBeenCalledTimes(1);
     expect(pdfCompressionMocks.compressPDF.mock.calls[0][0]).toBe(file);
     expect(pdfCompressionMocks.compressPDF.mock.calls[0][1]).toBeUndefined();
-    expect(screen.getByTestId("editor-toast")).toHaveTextContent("Compressed 10 B to 2 B.");
+    expect(screen.getByTestId("editor-toast")).toHaveTextContent("Saved 80% (10 B → 2 B).");
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Export started. Saved 80% (10 B → 2 B)."
+    );
   });
 
   it("reports when compression cannot make the workspace smaller", async () => {
@@ -2002,7 +2039,7 @@ describe("Editor", () => {
         inputBytes: 3,
         candidateBytes: 4,
         outputBytes: 3,
-        suggestedFileName: "interleaf-output.pdf",
+        suggestedFileName: "document.pdf",
         reduced: false,
       })
     );
@@ -2014,8 +2051,11 @@ describe("Editor", () => {
 
     await waitFor(() =>
       expect(screen.getByTestId("editor-toast")).toHaveTextContent(
-        "No smaller file was available. The original PDF was exported."
+        "Already optimal. Exported the original."
       )
+    );
+    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
+      "Export started. Already optimal. Exported the original."
     );
     expect(downloadPDF).toHaveBeenCalledTimes(1);
   });

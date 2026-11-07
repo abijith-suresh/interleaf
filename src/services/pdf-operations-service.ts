@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { degrees, PageSizes, PDFDocument } from "pdf-lib";
-import { IMAGES_TO_PDF_FILENAME, OUTPUT_FILENAME } from "../constants";
+import { IMAGES_TO_PDF_FILENAME } from "../constants";
 import type {
   FieldAnswer,
   PageState,
@@ -10,6 +10,7 @@ import type {
   PDFOperationResult,
 } from "../types/interfaces";
 import { PDFNoPagesError, PDFProcessingError } from "../types/interfaces";
+import { fileStem } from "../utils/file-names";
 import { getSupportedFileKind } from "../utils/file-types";
 import { type DocumentKey, type DocumentStore, makeDocumentStore } from "./document-store";
 import { drawPageAdditions } from "./pdf-additions";
@@ -526,7 +527,7 @@ export class PDFOperationsService {
         catch: (cause) => processingError("save-output", pagesToBuild[0].sourceFile, cause),
       });
 
-      return { data, suggestedFileName: OUTPUT_FILENAME };
+      return { data, suggestedFileName: `${fileStem(pagesToBuild[0].sourceFile.name)}-edited.pdf` };
     });
   }
 }

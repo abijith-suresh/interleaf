@@ -52,7 +52,7 @@ describe("PDFCompressionService", () => {
 
     await expect(runPromise(service.compressPDF(sourceFile, undefined))).resolves.toEqual({
       ...unchangedPDF,
-      suggestedFileName: "source-compressed.pdf",
+      suggestedFileName: "source.pdf",
     });
   });
 
