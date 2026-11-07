@@ -142,14 +142,15 @@ for (const width of [320, 1280])
       await select(hits.first());
       const input = page.getByRole("textbox");
       await input.fill("Draft A");
+      // Visual order: both Answer widgets, then Other below them.
       await page.getByRole("button", { name: "Next field", exact: true }).click();
       await expect(input).toHaveValue("Draft A");
+      await input.press("Alt+ArrowDown");
+      await expect(input).toHaveValue("OMITTED_FIELD_ANSWER");
+      await input.fill("Draft B");
       await input.press("Alt+ArrowUp");
       await expect(input).toHaveValue("Draft A");
       await input.press("Alt+ArrowUp");
-      await expect(input).toHaveValue("OMITTED_FIELD_ANSWER");
-      await input.fill("Draft B");
-      await input.press("Alt+ArrowDown");
       await expect(input).toHaveValue("Draft A");
       await select(page.getByRole("button", { name: "Fill field: Other", exact: true }));
       await expect(input).toHaveValue("Draft B");
