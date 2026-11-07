@@ -96,7 +96,7 @@ it("held field validation cannot publish during a real export; draft retries ato
   ));
   let exported: Promise<PDFOperationResult> | undefined;
   try {
-    const hits = await screen.findAllByRole("button", { name: "Fill field: person.answer" });
+    const hits = await screen.findAllByRole("button", { name: "Fill field: Answer" });
     fireEvent.click(hits[0]);
     fireEvent.input(screen.getByRole("textbox"), { target: { value: "After" } });
     fireEvent.submit(screen.getByRole("textbox").closest("form")!);

@@ -9,6 +9,7 @@ import {
   MIN_CHECKMARK_SIZE,
   measureAddedCheckmark,
 } from "../../controllers/checkmark-geometry";
+import { activePageTool } from "../../controllers/editor-additions-state";
 import { createPageBatchId } from "../../controllers/editor-page-state";
 import {
   normalizeQuarterTurn,
@@ -104,6 +105,19 @@ export default function EditorAdditionsEditor(props: Props) {
   const minimumSize = () => (checkmark() ? MIN_CHECKMARK_SIZE : MIN_TEXT_SIZE);
   const maximumSize = () => (checkmark() ? MAX_CHECKMARK_SIZE : MAX_TEXT_SIZE);
   const textMode = createMemo(() => mode() !== "read");
+  // Every page-tool button reads its pressed state from here.
+  const activeTool = createMemo(() => {
+    const current = draft();
+    return activePageTool({
+      mode: mode(),
+      placing: tool(),
+      draft: current && {
+        kind: isText(current) ? "text" : "checkmark",
+        saved: additions().some((item) => item.id === current.id),
+      },
+      additions: additions().length,
+    });
+  });
   const invalidSize = () => {
     const current = draft();
     const size = current ? additionSize(current) : undefined;
@@ -504,7 +518,7 @@ export default function EditorAdditionsEditor(props: Props) {
       <Portal mount={props.header}>
         <fieldset class="editor-text-mobile-bar" disabled={props.disabled}>
           <EditorButton
-            aria-pressed={mode() === "read"}
+            aria-pressed={activeTool() === "read"}
             onClick={() => {
               cancel();
               setMode("read");
@@ -534,7 +548,7 @@ export default function EditorAdditionsEditor(props: Props) {
           <div class="editor-text-content" tabIndex={-1} classList={{ "is-open": toolsOpen() }}>
             <div class="editor-text-toolbar" role="toolbar" aria-label="Page tools">
               <EditorButton
-                aria-pressed={mode() === "read"}
+                aria-pressed={activeTool() === "read"}
                 onClick={() => {
                   cancel();
                   setMode("read");
@@ -545,7 +559,7 @@ export default function EditorAdditionsEditor(props: Props) {
               <EditorButton
                 ref={addButton}
                 icon="text"
-                aria-pressed={mode() === "place" && tool() === "text"}
+                aria-pressed={activeTool() === "text"}
                 disabled={!props.ready || saving()}
                 onClick={() => {
                   const ticket = focusTicket();
@@ -560,7 +574,7 @@ export default function EditorAdditionsEditor(props: Props) {
               </EditorButton>
               <EditorButton
                 icon="checkmark"
-                aria-pressed={mode() === "place" && tool() === "checkmark"}
+                aria-pressed={activeTool() === "checkmark"}
                 disabled={!props.ready || saving() || !props.onCheckmarksChange}
                 onClick={() => {
                   const ticket = focusTicket();
@@ -575,7 +589,7 @@ export default function EditorAdditionsEditor(props: Props) {
               </EditorButton>
               <EditorButton
                 icon="page-actions"
-                aria-pressed={mode() === "fields"}
+                aria-pressed={activeTool() === "fields"}
                 disabled={!props.ready || saving() || Boolean(draft()) || !props.onFieldChange}
                 onClick={() => {
                   cancel();
@@ -589,7 +603,7 @@ export default function EditorAdditionsEditor(props: Props) {
                 <EditorButton
                   icon="page-actions"
                   aria-label="Select additions"
-                  aria-pressed={mode() === "edit"}
+                  aria-pressed={activeTool() === "edit"}
                   disabled={saving()}
                   onClick={() => {
                     cancel();

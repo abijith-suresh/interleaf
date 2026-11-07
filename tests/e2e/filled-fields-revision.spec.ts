@@ -73,7 +73,9 @@ for (const width of [320, 390]) {
   test(`long inherited field label leaves a usable input at ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 320 ? 667 : 844 });
     await open(page, "field-contact");
-    await page.getByRole("button", { name: /Fill field: form1/ }).click();
+    await page
+      .getByRole("button", { name: "Fill field: Applicant full name", exact: true })
+      .click();
     const input = page.getByRole("textbox");
     await expect(input).toBeFocused();
     const region = await visibleRegion(page, ".editor-field-settings input");
@@ -90,10 +92,7 @@ for (const width of [568, 667]) {
   }) => {
     await page.setViewportSize({ width, height: 320 });
     await open(page, "field-linked");
-    await page
-      .getByRole("button", { name: "Fill field: person.answer", exact: true })
-      .first()
-      .click();
+    await page.getByRole("button", { name: "Fill field: Answer", exact: true }).first().click();
     const input = page.getByRole("textbox");
     await input.fill("i".repeat(21));
     const scroll = () =>
@@ -132,7 +131,7 @@ for (const width of [320, 1280])
     }) => {
       await page.setViewportSize({ width, height: width === 320 ? 667 : 800 });
       await open(page, "field-navigation");
-      const hits = page.getByRole("button", { name: "Fill field: person.answer", exact: true });
+      const hits = page.getByRole("button", { name: "Fill field: Answer", exact: true });
       const select = async (hit: Locator) => {
         const tools = page.getByRole("button", { name: "Tools", exact: true });
         // Close the compact popup to expose the page, retaining the field tool and drafts.
@@ -152,7 +151,7 @@ for (const width of [320, 1280])
       await input.fill("Draft B");
       await input.press("Alt+ArrowDown");
       await expect(input).toHaveValue("Draft A");
-      await select(page.getByRole("button", { name: "Fill field: person.other", exact: true }));
+      await select(page.getByRole("button", { name: "Fill field: Other", exact: true }));
       await expect(input).toHaveValue("Draft B");
       await page
         .getByRole("button", { name: action === "Save" ? "Save answer" : "Cancel", exact: true })
@@ -164,7 +163,7 @@ for (const width of [320, 1280])
       );
       await select(hits.first());
       await expect(input).toHaveValue("Draft A");
-      await select(page.getByRole("button", { name: "Fill field: person.other", exact: true }));
+      await select(page.getByRole("button", { name: "Fill field: Other", exact: true }));
       await expect(input).toHaveValue(action === "Save" ? "Draft B" : "OMITTED_FIELD_ANSWER");
       await select(hits.nth(1));
       await expect(input).toHaveValue("Draft A");

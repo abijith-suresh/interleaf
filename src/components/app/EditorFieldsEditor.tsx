@@ -1,7 +1,7 @@
 import { Effect, Fiber } from "effect";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show, untrack } from "solid-js";
 import { Portal } from "solid-js/web";
-import { answerField } from "../../controllers/editor-field-state";
+import { answerField, orderFieldWidgets } from "../../controllers/editor-field-state";
 import { pdfToViewport } from "../../controllers/text-geometry";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { PageGeometry, PageState, PDFFields, TextFieldWidget } from "../../types/interfaces";
@@ -46,10 +46,14 @@ export default function EditorFieldsEditor(props: Props) {
   const trackFocus = () => focusRevision++;
   document.addEventListener("focusin", trackFocus);
   document.addEventListener("pointerdown", trackFocus, true);
-  const widgets = createMemo(
-    () =>
-      fields()?.widgets.filter((widget) => widget.pageNumber === props.page.sourcePageNumber) ?? []
-  );
+  const widgets = createMemo(() => {
+    const own =
+      fields()?.widgets.filter((widget) => widget.pageNumber === props.page.sourcePageNumber) ?? [];
+    return props.geometry ? orderFieldWidgets(own, props.geometry, props.rotation) : own;
+  });
+  const navigable = createMemo(() => widgets().filter((widget) => !widget.reason));
+  const position = () =>
+    navigable().findIndex((widget) => widget.widgetRef === selected()?.widgetRef);
   const currentValue = (widget: TextFieldWidget) =>
     props.page.fieldAnswers?.find((answer) => answer.fieldRef === widget.fieldRef)?.value ??
     widget.value;
@@ -104,12 +108,11 @@ export default function EditorFieldsEditor(props: Props) {
     focusLater(() => input);
   }
   function navigate(offset: number) {
-    const supported = widgets().filter((widget) => !widget.reason);
-    const index = supported.findIndex((widget) => widget.widgetRef === selected()?.widgetRef);
-    const next = supported[index + offset];
+    const next = navigable()[position() + offset];
     if (next) choose(next);
   }
-  async function save() {
+  /** Saves the answer, then opens the field `offset` steps away, or closes when there is none. */
+  async function save(offset = 0) {
     const widget = selected();
     if (!widget || saving() || props.disabled) return;
     const version = generation;
@@ -156,9 +159,14 @@ export default function EditorFieldsEditor(props: Props) {
       queueMicrotask(() => {
         if (ownCommit === commit) ownCommit = undefined;
       });
+      const next = offset ? navigable()[position() + offset] : undefined;
+      setSaving(false);
+      if (next && restore) {
+        choose(next);
+        return;
+      }
       generation++;
       setSelected(undefined);
-      setSaving(false);
       props.onClose();
       if (restore) focusLater(() => hit(widget) ?? props.stage);
     } catch (cause) {
@@ -216,13 +224,15 @@ export default function EditorFieldsEditor(props: Props) {
       ownCommit.rotation === rotation &&
       ownCommit.answers === answers;
     ownCommit = undefined;
+    // Save already settled the editor, and may have opened the next field.
+    if (own) return;
     // Unsaved answers for other fields belong to this logical page. Keep them
     // across history changes to the same page; drop them only for another page.
     const samePage =
       draftOwner?.pageId === pageId && draftOwner.file === file && draftOwner.group === group;
     draftOwner = { pageId, file, group };
     untrack(() => {
-      if (!own && !samePage) drafts.clear();
+      if (!samePage) drafts.clear();
       generation++;
       setSelected(undefined);
       setError("");
@@ -297,6 +307,13 @@ export default function EditorFieldsEditor(props: Props) {
                       aria-invalid={!!error()}
                       aria-describedby={error() ? "editor-field-error" : "editor-field-input-help"}
                       disabled={saving() || props.disabled}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" || event.isComposing) return;
+                        if (event.ctrlKey || event.metaKey || event.altKey) return;
+                        // Enter saves and moves on. Shift+Enter saves and goes back.
+                        event.preventDefault();
+                        void save(event.shiftKey ? -1 : 1);
+                      }}
                       onInput={(event) => {
                         setAnswer(event.currentTarget.value);
                         drafts.set(widget().fieldRef, event.currentTarget.value);
@@ -329,24 +346,13 @@ export default function EditorFieldsEditor(props: Props) {
                 <EditorButton
                   icon="previous"
                   aria-label="Previous field"
-                  disabled={
-                    saving() ||
-                    widgets()
-                      .filter((w) => !w.reason)
-                      .findIndex((w) => w.widgetRef === widget().widgetRef) <= 0
-                  }
+                  disabled={saving() || position() <= 0}
                   onClick={() => navigate(-1)}
                 />
                 <EditorButton
                   icon="next"
                   aria-label="Next field"
-                  disabled={
-                    saving() ||
-                    widgets()
-                      .filter((w) => !w.reason)
-                      .findIndex((w) => w.widgetRef === widget().widgetRef) >=
-                      widgets().filter((w) => !w.reason).length - 1
-                  }
+                  disabled={saving() || position() >= navigable().length - 1}
                   onClick={() => navigate(1)}
                 />
               </form>

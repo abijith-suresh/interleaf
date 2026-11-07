@@ -19,7 +19,7 @@ import {
   snapshotOrganization,
 } from "../../controllers/editor-history";
 import { createPageStates, duplicatePageState } from "../../controllers/editor-page-state";
-import { applyFieldAnswers, inspectPDFFields } from "../pdf-fields";
+import { applyFieldAnswers, humanizeFieldName, inspectPDFFields } from "../pdf-fields";
 import { PDFOperationsService } from "../pdf-operations-service";
 import { exportCrossPageButtonFixture } from "./pdf-export-fixtures";
 import { inspectExport } from "./pdf-export-inspection";
@@ -178,6 +178,38 @@ describe("embedded text field ownership and constraints", () => {
     field.set(N("MaxLen"), PDFNull);
     field.set(N("Parent"), doc.context.register(field));
     expect(() => inspectPDFFields(doc)).toThrow();
+  });
+});
+
+describe("field labels", () => {
+  it("humanizes the last partial name", () => {
+    expect(humanizeFieldName("ApplicantFullName[0]")).toBe("Applicant full name");
+    expect(humanizeFieldName("first_name")).toBe("First name");
+    expect(humanizeFieldName("original-field")).toBe("Original field");
+    expect(humanizeFieldName("SSNNumber")).toBe("SSN number");
+    expect(humanizeFieldName("Text1")).toBe("Text 1");
+    expect(humanizeFieldName("[0]")).toBe("");
+  });
+
+  it("prefers the alternate name, then the field's own partial name", async () => {
+    const doc = await PDFDocument.create(),
+      page = doc.addPage([300, 400]);
+    const form = doc.getForm();
+    const named = form.createTextField("form1[0].Page1[0].ApplicantFullName[0]");
+    named.addToPage(page, { x: 20, y: 300, width: 200, height: 24 });
+    const described = form.createTextField("form1[0].Page1[0].Email[0]");
+    described.addToPage(page, { x: 20, y: 250, width: 200, height: 24 });
+    described.acroField.dict.set(N("TU"), PDFHexString.fromText("  Email   address "));
+    const unreadable = form.createTextField("phone_number");
+    unreadable.addToPage(page, { x: 20, y: 200, width: 200, height: 24 });
+    unreadable.acroField.dict.set(N("TU"), PDFNumber.of(1));
+    const fields = inspectPDFFields(await PDFDocument.load(await doc.save()));
+    expect(fields.widgets.map((widget) => widget.label).toSorted()).toEqual([
+      "Applicant full name",
+      "Email address",
+      "Phone number",
+    ]);
+    expect(fields.widgets.every((widget) => !widget.reason)).toBe(true);
   });
 });
 

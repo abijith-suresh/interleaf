@@ -99,6 +99,42 @@ function string(raw: PDFObject | undefined): string {
     throw Error("Invalid field text.");
   return raw.decodeText();
 }
+/** Turns a partial field name such as `ApplicantFullName[0]` into "Applicant full name". */
+export function humanizeFieldName(name: string): string {
+  const words = name
+    .replace(/\[\d+\]/g, " ")
+    .replace(/([a-z\d])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/([A-Za-z])(\d)/g, "$1 $2")
+    .split(/[\s_.-]+/)
+    .filter(Boolean)
+    .map((word, index) =>
+      index === 0
+        ? word[0].toUpperCase() + word.slice(1)
+        : /^[A-Z\d]+$/.test(word) && word.length > 1
+          ? word
+          : word.toLowerCase()
+    );
+  return words.join(" ");
+}
+
+// Prefer the author's alternate name (/TU). Otherwise, name the field after its own
+// partial name, falling back to the nearest named ancestor.
+function fieldLabel(chain: readonly PDFDict[]): string {
+  const names = chain.map((node) => string(value(node, "T")));
+  let alternate = "";
+  try {
+    alternate = string(value(chain[0], "TU")).replace(/\s+/g, " ").trim();
+  } catch {
+    // An unreadable alternate name only affects the label.
+  }
+  return (
+    alternate ||
+    humanizeFieldName(names.find((name) => humanizeFieldName(name)) ?? "") ||
+    "Text field"
+  );
+}
+
 interface Widget {
   dict: PDFDict;
   ref: PDFRef;
@@ -228,12 +264,7 @@ function scan(doc: PDFDocument): { fields: Field[]; reason?: string } {
       ref: entry.raw,
       widgets: [],
       alignment: 0,
-      label:
-        chain
-          .toReversed()
-          .map((node) => string(value(node, "T")))
-          .filter(Boolean)
-          .join(".") || "Text field",
+      label: fieldLabel(chain),
       text: "",
     };
     try {

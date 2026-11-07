@@ -44,7 +44,7 @@ for (const [width, height] of [
     const hit = page.locator(`[data-widget-ref="${fixture.widgetRefs[0]}"]`);
     await expect(hit).toHaveAttribute("data-field-ref", fixture.fieldRef);
     await hit.click();
-    const input = page.getByRole("textbox", { name: "Answer for person.answer" });
+    const input = page.getByRole("textbox", { name: "Answer for Answer" });
     await expect(input).toBeFocused();
     await expect(input).toHaveValue("INHERITED");
     await input.fill("ANSWER");
@@ -96,7 +96,7 @@ test("saved answers survive source history and download", async ({ page }) => {
   await arm(page);
   const hit = page.locator(`[data-widget-ref="${fixture.widgetRefs[0]}"]`);
   await hit.click();
-  await page.getByRole("textbox", { name: "Answer for person.answer" }).fill("SAVED");
+  await page.getByRole("textbox", { name: "Answer for Answer" }).fill("SAVED");
   await page.getByRole("button", { name: "Save answer", exact: true }).click();
   await ready(page);
   const download = page.waitForEvent("download");
@@ -124,9 +124,7 @@ test("saved answers survive source history and download", async ({ page }) => {
   await ready(page);
   await arm(page);
   await page.locator(`[data-widget-ref="${fixture.widgetRefs[0]}"]`).click();
-  await expect(page.getByRole("textbox", { name: "Answer for person.answer" })).toHaveValue(
-    "SAVED"
-  );
+  await expect(page.getByRole("textbox", { name: "Answer for Answer" })).toHaveValue("SAVED");
 });
 
 test("protected PDFs keep manual text available while embedded filling is unavailable", async ({
@@ -176,7 +174,7 @@ test("logical page duplicates and duplicate-of-duplicate keep independent saved 
   const fixture = await open(page);
   await arm(page);
   const hit = page.locator(`[data-widget-ref="${fixture.widgetRefs[0]}"]`);
-  const answer = page.getByRole("textbox", { name: "Answer for person.answer" });
+  const answer = page.getByRole("textbox", { name: "Answer for Answer" });
   async function save(value: string) {
     await hit.click();
     await answer.fill(value);

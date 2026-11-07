@@ -17,7 +17,7 @@ vi.mock("../../../services/pdf-operations-service", () => ({
             pageNumber: 1,
             label: "Answer",
             value: "Before",
-            rect: [10, 10, 200, 40],
+            rect: [10, 560, 200, 590],
           },
           {
             widgetRef: "15 0 R",
@@ -25,7 +25,7 @@ vi.mock("../../../services/pdf-operations-service", () => ({
             pageNumber: 1,
             label: "Answer",
             value: "Before",
-            rect: [10, 50, 200, 80],
+            rect: [10, 520, 200, 550],
           },
           {
             widgetRef: "17 0 R",
@@ -33,7 +33,7 @@ vi.mock("../../../services/pdf-operations-service", () => ({
             pageNumber: 1,
             label: "Other",
             value: "Other before",
-            rect: [10, 90, 200, 120],
+            rect: [10, 480, 200, 510],
           },
         ],
       });
