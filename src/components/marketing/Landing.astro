@@ -192,6 +192,10 @@ const steps = [
     gap: 0.75rem;
     padding: 1.25rem;
     transform: rotate(-2deg);
+    box-shadow:
+      0 0 0 2px var(--color-surface),
+      0 0 0 4px var(--color-accent),
+      var(--shadow-sm);
   }
 
   .sheet-heading,
@@ -217,18 +221,18 @@ const steps = [
     width: 48%;
   }
 
-  /* The selection point: Cards' primary with its focus halo. */
+  /* The selection point: the accent with its halo, on the selected page. */
   .sheet-marker {
     position: absolute;
-    top: 47%;
-    right: 12%;
-    width: 0.75rem;
-    height: 0.75rem;
+    top: 9%;
+    right: 24%;
+    width: 1rem;
+    height: 1rem;
     border-radius: 50%;
-    background: var(--color-primary);
+    background: var(--color-accent);
     box-shadow:
       0 0 0 2px var(--color-surface),
-      0 0 0 6px var(--color-primary-subtle);
+      0 0 0 6px var(--color-accent-subtle);
   }
 
   @media (max-width: 47.99rem) {

@@ -123,7 +123,7 @@ for (const viewport of [
     }
     const duplicate = tile.getByTestId("editor-page-duplicate-button");
     await duplicate.focus();
-    await expect(duplicate).toHaveCSS("outline-color", "rgb(10, 10, 10)");
+    await expect(duplicate).toHaveCSS("outline-color", "rgb(23, 128, 79)");
     await expect(duplicate).toHaveCSS("outline-width", "2px");
     await expect(duplicate).toHaveCSS("outline-style", "solid");
     // Dragging the action must never begin a page reorder.
@@ -194,7 +194,7 @@ for (const viewport of [
     await page.getByTestId("editor-pages-view-button").focus();
     await page.keyboard.press("ArrowRight");
     await expect(review).toBeFocused();
-    await expect(review).toHaveCSS("outline-color", "rgb(10, 10, 10)");
+    await expect(review).toHaveCSS("outline-color", "rgb(23, 128, 79)");
     await expect(review).toHaveCSS("outline-style", "solid");
     await expect(review).toHaveCSS("outline-width", "2px");
     await expect(review.locator("svg")).toHaveCSS("width", "16px");

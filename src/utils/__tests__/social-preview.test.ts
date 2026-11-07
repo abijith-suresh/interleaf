@@ -6,8 +6,8 @@ describe("social preview filenames", () => {
     const current = socialPreviewFilename("faq");
     const legacy = legacySocialPreviewFilenames("faq");
 
-    expect(current).toBe("faq-v3.png");
-    expect(legacy).toEqual(["faq.png", "faq-v2.png"]);
+    expect(current).toBe("faq-v4.png");
+    expect(legacy).toEqual(["faq.png", "faq-v2.png", "faq-v3.png"]);
     expect(legacy).not.toContain(current);
   });
 });

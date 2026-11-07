@@ -1608,8 +1608,8 @@ export default function Editor() {
         <Show when={phase() === "upload"}>
           <header class="editor-header">
             <div class="editor-header-left">
-              <a href={base} class="editor-brand" translate="no">
-                interleaf
+              <a href={base} class="editor-brand" aria-label="Interleaf home">
+                <EditorWordmark />
               </a>
             </div>
             <h1 class="sr-only">Interleaf PDF editor</h1>

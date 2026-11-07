@@ -50,7 +50,7 @@
   --color-fg-inverse: #fff;
   --color-line: #e5e5e5;
   --color-line-strong: #d4d4d4;
-  --color-line-focus: #0a0a0a;
+  --color-line-focus: var(--color-accent);
   --color-hover: rgb(10 10 10 / 0.04);
   --color-selected: rgb(10 10 10 / 0.08);
   --color-overlay: rgb(10 10 10 / 0.24);
@@ -60,6 +60,12 @@
   --color-primary-foreground: #fff;
   --color-primary-subtle: rgb(0 0 0 / 0.1);
   --color-primary-subtle-stronger: rgb(0 0 0 / 0.24);
+  /* Interleaf's one accent. It marks what you point at: the leaf in the
+     mark, focus, and selection. It never decorates, fills buttons, or colours
+     text. */
+  --color-accent: #17804f;
+  --color-accent-subtle: rgb(23 128 79 / 0.1);
+  --color-accent-selection: rgb(23 128 79 / 0.2);
   --color-danger: #fb2c36;
   --color-danger-fg: #82181a;
   --color-danger-line: #ffc9c9;
@@ -179,7 +185,7 @@ body {
 }
 
 ::selection {
-  background: var(--color-primary-subtle-stronger);
+  background: var(--color-accent-selection);
   color: inherit;
 }
 
@@ -540,6 +546,22 @@ body {
   text-decoration: none;
   white-space: nowrap;
   @apply text-ui-lg;
+}
+
+/* The leaf sits where Inter draws the dot of the i. Em units keep it on the
+   glyph at any size. */
+.brand-i {
+  position: relative;
+}
+
+.brand-leaf {
+  position: absolute;
+  top: 0.1em;
+  left: 50%;
+  width: 0.3em;
+  height: 0.3em;
+  fill: var(--color-accent);
+  transform: translateX(-40%);
 }
 
 .nav-actions {

@@ -1,4 +1,6 @@
 ---
+import Wordmark from "./Wordmark.astro";
+
 interface Props {
   currentPage?: string;
 }
@@ -14,7 +16,7 @@ const links = [
 
 <nav class="site-nav marketing-nav" aria-label="Main navigation" transition:animate="none">
   <div class="site-nav-inner">
-    <a href={base} class="site-brand" aria-label="Interleaf home">interleaf</a>
+    <a href={base} class="site-brand" aria-label="Interleaf home"><Wordmark /></a>
 
     <div class="nav-actions">
       <div class="desktop-nav">
