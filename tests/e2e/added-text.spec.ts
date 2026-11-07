@@ -516,8 +516,8 @@ test("undo and redo wait for open text and field drafts instead of discarding th
   await expect(page.getByRole("button", { name: "Edit added text: Saved A" })).toBeVisible();
 
   await page.getByRole("button", { name: "Fill fields", exact: true }).click();
-  await page.getByRole("button", { name: "Fill field: original-field" }).click();
-  const answer = page.getByRole("textbox", { name: "Answer for original-field" });
+  await page.getByRole("button", { name: "Fill field: Original field" }).click();
+  const answer = page.getByRole("textbox", { name: "Answer for Original field" });
   await answer.fill("Unsaved answer");
   await expect(undo).toHaveAttribute("aria-disabled", "true");
   await undo.click({ force: true });
