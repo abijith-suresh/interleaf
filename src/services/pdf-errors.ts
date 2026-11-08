@@ -23,3 +23,13 @@ export function collectFirstError(
     Effect.mapError((errors) => errors[0])
   );
 }
+
+/** True when pdf.js rejected the bytes as not being a PDF at all. */
+export function isInvalidPDFError(error: unknown): boolean {
+  let cause = error;
+  for (let depth = 0; depth < 4 && cause instanceof Error; depth++) {
+    if (cause.name === "InvalidPDFException") return true;
+    cause = cause.cause;
+  }
+  return false;
+}

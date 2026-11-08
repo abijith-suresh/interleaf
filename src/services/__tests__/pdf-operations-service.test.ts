@@ -179,7 +179,7 @@ describe("PDFOperationsService", () => {
       );
       const output = await PDFDocument.load(result.data);
 
-      expect(result.suggestedFileName).toBe("interleaf-output.pdf");
+      expect(result.suggestedFileName).toBe("source-edited.pdf");
       expect(output.getPages().map((page) => [page.getWidth(), page.getHeight()])).toEqual(
         expectedSizes
       );
@@ -210,6 +210,18 @@ describe("PDFOperationsService", () => {
       [600, 720],
       [360, 480],
     ]);
+  });
+
+  it("names a merged export after the first exported page's source", async () => {
+    const report = await createPdfFile("report-6p.PDF", [{ width: 120, height: 240 }]);
+    const appendix = await createPdfFile("appendix.pdf", [{ width: 360, height: 480 }]);
+    const pages = [createPageState(appendix, 1), createPageState(report, 1)];
+
+    const merged = await Effect.runPromise(service.buildPDF([pages[1], pages[0]]));
+    const appendixFirst = await Effect.runPromise(service.buildPDF(pages));
+
+    expect(merged.suggestedFileName).toBe("report-6p-edited.pdf");
+    expect(appendixFirst.suggestedFileName).toBe("appendix-edited.pdf");
   });
 
   it("places PNG and JPEG images on A4 pages in selection order", async () => {

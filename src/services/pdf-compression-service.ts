@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import type { PDFCompressionResult, PDFError } from "../types/interfaces";
 import { PDFProcessingError } from "../types/interfaces";
+import { fileStem } from "../utils/file-names";
 import { errorMessage } from "./pdf-errors";
 import type { QpdfProcessingError, QpdfProcessingShape } from "./qpdf-processing";
 
@@ -30,14 +31,9 @@ export class PDFCompressionService {
         inputBytes: optimized.inputBytes,
         candidateBytes: optimized.candidateBytes,
         outputBytes: optimized.outputBytes,
-        suggestedFileName: compressedFileName(file.name),
+        suggestedFileName: `${fileStem(file.name)}${optimized.reduced ? "-compressed" : ""}.pdf`,
         reduced: optimized.reduced,
       };
     });
   }
-}
-
-function compressedFileName(fileName: string): string {
-  const baseName = fileName.replace(/\.pdf$/i, "");
-  return `${baseName || "interleaf"}-compressed.pdf`;
 }

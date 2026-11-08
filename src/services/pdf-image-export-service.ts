@@ -3,6 +3,7 @@ import { Zip, ZipPassThrough } from "fflate";
 import { hasPageAdditions } from "../controllers/editor-additions-state";
 import type { PageState, PDFError, PDFImageExportResult } from "../types/interfaces";
 import { PDFNoPagesError, PDFProcessingError } from "../types/interfaces";
+import { fileStem } from "../utils/file-names";
 import { processingError } from "./pdf-errors";
 import type { PDFService } from "./pdf-service";
 
@@ -14,10 +15,6 @@ const IMAGE_EXPORT_LIMIT_MESSAGE = "Image export is too large. Export fewer page
 export interface PDFImageExportOptions {
   readonly selectedIndices?: readonly number[];
   readonly onProgress?: (progress: { completed: number; total: number }) => void;
-}
-
-function fileStem(fileName: string): string {
-  return fileName.replace(/\.pdf$/i, "").trim() || "interleaf";
 }
 
 function archiveFileName(pages: readonly PageState[]): string {
