@@ -43,21 +43,6 @@ Online PDF tools are ad-infested and login-walled, and they usually want your do
 
 You can check in your browser's network inspector that no file data is sent.
 
-## Development
-
-```sh
-bun install
-bun run dev
-```
-
-The app runs at `http://localhost:4321` by default.
-
-## Quality Checks
-
-```sh
-bun run verify
-```
-
 ## Contributing
 
 See `AGENTS.md` for product truth and `CONTRIBUTING.md` for the development workflow. Keep changes atomic and follow Conventional Commits. Preserve the browser-only privacy model: do not add uploads or server-side PDF handling.

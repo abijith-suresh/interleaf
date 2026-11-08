@@ -1,11 +1,5 @@
 import { PASSWORD_MODAL_TITLE } from "../constants";
 
-/**
- * Shows a modal prompting the user for a PDF password.
- * @param fileName - The name of the PDF file requiring a password.
- * @param isRetry - If true, shows an "Incorrect password" message.
- * @returns The entered password string, or null if the user cancelled.
- */
 export function promptForPassword(
   fileName: string,
   isRetry: boolean,
@@ -25,29 +19,24 @@ export function promptForPassword(
     backdrop.className = "password-modal-backdrop";
     backdrop.setAttribute("aria-labelledby", "password-modal-title");
 
-    // Modal panel
     const modal = document.createElement("div");
     modal.className = "password-modal";
 
-    // Title
     const title = document.createElement("h2");
     title.id = "password-modal-title";
     title.textContent = PASSWORD_MODAL_TITLE;
     title.className = "password-modal-title";
 
-    // File name
     const fileLabel = document.createElement("div");
     fileLabel.textContent = fileName;
     fileLabel.className = "password-modal-file";
 
-    // Error message (only when retrying)
     const errorMsg = document.createElement("div");
     errorMsg.id = "password-modal-error";
     errorMsg.textContent = "Incorrect password. Try again.";
     if (isRetry) errorMsg.setAttribute("role", "alert");
     errorMsg.className = `password-modal-error${isRetry ? "" : " is-hidden"}`;
 
-    // Password input
     const input = document.createElement("input");
     input.type = "password";
     input.placeholder = "Enter password…";
@@ -60,7 +49,6 @@ export function promptForPassword(
       input.setAttribute("aria-describedby", errorMsg.id);
     }
 
-    // Button row
     const buttonRow = document.createElement("div");
     buttonRow.className = "password-modal-actions";
 
@@ -88,7 +76,6 @@ export function promptForPassword(
       backdrop.setAttribute("open", "");
     }
 
-    // Focus the input after mounting
     const focusFrame = requestAnimationFrame(() => input.focus());
 
     const finish = (password: string | null) => {

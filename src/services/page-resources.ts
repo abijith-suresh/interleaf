@@ -118,14 +118,9 @@ export class PageResources {
     );
   }
 
-  drain(file?: File): Effect.Effect<void, PDFProcessingError> {
+  drain(file: File): Effect.Effect<void, PDFProcessingError> {
     return Effect.suspend(() => {
-      const requests = file
-        ? this.takePendingPageRequests(file)
-        : Array.from(this.pendingPageRequests.values()).flatMap((fileRequests) =>
-            Array.from(fileRequests)
-          );
-      if (!file) this.pendingPageRequests.clear();
+      const requests = this.takePendingPageRequests(file);
       if (requests.length === 0) return Effect.void;
 
       const completion = collectFirstError(

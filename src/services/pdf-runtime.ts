@@ -85,24 +85,14 @@ export class PDFProcessing extends Context.Service<PDFProcessing, PDFProcessingS
 ) {}
 
 export interface PDFRuntime {
-  readonly runFork: <A, E>(
-    effect: Effect.Effect<A, E, PDFProcessing>,
-    options?: Effect.RunOptions
-  ) => Fiber.Fiber<A, E>;
-  readonly runPromise: <A, E>(
-    effect: Effect.Effect<A, E, PDFProcessing>,
-    options?: Effect.RunOptions
-  ) => Promise<A>;
+  readonly runFork: <A, E>(effect: Effect.Effect<A, E, PDFProcessing>) => Fiber.Fiber<A, E>;
+  readonly runPromise: <A, E>(effect: Effect.Effect<A, E, PDFProcessing>) => Promise<A>;
   readonly dispose: () => Promise<void>;
 }
 
-export interface PDFRuntimeOptions {
-  readonly qpdfWorkerUrl?: string | URL;
-}
-
-export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
+export function makePDFRuntime(): PDFRuntime {
   const qpdfLayer = makeQpdfProcessingLayer({
-    workerUrl: options.qpdfWorkerUrl ?? `${import.meta.env.BASE_URL}qpdf/qpdf-worker.js`,
+    workerUrl: `${import.meta.env.BASE_URL}qpdf/qpdf-worker.js`,
   });
 
   const live = Layer.effect(
@@ -223,19 +213,19 @@ export function makePDFRuntime(options: PDFRuntimeOptions = {}): PDFRuntime {
   let disposePromise: Promise<void> | undefined;
 
   return {
-    runFork<A, E>(effect: Effect.Effect<A, E, PDFProcessing>, options?: Effect.RunOptions) {
+    runFork<A, E>(effect: Effect.Effect<A, E, PDFProcessing>) {
       if (disposed) {
         throw new Error("PDF runtime has been disposed");
       }
 
-      return managedRuntime.runFork(effect, options);
+      return managedRuntime.runFork(effect);
     },
-    runPromise<A, E>(effect: Effect.Effect<A, E, PDFProcessing>, options?: Effect.RunOptions) {
+    runPromise<A, E>(effect: Effect.Effect<A, E, PDFProcessing>) {
       if (disposed) {
         return Promise.reject(new Error("PDF runtime has been disposed"));
       }
 
-      return managedRuntime.runPromise(effect, options);
+      return managedRuntime.runPromise(effect);
     },
     dispose() {
       if (disposePromise) return disposePromise;
