@@ -132,6 +132,12 @@ for (const viewport of [
     expect(Math.abs(end.y - end.maxY)).toBeLessThanOrEqual(1);
     await page.keyboard.press("Home");
     await page.keyboard.press("ArrowDown");
+    // Firefox keeps the mouse modality of the earlier drag, so tab away and
+    // back to check the ring that keyboard focus draws.
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    await expect(stage).toBeFocused();
+    await expect(stage).toHaveCSS("outline-style", "solid");
     await expect(stage).toHaveCSS("outline-color", "rgb(23, 128, 79)");
     await expect(page.getByRole("heading", { name: "Page 2", exact: true })).toBeVisible();
     await expect.poll(() => stage.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
