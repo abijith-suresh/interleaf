@@ -41,6 +41,13 @@ function CheckmarkShape() {
   );
 }
 
+/**
+ * Saves an open draft before the user leaves it. Resolves false, with the
+ * draft still open and its validation reason shown, when it cannot be saved.
+ * Returns true at once when nothing is open.
+ */
+export type DraftCommit = () => boolean | Promise<boolean>;
+
 export interface AdditionsGesture {
   key: (event: KeyboardEvent) => boolean;
   move: (event: PointerEvent) => boolean;
@@ -65,6 +72,7 @@ interface Props {
   onEditing: (id: string | null) => void;
   /** Reports whether an unsaved text, checkmark, or field answer is open. */
   onDraftChange?: (open: boolean) => void;
+  registerCommit?: (commit: DraftCommit | null) => void;
 }
 
 export default function EditorAdditionsEditor(props: Props) {
@@ -90,6 +98,8 @@ export default function EditorAdditionsEditor(props: Props) {
   document.addEventListener("pointerdown", trackFocus, true);
   let disposed = false;
   let generation = 0;
+  let pendingSave: Promise<boolean> | undefined;
+  let fieldCommit: DraftCommit | null = null;
   let drag:
     | { pointer: number; x: number; y: number; original: Addition; moved: boolean }
     | undefined;
@@ -268,6 +278,7 @@ export default function EditorAdditionsEditor(props: Props) {
   });
 
   createEffect(() => props.onDraftChange?.(Boolean(draft()) || fieldOpen()));
+  props.registerCommit?.(commitDraft);
   createEffect(() => props.registerTap(mode() === "place" || mode() === "edit" ? place : null));
   props.registerGesture({
     key: previewKey,
@@ -285,6 +296,7 @@ export default function EditorAdditionsEditor(props: Props) {
     generation++;
     props.onEditing(null);
     props.onDraftChange?.(false);
+    props.registerCommit?.(null);
     props.registerTap(null);
     props.registerGesture(null);
     document.removeEventListener("focusin", trackFocus);
@@ -322,10 +334,62 @@ export default function EditorAdditionsEditor(props: Props) {
     setDraft((current) => (current ? { ...current, ...change } : current));
   }
 
-  async function save() {
+  function commitDraft(): boolean | Promise<boolean> {
+    if (pendingSave) return pendingSave;
+    if (fieldOpen()) return fieldCommit?.() ?? true;
+    const current = draft();
+    if (!current) return true;
+    const saved = additions().find((item) => item.id === current.id);
+    // A draft identical to what is saved, or new text never typed, holds no work.
+    if (
+      saved ? JSON.stringify(saved) === JSON.stringify(current) : isText(current) && !current.text
+    ) {
+      finishDraft();
+      return true;
+    }
+    return save(true);
+  }
+
+  function save(leaving = false): Promise<boolean> {
+    if (pendingSave) return pendingSave;
     const text = draft();
     const g = geometry();
-    if (!text || !g || saving() || props.disabled) return;
+    if (!text || !g || props.disabled) {
+      if (leaving && text)
+        showFailure(
+          text,
+          props.disabled
+            ? `An operation is in progress. Save your ${noun()} when it finishes.`
+            : "Could not read page geometry. Try again."
+        );
+      return Promise.resolve(false);
+    }
+    const request = persist(text, g, leaving);
+    pendingSave = request;
+    void request.finally(() => {
+      if (pendingSave === request) pendingSave = undefined;
+    });
+    return request;
+  }
+
+  function fieldToFix(text: Addition) {
+    return !isText(text) ||
+      !Number.isFinite(text.fontSize) ||
+      text.fontSize < MIN_TEXT_SIZE ||
+      text.fontSize > MAX_TEXT_SIZE
+      ? sizeInput
+      : input;
+  }
+
+  /** Keeps the user on a draft they tried to leave, with its reason in view. */
+  function showFailure(text: Addition, message: string) {
+    setError(message);
+    setSettings(true);
+    setToolsOpen(true);
+    focusLater(() => fieldToFix(text), { ...focusTicket(), owned: true });
+  }
+
+  async function persist(text: Addition, g: PageGeometry, leaving: boolean): Promise<boolean> {
     const ticket = focusTicket();
     const version = ++generation;
     setSaving(true);
@@ -335,10 +399,12 @@ export default function EditorAdditionsEditor(props: Props) {
         const { validateAddedText } = await import("../../services/pdf-text");
         await validateAddedText(text, g);
       } else measureAddedCheckmark(text, g);
-      if (disposed || version !== generation) return;
+      if (disposed || version !== generation) return false;
       if (props.disabled) {
-        setError(`An operation is in progress. Save your ${noun()} when it finishes.`);
-        return;
+        const message = `An operation is in progress. Save your ${noun()} when it finishes.`;
+        if (leaving) showFailure(text, message);
+        else setError(message);
+        return false;
       }
       const items = isText(text) ? texts() : marks();
       const existed = items.some((item) => item.id === text.id);
@@ -352,22 +418,20 @@ export default function EditorAdditionsEditor(props: Props) {
       setMode("edit");
       setToolsOpen(false);
       focusLater(() => completionTarget(text.id), ticket);
+      return true;
     } catch (cause) {
       if (!disposed && version === generation) {
-        setError(cause instanceof Error ? cause.message : `Could not save ${noun()}. Try again.`);
+        const message =
+          cause instanceof Error ? cause.message : `Could not save ${noun()}. Try again.`;
         // Re-enable the field before restoring focus lost to disabled controls.
         setSaving(false);
-        focusLater(
-          () =>
-            !isText(text) ||
-            !Number.isFinite(text.fontSize) ||
-            text.fontSize < MIN_TEXT_SIZE ||
-            text.fontSize > MAX_TEXT_SIZE
-              ? sizeInput
-              : input,
-          ticket
-        );
+        if (leaving) showFailure(text, message);
+        else {
+          setError(message);
+          focusLater(() => fieldToFix(text), ticket);
+        }
       }
+      return false;
     } finally {
       if (!disposed && version === generation) setSaving(false);
     }
@@ -832,6 +896,9 @@ export default function EditorAdditionsEditor(props: Props) {
           onOpen={() => setToolsOpen(true)}
           onClose={() => setToolsOpen(false)}
           onDraftChange={setFieldOpen}
+          registerCommit={(commit) => {
+            fieldCommit = commit;
+          }}
           focusInput={focusElement}
           onChange={(pageId, fieldRef, value, originalValue) =>
             props.onFieldChange?.(pageId, fieldRef, value, originalValue)
