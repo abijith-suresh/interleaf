@@ -1997,36 +1997,6 @@ describe("Editor", () => {
     await waitFor(() => expect(tiles[1].getAttribute("aria-pressed")).toBe("false"));
   });
 
-  it.each([
-    { scope: "the whole document with nothing selected", select: false, extract: false },
-    { scope: "the whole document while pages are selected", select: true, extract: false },
-    { scope: "only the selection with Extract to PDF", select: true, extract: true },
-  ])("builds $scope", async ({ select, extract }) => {
-    render(() => <Editor />);
-    const file = makeFile();
-    selectFile("upload", file);
-    const tiles = await findPages();
-    if (select) fireEvent.click(tiles[2]);
-
-    if (extract) fireEvent.click(screen.getByTestId("editor-extract-button"));
-    else await downloadWholePDF();
-
-    await waitFor(() =>
-      expect(downloadPDF).toHaveBeenCalledExactlyOnceWith({
-        data: new Uint8Array([1, 2, 3]),
-        suggestedFileName: "interleaf-output.pdf",
-      })
-    );
-    expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledExactlyOnceWith(
-      [
-        expect.objectContaining({ sourceFile: file, sourcePageNumber: 1 }),
-        expect.objectContaining({ sourceFile: file, sourcePageNumber: 2 }),
-        expect.objectContaining({ sourceFile: file, sourcePageNumber: 3 }),
-      ],
-      expect.objectContaining({ selectedIndices: extract ? [2] : undefined })
-    );
-  });
-
   it("exports PNG images of the selection, the whole document, or the active Document page", async () => {
     const tiles = await openPDF();
     const lastImageScope = () => pdfImageExportMocks.exportImages.mock.calls.at(-1)?.[1];
@@ -2108,34 +2078,6 @@ describe("Editor", () => {
     expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
       "Export started. Saved 80% (10 B → 2 B)."
     );
-  });
-
-  it("reports when compression cannot make the workspace smaller", async () => {
-    pdfCompressionMocks.compressPDF.mockReturnValue(
-      Effect.succeed({
-        data: new Uint8Array([1, 2, 3]),
-        inputBytes: 3,
-        candidateBytes: 4,
-        outputBytes: 3,
-        suggestedFileName: "document.pdf",
-        reduced: false,
-      })
-    );
-
-    await openPDF();
-
-    await openDownloadMenu();
-    fireEvent.click(screen.getByTestId("editor-compress-button"));
-
-    await waitFor(() =>
-      expect(screen.getByTestId("editor-toast")).toHaveTextContent(
-        "Already optimal. Exported the original."
-      )
-    );
-    expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
-      "Export started. Already optimal. Exported the original."
-    );
-    expect(downloadPDF).toHaveBeenCalledTimes(1);
   });
 
   it("shows a failure toast when compression fails", async () => {

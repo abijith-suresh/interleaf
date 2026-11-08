@@ -98,7 +98,7 @@ beforeEach(() => {
   imageExportServiceMock.exportImages.mockReturnValue(
     Effect.succeed({ data: new Blob(), suggestedFileName: "document-images.zip" })
   );
-  runtime = makePDFRuntime({ qpdfWorkerUrl: "/qpdf/qpdf-worker.js" });
+  runtime = makePDFRuntime();
 });
 
 afterEach(async () => {

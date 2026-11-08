@@ -84,15 +84,6 @@ Releases are automated by release-please from Conventional Commits. Versioning r
 
 Follow the existing Astro, SolidJS, TypeScript, and Tailwind patterns. The code and its tests are the source of truth for how the app works; document behavior where it lives, in code, rather than in prose that drifts.
 
-### Architecture
-
-- **Services** (`src/services/`): PDF loading, rendering, and manipulation, plus error helpers. No DOM, no UI.
-- **Controllers** (`src/controllers/`): Page-state logic, including editor history and workspace state. No DOM, no UI.
-- **Components** (`src/components/app/`): SolidJS editor UI. Delegate to services/controllers.
-- **Shared components** (`src/components/shared/`): Astro chrome for marketing pages.
-- **Utils** (`src/utils/`): Browser utilities (download, password prompt, toast, transitions).
-- **Types** (`src/types/`): Shared interfaces and error classes.
-
 ### Testing
 
 Tests are co-located with source: `src/**/__tests__/*.test.ts`.
