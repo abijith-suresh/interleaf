@@ -1,5 +1,5 @@
 import { Effect, Fiber } from "effect";
-import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import { MAX_TEXT_SIZE, MIN_TEXT_SIZE } from "../../constants";
 import {
@@ -61,7 +61,8 @@ interface Props {
   onFieldChange?: (pageId: string, fieldRef: string, value: string, originalValue: string) => void;
   runtime: PDFRuntime;
   toolbar: HTMLElement;
-  header: HTMLElement;
+  /** Extra scroll room under the page, so a draft can scroll above the mobile sheet. */
+  sheetSpace?: HTMLElement;
   stage: HTMLElement;
   ready: boolean;
   disabled?: boolean;
@@ -84,10 +85,14 @@ export default function EditorAdditionsEditor(props: Props) {
   const [tool, setTool] = createSignal<"text" | "checkmark">("text");
   const [error, setError] = createSignal("");
   const [saving, setSaving] = createSignal(false);
-  const [settings, setSettings] = createSignal(true);
   const [fieldOpen, setFieldOpen] = createSignal(false);
+  // The field panel and hint live inside the portalled toolbar, which exists after mount.
+  const [panelsMounted, setPanelsMounted] = createSignal(false);
+  onMount(() => setPanelsMounted(true));
   let layer!: HTMLDivElement;
   let fieldPanel!: HTMLDivElement;
+  let fieldHint!: HTMLDivElement;
+  let draftPanel!: HTMLDivElement;
   let input: HTMLInputElement | undefined;
   let sizeInput: HTMLInputElement | undefined;
   let addButton: HTMLButtonElement | undefined;
@@ -114,7 +119,6 @@ export default function EditorAdditionsEditor(props: Props) {
   const noun = () => (checkmark() ? "checkmark" : "text");
   const minimumSize = () => (checkmark() ? MIN_CHECKMARK_SIZE : MIN_TEXT_SIZE);
   const maximumSize = () => (checkmark() ? MAX_CHECKMARK_SIZE : MAX_TEXT_SIZE);
-  const textMode = createMemo(() => mode() !== "read");
   // Every page-tool button reads its pressed state from here.
   const activeTool = createMemo(() => {
     const current = draft();
@@ -159,8 +163,7 @@ export default function EditorAdditionsEditor(props: Props) {
       pageId: props.page.id,
       revision: focusRevision,
       owned:
-        active === props.stage ||
-        [layer, props.toolbar, props.header].some((root) => root?.contains(active)),
+        active === props.stage || [layer, props.toolbar].some((root) => root?.contains(active)),
     };
   }
 
@@ -179,7 +182,7 @@ export default function EditorAdditionsEditor(props: Props) {
     )
       return;
     // Reveal compact settings without scrolling the document or page preview.
-    for (const container of [element.closest<HTMLElement>(".editor-text-content"), props.toolbar]) {
+    for (const container of [element.closest<HTMLElement>(".editor-draft-panel"), props.toolbar]) {
       if (!container || container.scrollHeight <= container.clientHeight) continue;
       const viewport = container.getBoundingClientRect();
       const region = reveal.getBoundingClientRect();
@@ -234,6 +237,32 @@ export default function EditorAdditionsEditor(props: Props) {
     focusLater(() => completionTarget(id), ticket);
   }
 
+  // On phones and touch screens the draft settings dock as a bottom sheet over
+  // the lower part of the preview. Scroll the draft above the sheet.
+  function revealDraft() {
+    requestAnimationFrame(() => {
+      if (disposed || !props.sheetSpace || !draftPanel?.getClientRects().length) return;
+      if (getComputedStyle(draftPanel).position !== "fixed") return;
+      const target =
+        layer.querySelector<HTMLElement>(".editor-text-draft") ??
+        layer.parentElement?.querySelector<HTMLElement>(".editor-field-hit.is-selected");
+      if (!target) return;
+      const limit = () =>
+        Math.min(
+          draftPanel.getBoundingClientRect().top,
+          props.stage.getBoundingClientRect().bottom
+        );
+      if (target.getBoundingClientRect().bottom + 12 <= limit()) return;
+      props.sheetSpace.style.height = `${draftPanel.offsetHeight}px`;
+      const overlap = target.getBoundingClientRect().bottom + 12 - limit();
+      if (overlap > 0) props.stage.scrollTop += overlap;
+    });
+  }
+
+  createEffect(() => {
+    if (!draft() && !fieldOpen() && props.sheetSpace) props.sheetSpace.style.height = "";
+  });
+
   createEffect(() => {
     const pageId = props.page.id;
     const saved = JSON.stringify([props.page.addedText ?? [], props.page.addedCheckmarks ?? []]);
@@ -244,8 +273,8 @@ export default function EditorAdditionsEditor(props: Props) {
     cancel();
   });
 
+  // Field targets are clickable in Read mode too, so geometry is always read.
   createEffect(() => {
-    if (!textMode()) return;
     const page = props.page;
     const file = page.sourceFile;
     const number = page.sourcePageNumber;
@@ -323,10 +352,10 @@ export default function EditorAdditionsEditor(props: Props) {
     setMode("edit");
     setDraft({ ...text });
     setTool(isText(text) ? "text" : "checkmark");
-    setSettings(true);
-    setToolsOpen(true);
+    setToolsOpen(false);
     props.onEditing(text.id);
     focusLater(() => (isText(text) ? input : sizeInput), ticket);
+    revealDraft();
   }
 
   function patch(change: Partial<AddedText & AddedCheckmark>) {
@@ -384,8 +413,7 @@ export default function EditorAdditionsEditor(props: Props) {
   /** Keeps the user on a draft they tried to leave, with its reason in view. */
   function showFailure(text: Addition, message: string) {
     setError(message);
-    setSettings(true);
-    setToolsOpen(true);
+    setToolsOpen(false);
     focusLater(() => fieldToFix(text), { ...focusTicket(), owned: true });
   }
 
@@ -503,10 +531,10 @@ export default function EditorAdditionsEditor(props: Props) {
     const base = { id: createPageBatchId(), ...anchor, rotation: rotation() };
     setDraft(tool() === "text" ? { ...base, text: "", fontSize: 16 } : { ...base, size: 16 });
     setMode("edit");
-    setSettings(true);
-    setToolsOpen(true);
+    setToolsOpen(false);
     setError("");
     focusLater(() => (tool() === "text" ? input : sizeInput));
+    revealDraft();
   }
 
   function previewKey(event: KeyboardEvent) {
@@ -579,117 +607,133 @@ export default function EditorAdditionsEditor(props: Props) {
 
   return (
     <>
-      <Portal mount={props.header}>
-        <fieldset class="editor-text-mobile-bar" disabled={props.disabled}>
-          <EditorButton
-            aria-pressed={activeTool() === "read"}
-            onClick={() => {
-              cancel();
-              setMode("read");
-              setToolsOpen(false);
-            }}
-          >
-            Read
-          </EditorButton>
-          <EditorButton
-            ref={disclosure}
-            aria-label="Tools"
-            class="editor-text-disclosure"
-            aria-expanded={toolsOpen()}
-            onClick={() => setToolsOpen(!toolsOpen())}
-          >
-            Tools
-          </EditorButton>
-        </fieldset>
-      </Portal>
       <Portal mount={props.toolbar}>
-        <fieldset class="editor-text-controls" disabled={props.disabled}>
-          <Show when={mode() === "place" && !toolsOpen()}>
-            <span class="editor-text-hint editor-text-mobile-hint" role="status">
-              Tap the page or press Enter in the preview.
-            </span>
-          </Show>
-          <div class="editor-text-content" tabIndex={-1} classList={{ "is-open": toolsOpen() }}>
-            <div class="editor-text-toolbar" role="toolbar" aria-label="Page tools">
+        {/* One fixed-height bar. Its tools swap for the open draft's settings,
+            so the preview never moves. Phones dock the settings as a sheet. */}
+        <fieldset
+          class="editor-text-controls"
+          classList={{ "has-draft": Boolean(draft()) || fieldOpen() }}
+          disabled={props.disabled}
+        >
+          <div class="editor-context-tools">
+            <div class="editor-text-mobile-bar">
               <EditorButton
                 aria-pressed={activeTool() === "read"}
                 onClick={() => {
                   cancel();
                   setMode("read");
+                  setToolsOpen(false);
                 }}
               >
                 Read
               </EditorButton>
               <EditorButton
-                ref={addButton}
-                icon="text"
-                aria-pressed={activeTool() === "text"}
-                disabled={!props.ready || saving()}
-                onClick={() => {
-                  const ticket = focusTicket();
-                  cancel();
-                  setTool("text");
-                  setMode("place");
-                  setToolsOpen(false);
-                  focusLater(() => props.stage, ticket);
-                }}
+                ref={disclosure}
+                aria-label="Tools"
+                class="editor-text-disclosure"
+                aria-expanded={toolsOpen()}
+                aria-controls="editor-page-tools"
+                onClick={() => setToolsOpen(!toolsOpen())}
               >
-                Add text
+                Tools
               </EditorButton>
-              <EditorButton
-                icon="checkmark"
-                aria-pressed={activeTool() === "checkmark"}
-                disabled={!props.ready || saving() || !props.onCheckmarksChange}
-                onClick={() => {
-                  const ticket = focusTicket();
-                  cancel();
-                  setTool("checkmark");
-                  setMode("place");
-                  setToolsOpen(false);
-                  focusLater(() => props.stage, ticket);
-                }}
-              >
-                Checkmark
-              </EditorButton>
-              <EditorButton
-                icon="page-actions"
-                aria-pressed={activeTool() === "fields"}
-                disabled={!props.ready || saving() || Boolean(draft()) || !props.onFieldChange}
-                onClick={() => {
-                  cancel();
-                  setMode("fields");
-                  setToolsOpen(false);
-                }}
-              >
-                Fill fields
-              </EditorButton>
-              <Show when={additions().length > 0}>
+            </div>
+            <div
+              id="editor-page-tools"
+              class="editor-text-content"
+              tabIndex={-1}
+              classList={{ "is-open": toolsOpen() }}
+            >
+              <div class="editor-text-toolbar" role="toolbar" aria-label="Page tools">
+                <EditorButton
+                  aria-pressed={activeTool() === "read"}
+                  onClick={() => {
+                    cancel();
+                    setMode("read");
+                    setToolsOpen(false);
+                  }}
+                >
+                  Read
+                </EditorButton>
+                <EditorButton
+                  ref={addButton}
+                  icon="text"
+                  aria-pressed={activeTool() === "text"}
+                  disabled={!props.ready || saving()}
+                  onClick={() => {
+                    const ticket = focusTicket();
+                    cancel();
+                    setTool("text");
+                    setMode("place");
+                    setToolsOpen(false);
+                    focusLater(() => props.stage, ticket);
+                  }}
+                >
+                  Add text
+                </EditorButton>
+                <EditorButton
+                  icon="checkmark"
+                  aria-pressed={activeTool() === "checkmark"}
+                  disabled={!props.ready || saving() || !props.onCheckmarksChange}
+                  onClick={() => {
+                    const ticket = focusTicket();
+                    cancel();
+                    setTool("checkmark");
+                    setMode("place");
+                    setToolsOpen(false);
+                    focusLater(() => props.stage, ticket);
+                  }}
+                >
+                  Checkmark
+                </EditorButton>
+                <EditorButton
+                  icon="page-actions"
+                  aria-pressed={activeTool() === "fields"}
+                  disabled={!props.ready || saving() || Boolean(draft()) || !props.onFieldChange}
+                  onClick={() => {
+                    cancel();
+                    setMode("fields");
+                    setToolsOpen(false);
+                  }}
+                >
+                  Fill fields
+                </EditorButton>
                 <EditorButton
                   icon="page-actions"
                   aria-label="Select additions"
                   aria-pressed={activeTool() === "edit"}
-                  disabled={saving()}
+                  title={
+                    additions().length > 0
+                      ? "Select an addition to edit it"
+                      : "Add text or a checkmark first"
+                  }
+                  disabled={saving() || additions().length === 0}
                   onClick={() => {
                     cancel();
                     setMode("edit");
+                    setToolsOpen(false);
                   }}
                 >
                   Edit additions
                 </EditorButton>
-              </Show>
+              </div>
+            </div>
+            <div class="editor-context-hint">
               <Show when={mode() === "place"}>
                 <span class="editor-text-hint" role="status">
                   Tap the page or press Enter in the preview.
                 </span>
               </Show>
-              <Show when={draft()}>
-                <EditorButton aria-expanded={settings()} onClick={() => setSettings(!settings())}>
-                  {checkmark() ? "Checkmark settings" : "Text settings"}
-                </EditorButton>
+              <div ref={fieldHint} />
+              <Show when={error() && !draft()}>
+                <p class="editor-text-error" role="alert">
+                  {error()}
+                </p>
               </Show>
             </div>
-            <div ref={fieldPanel} />
-            <Show when={draft() && settings()}>
+          </div>
+          <div ref={draftPanel} class="editor-draft-panel">
+            <Show when={draft()}>
               <form
                 class="editor-text-settings"
                 onSubmit={(event) => {
@@ -704,7 +748,7 @@ export default function EditorAdditionsEditor(props: Props) {
                   }
                 }}
               >
-                <span class="editor-text-font" role="status">
+                <span class="editor-text-font editor-draft-status" role="status">
                   {additions().some((item) => item.id === draft()?.id) ? "Editing saved" : "Draft"}{" "}
                   {noun()}
                 </span>
@@ -808,12 +852,7 @@ export default function EditorAdditionsEditor(props: Props) {
                 </Show>
               </form>
             </Show>
-
-            <Show when={error() && !draft()}>
-              <p class="editor-text-error" role="alert">
-                {error()}
-              </p>
-            </Show>
+            <div ref={fieldPanel} />
           </div>
         </fieldset>
       </Portal>
@@ -871,8 +910,7 @@ export default function EditorAdditionsEditor(props: Props) {
                 onKeyDown={draftKey}
                 style={style(text())}
                 onClick={() => {
-                  setToolsOpen(true);
-                  setSettings(true);
+                  setToolsOpen(false);
                   const field = checkmark() ? sizeInput : input;
                   if (visible(field)) focusElement(field);
                 }}
@@ -883,18 +921,29 @@ export default function EditorAdditionsEditor(props: Props) {
           </Show>
         </Show>
       </div>
-      <Show when={mode() === "fields" && props.onFieldChange}>
+      <Show
+        when={panelsMounted() && (mode() === "fields" || mode() === "read") && props.onFieldChange}
+      >
         <EditorFieldsEditor
+          active={mode() === "fields"}
+          onActivate={() => {
+            cancel();
+            setMode("fields");
+            setToolsOpen(false);
+          }}
           page={props.page}
           groupPageNumbers={props.groupPageNumbers ?? [props.page.sourcePageNumber]}
           runtime={props.runtime}
           geometry={geometry()}
           rotation={rotation()}
           toolbar={fieldPanel}
+          hint={fieldHint}
           stage={props.stage}
           disabled={props.disabled}
-          onOpen={() => setToolsOpen(true)}
-          onClose={() => setToolsOpen(false)}
+          onOpen={() => {
+            setToolsOpen(false);
+            revealDraft();
+          }}
           onDraftChange={setFieldOpen}
           registerCommit={(commit) => {
             fieldCommit = commit;

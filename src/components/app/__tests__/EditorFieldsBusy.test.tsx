@@ -82,7 +82,9 @@ it("held field validation cannot publish during a real export; draft retries ato
       stage={stage}
       rotation={0}
       onOpen={() => {}}
-      onClose={() => {}}
+      active
+      onActivate={() => {}}
+      hint={toolbar}
       focusInput={(input) => input.focus()}
       onChange={onChange}
       geometry={{

@@ -4,6 +4,7 @@ import { degrees, PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { createServer, type ViteDevServer } from "vite";
 import { createJpegFile, createPngFile } from "../../src/services/__tests__/pdf-fixtures";
 import type { inspectPDF, inspectZIP } from "./fixtures/duplication";
+import { openFiles } from "./toolbar";
 
 let server: ViteDevServer;
 let url: string;
@@ -83,7 +84,11 @@ test("mixed history restores real PDF order, rotations, text, selected PNG pixel
   const redo = page.getByTestId("editor-redo-button");
   const reader = await context.newPage();
   await reader.goto(`${url}duplicate-test`);
-  const pdf = () => download(page, () => page.getByTestId("editor-download-button").click());
+  const pdf = () =>
+    download(page, async () => {
+      await page.getByTestId("editor-download-menu-button").click();
+      await page.getByTestId("editor-download-button").click();
+    });
   const original = await inspect(reader, await pdf());
   await page.getByRole("button", { name: "Rotate page 1 90 degrees", exact: true }).click();
   await page.getByRole("button", { name: "Duplicate page 1", exact: true }).click();
@@ -94,7 +99,6 @@ test("mixed history restores real PDF order, rotations, text, selected PNG pixel
   await tiles.nth(2).click();
   await tiles.nth(1).click();
   for (const id of ["editor-rotate-button", "editor-delete-button", "editor-delete-button"]) {
-    await page.getByTestId("editor-edit-menu-button").click();
     await page.getByTestId(id).click();
   }
   await page.getByRole("button", { name: "Mark page 1 for deletion", exact: true }).click();
@@ -106,7 +110,7 @@ test("mixed history restores real PDF order, rotations, text, selected PNG pixel
     ["Source 1", 270, 270],
   ]);
   const png = async () => {
-    await page.getByTestId("editor-download-options-button").click();
+    await page.getByTestId("editor-download-menu-button").click();
     const zip = await download(page, () => page.getByTestId("editor-export-images-button").click());
     return reader.evaluate(async (bytes): Promise<Awaited<ReturnType<typeof inspectZIP>>> => {
       const path = "/tests/e2e/fixtures/duplication.ts";
@@ -124,9 +128,9 @@ test("mixed history restores real PDF order, rotations, text, selected PNG pixel
     "aria-pressed",
     "true"
   );
-  await expect(page.getByTestId("editor-selection-title")).toHaveText("All 2 exportable");
+  await expect(page.getByRole("toolbar", { name: "Selected pages" })).toHaveCount(0);
   expect(await inspect(reader, await pdf())).toEqual(original);
-  await page.getByTestId("editor-download-options-button").click();
+  await page.getByTestId("editor-download-menu-button").click();
   await expect(page.getByTestId("editor-compress-button")).toHaveAttribute(
     "aria-disabled",
     "false"
@@ -171,18 +175,42 @@ for (const viewport of [
       const bounds = await button.boundingBox();
       expect(bounds).toBeTruthy();
       if (!bounds) throw new Error("Missing history button");
-      expect(bounds.width).toBeGreaterThanOrEqual(44);
-      expect(bounds.height).toBeGreaterThanOrEqual(44);
+      // Compact controls extend their hit area beyond their visual box.
+      expect(
+        await button.evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          const x = bounds.x + bounds.width / 2;
+          const y = bounds.y + bounds.height / 2;
+          return [
+            [x - 21, y],
+            [x + 21, y],
+            [x, y - 21],
+            [x, y + 21],
+          ].every(([px, py]) => element.contains(document.elementFromPoint(px, py)));
+        })
+      ).toBe(true);
       expect(bounds.x).toBeGreaterThanOrEqual(0);
       expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
       expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
     }
-    const sidebar = await page.locator(".editor-sidebar").boundingBox();
-    const exit = await page.getByRole("link", { name: "Return to Interleaf home" }).boundingBox();
-    if (!sidebar || !exit) throw new Error("Missing workspace navigation");
-    expect(exit.x).toBeGreaterThanOrEqual(sidebar.x);
-    expect(exit.x + exit.width).toBeLessThanOrEqual(sidebar.x + sidebar.width);
-    expect(exit.y + exit.height).toBeLessThanOrEqual(viewport.height);
+    // History stays in the toolbar. Phones list Exit under More.
+    const toolbar = await page.getByRole("toolbar", { name: "Editor" }).boundingBox();
+    const undoBox = await page.getByTestId("editor-undo-button").boundingBox();
+    if (!toolbar || !undoBox) throw new Error("Missing toolbar");
+    expect(undoBox.y).toBeGreaterThanOrEqual(toolbar.y - 1);
+    expect(undoBox.y + undoBox.height).toBeLessThanOrEqual(toolbar.y + toolbar.height + 1);
+    const exit = page.getByTestId("editor-exit-link");
+    if (viewport.width < 768) {
+      await expect(exit).toBeHidden();
+      await page.getByTestId("editor-more-button").click();
+      await expect(page.getByRole("link", { name: "Exit editor" })).toBeVisible();
+      await page.keyboard.press("Escape");
+    } else {
+      const exitBox = await exit.boundingBox();
+      if (!exitBox) throw new Error("Missing Exit");
+      expect(exitBox.x).toBeGreaterThanOrEqual(0);
+      expect(exitBox.y + exitBox.height).toBeLessThanOrEqual(toolbar.y + toolbar.height + 1);
+    }
     await page.getByRole("button", { name: "Rotate page 1 90 degrees", exact: true }).click();
     await page.getByTestId("editor-undo-button").click();
     await expect(page.getByTestId("editor-undo-button")).toBeFocused();
@@ -303,12 +331,11 @@ test("text controls, open menus, dialogs and failed imports preserve history; so
       element.remove();
     });
   });
-  await page.getByTestId("editor-edit-menu-button").click();
+  await page.getByTestId("editor-download-menu-button").click();
   await page.keyboard.press("Control+z");
   await expect(undo).toHaveAttribute("aria-disabled", "false");
   await page.keyboard.press("Escape");
-  // The Files dialog takes history and announces it inside the modal.
-  await page.getByTestId("editor-files-button").click();
+  await openFiles(page);
   await page.keyboard.press("Control+z");
   await expect(page.getByTestId("editor-files-notice")).toHaveText("Undid page rotation.");
   await expect(undo).toHaveAttribute("aria-disabled", "true");
@@ -328,12 +355,12 @@ test("text controls, open menus, dialogs and failed imports preserve history; so
   await expect(redo).toHaveAttribute("aria-disabled", "true");
   await expect(undo).toHaveAttribute("aria-label", "Undo source addition");
   await page.getByRole("button", { name: "Duplicate page 1", exact: true }).click();
-  await page.getByTestId("editor-files-button").click();
+  await openFiles(page);
   await page.getByTestId("editor-file-remove").nth(0).click();
   await page.getByTestId("editor-files-close-button").click();
   await expect(page.getByTestId("editor-page-tile")).toHaveCount(2);
   await expect(undo).toHaveAttribute("aria-disabled", "false");
-  await page.getByTestId("editor-files-button").click();
+  await openFiles(page);
   await page.getByTestId("editor-file-remove").click();
   await expect(page.getByTestId("editor-upload-input")).toBeAttached();
   await expect(page.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false");
@@ -363,9 +390,15 @@ test("source and page history restores real mixed PDF, PNG and EXIF JPEG output 
   const reader = await context.newPage();
   await reader.goto(`${url}duplicate-test`);
   const pdf = async () =>
-    inspect(reader, await download(page, () => page.getByTestId("editor-download-button").click()));
+    inspect(
+      reader,
+      await download(page, async () => {
+        await page.getByTestId("editor-download-menu-button").click();
+        await page.getByTestId("editor-download-button").click();
+      })
+    );
   const png = async () => {
-    await page.getByTestId("editor-download-options-button").click();
+    await page.getByTestId("editor-download-menu-button").click();
     const bytes = await download(page, () =>
       page.getByTestId("editor-export-images-button").click()
     );
@@ -402,7 +435,7 @@ test("source and page history restores real mixed PDF, PNG and EXIF JPEG output 
   expect(changedPNG.map((p) => [p.hash, p.size, p.ink])).toEqual(
     changed.pages.map((p) => [p.hash, p.size, p.ink])
   );
-  await page.getByTestId("editor-files-button").click();
+  await openFiles(page);
   await page.getByTestId("editor-file-remove").nth(2).click();
   await idle(page);
   await page.getByTestId("editor-files-close-button").click();
@@ -415,7 +448,7 @@ test("source and page history restores real mixed PDF, PNG and EXIF JPEG output 
   for (let step = 0; step < 5; step++) await historyStep(page, "undo");
   await expect(tiles).toHaveCount(2);
   expect(await pdf()).toEqual(original);
-  await page.getByTestId("editor-download-options-button").click();
+  await page.getByTestId("editor-download-menu-button").click();
   await expect(page.getByTestId("editor-compress-button")).toHaveAttribute(
     "aria-disabled",
     "false"
@@ -442,7 +475,7 @@ for (const viewport of [
     await page.goto("/app");
     await page.getByTestId("editor-upload-input").setInputFiles(await source());
     await page.getByTestId("editor-document-view-button").click();
-    await page.getByTestId("editor-files-button").click();
+    await openFiles(page);
     await page.getByTestId("editor-file-remove").click();
     await idle(page);
     const undo = page.getByTestId("editor-undo-button");
@@ -507,9 +540,15 @@ test("restoring an encrypted source re-prompts, cancels transactionally, and sup
   const reader = await context.newPage();
   await reader.goto(`${url}duplicate-test`);
   const pdf = async () =>
-    inspect(reader, await download(page, () => page.getByTestId("editor-download-button").click()));
+    inspect(
+      reader,
+      await download(page, async () => {
+        await page.getByTestId("editor-download-menu-button").click();
+        await page.getByTestId("editor-download-button").click();
+      })
+    );
   const original = await pdf();
-  await page.getByTestId("editor-files-button").click();
+  await openFiles(page);
   await page.getByTestId("editor-file-remove").click();
   await idle(page);
   await page.getByTestId("editor-undo-button").click();

@@ -46,10 +46,10 @@ import { promptForPassword } from "../../utils/password-prompt";
 import { showToast as dispatchToast, TOAST_EVENT_NAME, type ToastDetail } from "../../utils/toast";
 import type { DraftCommit } from "./EditorAdditionsEditor";
 import EditorFilesDialog from "./EditorFilesDialog";
-import EditorHistoryControls from "./EditorHistoryControls";
 import EditorPageGrid from "./EditorPageGrid";
 import EditorPageViewer from "./EditorPageViewer";
 import EditorSelectionBar from "./EditorSelectionBar";
+import EditorToolbar from "./EditorToolbar";
 import EditorUploader from "./EditorUploader";
 import EditorButton from "./ui/EditorButton";
 import EditorIcon from "./ui/EditorIcon";
@@ -101,18 +101,20 @@ export default function Editor() {
   let addPdfInput!: HTMLInputElement;
   let editorRoot!: HTMLDivElement;
   let filesButton!: HTMLButtonElement;
+  let moreButton!: HTMLButtonElement;
+  let downloadButton!: HTMLButtonElement;
   let nextToastId = 0;
   let activeOperationFiber: Fiber.Fiber<unknown, unknown> | null = null;
   const toastTimers = new Map<number, number>();
   const pdfRuntime = makePDFRuntime();
   let disposed = false;
   let filesFocusGeneration = 0;
-  let restoreFilesAfterRemoval: (() => void) | undefined;
+  let restoreFilesAfterCleanup: (() => void) | undefined;
   let draftCommit: DraftCommit | null = null;
 
   function invalidateFilesFocus(): void {
     filesFocusGeneration++;
-    restoreFilesAfterRemoval = undefined;
+    restoreFilesAfterCleanup = undefined;
   }
 
   const [phase, setPhase] = createSignal<"upload" | "edit">("upload");
@@ -133,20 +135,20 @@ export default function Editor() {
 
   const activePageCount = () => pages.filter((p) => !p.markedForDeletion).length;
   const markedPageCount = () => pages.length - activePageCount();
-  const pageStatusSummary = () => {
-    if (pages.length === 0) return "No pages.";
-    if (markedPageCount() === 0) return `${pages.length} pages.`;
-    return `${activePageCount()} of ${pages.length} pages exportable.`;
+  // The one visible page count. It sits next to the Download menu.
+  const pageCountLabel = () => {
+    if (pages.length === 0) return "No pages";
+    if (markedPageCount() === 0) return formatPageCount(pages.length);
+    return `${activePageCount()} of ${pages.length} pages exportable`;
   };
+  const pageStatusSummary = () => `${pageCountLabel()}.`;
   const selectedActivePageCount = () =>
     Array.from(selectedIndices()).filter((index) => !pages[index]?.markedForDeletion).length;
+  const selectionAnnouncement = () => {
+    const count = selectedIndices().size;
+    return count === 0 ? "" : `${formatPageCount(count)} selected.`;
+  };
   const isBusy = () => operation() !== "idle";
-  const reviewPageIds = createMemo(() => {
-    const selection = selectedIndices();
-    return pages
-      .filter((_, index) => selection.size === 0 || selection.has(index))
-      .map((page) => page.id);
-  });
   const allPagesSelected = () => areAllPagesSelected(pages.length, selectedIndices());
   const selectedDeletionAction = () => getDeletionAction(pages, selectedIndices());
   const deletionCopy = () => deletionActionCopy[selectedDeletionAction()];
@@ -207,13 +209,10 @@ export default function Editor() {
         setSelectedIndices(
           new Set(pages.flatMap((page, index) => (selectedIds.has(page.id) ? [index] : [])))
         );
-        const reviewIds = pages
-          .filter((page) => selectedIds.size === 0 || selectedIds.has(page.id))
-          .map((page) => page.id);
         setActivePageId(
-          reviewIds.includes(snapshot.activePageId ?? "")
+          pages.some((page) => page.id === snapshot.activePageId)
             ? snapshot.activePageId
-            : (reviewIds[0] ?? null)
+            : (pages[0]?.id ?? null)
         );
         if (pages.length === 0) {
           setWorkspaceView("pages");
@@ -324,6 +323,9 @@ export default function Editor() {
                   if (disposed) return;
                   setOperation("idle");
                   if (!committed) setStatusMessage("Files were not restored.");
+                  const restoreFiles = restoreFilesAfterCleanup;
+                  restoreFilesAfterCleanup = undefined;
+                  restoreFiles?.();
                   restoreFocus();
                 })
               )
@@ -389,7 +391,7 @@ export default function Editor() {
   }
 
   function getUnmodifiedSourceFile(): File | null {
-    if (pages.length === 0 || selectedIndices().size > 0) return null;
+    if (pages.length === 0) return null;
 
     const sourceFile = pages[0]?.sourceFile;
     if (!sourceFile) return null;
@@ -407,9 +409,6 @@ export default function Editor() {
   }
 
   function compressionDisabledReason(): string {
-    if (selectedIndices().size > 0) {
-      return "Clear page selection to compress the original PDF";
-    }
     if (pages.length === 0 || activePageCount() === 0) {
       return "Restore marked pages to compress the original PDF";
     }
@@ -518,6 +517,7 @@ export default function Editor() {
       }
     };
     document.addEventListener("keydown", handleHistoryKeyDown);
+    document.addEventListener("keydown", handleSelectionEscape);
     document.addEventListener("focusin", rememberFocus);
     window.addEventListener("resize", retainVisibleFocus);
     // The workspace lives only in this page, so leaving it loses every page,
@@ -525,6 +525,7 @@ export default function Editor() {
     onCleanup(guardLeave(() => !disposed && (pages.length > 0 || history().undo.length > 0)));
     onCleanup(() => {
       document.removeEventListener("keydown", handleHistoryKeyDown);
+      document.removeEventListener("keydown", handleSelectionEscape);
       document.removeEventListener("focusin", rememberFocus);
       window.removeEventListener("resize", retainVisibleFocus);
     });
@@ -838,6 +839,13 @@ export default function Editor() {
     void loadFilesIntoWorkspace(files, "add");
   }
 
+  // On narrow screens Files sits in the closed overflow list, so focus
+  // returns to the overflow trigger instead.
+  function filesReturnTarget(): HTMLButtonElement | undefined {
+    if (filesButton?.getClientRects().length) return filesButton;
+    return moreButton?.getClientRects().length ? moreButton : filesButton;
+  }
+
   function closeFilesDialog(): void {
     invalidateFilesFocus();
     const version = filesFocusGeneration;
@@ -847,21 +855,27 @@ export default function Editor() {
     setFilesNotice("");
     queueMicrotask(() => {
       if (disposed || version !== filesFocusGeneration || workspaceView() !== view) return;
+      const returnTarget = filesReturnTarget();
       if (
         document.activeElement !== document.body &&
         document.activeElement !== focused &&
-        document.activeElement !== filesButton
+        document.activeElement !== returnTarget
       )
         return;
-      const target = filesButton?.disabled
-        ? editorRoot.querySelector<HTMLButtonElement>('[data-testid="editor-undo-button"]')
-        : filesButton;
+      const target =
+        filesButton?.disabled && returnTarget === filesButton
+          ? editorRoot.querySelector<HTMLButtonElement>('[data-testid="editor-undo-button"]')
+          : returnTarget;
       target?.focus();
-      if (operation() === "removing" && pages.length > 0 && filesButton?.disabled) {
+      if (
+        (operation() === "removing" || operation() === "restoring") &&
+        pages.length > 0 &&
+        filesButton?.disabled
+      ) {
         const fallback = document.activeElement;
         // Cleanup can outlive closing the dialog. Return to Files once enabled,
         // only while focus still belongs to the fallback chosen above.
-        restoreFilesAfterRemoval = () => {
+        restoreFilesAfterCleanup = () => {
           if (
             !disposed &&
             version === filesFocusGeneration &&
@@ -871,7 +885,7 @@ export default function Editor() {
             !filesButton.disabled &&
             document.activeElement === fallback
           )
-            filesButton.focus({ preventScroll: true });
+            filesReturnTarget()?.focus({ preventScroll: true });
         };
       }
     });
@@ -881,8 +895,7 @@ export default function Editor() {
     invalidateFilesFocus();
     if (view === "document") {
       if (pages.length === 0) return;
-      const ids = reviewPageIds();
-      if (!ids.includes(activePageId() ?? "")) setActivePageId(ids[0] ?? null);
+      if (!pages.some((page) => page.id === activePageId())) setActivePageId(pages[0]?.id ?? null);
     }
     setWorkspaceView(view);
     // The switch stays mounted at every breakpoint, so keyboard focus never
@@ -913,6 +926,48 @@ export default function Editor() {
     if (isBusy() || selectedIndices().size === 0) return;
     setSelectedIndices(new Set<number>());
     setStatusMessage("Selection cleared.");
+    // The selection bar closes with the selection. Focus that was inside it
+    // moves to the active page.
+    queueMicrotask(() => {
+      if (disposed || !editorRoot.isConnected) return;
+      const focused = document.activeElement;
+      if (focused instanceof HTMLElement && focused !== document.body && focused.isConnected)
+        return;
+      const index = Math.max(
+        0,
+        pages.findIndex((page) => page.id === activePageId())
+      );
+      const target =
+        workspaceView() === "pages"
+          ? editorRoot.querySelector<HTMLElement>(
+              `[data-testid="editor-page-tile"][data-page-index="${index}"]`
+            )
+          : editorRoot.querySelector<HTMLElement>(
+              '.editor-review-filmstrip-item[aria-current="page"]'
+            );
+      (target ?? downloadButton)?.focus({ preventScroll: true });
+    });
+  }
+
+  function handleSelectionEscape(event: KeyboardEvent): void {
+    if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
+    if (phase() !== "edit" || selectedIndices().size === 0 || isBusy() || draftOpen()) return;
+    const target = event.target;
+    if (
+      !(target instanceof HTMLElement) ||
+      (target !== document.body && !editorRoot.contains(target))
+    )
+      return;
+    if (
+      target.isContentEditable ||
+      target.closest(
+        'input, textarea, select, [role="textbox"], [role="menu"], [role="dialog"], dialog'
+      ) ||
+      document.querySelector('dialog[open], [role="dialog"][aria-modal="true"], [role="menu"]')
+    )
+      return;
+    event.preventDefault();
+    clearSelection();
   }
 
   function handleWorkspaceFileClick(file: File): void {
@@ -981,8 +1036,8 @@ export default function Editor() {
           "error"
         );
     } finally {
-      const restoreFiles = restoreFilesAfterRemoval;
-      restoreFilesAfterRemoval = undefined;
+      const restoreFiles = restoreFilesAfterCleanup;
+      restoreFilesAfterCleanup = undefined;
       if (!disposed) {
         setOperation("idle");
         if (restoreFiles) queueMicrotask(restoreFiles);
@@ -990,6 +1045,8 @@ export default function Editor() {
           remainingPages.length === 0 &&
           (document.activeElement === document.body ||
             document.activeElement === filesButton ||
+            // Closing the modal returns focus to More when Files sat in its list.
+            document.activeElement === moreButton ||
             (document.activeElement instanceof HTMLElement &&
               !!document.activeElement.closest("#editor-files-dialog")))
         ) {
@@ -1021,7 +1078,7 @@ export default function Editor() {
     const page = pages[index];
     if (!page) return;
     const copy = duplicatePageState(page);
-    // Download exports only selected pages, so the copy never changes the selection.
+    // Keep Extract targeting the same originals when a copy is inserted.
     organize("page duplication", () => {
       setPages(produce((draft) => draft.splice(index + 1, 0, copy)));
       setSelectedIndices((selection) => remapSelectionAfterInsert(selection, index + 1));
@@ -1066,15 +1123,74 @@ export default function Editor() {
     );
   }
 
-  function handleRotateSelected(): void {
+  function handleRotateSelected(direction: "left" | "right"): void {
     if (isBusy() || selectedIndices().size === 0) return;
+    const step = direction === "right" ? ROTATION_STEP : 360 - ROTATION_STEP;
     organize("selected page rotation", () => {
       for (const index of selectedIndices()) {
-        setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360);
+        setPages(index, "rotation", (r) => (r + step) % 360);
       }
     });
     setStatusMessage(
-      `Rotated ${selectedIndices().size} selected page${selectedIndices().size === 1 ? "" : "s"}.`
+      `Rotated ${formatPageCount(selectedIndices().size).replace("page", "selected page")} ${direction}.`
+    );
+  }
+
+  function handleDuplicateSelected(): void {
+    if (isBusy() || selectedIndices().size === 0) return;
+    const indices = Array.from(selectedIndices()).sort((a, b) => a - b);
+    const copies = indices.map((index) => duplicatePageState(pages[index]));
+    organize("selected page duplication", () => {
+      setPages(
+        produce((draft) => {
+          for (let k = indices.length - 1; k >= 0; k--) draft.splice(indices[k] + 1, 0, copies[k]);
+        })
+      );
+      // Each copy follows its original, so earlier copies shift later ones by one.
+      setSelectedIndices(new Set(indices.map((index, k) => index + k + 1)));
+      setActivePageId(copies[0]?.id ?? null);
+    });
+    setStatusMessage(
+      `Duplicated ${formatPageCount(indices.length).replace("page", "selected page")}. The copies are selected.`
+    );
+  }
+
+  // --- Document page actions ---
+
+  function documentPageIndex(pageId: string): number {
+    return isBusy() ? -1 : pages.findIndex((page) => page.id === pageId);
+  }
+
+  function handleDocumentRotate(pageId: string): void {
+    const index = documentPageIndex(pageId);
+    if (index < 0) return;
+    organize("page rotation", () => setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360));
+    setStatusMessage(`Rotated page ${index + 1}.`);
+  }
+
+  function handleDocumentDuplicate(pageId: string): void {
+    const index = documentPageIndex(pageId);
+    if (index < 0) return;
+    const copy = duplicatePageState(pages[index]);
+    organize("page duplication", () => {
+      setPages(produce((draft) => draft.splice(index + 1, 0, copy)));
+      setSelectedIndices(
+        (selection) => new Set(Array.from(selection, (i) => (i > index ? i + 1 : i)))
+      );
+      setActivePageId(copy.id);
+    });
+    setStatusMessage(`Duplicated page ${index + 1}. Showing page ${index + 2}.`);
+  }
+
+  function handleDocumentDeletion(pageId: string): void {
+    const index = documentPageIndex(pageId);
+    if (index < 0) return;
+    const marked = pages[index].markedForDeletion;
+    organize(marked ? "page restoration" : "deletion marking", () =>
+      setPages(index, "markedForDeletion", !marked)
+    );
+    setStatusMessage(
+      marked ? `Restored page ${index + 1}.` : `Marked page ${index + 1} for deletion.`
     );
   }
 
@@ -1097,28 +1213,25 @@ export default function Editor() {
     );
   }
 
-  async function handleDownload(): Promise<void> {
+  // Download always builds every exportable page. Extract builds the selection.
+  async function exportPDF(pageIndices?: number[]): Promise<void> {
     if (disposed || isBusy()) return;
-    const selection = selectedIndices();
-    const selectedPageIndices =
-      selection.size > 0 ? Array.from(selection).sort((a, b) => a - b) : undefined;
-    const totalPages = selectedPageIndices ? selectedActivePageCount() : activePageCount();
+    const totalPages = pageIndices
+      ? pageIndices.filter((index) => !pages[index]?.markedForDeletion).length
+      : activePageCount();
+    const label = pageIndices ? "Extracting selected pages" : "Exporting PDF";
 
     setOperation("building");
-    setStatusMessage(
-      `${selectedPageIndices ? "Exporting selected pages" : "Exporting PDF"}… 0/${totalPages}`
-    );
+    setStatusMessage(`${label}… 0/${totalPages}`);
 
     try {
       const result = await runPDF(
         PDFProcessing.use((service) =>
           service.buildPDF(pages, {
-            selectedIndices: selectedPageIndices,
+            selectedIndices: pageIndices,
             onProgress: ({ completed, total }) => {
               if (disposed) return;
-              setStatusMessage(
-                `${selectedPageIndices ? "Exporting selected pages" : "Exporting PDF"}… ${completed}/${total}`
-              );
+              setStatusMessage(`${label}… ${completed}/${total}`);
             },
           })
         )
@@ -1131,7 +1244,7 @@ export default function Editor() {
       const exportConstraint =
         error instanceof PDFProcessingError && error.operation === "reconcile-export";
       const constraintMessage = exportConstraint
-        ? `${error.file ? `${error.file.name}: ` : ""}${error.message} Select pages from other files or remove this file, then try again.`
+        ? `${error.file ? `${error.file.name}: ` : ""}${error.message} Extract pages from other files, or remove this file, then try again.`
         : undefined;
       dispatchToast(constraintMessage ?? "Failed to export the PDF.", "error");
       setStatusMessage(constraintMessage ?? "Export failed. Try again.");
@@ -1140,28 +1253,36 @@ export default function Editor() {
     }
   }
 
-  async function handleExportImages(): Promise<void> {
+  function sortedSelection(): number[] {
+    return Array.from(selectedIndices()).sort((a, b) => a - b);
+  }
+
+  function handleDownload(): Promise<void> {
+    return exportPDF();
+  }
+
+  function handleExtract(): Promise<void> {
+    if (selectedIndices().size === 0) return Promise.resolve();
+    return exportPDF(sortedSelection());
+  }
+
+  async function exportImages(pageIndices: number[] | undefined, label: string): Promise<void> {
     if (disposed || isBusy()) return;
-    const selection = selectedIndices();
-    const selectedPageIndices =
-      selection.size > 0 ? Array.from(selection).sort((a, b) => a - b) : undefined;
-    const totalPages = selectedPageIndices ? selectedActivePageCount() : activePageCount();
+    const totalPages = pageIndices
+      ? pageIndices.filter((index) => !pages[index]?.markedForDeletion).length
+      : activePageCount();
 
     setOperation("exporting-images");
-    setStatusMessage(
-      `${selectedPageIndices ? "Exporting selected images" : "Exporting images"}… 0/${totalPages}`
-    );
+    setStatusMessage(`${label}… 0/${totalPages}`);
 
     try {
       const result = await runPDF(
         PDFProcessing.use((service) =>
           service.exportImages(pages, {
-            selectedIndices: selectedPageIndices,
+            selectedIndices: pageIndices,
             onProgress: ({ completed, total }) => {
               if (disposed) return;
-              setStatusMessage(
-                `${selectedPageIndices ? "Exporting selected images" : "Exporting images"}… ${completed}/${total}`
-              );
+              setStatusMessage(`${label}… ${completed}/${total}`);
             },
           })
         )
@@ -1180,6 +1301,21 @@ export default function Editor() {
     } finally {
       if (!disposed) setOperation("idle");
     }
+  }
+
+  function handleExportImages(): Promise<void> {
+    return exportImages(undefined, "Exporting images");
+  }
+
+  function handleExportSelectedImages(): Promise<void> {
+    if (selectedIndices().size === 0) return Promise.resolve();
+    return exportImages(sortedSelection(), "Exporting selected images");
+  }
+
+  function handleExportPageImage(pageId: string): Promise<void> {
+    const index = documentPageIndex(pageId);
+    if (index < 0 || pages[index].markedForDeletion) return Promise.resolve();
+    return exportImages([index], `Exporting page ${index + 1} image`);
   }
 
   async function handleCompress(): Promise<void> {
@@ -1498,80 +1634,74 @@ export default function Editor() {
           }
         >
           <div class="editor-workspace">
-            <aside class="editor-sidebar" aria-label="Workspace">
-              <a href={base} class="editor-brand" translate="no">
-                interleaf
-              </a>
-              <h1 class="sr-only">Interleaf PDF editor</h1>
-              <nav class="editor-view-nav" aria-label="Workspace views">
-                <EditorButton
-                  data-testid="editor-pages-view-button"
-                  data-view="pages"
-                  aria-pressed={workspaceView() === "pages"}
-                  aria-controls="editor-workspace-content"
-                  onClick={() => afterDraft(() => changeWorkspaceView("pages"))}
-                  icon="pages"
-                >
-                  Pages
-                </EditorButton>
-                <EditorButton
-                  data-testid="editor-document-view-button"
-                  aria-disabled={pages.length === 0}
-                  data-view="document"
-                  aria-pressed={workspaceView() === "document"}
-                  aria-controls="editor-workspace-content"
-                  onClick={() => changeWorkspaceView("document")}
-                  icon="document"
-                >
-                  Document
-                </EditorButton>
-              </nav>
-              <div class="editor-workspace-context">
-                <span>{formatPageCount(pages.length)}</span>
-                <span>
-                  {workspaceFiles().length} {workspaceFiles().length === 1 ? "file" : "files"}
-                </span>
-              </div>
-              <div class="editor-source-actions">
-                <EditorButton
-                  data-testid="editor-add-pdf-button"
-                  aria-label="Add PDFs or images"
-                  onClick={requestAddFiles}
-                  disabled={isBusy()}
-                  icon="plus"
-                >
-                  <span class="editor-add-pdf-label">Add files</span>
-                </EditorButton>
-                <EditorButton
-                  ref={filesButton}
-                  data-testid="editor-files-button"
-                  aria-label={filesButtonLabel()}
-                  aria-controls="editor-files-dialog"
-                  aria-expanded={filesOpen()}
-                  title={filesButtonLabel()}
-                  onClick={() => afterDraft(() => setFilesOpen(true))}
-                  disabled={isBusy() || pages.length === 0}
-                  icon="files"
-                >
-                  <span class="editor-files-button-label">Files</span>
-                </EditorButton>
-              </div>
-              <EditorHistoryControls
-                undoLabel={history().undo.at(-1)?.label}
-                redoLabel={history().redo.at(-1)?.label}
-                unavailable={historyUnavailable()}
-                blockedReason={
-                  draftOpen() ? "Save or cancel the open edit to use undo and redo." : undefined
-                }
-                onUndo={() => restoreOrganization("undo")}
-                onRedo={() => restoreOrganization("redo")}
+            <h1 class="sr-only">Interleaf PDF editor</h1>
+            <EditorToolbar
+              base={base}
+              view={workspaceView()}
+              pageCount={pages.length}
+              pageCountLabel={pageCountLabel()}
+              exportableCount={activePageCount()}
+              filesLabel={filesButtonLabel()}
+              filesOpen={filesOpen()}
+              busy={isBusy()}
+              busyLabel={statusMessage()}
+              undoLabel={history().undo.at(-1)?.label}
+              redoLabel={history().redo.at(-1)?.label}
+              historyUnavailable={historyUnavailable()}
+              historyBlockedReason={
+                draftOpen() ? "Save or cancel the open edit to use undo and redo." : undefined
+              }
+              compressionAvailable={getUnmodifiedSourceFile() !== null}
+              compressionDisabledReason={compressionDisabledReason()}
+              filesButtonRef={(element) => {
+                filesButton = element;
+              }}
+              moreButtonRef={(element) => {
+                moreButton = element;
+              }}
+              downloadButtonRef={(element) => {
+                downloadButton = element;
+              }}
+              onViewChange={(view) =>
+                view === "pages"
+                  ? afterDraft(() => changeWorkspaceView("pages"))
+                  : changeWorkspaceView(view)
+              }
+              onAddFiles={() => afterDraft(requestAddFiles)}
+              onOpenFiles={() => afterDraft(() => setFilesOpen(true))}
+              onUndo={() => restoreOrganization("undo")}
+              onRedo={() => restoreOrganization("redo")}
+              onDownload={() => afterDraft(handleDownload)}
+              onExportImages={() => afterDraft(handleExportImages)}
+              onCompress={() => afterDraft(handleCompress)}
+            />
+            <Show when={selectedIndices().size > 0}>
+              <EditorSelectionBar
+                busy={isBusy()}
+                busyLabel={statusMessage()}
+                selectedCount={selectedIndices().size}
+                selectedActiveCount={selectedActivePageCount()}
+                allPagesSelected={allPagesSelected()}
+                deletionLabel={deletionCopy().label}
+                deletionAriaLabel={deletionCopy().ariaLabel}
+                onClearSelection={clearSelection}
+                onSelectAll={handleSelectAll}
+                onRotateLeft={() => afterDraft(() => handleRotateSelected("left"))}
+                onRotateRight={() => afterDraft(() => handleRotateSelected("right"))}
+                onDuplicate={() => afterDraft(handleDuplicateSelected)}
+                onDelete={() => afterDraft(handleDeleteSelected)}
+                onExtract={() => afterDraft(handleExtract)}
+                onExportImages={() => afterDraft(handleExportSelectedImages)}
               />
-              <p class="editor-workspace-privacy">Your files never leave your device.</p>
-              <a href={base} class="editor-back" aria-label="Return to Interleaf home">
-                <EditorIcon name="back" />
-                <span>Exit editor</span>
-              </a>
-            </aside>
+            </Show>
+            <p
+              class="sr-only"
+              aria-live="polite"
+              aria-atomic="true"
+              data-testid="editor-selection-status"
+            >
+              {selectionAnnouncement()}
+            </p>
             <section
               id="editor-workspace-content"
               class="editor-workspace-main"
@@ -1596,9 +1726,14 @@ export default function Editor() {
                   <EditorPageViewer
                     pages={pages}
                     disabled={isBusy()}
-                    navigationPageIds={reviewPageIds()}
                     activePageId={activePageId()}
                     runtime={pdfRuntime}
+                    onRotatePage={(pageId) => afterDraft(() => handleDocumentRotate(pageId))}
+                    onDuplicatePage={(pageId) => afterDraft(() => handleDocumentDuplicate(pageId))}
+                    onTogglePageDeletion={(pageId) =>
+                      afterDraft(() => handleDocumentDeletion(pageId))
+                    }
+                    onExportPageImages={(pageId) => afterDraft(() => handleExportPageImage(pageId))}
                     onActivePageChange={(pageId) => setActivePageId(pageId)}
                     onDraftChange={setDraftOpen}
                     registerDraftCommit={(commit) => {
@@ -1638,10 +1773,9 @@ export default function Editor() {
                   />
                 }
               >
-                <div class="editor-canvas-header">
-                  <h2 id="editor-pages-title">Pages</h2>
-                  <span class="editor-canvas-count">{pageStatusSummary()}</span>
-                </div>
+                <h2 id="editor-pages-title" class="sr-only">
+                  Pages
+                </h2>
                 <Show
                   when={pages.length > 0}
                   fallback={
@@ -1678,30 +1812,6 @@ export default function Editor() {
                     onTouchDragCancel={handleTouchDragCancel}
                   />
                 </Show>
-              </Show>
-
-              <Show when={pages.length > 0}>
-                <EditorSelectionBar
-                  documentView={workspaceView() === "document"}
-                  busy={isBusy()}
-                  busyLabel={statusMessage()}
-                  selectedCount={selectedIndices().size}
-                  selectedActiveCount={
-                    selectedIndices().size > 0 ? selectedActivePageCount() : activePageCount()
-                  }
-                  allPagesSelected={allPagesSelected()}
-                  deletionLabel={deletionCopy().label}
-                  deletionAriaLabel={deletionCopy().ariaLabel}
-                  onSelectAll={handleSelectAll}
-                  onClearSelection={clearSelection}
-                  onRotate={() => afterDraft(handleRotateSelected)}
-                  onDelete={handleDeleteSelected}
-                  onDownload={() => afterDraft(handleDownload)}
-                  onExportImages={() => afterDraft(handleExportImages)}
-                  onCompress={() => afterDraft(handleCompress)}
-                  compressionAvailable={getUnmodifiedSourceFile() !== null}
-                  compressionDisabledReason={compressionDisabledReason()}
-                />
               </Show>
 
               <div

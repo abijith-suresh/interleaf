@@ -60,7 +60,6 @@ it.each(["failure", "success", "busy", "navigation", "disposal"])(
         page={current()}
         runtime={runtime}
         toolbar={toolbar}
-        header={header}
         stage={stage}
         ready
         disabled={busy()}
@@ -134,7 +133,6 @@ it.each(["text", "checkmark"] as const)("busy Save cannot commit a new %s draft"
       }}
       runtime={runtime}
       toolbar={toolbar}
-      header={header}
       stage={stage}
       ready
       disabled={busy()}
@@ -218,7 +216,6 @@ it("reports an open draft until it is saved, canceled, or unmounted", async () =
       page={current()}
       runtime={runtime}
       toolbar={toolbar}
-      header={header}
       stage={stage}
       ready
       onChange={onChange}

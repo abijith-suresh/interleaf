@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { inspectExport } from "../../src/services/__tests__/pdf-export-inspection";
 import { textFieldFixture } from "../../src/services/__tests__/pdf-field-fixtures";
+import { openFiles } from "./toolbar";
 
 async function ready(page: Page) {
   await expect(page.locator(".editor-review-stage")).toHaveAttribute("data-render-state", "ready");
@@ -88,7 +89,13 @@ for (const [width, height] of [
       .filter({ visible: true })
       .first()
       .click();
-    await expect(page.locator(".editor-field-hit")).toHaveCount(0);
+    // Read mode keeps the fields as passive targets that open them for filling.
+    await expect(page.locator(".editor-field-hit.is-passive")).toHaveCount(4);
+    // The header counts only the fields that can be filled.
+    const fillable = await page.locator('.editor-field-hit:not([aria-disabled="true"])').count();
+    await expect(page.getByTestId("editor-page-field-count")).toHaveText(
+      `${fillable} field${fillable === 1 ? "" : "s"}`
+    );
   });
 }
 test("saved answers survive source history and download", async ({ page }) => {
@@ -100,6 +107,7 @@ test("saved answers survive source history and download", async ({ page }) => {
   await page.getByRole("button", { name: "Save answer", exact: true }).click();
   await ready(page);
   const download = page.waitForEvent("download");
+  await page.getByTestId("editor-download-menu-button").click();
   await page.getByTestId("editor-download-button").click();
   const saved = await download;
   const path = await saved.path();
@@ -114,7 +122,7 @@ test("saved answers survive source history and download", async ({ page }) => {
       .filter((a) => a.name === "person.answer")
       .map((a) => a.value)
   ).toEqual(["SAVED", "SAVED", "SAVED"]);
-  await page.getByTestId("editor-files-button").click();
+  await openFiles(page);
   await page
     .getByRole("button", { name: "Remove form.pdf and its 2 pages from the workspace" })
     .click();
@@ -159,6 +167,7 @@ test("protected PDFs keep manual text available while embedded filling is unavai
     page.getByRole("button", { name: "Edit added text: Manual", exact: true })
   ).toBeFocused();
   const download = page.waitForEvent("download");
+  await page.getByTestId("editor-download-menu-button").click();
   await page.getByTestId("editor-download-button").click();
   const result = await download;
   const path = await result.path();
@@ -189,7 +198,7 @@ test("logical page duplicates and duplicate-of-duplicate keep independent saved 
   const selectedCopy = page.getByTestId("editor-page-tile").nth(2);
   await selectedCopy.focus();
   await selectedCopy.press("Escape");
-  await expect(page.getByTestId("editor-selection-title")).toHaveText("All 4 exportable");
+  await expect(page.getByRole("toolbar", { name: "Selected pages" })).toHaveCount(0);
   await page.getByTestId("editor-document-view-button").click();
   await ready(page);
   await arm(page);
@@ -208,6 +217,7 @@ test("logical page duplicates and duplicate-of-duplicate keep independent saved 
   await expect(answer).toHaveValue("ORIGINAL");
   await answer.press("Escape");
   const promise = page.waitForEvent("download");
+  await page.getByTestId("editor-download-menu-button").click();
   await page.getByTestId("editor-download-button").click();
   const download = await promise,
     path = await download.path();
@@ -221,4 +231,33 @@ test("logical page duplicates and duplicate-of-duplicate keep independent saved 
       p.annotations.filter((a) => a.name === "person.answer").map((a) => a.value)
     )
   ).toEqual([["ORIGINAL", "ORIGINAL"], ["COPY", "COPY"], ["THIRD", "THIRD"], ["ORIGINAL"]]);
+});
+
+test("Read mode shows the field count and opens a field for filling on click", async ({ page }) => {
+  const fixture = await open(page);
+  // Read is the default mode; fields stay visible as passive targets.
+  await expect(page.getByRole("button", { name: "Read", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  const hits = page.locator(".editor-field-hit");
+  await expect(hits).toHaveCount(4);
+  await expect(hits.first()).toHaveClass(/is-passive/);
+  const fillable = await page.locator('.editor-field-hit:not([aria-disabled="true"])').count();
+  const label = `${fillable} field${fillable === 1 ? "" : "s"}`;
+  await expect(page.getByTestId("editor-page-field-count")).toHaveText(label);
+  await expect(
+    page.getByRole("button", { name: "View page 1", exact: true })
+  ).toHaveAccessibleDescription(label);
+  await page.locator(`[data-widget-ref="${fixture.widgetRefs[0]}"]`).click();
+  const input = page.getByRole("textbox", { name: "Answer for Answer" });
+  await expect(input).toBeFocused();
+  // The open answer swaps the tools out of the bar; closing it shows Fill fields chosen.
+  await expect(page.getByRole("button", { name: "Fill fields", exact: true })).toBeHidden();
+  await input.press("Escape");
+  await expect(page.locator(`[data-widget-ref="${fixture.widgetRefs[0]}"]`)).toBeFocused();
+  await expect(page.getByRole("button", { name: "Fill fields", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
 });

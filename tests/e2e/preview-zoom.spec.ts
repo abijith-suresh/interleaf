@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { unzipSync } from "fflate";
 import { degrees, PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { clickSelectionAction, revealPageZoom } from "./toolbar";
 
 async function makeDocument() {
   const pdf = await PDFDocument.create();
@@ -87,18 +88,23 @@ for (const viewport of [
     const stage = page.locator(".editor-review-stage");
     const fit = await page.locator(".editor-review-canvas").boundingBox();
     if (!fit) throw new Error("Missing fit bounds");
+    await revealPageZoom(page);
     for (const name of ["Zoom in", "Zoom out", "Fit page", "Pages"]) {
       const bounds = await page.getByRole("button", { name, exact: true }).boundingBox();
       if (!bounds) throw new Error(`Missing ${name}`);
-      expect(bounds.width).toBeGreaterThanOrEqual(44);
-      expect(bounds.height).toBeGreaterThanOrEqual(44);
+      expect(Number(bounds.width.toFixed(4))).toBeGreaterThanOrEqual(44);
+      expect(Number(bounds.height.toFixed(4))).toBeGreaterThanOrEqual(44);
       expect(bounds.x).toBeGreaterThanOrEqual(0);
       expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
     }
     const zoomIn = page.getByRole("button", { name: "Zoom in", exact: true });
+    await revealPageZoom(page);
     await zoomIn.focus();
     await page.keyboard.press("Enter");
-    for (let i = 0; i < 4; i++) await zoomIn.click();
+    for (let i = 0; i < 4; i++) {
+      await revealPageZoom(page);
+      await zoomIn.click();
+    }
     await ready(page, 4, 2);
     await expect(zoomIn).toBeDisabled();
     const enlarged = await page.locator(".editor-review-canvas").boundingBox();
@@ -142,8 +148,10 @@ for (const viewport of [
         return event.defaultPrevented;
       })
     ).toBe(false);
+    await revealPageZoom(page);
     await page.getByRole("button", { name: "Zoom out", exact: true }).click();
     await expect(stage).toHaveAttribute("data-zoom", String(4 / 1.4));
+    await revealPageZoom(page);
     await page.getByRole("button", { name: "Fit page", exact: true }).click();
     await ready(page, 1, 2);
     expect(
@@ -154,9 +162,11 @@ for (const viewport of [
         el.scrollHeight - el.clientHeight,
       ])
     ).toEqual([0, 0, 0, 0]);
+    await revealPageZoom(page);
     await zoomIn.click();
     await page.setViewportSize({ width: viewport.width + 1, height: viewport.height });
     await ready(page, 1, 2);
+    await revealPageZoom(page);
     await zoomIn.click();
     // A same-size resize must reset too, without a stale sharper completion.
     await stage.evaluate(() => window.dispatchEvent(new Event("resize")));
@@ -169,16 +179,15 @@ for (const viewport of [
     // Download directly in Document with the original selection intact.
 
     const pdfDownload = page.waitForEvent("download");
-    await page.getByTestId("editor-download-button").click();
+    await clickSelectionAction(page, "editor-extract-button");
     const pdfPath = await (await pdfDownload).path();
     if (!pdfPath) throw new Error("Missing PDF download");
     const pdf = await PDFDocument.load(await readFile(pdfPath));
     expect(pdf.getPageCount()).toBe(1);
     expect(pdf.getPage(0).getRotation().angle).toBe(180);
     expect(pdf.getPage(0).getSize()).toEqual({ width: 600, height: 800 });
-    await page.getByTestId("editor-download-options-button").click();
     const pngDownload = page.waitForEvent("download");
-    await page.getByTestId("editor-export-images-button").click();
+    await clickSelectionAction(page, "editor-export-selected-images-button");
     const pngPath = await (await pngDownload).path();
     if (!pngPath) throw new Error("Missing PNG download");
     const images = Object.entries(unzipSync(await readFile(pngPath))).filter(([name]) =>
@@ -348,8 +357,10 @@ test.describe("touch preview", () => {
     await page.getByTestId("editor-page-viewer-next").click();
     await ready(page, 1, 2);
     await expect(stage).not.toHaveClass(/is-panning/);
+    await revealPageZoom(page);
     await page.getByRole("button", { name: "Zoom in", exact: true }).tap();
     await ready(page, 1.4, 2);
+    await revealPageZoom(page);
     await page.getByRole("button", { name: "Fit page", exact: true }).tap();
     await ready(page, 1, 2);
     expect(await stage.evaluate((el) => [el.scrollLeft, el.scrollTop])).toEqual([0, 0]);
@@ -372,10 +383,12 @@ test("zoom limits retain Fit focus and workspace navigation for keyboard and poi
       await test.step(`${input} ${action} limit`, async () => {
         await page.getByTestId("editor-document-view-button").click();
         await ready(page, 1);
+        await revealPageZoom(page);
         const fit = page.getByRole("button", { name: "Fit page", exact: true });
         const zoomIn = page.getByRole("button", { name: "Zoom in", exact: true });
         const zoomOut = page.getByRole("button", { name: "Zoom out", exact: true });
         if (action === "Zoom out") {
+          await revealPageZoom(page);
           await zoomIn.click();
           await zoomOut.focus();
         } else {
@@ -401,7 +414,7 @@ test("zoom limits retain Fit focus and workspace navigation for keyboard and poi
         await expect(fit).toBeFocused();
         await page.keyboard.press("Escape");
         await expect(page.getByTestId("editor-page-viewer")).toBeVisible();
-        await expect(fit).toBeFocused();
+        await expect(page.getByTestId("editor-page-actions-button")).toBeFocused();
         await page.getByTestId("editor-pages-view-button").click();
         await expect(page.getByTestId("editor-page-viewer")).toHaveCount(0);
         await expect(page.getByTestId("editor-pages-view-button")).toBeFocused();

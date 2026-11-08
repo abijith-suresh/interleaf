@@ -10,6 +10,7 @@ async function source(name: string, pageCount: number, width = 400) {
 
 async function downloadPDF(page: Page) {
   const pending = page.waitForEvent("download");
+  await page.getByTestId("editor-download-menu-button").click();
   await page.getByTestId("editor-download-button").click();
   const path = await (await pending).path();
   if (!path) throw new Error("PDF download failed");
@@ -40,7 +41,7 @@ test("duplicating a page keeps the selection, so the next download covers every 
   await expect(tiles).toHaveCount(5);
   await expect(tiles.nth(0)).toHaveAttribute("aria-pressed", "true");
   await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "false");
-  expect((await downloadPDF(page)).getPageCount()).toBe(1);
+  expect((await downloadPDF(page)).getPageCount()).toBe(5);
 });
 
 test("the page grid is one tab stop with arrow, Home, End, Space, R and Delete keys", async ({
@@ -57,10 +58,19 @@ test("the page grid is one tab stop with arrow, Home, End, Space, R and Delete k
   expect(columns).toBe(5);
 
   // Tab enters the grid once, reaches only that page's actions, then leaves.
+  // An explicit next focus target avoids relying on browser-chrome Tab cycling.
+  await page.getByTestId("editor-page-grid").evaluate((grid) => {
+    const next = document.createElement("button");
+    next.id = "grid-tab-end";
+    next.textContent = "After grid";
+    grid.after(next);
+  });
   await page.getByTestId("editor-pages-view-button").focus();
   const order: string[] = [];
   for (let step = 0; step < 30; step++) {
     await page.keyboard.press("Tab");
+    if (await page.locator("#grid-tab-end").evaluate((end) => end === document.activeElement))
+      break;
     const name = await page.evaluate(
       () =>
         document.activeElement?.getAttribute("aria-label") ??
@@ -69,7 +79,9 @@ test("the page grid is one tab stop with arrow, Home, End, Space, R and Delete k
     );
     order.push(name);
   }
-  // Focus wraps around the document, so read one pass from where the grid starts.
+  await expect(page.locator("#grid-tab-end")).toBeFocused();
+  await page.locator("#grid-tab-end").evaluate((end) => end.remove());
+  // Read one pass from where the grid starts.
   const start = order.indexOf("Page 1");
   expect(start).toBeGreaterThanOrEqual(0);
   const next = order.indexOf("Page 1", start + 1);

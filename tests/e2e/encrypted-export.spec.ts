@@ -20,6 +20,7 @@ async function fixture(name: string) {
 
 async function download(page: Page, filename: string) {
   const pending = page.waitForEvent("download");
+  await page.getByTestId("editor-download-menu-button").click();
   await page.getByTestId("editor-download-button").click();
   const saved = await pending;
   const path = test.info().outputPath(filename);

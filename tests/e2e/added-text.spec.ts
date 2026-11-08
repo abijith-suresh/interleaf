@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { degrees, PDFDocument, PDFName, PDFNumber, StandardFonts } from "pdf-lib";
+import { revealPageZoom } from "./toolbar";
 
 async function source() {
   const document = await PDFDocument.create();
@@ -53,50 +54,54 @@ for (const [width, height] of [
   [320, 667],
   [390, 844],
 ]) {
-  test(`keyboard movement keeps the draft visible at ${width}x${height}`, async ({ page }) => {
+  test(`keyboard movement keeps the draft visible above the settings sheet at ${width}x${height}`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width, height });
     await open(page);
     const disclosure = page.getByRole("button", { name: "Tools", exact: true });
     await disclosure.click();
     await page.getByRole("button", { name: "Add text", exact: true }).press("Enter");
+    // Choosing a tool closes the Tools menu.
+    await expect(disclosure).toHaveAttribute("aria-expanded", "false");
     await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
     await page.keyboard.press("Enter");
     const input = page.getByLabel("Added text", { exact: true });
     await expect(input).toBeFocused();
     await input.fill("Landscape move");
-    await expect(disclosure).toHaveAttribute("aria-expanded", "true");
-    // Follow the actual reverse tab order from the input through the toolbar.
-    for (let step = 0; step < 5; step++) await page.keyboard.press("Shift+Tab");
+    // The settings dock as a bottom sheet; the Tools menu stays closed.
+    const sheet = page.locator(".editor-draft-panel");
+    await expect(sheet).toHaveCSS("position", "fixed");
+    await expect(disclosure).toHaveAttribute("aria-expanded", "false");
     const draft = page.getByRole("button", { name: "Drag text to move it" });
-    await expect(draft).toBeFocused();
-    const unobscured = () =>
-      draft.evaluate((element) => {
+    const unobscured = (target = draft) =>
+      target.evaluate((element) => {
         const box = element.getBoundingClientRect();
         const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
         return box.width > 0 && box.height > 0 && (top === element || element.contains(top));
       });
-    await expect.poll(unobscured).toBe(true);
-    await expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    // The draft scrolls into view above the sheet.
+    await expect.poll(() => unobscured()).toBe(true);
+    // Follow the actual reverse tab order from the input to the draft.
+    for (let step = 0; step < 8; step++) {
+      if (await draft.evaluate((element) => element === document.activeElement)) break;
+      await page.keyboard.press("Shift+Tab");
+    }
+    await expect(draft).toBeFocused();
     const before = await draft.evaluate((element) => parseFloat(element.style.left));
     await page.keyboard.press("Shift+ArrowRight");
     expect(await draft.evaluate((element) => parseFloat(element.style.left))).toBeGreaterThan(
       before
     );
     await expect(draft).toBeFocused();
-    await expect.poll(unobscured).toBe(true);
+    await expect.poll(() => unobscured()).toBe(true);
     await page.keyboard.press("Enter");
     await expect(input).toBeFocused();
-    await expect(disclosure).toHaveAttribute("aria-expanded", "true");
-    await expect
-      .poll(() =>
-        input.evaluate((element) => {
-          const box = element.getBoundingClientRect();
-          return (
-            document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === element
-          );
-        })
-      )
-      .toBe(true);
+    await expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    await expect.poll(() => unobscured(input)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true
+    );
   });
 }
 
@@ -138,7 +143,9 @@ for (const width of [1280, 390]) {
   test(`keyboard text placement and movement at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
     await open(page);
+    await revealPageZoom(page);
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await revealPageZoom(page);
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
     await ready(page);
     const stage = page.locator(".editor-review-stage");
@@ -254,7 +261,6 @@ test("point placement, validation, editing, movement, rotation and history retai
   await input.fill("Changed");
   await page.getByLabel("Text size in points").fill("24");
   await page.getByRole("button", { name: "Rotate text 90 degrees" }).click();
-  await page.getByRole("button", { name: "Text settings" }).click();
   await ready(page);
   const draft = page.getByRole("button", { name: "Drag text to move it" });
   const before = await draft.boundingBox();
@@ -280,7 +286,6 @@ test("point placement, validation, editing, movement, rotation and history retai
     .toEqual(savedPosition);
   await page.mouse.up();
   await ready(page);
-  await page.getByRole("button", { name: "Text settings" }).click();
   await page.getByRole("button", { name: "Save text", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Edit added text: Changed", exact: true })
@@ -324,11 +329,11 @@ test("cancel, deletion, compression after undo, source restoration, and input sh
   await expect(
     page.getByRole("button", { name: "Edit added text: Added text", exact: true })
   ).toBeVisible();
-  await page.getByRole("button", { name: "More download options" }).click();
+  await page.getByTestId("editor-download-menu-button").click();
   await expect(page.getByRole("menuitem", { name: /Compress/ })).toBeDisabled();
   await page.keyboard.press("Escape");
   await page.getByTestId("editor-undo-button").click();
-  await page.getByRole("button", { name: "More download options" }).click();
+  await page.getByTestId("editor-download-menu-button").click();
   await expect(page.getByRole("menuitem", { name: /Compress/ })).toBeEnabled();
   await page.keyboard.press("Escape");
   await page.getByTestId("editor-redo-button").click();
@@ -365,6 +370,7 @@ for (const [width, height] of [
     await place(page, "Mobile");
     await page.getByRole("button", { name: "Read", exact: true }).click();
     await expect(page.locator(".editor-text-layer")).not.toHaveClass(/is-editing/);
+    await revealPageZoom(page);
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
     await ready(page);
     const start = await point(page, 0.5, 0.5);

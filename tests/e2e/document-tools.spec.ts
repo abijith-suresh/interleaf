@@ -33,11 +33,13 @@ async function draftAt(page: Page, tool: "Add text" | "Checkmark", x = 0.4, y = 
   await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
 }
 const toolNames = ["Read", "Add text", "Checkmark", "Fill fields", "Select additions"];
+// An open draft swaps the page tools out of the bar, so read them even while hidden.
+const hidden = { includeHidden: true } as const;
 async function pressed(page: Page) {
-  const toolbar = page.getByRole("toolbar", { name: "Page tools" });
+  const toolbar = page.getByRole("toolbar", { name: "Page tools", ...hidden });
   const names: string[] = [];
   for (const name of toolNames) {
-    const button = toolbar.getByRole("button", { name, exact: true });
+    const button = toolbar.getByRole("button", { name, exact: true, ...hidden });
     if ((await button.count()) && (await button.getAttribute("aria-pressed")) === "true")
       names.push(name);
   }
@@ -46,13 +48,13 @@ async function pressed(page: Page) {
 async function expectPressed(page: Page, name: string) {
   await expect.poll(() => pressed(page)).toEqual([name]);
   const button = page
-    .getByRole("toolbar", { name: "Page tools" })
-    .getByRole("button", { name, exact: true });
+    .getByRole("toolbar", { name: "Page tools", ...hidden })
+    .getByRole("button", { name, exact: true, ...hidden });
   // Pressed styling comes from the same state as aria-pressed.
   const look = (element: Element) => getComputedStyle(element).backgroundColor;
   const read = page
-    .getByRole("toolbar", { name: "Page tools" })
-    .getByRole("button", { name: name === "Read" ? "Add text" : "Read", exact: true });
+    .getByRole("toolbar", { name: "Page tools", ...hidden })
+    .getByRole("button", { name: name === "Read" ? "Add text" : "Read", exact: true, ...hidden });
   await expect
     .poll(async () => (await button.evaluate(look)) !== (await read.evaluate(look)))
     .toBe(true);
@@ -212,3 +214,24 @@ test("fields use readable names and visual order with Enter navigation", async (
   await page.getByRole("button", { name: "Fill field: Phone", exact: true }).click();
   await expect(phone).toHaveValue("555 0100");
 });
+
+for (const width of [1440, 375, 320]) {
+  test(`filmstrip field badges sit below page content at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    const pdf = await PDFDocument.create();
+    const sheet = pdf.addPage([400, 600]);
+    pdf
+      .getForm()
+      .createTextField("name")
+      .addToPage(sheet, { x: 40, y: 400, width: 200, height: 24 });
+    await upload(page, "form.pdf", Buffer.from(await pdf.save()));
+    const item = page.locator(".editor-review-filmstrip-item").first();
+    const badge = item.locator(".editor-filmstrip-fields");
+    await expect(badge).toHaveText("1 field");
+    await expect(item).toHaveAccessibleDescription("1 field");
+    const thumbnail = await item.locator(".canvas-container").boundingBox();
+    const box = await badge.boundingBox();
+    expect(box?.y).toBeGreaterThanOrEqual((thumbnail?.y ?? 0) + (thumbnail?.height ?? 0));
+    await expect(badge).toHaveCSS("background-color", "rgb(229, 229, 229)");
+  });
+}

@@ -4,6 +4,7 @@ import { unzipSync } from "fflate";
 import { decodePDFRawStream, PDFArray, PDFDocument, PDFRawStream } from "pdf-lib";
 import { createJpegFile, createPngFile } from "../../src/services/__tests__/pdf-fixtures";
 import { test } from "./fixtures/privacy";
+import { clickAddFiles } from "./toolbar";
 
 async function source() {
   const pdf = await PDFDocument.create();
@@ -25,6 +26,9 @@ async function image(file: File) {
 
 async function saveDownload(page: Page, id: string, filename: string) {
   const pending = page.waitForEvent("download");
+  // Download, PNG export, and compression are items in the Download menu.
+  if (!(await page.getByTestId(id).isVisible()))
+    await page.getByTestId("editor-download-menu-button").click();
   await page.getByTestId(id).click();
   const download = await pending;
   expect(download.url()).toMatch(/^(blob:|data:)/);
@@ -38,9 +42,8 @@ async function ready(page: Page) {
   await expect(page.locator(".editor-review-stage")).toHaveAttribute("data-render-state", "ready");
 }
 
-async function exportPNG(page: Page, filename: string) {
-  await page.getByTestId("editor-download-options-button").click();
-  const zip = await saveDownload(page, "editor-export-images-button", filename);
+async function exportPNG(page: Page, filename: string, id = "editor-export-images-button") {
+  const zip = await saveDownload(page, id, filename);
   const entries = Object.entries(unzipSync(zip));
   expect(entries).toHaveLength(1);
   const [name, png] = entries[0];
@@ -83,7 +86,7 @@ test("mixed files, organization, saved text/checkmarks and PDF/PNG downloads sta
   const tiles = page.getByTestId("editor-page-tile");
   await expect(tiles).toHaveCount(3);
   const chooser = page.waitForEvent("filechooser");
-  await page.getByTestId("editor-add-pdf-button").click();
+  await clickAddFiles(page);
   await (await chooser).setFiles(await image(createJpegFile()));
   await expect(tiles).toHaveCount(4);
   await page.getByRole("button", { name: "Duplicate page 1", exact: true }).click();
@@ -116,7 +119,7 @@ test("mixed files, organization, saved text/checkmarks and PDF/PNG downloads sta
   ).toBeVisible();
 
   const pdf = await PDFDocument.load(
-    await saveDownload(page, "editor-download-button", "edited.pdf")
+    await saveDownload(page, "editor-extract-button", "edited.pdf")
   );
   expect(pdf.getPageCount()).toBe(1);
   expect(pdf.getPage(0).getSize()).toEqual({ width: 400, height: 600 });
@@ -130,7 +133,7 @@ test("mixed files, organization, saved text/checkmarks and PDF/PNG downloads sta
     );
   expect(operators).toContain(Buffer.from("Private draft").toString("hex").toUpperCase());
   expect(operators.match(/\nS\n/g)?.length).toBeGreaterThanOrEqual(2);
-  const png = await exportPNG(page, "edited-images.zip");
+  const png = await exportPNG(page, "edited-images.zip", "editor-export-selected-images-button");
   expect(png).toMatchObject({ width: 1200, height: 800 });
   expect(png.ink).toBeGreaterThan(100);
   expect(privacy.requests.some((request) => request.url().includes("pdf.worker"))).toBe(true);
@@ -171,7 +174,7 @@ test("untouched PDF compression uses the local qpdf worker and saves a readable 
   await page.goto("/app");
   await page.getByTestId("editor-upload-input").setInputFiles(input);
   await expect(page.getByTestId("editor-page-tile")).toHaveCount(2);
-  await page.getByTestId("editor-download-options-button").click();
+  await page.getByTestId("editor-download-menu-button").click();
   await expect(page.getByTestId("editor-compress-button")).toHaveAttribute(
     "aria-disabled",
     "false"

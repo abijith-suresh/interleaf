@@ -127,3 +127,38 @@ test("the page delete button names the action it takes", async ({ page }) => {
   await toggle.click();
   await expect(toggle).toHaveAccessibleName("Mark page 1 for deletion");
 });
+
+for (const width of [375, 320]) {
+  test(`phone view labels and Document header remain usable at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 700 });
+    await page.goto("/app");
+    await page.getByTestId("editor-upload-input").setInputFiles(await source("form.pdf"));
+    for (const name of ["Pages", "Document"]) {
+      const button = page.getByRole("button", { name, exact: true });
+      await expect(button.locator(".editor-view-label")).toBeVisible();
+      await expect(button).toHaveAccessibleName(name);
+      const box = await button.boundingBox();
+      expect(box?.height).toBeGreaterThanOrEqual(44);
+      expect(box?.width).toBeGreaterThanOrEqual(44);
+    }
+    await expect(page.getByTestId("editor-download-menu-button")).toHaveAccessibleName(
+      "Download options"
+    );
+    await page.getByRole("button", { name: "Document", exact: true }).click();
+    const header = await page.locator(".editor-review-header").boundingBox();
+    const tools = await page.getByRole("button", { name: "Tools", exact: true }).boundingBox();
+    expect(
+      Math.abs(
+        (header?.y ?? 0) + (header?.height ?? 0) / 2 - (tools?.y ?? 0) - (tools?.height ?? 0) / 2
+      )
+    ).toBeLessThan(2);
+    await page.getByRole("button", { name: "Tools", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Add text", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.getByTestId("editor-page-actions-button").click();
+    await expect(page.getByRole("button", { name: "Fit page", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("editor-page-actions-button")).toBeFocused();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+  });
+}
