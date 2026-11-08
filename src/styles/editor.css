@@ -137,6 +137,15 @@ body:has([data-page="editor"]) {
   color: currentColor;
 }
 
+/* The active tool in Document view is what you point with: an accent ring
+   on a light accent fill. */
+.editor-context-tools .editor-button-secondary[aria-pressed="true"],
+.editor-selection-bar .editor-overflow-trigger[aria-expanded="true"] {
+  background: var(--color-accent-subtle);
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+  color: var(--color-fg);
+}
+
 .editor-button:disabled,
 .editor-button[aria-disabled="true"] {
   cursor: not-allowed;
@@ -1260,7 +1269,7 @@ body:has([data-page="editor"]) {
 }
 
 .editor-review-filmstrip-item.is-active {
-  box-shadow: inset 0 0 0 2px var(--color-primary);
+  box-shadow: inset 0 0 0 2px var(--color-accent);
   color: var(--color-fg);
 }
 
@@ -1340,12 +1349,12 @@ body:has([data-page="editor"]) {
   cursor: not-allowed;
 }
 
-/* Selected: a primary ring, plus a solid badge on the page number, so the
+/* Selected: an accent ring, plus a solid badge on the page number, so the
    state does not rest on the ring colour alone. */
 .editor-page.selected,
 .editor-page.selected:hover {
   box-shadow:
-    0 0 0 2px var(--color-primary),
+    0 0 0 2px var(--color-accent),
     var(--shadow-sm);
 }
 
@@ -1374,13 +1383,13 @@ body:has([data-page="editor"]) {
 
 .editor-page.drag-insert-before {
   box-shadow:
-    inset 3px 0 0 var(--color-primary),
+    inset 3px 0 0 var(--color-accent),
     var(--shadow-sm);
 }
 
 .editor-page.drag-insert-after {
   box-shadow:
-    inset -3px 0 0 var(--color-primary),
+    inset -3px 0 0 var(--color-accent),
     var(--shadow-sm);
 }
 
@@ -1510,7 +1519,7 @@ body:has([data-page="editor"]) {
 }
 
 .editor-page.selected .page-label {
-  background: var(--color-primary);
+  background: var(--color-accent);
   color: var(--color-primary-foreground);
 }
 
@@ -2170,7 +2179,7 @@ body:has([data-page="editor"]) {
   background: transparent;
   color: transparent;
   cursor: pointer;
-  outline: 1px dashed var(--color-line-focus);
+  outline: 1px dashed var(--color-fg);
   outline-offset: 3px;
   touch-action: none;
 }
@@ -2383,7 +2392,7 @@ body:has([data-page="editor"]) {
   position: absolute;
   padding: 0;
   background: transparent;
-  border: 1px dashed var(--color-line-focus);
+  border: 1px dashed var(--color-fg);
   border-radius: 2px;
   pointer-events: auto;
   cursor: text;

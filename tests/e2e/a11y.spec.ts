@@ -162,3 +162,42 @@ for (const width of [375, 320]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
   });
 }
+
+for (const width of [1440, 375]) {
+  test(`brand links use a decorative tile and plain wordmark at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    for (const path of ["/", "/app"]) {
+      await page.goto(path);
+      const brands = page.getByRole("link", { name: "Interleaf home", exact: true });
+      await expect(brands).toHaveCount(path === "/" ? 2 : 1);
+      for (const brand of await brands.all()) {
+        await expect(brand).toHaveText("interleaf");
+        const tile = brand.locator(".brand-tile");
+        await expect(tile).toHaveAttribute("aria-hidden", "true");
+        await expect(tile).toHaveAttribute("alt", "");
+        await expect(tile).toHaveAttribute("src", "/favicon.svg");
+        await expect(tile).toHaveCSS("width", "22px");
+        await expect(tile).toHaveCSS("height", "22px");
+        await expect
+          .poll(() => tile.evaluate((el) => (el as HTMLImageElement).naturalWidth))
+          .toBeGreaterThan(0);
+        await expect(brand.locator(".brand-i")).toHaveCount(0);
+      }
+      if (path === "/app") {
+        await page.getByTestId("editor-upload-input").setInputFiles(await source("brand.pdf"));
+        const workspaceBrand = page.locator(".editor-exit-row");
+        await expect(workspaceBrand).toHaveAttribute("aria-label", "Exit editor");
+        await expect(workspaceBrand.locator(".editor-exit-brand")).toBeVisible({
+          visible: width === 1440,
+        });
+        await expect(workspaceBrand).toBeVisible({ visible: width === 1440 });
+        if (width === 375) {
+          await page.getByTestId("editor-more-button").click();
+          await expect(page.getByRole("link", { name: "Exit editor", exact: true })).toBeVisible();
+        }
+        await expect(workspaceBrand.locator(".brand-tile")).toHaveAttribute("src", "/favicon.svg");
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    }
+  });
+}

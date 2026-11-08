@@ -44,6 +44,7 @@ import { getSupportedFileKind } from "../../utils/file-types";
 import { guardLeave } from "../../utils/leave-guard";
 import { promptForPassword } from "../../utils/password-prompt";
 import { showToast as dispatchToast, TOAST_EVENT_NAME, type ToastDetail } from "../../utils/toast";
+import Wordmark from "../shared/Wordmark";
 import type { DraftCommit } from "./EditorAdditionsEditor";
 import EditorFilesDialog from "./EditorFilesDialog";
 import EditorPageGrid from "./EditorPageGrid";
@@ -1608,8 +1609,8 @@ export default function Editor() {
         <Show when={phase() === "upload"}>
           <header class="editor-header">
             <div class="editor-header-left">
-              <a href={base} class="editor-brand" translate="no">
-                interleaf
+              <a href={base} class="editor-brand" aria-label="Interleaf home">
+                <Wordmark />
               </a>
             </div>
             <h1 class="sr-only">Interleaf PDF editor</h1>

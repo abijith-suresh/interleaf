@@ -1,3 +1,4 @@
+import Wordmark from "../shared/Wordmark";
 import EditorHistoryControls from "./EditorHistoryControls";
 import EditorButton from "./ui/EditorButton";
 import EditorIcon from "./ui/EditorIcon";
@@ -67,7 +68,7 @@ export default function EditorToolbar(props: Props) {
         >
           <EditorIcon name="back" />
           <span class="editor-exit-brand" translate="no">
-            interleaf
+            <Wordmark />
           </span>
         </a>
         <fieldset class="editor-view-nav" aria-label="Workspace views">

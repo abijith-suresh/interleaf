@@ -228,7 +228,16 @@ test("guard detects and aborts a cross-origin subframe resource", async ({
   await expect.poll(() => guard.blocked.has(request)).toBe(true);
   expect(request.resourceType()).toBe("image");
   expect(request.frame().parentFrame()).not.toBeNull();
-  expect(guard.violations()).toEqual([`GET ${url}`]);
+  // Firefox can attempt the same srcdoc image more than once. Count attempts
+  // independently, but require that every observed attempt is blocked.
+  await guard.settle();
+  expect([...new Set(guard.violations())]).toEqual([`GET ${url}`]);
+  expect(guard.forbidden.size).toBeGreaterThan(0);
+  for (const attempt of guard.forbidden) {
+    expect(guard.blocked.has(attempt)).toBe(true);
+    expect(attempt.resourceType()).toBe("image");
+    expect(attempt.frame().parentFrame()).not.toBeNull();
+  }
 });
 
 for (const path of ["/synthetic-socket", "ws://privacy.invalid/socket"]) {

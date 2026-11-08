@@ -52,7 +52,20 @@ const colors = {
   fg: "#0a0a0a",
   fgMuted: "#525252",
   line: "#e5e5e5",
+  accent: "#17804f",
 };
+
+const svgImage = (svg: string) =>
+  `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+
+// The app icon, from the favicon, and the leaf that dots the wordmark's first i.
+const markSrc = svgImage(readFileSync(join(process.cwd(), "public/favicon.svg"), "utf-8"));
+const leafSrc = svgImage(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M1 9A6.9 6.9 0 0 1 9 1A6.9 6.9 0 0 1 1 9z" fill="${colors.accent}"/></svg>`
+);
+
+const wordmarkSize = 34;
+const markSize = 64;
 
 const cardInset = 40;
 
@@ -108,15 +121,46 @@ export const GET: APIRoute = async ({ props }) => {
               },
               children: [
                 {
+                  type: "img",
+                  props: { src: markSrc, width: markSize, height: markSize },
+                },
+                {
                   type: "div",
                   props: {
                     style: {
-                      fontSize: 34,
+                      display: "flex",
+                      marginTop: 20,
+                      fontSize: wordmarkSize,
                       fontWeight: 500,
                       lineHeight: 1,
                       letterSpacing: "-0.02em",
                     },
-                    children: "interleaf",
+                    children: [
+                      {
+                        type: "div",
+                        props: {
+                          style: { display: "flex", position: "relative" },
+                          children: [
+                            "ı",
+                            {
+                              type: "img",
+                              props: {
+                                src: leafSrc,
+                                width: wordmarkSize * 0.3,
+                                height: wordmarkSize * 0.3,
+                                style: {
+                                  position: "absolute",
+                                  top: 0,
+                                  left: "50%",
+                                  transform: "translateX(-40%)",
+                                },
+                              },
+                            },
+                          ],
+                        },
+                      },
+                      "nterleaf",
+                    ],
                   },
                 },
                 {
@@ -126,7 +170,7 @@ export const GET: APIRoute = async ({ props }) => {
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
-                      marginTop: 44,
+                      marginTop: 40,
                       fontSize: 72,
                       fontWeight: 500,
                       lineHeight: 1.1,
