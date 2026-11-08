@@ -104,10 +104,6 @@ export default function EditorPageViewer(props: Props) {
     const page = currentPage();
     return page ? navigationPages().findIndex((candidate) => candidate.id === page.id) : -1;
   });
-  const currentWorkspaceIndex = createMemo(() => {
-    const page = currentPage();
-    return page ? props.pages.findIndex((candidate) => candidate.id === page.id) : -1;
-  });
   const filmstripWindow = createMemo(() => {
     const pages = navigationPages();
     const start = Math.min(
@@ -627,7 +623,7 @@ export default function EditorPageViewer(props: Props) {
       <header class="editor-review-header">
         <div class="editor-review-heading" aria-live="polite" aria-atomic="true">
           <h2 id="editor-review-title" data-testid="editor-viewer-title">
-            Page {currentWorkspaceIndex() + 1}
+            Page {currentNavigationIndex() + 1}
           </h2>
           <span class="editor-review-meta">
             <Show when={fieldCount(currentPage()) > 0}>
@@ -642,7 +638,7 @@ export default function EditorPageViewer(props: Props) {
         </div>
         <Show when={currentPage()}>
           {(page) => {
-            const number = () => currentWorkspaceIndex() + 1;
+            const number = () => currentNavigationIndex() + 1;
             return (
               <EditorOverflow
                 id="editor-page-actions"
@@ -768,7 +764,7 @@ export default function EditorPageViewer(props: Props) {
             height={0}
             class="editor-review-canvas"
             role="img"
-            aria-label={`Preview of page ${currentWorkspaceIndex() + 1}`}
+            aria-label={`Preview of page ${currentNavigationIndex() + 1}`}
           >
             Page preview.
           </canvas>
