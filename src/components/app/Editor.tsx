@@ -44,6 +44,7 @@ import { getSupportedFileKind } from "../../utils/file-types";
 import { guardLeave } from "../../utils/leave-guard";
 import { promptForPassword } from "../../utils/password-prompt";
 import { showToast as dispatchToast, TOAST_EVENT_NAME, type ToastDetail } from "../../utils/toast";
+import Wordmark from "../shared/Wordmark";
 import type { DraftCommit } from "./EditorAdditionsEditor";
 import EditorFilesDialog from "./EditorFilesDialog";
 import EditorPageGrid from "./EditorPageGrid";
