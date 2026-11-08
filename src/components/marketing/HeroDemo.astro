@@ -8,17 +8,37 @@
 
 <figure class="hero-demo">
   <div
-    class="demo-frame is-merged is-moved is-rotated is-selected is-marked"
+    class="demo-frame is-merged is-moved is-rotated is-marked is-download-open"
     data-hero-demo
     aria-hidden="true"
   >
     <div class="demo-head">
-      <span class="demo-title">Pages</span>
+      <span class="demo-brand">
+        <svg viewBox="0 0 24 24"><path d="m12 5-7 7 7 7M5 12h14"></path></svg>
+        <svg class="demo-leaf" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0a0a0a"></rect><rect x="12" y="16" width="6" height="12" rx="1.5" fill="#fafafa"></rect><path d="M10.5 14A9 9 0 0 1 20.5 5A9 9 0 0 1 10.5 14z" fill="#4cc38a"></path></svg>
+        interleaf
+      </span>
+      <span class="demo-views"><b>Pages</b><span>Document</span></span>
+      <span class="demo-tools"><span>+ Add files</span><span>Files</span><span class="demo-history">↶</span><span class="demo-history demo-redo">↷</span></span>
       <span class="demo-count">
         <span class="demo-count-files">2 files</span>
-        <span class="demo-count-pages">3 pages.</span>
-        <span class="demo-count-marked">2 of 3 pages exportable.</span>
+        <span class="demo-count-pages">3 pages</span>
+        <span class="demo-count-marked">2 of 3 exportable</span>
       </span>
+      <span class="demo-download">
+        <svg viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4"></path></svg>
+        Download
+        <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg>
+      </span>
+      <span class="demo-download-menu">
+        <span class="demo-menu-caption">2 of 3 pages exportable</span>
+        <b>Download PDF</b><span>Export PNG images</span><span class="demo-menu-disabled">Compress original PDF</span>
+      </span>
+    </div>
+    <div class="demo-selection">
+      <strong>1 selected</strong><span class="demo-selection-rotate">↶</span><span class="demo-selection-rotate">↷</span>
+      <span>Select all</span><span>Duplicate</span><span class="demo-selection-danger">Mark for deletion</span><span>Extract to PDF</span><span>Export PNG</span>
+      <span class="demo-clear">×</span>
     </div>
 
     <div class="demo-body">
@@ -137,22 +157,6 @@
       </ul>
     </div>
 
-    <div class="demo-bar">
-      <span class="demo-summary">
-        <span class="demo-summary-all">All 3 exportable</span>
-        <span class="demo-summary-selected">1 selected</span>
-      </span>
-      <span class="demo-edit">
-        <svg viewBox="0 0 24 24"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.38 2.63a2.12 2.12 0 1 1 3 3L12.36 14.65a2 2 0 0 1-.85.5l-2.87.84a.5.5 0 0 1-.62-.62l.84-2.87a2 2 0 0 1 .5-.85Z"></path></svg>
-        Edit pages
-        <svg class="demo-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg>
-      </span>
-      <span class="demo-download">
-        <span class="demo-download-action">Download PDF</span>
-        <span class="demo-download-more"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></span>
-      </span>
-    </div>
-
     <svg class="demo-cursor" viewBox="0 0 24 24"><path d="M5 3l14 8-6.2 1.6L10 19z"></path></svg>
   </div>
   <figcaption class="hero-demo-caption">
@@ -166,7 +170,9 @@
   // cursor points, and how long to wait before it runs.
   type Step = { wait: number; add?: string[]; remove?: string[]; cursor?: string; click?: boolean };
 
-  const STATES = ["is-merged", "is-lifted", "is-moved", "is-rotated", "is-selected", "is-marked"];
+  const STATES = [
+    "is-merged", "is-lifted", "is-moved", "is-rotated", "is-selected", "is-marked", "is-download-open",
+  ];
   const STEPS: Step[] = [
     { wait: 700, add: ["is-merged"], cursor: "form" },
     { wait: 1500, add: ["is-lifted"], click: true },
@@ -178,8 +184,9 @@
     { wait: 800, add: ["is-selected"], click: true },
     { wait: 1200, cursor: "delete" },
     { wait: 800, add: ["is-marked"], click: true },
-    { wait: 1300, cursor: "download" },
-    { wait: 900, click: true },
+    { wait: 650, cursor: "clear" },
+    { wait: 650, remove: ["is-selected"], cursor: "download", click: true },
+    { wait: 900, add: ["is-download-open"], click: true },
   ];
   const HOLD_FINISHED = 2800;
   const FADE = 320;
@@ -247,7 +254,7 @@
       for (const name of ["is-playing", "is-resetting", "is-instant", "is-clicking", "is-lifted"]) {
         set(name, false);
       }
-      for (const state of STATES) if (state !== "is-lifted") set(state, true);
+      for (const state of STATES) set(state, state !== "is-lifted" && state !== "is-selected");
       frame.dataset.cursor = "";
     };
   }
@@ -271,8 +278,8 @@
   }
 
   /* Everything inside is sized in em, and 1em is 1/36 of the frame width,
-     so the whole frame scales as one picture and never changes height. At
-     576px wide it matches the editor at its real size. */
+       so the whole frame scales as one picture and never changes height. At
+       576px wide it matches the editor at its real size. */
   .demo-frame {
     position: relative;
     overflow: hidden;
@@ -302,40 +309,127 @@
   }
 
   .demo-head {
+    position: relative;
+    z-index: 4;
     display: flex;
     height: 3.5em;
     align-items: center;
-    justify-content: space-between;
-    padding-inline: 1.25em;
+    gap: 0.7em;
+    padding-inline: 0.75em;
+    border-bottom: 1px solid var(--color-line);
+    background: var(--color-surface);
+    white-space: nowrap;
   }
 
-  .demo-title {
-    font-size: 1.25em;
+  .demo-brand,
+  .demo-tools,
+  .demo-views,
+  .demo-download {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .demo-brand {
+    gap: 0.35em;
+    font-size: 0.8em;
     font-weight: 500;
   }
-
+  .demo-frame .demo-leaf {
+    width: 1.5em;
+    height: 1.5em;
+    stroke: none;
+  }
+  .demo-views {
+    gap: 0.25em;
+    padding: 0.25em;
+    border-radius: 0.5em;
+    background: var(--color-control);
+    font-size: 0.6em;
+  }
+  .demo-views > * {
+    padding: 0.4em 0.55em;
+  }
+  .demo-views b {
+    border-radius: 0.3em;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-button);
+    font-weight: 500;
+  }
+  .demo-tools {
+    gap: 0.8em;
+    margin-left: auto;
+    font-size: 0.6em;
+    color: var(--color-fg-muted);
+  }
+  .demo-history {
+    font-size: 1.5em;
+  }
+  .demo-redo {
+    opacity: 0.4;
+  }
   .demo-count {
     color: var(--color-fg-muted);
-    font-size: 0.875em;
+    font-size: 0.55em;
   }
-
-  .demo-count > span,
-  .demo-summary > span {
+  .demo-count > span {
     display: none;
   }
-
   .demo-frame:not(.is-merged) .demo-count-files,
   .is-merged:not(.is-marked) .demo-count-pages,
-  .is-marked .demo-count-marked,
-  .is-merged:not(.is-selected) .demo-summary-all,
-  .is-selected .demo-summary-selected {
+  .is-marked .demo-count-marked {
     display: inline;
+  }
+
+  .demo-selection {
+    position: absolute;
+    top: 3.5em;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    display: flex;
+    height: 2.75em;
+    align-items: center;
+    gap: 0.75em;
+    padding-inline: 1.25em;
+    border-bottom: 1px solid var(--color-line);
+    background: var(--color-surface);
+    opacity: 0;
+    visibility: hidden;
+    translate: 0 -0.5em;
+    transition:
+      opacity 220ms,
+      translate 220ms,
+      visibility 220ms;
+  }
+  .demo-selection > * {
+    font-size: 0.6em;
+    white-space: nowrap;
+  }
+  .demo-selection strong {
+    font-weight: 500;
+    margin-right: 0.5em;
+  }
+  .demo-selection .demo-selection-rotate {
+    font-size: 1em;
+  }
+  .demo-selection-danger {
+    color: var(--color-danger-fg);
+  }
+  .demo-selection .demo-clear {
+    margin-left: auto;
+    font-size: 1.2em;
+    color: var(--color-fg-muted);
+  }
+  .is-selected .demo-selection {
+    opacity: 1;
+    visibility: visible;
+    translate: 0 0;
   }
 
   .demo-body {
     position: relative;
-    height: 18.25em;
-    padding: 0.5em 1.25em 0;
+    height: 22.25em;
+    padding: 0.75em 1.25em 0;
     transition: opacity 320ms var(--ease-tactile);
   }
 
@@ -402,13 +496,19 @@
   .demo-grid {
     position: relative;
     height: 16.5em;
+    translate: 0 0;
+    transition: translate 220ms var(--ease-tactile);
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
+  .is-selected .demo-grid {
+    translate: 0 2.75em;
+  }
+
   /* A page tile, drawn like the editor's: a Cards card with the page, its
-     number badge, and duplicate, delete, and rotate actions. */
+       number badge, and duplicate, delete, and rotate actions. */
   .demo-tile {
     --slot: 0;
     position: absolute;
@@ -424,8 +524,8 @@
     translate: calc(var(--slot) * 11.5em) 0;
     transition-property: translate, scale, opacity, box-shadow;
     transition-duration: 700ms, 250ms, 450ms, 200ms;
-    transition-timing-function: cubic-bezier(0.65, 0, 0.35, 1), var(--ease-tactile),
-      var(--ease-tactile), var(--ease-tactile);
+    transition-timing-function:
+      cubic-bezier(0.65, 0, 0.35, 1), var(--ease-tactile), var(--ease-tactile), var(--ease-tactile);
   }
 
   .demo-frame:not(.is-merged) .demo-tile {
@@ -598,7 +698,9 @@
     background: var(--color-hover);
   }
 
-  .is-playing[data-cursor="delete"]:not(.is-marked) [data-page="invoice-2"] .demo-action-delete::before {
+  .is-playing[data-cursor="delete"]:not(.is-marked)
+    [data-page="invoice-2"]
+    .demo-action-delete::before {
     background: var(--color-hover);
   }
 
@@ -770,7 +872,7 @@
   }
 
   /* The scanned form arrives on its side; rotating it turns it upright,
-     and the page grows to fill the tile as the editor's preview does. */
+       and the page grows to fill the tile as the editor's preview does. */
   .demo-stage {
     position: absolute;
     inset: 0;
@@ -786,87 +888,65 @@
     scale: 1;
   }
 
-  .demo-bar {
-    display: flex;
-    height: 4em;
-    align-items: center;
-    gap: 0.75em;
-    padding-inline: 1.25em;
-    border-top: 1px solid var(--color-line);
-    background: var(--color-surface);
-  }
-
-  .demo-summary {
-    min-width: 0;
-    flex: 1;
-    font-size: 0.875em;
-    font-weight: 500;
-    white-space: nowrap;
-  }
-
-  .demo-edit,
   .demo-download {
-    display: inline-flex;
-    height: 2.25em;
-    align-items: center;
-    border-radius: 0.5em;
-    white-space: nowrap;
-    transition: opacity 300ms var(--ease-tactile);
-  }
-
-  .demo-frame:not(.is-merged) .demo-edit,
-  .demo-frame:not(.is-merged) .demo-download {
-    opacity: 0.4;
-  }
-
-  .demo-edit {
+    height: 2.4em;
     gap: 0.4em;
-    padding-inline: 0.75em;
-    background: var(--color-control);
-    box-shadow: var(--shadow-button);
-    font-size: 0.875em;
-    font-weight: 500;
-  }
-
-  .demo-edit svg {
-    width: 1.15em;
-    height: 1.15em;
-  }
-
-  .demo-edit .demo-chevron {
-    color: var(--color-fg-muted);
-  }
-
-  .demo-download {
+    padding-inline: 0.65em;
+    border-radius: 0.5em;
     background: var(--color-primary);
     box-shadow: var(--shadow-primary);
     color: var(--color-primary-foreground);
-    transition-property: opacity, background-color, scale;
-    transition-duration: 150ms;
+    font-size: 0.65em;
+    font-weight: 500;
+    transition: scale 150ms;
   }
-
-  .demo-download-action {
-    display: inline-flex;
-    min-width: 10.3em;
-    justify-content: center;
-    font-size: 0.875em;
+  .is-download-open .demo-download,
+  [data-cursor="download"] .demo-download {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  .is-clicking[data-cursor="download"] .demo-download {
+    scale: 0.97;
+  }
+  .demo-download-menu {
+    position: absolute;
+    top: 5.35em;
+    right: 0.5em;
+    display: grid;
+    gap: 0.3em;
+    width: 12em;
+    padding: 0.65em;
+    border-radius: 0.65em;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-menu);
+    font-size: 0.7em;
+    opacity: 0;
+    visibility: hidden;
+    translate: 0 -0.3em;
+    transition:
+      opacity 180ms,
+      translate 180ms,
+      visibility 180ms;
+  }
+  .demo-download-menu > * {
+    padding: 0.5em;
+  }
+  .demo-menu-caption {
+    color: var(--color-fg-muted);
+    font-size: 0.85em;
+  }
+  .demo-download-menu b {
+    border-radius: 0.35em;
+    background: var(--color-hover);
     font-weight: 500;
   }
-
-  .demo-download-more {
-    display: grid;
-    width: 2.25em;
-    height: 100%;
-    place-items: center;
-    box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.24);
+  .demo-menu-disabled {
+    opacity: 0.4;
   }
-
-  .is-playing[data-cursor="download"] .demo-download {
-    background: var(--color-primary-hover);
-  }
-
-  .is-playing[data-cursor="download"].is-clicking .demo-download {
-    scale: 0.97;
+  .is-download-open .demo-download-menu {
+    opacity: 1;
+    visibility: visible;
+    translate: 0 0;
   }
 
   /* The pointer is only part of the loop, never the still frame. */
@@ -907,7 +987,7 @@
   }
 
   /* Cursor targets, from the tile and bar geometry above (the tip sits at
-     0.3em, 0.2em of the icon). */
+       0.3em, 0.2em of the icon). */
   [data-cursor="form"] .demo-cursor {
     --x: 29.2em;
     --y: 10.4em;
@@ -920,7 +1000,7 @@
 
   [data-cursor="rotate"] .demo-cursor {
     --x: 9.6em;
-    --y: 18.6em;
+    --y: 18.85em;
   }
 
   [data-cursor="front-page"] .demo-cursor {
@@ -930,12 +1010,17 @@
 
   [data-cursor="delete"] .demo-cursor {
     --x: 29.85em;
-    --y: 18.6em;
+    --y: 21.6em;
+  }
+
+  [data-cursor="clear"] .demo-cursor {
+    --x: 34.2em;
+    --y: 4.7em;
   }
 
   [data-cursor="download"] .demo-cursor {
-    --x: 29.9em;
-    --y: 24em;
+    --x: 32.9em;
+    --y: 1.7em;
   }
 
   .is-instant,

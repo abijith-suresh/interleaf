@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const FINISHED = ["is-merged", "is-moved", "is-rotated", "is-selected", "is-marked"];
+const FINISHED = ["is-merged", "is-moved", "is-rotated", "is-marked", "is-download-open"];
 
 test("the hero picture is decorative and has a text alternative", async ({ page }) => {
   await page.goto("/");
@@ -17,6 +17,9 @@ test("reduced motion keeps the finished frame still", async ({ page }) => {
   await page.waitForTimeout(3500);
   for (const state of FINISHED) await expect(frame).toContainClass(state);
   await expect(frame).not.toContainClass("is-playing");
+  await expect(frame).not.toContainClass("is-selected");
+  await expect(frame.locator(".demo-selection")).toBeHidden();
+  await expect(frame.locator(".demo-download-menu")).toBeVisible();
 });
 
 test("the loop plays on screen and pauses off screen", async ({ page }) => {
@@ -43,3 +46,21 @@ for (const width of [375, 320]) {
     expect(box?.width).toBe(width - 32);
   });
 }
+
+test("selection clears before the whole-document Download menu opens", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  const frame = page.locator("[data-hero-demo]");
+  await expect(frame).toContainClass("is-playing", { timeout: 15000 });
+  await expect(frame.locator(".demo-selection")).toBeHidden();
+  await expect(frame).toContainClass("is-selected", { timeout: 12000 });
+  await expect(frame.locator(".demo-selection")).toBeVisible();
+  await expect(frame.locator(".demo-download-menu")).toBeHidden();
+  await expect(frame).toHaveAttribute("data-cursor", "clear", { timeout: 5000 });
+  await expect(frame).toHaveAttribute("data-cursor", "download");
+  await expect(frame).not.toContainClass("is-selected");
+  await expect(frame.locator(".demo-selection")).toBeHidden();
+  await expect(frame.locator(".demo-download-menu")).toBeVisible();
+  await expect(frame.locator(".demo-download-menu")).toContainText("Download PDF");
+  await expect(frame.locator(".demo-download-menu")).toContainText("2 of 3 pages exportable");
+});
