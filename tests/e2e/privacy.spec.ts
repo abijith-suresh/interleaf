@@ -91,6 +91,8 @@ test("mixed files, organization, saved text/checkmarks and PDF/PNG downloads sta
   await expect(tiles.nth(1)).toBeFocused();
   await page.keyboard.press("Alt+ArrowRight");
   await expect(tiles.nth(2)).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(tiles.nth(2)).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Rotate page 3 90 degrees", exact: true }).click();
   await page.getByRole("button", { name: "Mark page 2 for deletion", exact: true }).click();
   await page.getByTestId("editor-undo-button").click();

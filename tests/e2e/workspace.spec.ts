@@ -73,7 +73,7 @@ test("Document preserves marked subset inspection, output eligibility and active
   await page.getByTestId("editor-pages-view-button").click();
   await expect(tiles.nth(0)).toHaveAttribute("aria-pressed", "true");
   await expect(tiles.nth(2)).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "Mark page 3 for deletion", exact: true }).click();
+  await page.getByRole("button", { name: "Restore page 3", exact: true }).click();
   await page.getByTestId("editor-document-view-button").click();
   await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 3");
   const restoredPDF = await downloadPDF(page);
