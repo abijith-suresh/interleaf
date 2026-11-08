@@ -86,7 +86,10 @@ for (const [width, height] of [
       "0.12,0.5 0.38,0.78 0.88,0.15000000000000002"
     );
     // Use real keyboard navigation so focus-visible follows each browser's modality rules.
-    for (let step = 0; step < 5; step++) await page.keyboard.press("Shift+Tab");
+    for (let step = 0; step < 8; step++) {
+      if (await draft.evaluate((element) => element === document.activeElement)) break;
+      await page.keyboard.press("Shift+Tab");
+    }
     await expect(draft).toBeFocused();
     const before = await draft.evaluate((element) => [
       parseFloat(element.style.left),
@@ -166,7 +169,6 @@ test("point placement, drag, cancel, independent text and checkmark history, dup
   const savedPosition = await hit.evaluate((element) => [element.style.left, element.style.top]);
   await hit.click();
   const draft = page.getByRole("button", { name: "Drag checkmark to move it" });
-  await page.getByRole("button", { name: "Checkmark settings" }).click();
   await ready(page);
   const before = await draft.boundingBox();
   if (!before) throw new Error("Missing draft");
@@ -185,6 +187,7 @@ test("point placement, drag, cancel, independent text and checkmark history, dup
     savedPosition
   );
   const downloading = page.waitForEvent("download");
+  await page.getByTestId("editor-download-menu-button").click();
   await page.getByTestId("editor-download-button").click();
   const path = await (await downloading).path();
   if (!path) throw new Error("Missing marked PDF download");
@@ -198,11 +201,11 @@ test("point placement, drag, cancel, independent text and checkmark history, dup
       decodePDFRawStream(contents.lookup(index, PDFRawStream)).decode()
     );
   expect(operators.match(/\nS\n/g)?.length).toBeGreaterThanOrEqual(2);
-  await page.getByRole("button", { name: "More download options" }).click();
+  await page.getByTestId("editor-download-menu-button").click();
   await expect(page.getByRole("menuitem", { name: /Compress/ })).toBeDisabled();
   await page.keyboard.press("Escape");
   await page.getByTestId("editor-undo-button").click();
-  await page.getByRole("button", { name: "More download options" }).click();
+  await page.getByTestId("editor-download-menu-button").click();
   await expect(page.getByRole("menuitem", { name: /Compress/ })).toBeEnabled();
   await page.keyboard.press("Escape");
   await page.getByTestId("editor-redo-button").click();
@@ -342,9 +345,12 @@ for (const kind of ["checkmark", "text"] as const) {
     await expect.poll(unobscured).toBe(true);
     expect(await scrollPosition()).toEqual(before);
 
-    // Reach the draft through the actual tab order, including Edit additions.
-    for (let step = 0; step < 6; step++) await page.keyboard.press("Shift+Tab");
+    // Reach the draft through the actual tab order, past Tools and Read.
     const draft = page.getByRole("button", { name: `Drag ${kind} to move it` });
+    for (let step = 0; step < 8; step++) {
+      if (await draft.evaluate((element) => element === document.activeElement)) break;
+      await page.keyboard.press("Shift+Tab");
+    }
     await expect(draft).toBeFocused();
     await expect(page.getByRole("button", { name: "Tools", exact: true })).toHaveAttribute(
       "aria-expanded",
@@ -369,11 +375,9 @@ for (const kind of ["checkmark", "text"] as const) {
     await expect.poll(unobscured).toBe(true);
     expect(await scrollPosition()).toEqual(before);
 
-    // Scroll the popup itself to reach actions, without moving the page or preview.
-    await page.locator(".editor-document-tools").evaluate((popup) => {
-      popup.scrollTop = popup.scrollHeight;
-      const content = popup.querySelector(".editor-text-content");
-      if (content) content.scrollTop = content.scrollHeight;
+    // Scroll the settings sheet itself to reach actions, without moving the page or preview.
+    await page.locator(".editor-draft-panel").evaluate((sheet) => {
+      sheet.scrollTop = sheet.scrollHeight;
     });
     const cancel = page.getByRole("button", { name: "Cancel", exact: true });
     for (const action of [`Save ${kind}`, "Cancel"]) {

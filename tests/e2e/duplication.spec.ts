@@ -3,6 +3,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { degrees, PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { createServer, type ViteDevServer } from "vite";
 import type { inspectPDF, inspectZIP } from "./fixtures/duplication";
+import { openFiles } from "./toolbar";
 
 let server: ViteDevServer;
 let url: string;
@@ -99,14 +100,12 @@ test("copies retain independent organization, real PDF/PNG content and source re
   await expect(rows.nth(1).getByTestId("editor-page-canvas")).toHaveCSS("--page-rotation", "90deg");
   await page.getByTestId("editor-document-view-button").click();
   await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 2");
-  await expect(
-    page.getByRole("button", { name: /Duplicate page|Rotate page|Mark page/ })
-  ).toHaveCount(0);
+  await expect(page.getByTestId("editor-page-grid")).toHaveCount(0);
   const reader = await context.newPage();
   await reader.goto(`${url}duplicate-test`);
   const selected = await inspect(
     reader,
-    await download(page, () => page.getByTestId("editor-download-button").click())
+    await download(page, () => page.getByTestId("editor-extract-button").click())
   );
   expect(selected.count).toBe(1);
   expect(selected.pages[0]).toMatchObject({
@@ -117,8 +116,9 @@ test("copies retain independent organization, real PDF/PNG content and source re
     size: [400, 600],
   });
   expect(selected.pages[0].ink).toBeGreaterThan(20000);
-  await page.getByTestId("editor-download-options-button").click();
-  const zip = await download(page, () => page.getByTestId("editor-export-images-button").click());
+  const zip = await download(page, () =>
+    page.getByTestId("editor-export-selected-images-button").click()
+  );
   const pngs = await reader.evaluate(
     async (bytes): Promise<Awaited<ReturnType<typeof inspectZIP>>> => {
       const path = "/tests/e2e/fixtures/duplication.ts";
@@ -146,13 +146,16 @@ test("copies retain independent organization, real PDF/PNG content and source re
   await expect(tiles.nth(3)).toHaveAttribute("aria-pressed", "true");
   await expect(tiles.nth(3)).toBeFocused();
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("editor-selection-title")).toHaveText("All 3 exportable");
-  await page.getByTestId("editor-download-options-button").click();
+  await expect(page.getByRole("toolbar", { name: "Selected pages" })).toHaveCount(0);
+  await page.getByTestId("editor-download-menu-button").click();
   await expect(page.getByTestId("editor-compress-button")).toHaveAttribute("aria-disabled", "true");
   await page.keyboard.press("Escape");
   const all = await inspect(
     reader,
-    await download(page, () => page.getByTestId("editor-download-button").click())
+    await download(page, async () => {
+      await page.getByTestId("editor-download-menu-button").click();
+      await page.getByTestId("editor-download-button").click();
+    })
   );
   expect(all.count).toBe(3);
   expect(all.pages.map((p) => [p.text, p.rotation, p.libRotation])).toEqual([
@@ -163,7 +166,7 @@ test("copies retain independent organization, real PDF/PNG content and source re
   expect(all.pages.map((p) => p.libSize.width)).toEqual([200, 240, 200]);
   expect(all.pages[0].hash).toBe(selected.pages[0].hash);
   expect(all.pages.every((p) => p.ink > 20000)).toBe(true);
-  await page.getByTestId("editor-files-button").click();
+  await openFiles(page);
   await expect(page.getByTestId("editor-file-item")).toHaveCount(1);
   await expect(page.getByTestId("editor-file-item")).toContainText("4 pages");
   await page.getByTestId("editor-file-remove").click();
@@ -195,7 +198,7 @@ test("repeated form source pages keep the existing separate copyPages export bas
   await reader.goto(`${url}duplicate-test`);
   const exported = await inspect(
     reader,
-    await download(page, () => page.getByTestId("editor-download-button").click())
+    await download(page, () => page.getByTestId("editor-extract-button").click())
   );
   const expected = await inspect(reader, Array.from(await baseline.save()));
   expect(exported).toEqual(expected);

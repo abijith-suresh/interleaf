@@ -51,6 +51,7 @@ async function draft(page: Page, tool: "Add text" | "Checkmark") {
 /** Decoded content of the downloaded PDF's first page. */
 async function download(page: Page) {
   const downloading = page.waitForEvent("download");
+  await page.getByTestId("editor-download-menu-button").click();
   await page.getByTestId("editor-download-button").click();
   const path = await (await downloading).path();
   if (!path) throw new Error("Missing PDF download");
@@ -136,12 +137,15 @@ test("an invalid draft blocks leaving it and shows why, while Cancel still disca
   await input.fill("Café");
 
   for (const leave of [
-    page.getByTestId("editor-pages-view-button"),
-    page.getByTestId("editor-page-viewer-next"),
-    page.getByRole("button", { name: "View page 2" }),
-    page.getByTestId("editor-download-button"),
+    () => page.getByTestId("editor-pages-view-button").click(),
+    () => page.getByTestId("editor-page-viewer-next").click(),
+    () => page.getByRole("button", { name: "View page 2" }).click(),
+    async () => {
+      await page.getByTestId("editor-download-menu-button").click();
+      await page.getByTestId("editor-download-button").click();
+    },
   ]) {
-    await leave.click();
+    await leave();
     await expect(page.locator("#editor-text-error")).toContainText("basic Latin");
     await expect(input).toBeFocused();
     await expect(input).toHaveValue("Café");
@@ -181,10 +185,8 @@ test("leaving the editor asks first only when the workspace has pages", async ({
   expect(dialogs).toEqual([]);
 
   await load(page);
-  for (const link of [
-    page.getByRole("link", { name: "Return to Interleaf home" }),
-    page.locator(".editor-sidebar .editor-brand"),
-  ]) {
+  // The toolbar's Exit link carries the wordmark, so it is the one way out.
+  for (const link of [page.getByTestId("editor-exit-link")]) {
     await link.click();
     await expect.poll(() => dialogs.length).toBeGreaterThan(0);
     expect(dialogs.pop()).toBe(LEAVE_MESSAGE);
@@ -201,7 +203,7 @@ test("leaving the editor asks first only when the workspace has pages", async ({
 
   page.removeAllListeners("dialog");
   page.once("dialog", (dialog) => void dialog.accept());
-  await page.getByRole("link", { name: "Return to Interleaf home" }).click();
+  await page.getByTestId("editor-exit-link").click();
   await expect(page).toHaveURL(/\/$/);
 });
 
@@ -209,7 +211,7 @@ test("reloading a workspace with pages asks first", async ({ page }) => {
   await page.goto("/app");
   await load(page);
   // Browsers show the unload prompt only after the user interacts with the page.
-  await page.getByRole("heading", { name: "Pages", exact: true }).click();
+  await page.getByTestId("editor-page-count").click();
   const prompt = page.waitForEvent("dialog");
   void page.reload().catch(() => undefined);
   const dialog = await prompt;

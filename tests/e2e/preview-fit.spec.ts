@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { unzipSync } from "fflate";
 import { degrees, PDFDocument, rgb } from "pdf-lib";
+import { clickSelectionAction } from "./toolbar";
 
 async function makePages() {
   const pdf = await PDFDocument.create();
@@ -187,16 +188,15 @@ for (const scenario of [
       await expectFittedPage(page, 600, 1200, scenario.budget);
       await page.getByTestId("editor-pages-view-button").click();
       const pdfDownload = page.waitForEvent("download");
-      await page.getByTestId("editor-download-button").click();
+      await clickSelectionAction(page, "editor-extract-button");
       const pdfPath = await (await pdfDownload).path();
       if (!pdfPath) throw new Error("PDF download failed");
       const pdf = await PDFDocument.load(await readFile(pdfPath));
       expect(pdf.getPageCount()).toBe(1);
       expect(pdf.getPage(0).getSize()).toEqual({ width: 600, height: 1200 });
       expect(pdf.getPage(0).getRotation().angle).toBe(180);
-      await page.getByTestId("editor-download-options-button").click();
       const pngDownload = page.waitForEvent("download");
-      await page.getByTestId("editor-export-images-button").click();
+      await clickSelectionAction(page, "editor-export-selected-images-button");
       const pngPath = await (await pngDownload).path();
       if (!pngPath) throw new Error("PNG download failed");
       const images = Object.entries(unzipSync(await readFile(pngPath))).filter(([name]) =>

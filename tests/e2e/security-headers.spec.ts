@@ -28,6 +28,9 @@ async function watchViolations(page: Page) {
 
 async function download(page: Page, id: string) {
   const pending = page.waitForEvent("download");
+  // Download, PNG export, and compression are items in the Download menu.
+  if (!(await page.getByTestId(id).isVisible()))
+    await page.getByTestId("editor-download-menu-button").click();
   await page.getByTestId(id).click();
   const file = await pending;
   const path = test.info().outputPath(file.suggestedFilename());
@@ -58,13 +61,13 @@ test("the editor opens, compresses and exports without CSP violations", async ({
   await page.getByTestId("editor-document-view-button").click();
   await expect(page.locator(".editor-review-stage")).toHaveAttribute("data-render-state", "ready");
 
-  await page.getByTestId("editor-download-options-button").click();
+  await page.getByTestId("editor-download-menu-button").click();
   const compressed = await download(page, "editor-compress-button");
   expect((await PDFDocument.load(compressed)).getPageCount()).toBe(1);
   expect(
     (await PDFDocument.load(await download(page, "editor-download-button"))).getPageCount()
   ).toBe(1);
-  await page.getByTestId("editor-download-options-button").click();
+  await page.getByTestId("editor-download-menu-button").click();
   expect((await download(page, "editor-export-images-button")).byteLength).toBeGreaterThan(0);
 
   expect(violations).toEqual([]);

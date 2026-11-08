@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
+import { clickAddFiles, clickSelectionAction } from "./toolbar";
 
 async function report() {
   const pdf = await PDFDocument.create();
@@ -16,6 +17,14 @@ const image = {
     "base64"
   ),
 };
+
+async function savePDF(page: Page, action: () => Promise<unknown>) {
+  const download = page.waitForEvent("download");
+  await action();
+  const path = await (await download).path();
+  if (!path) throw new Error("PDF download failed");
+  return PDFDocument.load(await readFile(path));
+}
 
 for (const width of [1280, 390]) {
   test(`keyboard reorder retains logical page focus at ${width}px`, async ({ page }) => {
@@ -53,13 +62,15 @@ for (const width of [1280, 390]) {
     await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "true");
     await page.getByTestId("editor-document-view-button").click();
     await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 2");
-    const download = page.waitForEvent("download");
-    await page.getByTestId("editor-download-button").click();
-    const path = await (await download).path();
-    if (!path) throw new Error("PDF download failed");
-    const exported = await PDFDocument.load(await readFile(path));
-    expect(exported.getPageCount()).toBe(1);
-    expect(exported.getPage(0).getWidth()).toBe(440);
+    const extracted = await savePDF(page, () =>
+      clickSelectionAction(page, "editor-extract-button")
+    );
+    expect(extracted.getPages().map((p) => p.getWidth())).toEqual([440]);
+    const whole = await savePDF(page, async () => {
+      await page.getByTestId("editor-download-menu-button").click();
+      await page.getByTestId("editor-download-button").click();
+    });
+    expect(whole.getPages().map((p) => p.getWidth())).toEqual([400, 440, 440, 420]);
   });
 }
 
@@ -105,7 +116,8 @@ for (const viewport of [
           Math.min(box.x + box.width, other.x + other.width) - Math.max(box.x, other.x);
         const overlapY =
           Math.min(box.y + box.height, other.y + other.height) - Math.max(box.y, other.y);
-        expect(overlapX > 0 && overlapY > 0).toBe(false);
+        // Fractional grid columns can leave Firefox boxes touching by a rounding error.
+        expect(overlapX > 0.01 && overlapY > 0.01).toBe(false);
       }
     }
     const duplicate = tile.getByTestId("editor-page-duplicate-button");
@@ -139,21 +151,21 @@ for (const viewport of [
     const tiles = page.getByTestId("editor-page-tile");
     await expect(tiles).toHaveCount(4);
     await expect(page.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false");
+    const narrow = viewport.width < 768;
+    const more = page.getByTestId("editor-more-button");
+    await expect(more).toBeVisible({ visible: narrow });
 
-    // Icon-only actions keep their hit targets and remain inside the viewport.
-    for (const id of [
-      "editor-document-view-button",
-      "editor-add-pdf-button",
-      "editor-files-button",
-      "editor-edit-menu-button",
-      "editor-download-button",
-      "editor-download-options-button",
-    ]) {
-      const box = await page.getByTestId(id).boundingBox();
-      if (!box) throw new Error(`${id} is not visible`);
+    // One toolbar row. Every visible control keeps a 44px hit target inside the viewport.
+    const toolbar = page.getByRole("toolbar", { name: "Editor" });
+    const controls = toolbar.locator("button:visible, a:visible");
+    const centers: number[] = [];
+    for (const control of await controls.all()) {
+      const box = await control.boundingBox();
+      if (!box) throw new Error("Toolbar control is not visible");
+      centers.push(box.y + box.height / 2);
       // Controls drawn smaller than 44px extend their hit area invisibly. The
       // probes stay 1px inside the edge, clear of sub-pixel rounding between neighbours.
-      const reaches = await page.getByTestId(id).evaluate((element) => {
+      const reaches = await control.evaluate((element) => {
         const rect = element.getBoundingClientRect();
         const x = rect.x + rect.width / 2;
         const y = rect.y + rect.height / 2;
@@ -167,11 +179,16 @@ for (const viewport of [
       expect(reaches).toBe(true);
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
-      expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
     }
+    expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
+    // Undo and redo stay in the row at every width; the page count sits by Download.
+    await expect(page.getByTestId("editor-undo-button")).toBeVisible();
+    await expect(page.getByTestId("editor-redo-button")).toBeVisible();
+    await expect(page.getByTestId("editor-page-count")).toBeVisible({ visible: !narrow });
+
     const review = page.getByTestId("editor-document-view-button");
     await page.getByTestId("editor-pages-view-button").focus();
-    await page.keyboard.press("Tab");
+    await page.keyboard.press("ArrowRight");
     await expect(review).toBeFocused();
     await expect(review).toHaveCSS("outline-color", "rgb(10, 10, 10)");
     await expect(review).toHaveCSS("outline-style", "solid");
@@ -179,41 +196,61 @@ for (const viewport of [
     await expect(review.locator("svg")).toHaveCSS("width", "16px");
     await expect(review.locator("svg")).toHaveAttribute("stroke-width", "1.75");
 
-    const edit = page.getByTestId("editor-edit-menu-button");
-    await edit.focus();
+    // The Download menu: whole-document outputs with their disabled reasons.
+    const downloadMenu = page.getByTestId("editor-download-menu-button");
+    await downloadMenu.focus();
     await page.keyboard.press("ArrowDown");
-    await expect(page.getByTestId("editor-select-all-button")).toBeFocused();
-    await page.keyboard.press("End");
-    const deleteSelected = page.getByTestId("editor-delete-button");
-    await expect(deleteSelected).toBeFocused();
-    await expect(deleteSelected).toHaveAttribute("aria-disabled", "true");
-    await expect(deleteSelected).toHaveCSS("outline-color", "rgb(10, 10, 10)");
-    await expect(deleteSelected).toHaveCSS("opacity", "1");
-    await page.keyboard.press("Enter");
-    await expect(page.getByTestId("editor-edit-menu")).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(edit).toBeFocused();
-    await page.keyboard.press("ArrowUp");
-    await expect(deleteSelected).toBeFocused();
-    await page.keyboard.press("Home");
-    await expect(page.getByTestId("editor-select-all-button")).toBeFocused();
-    await page.keyboard.press("Tab");
     await expect(page.getByTestId("editor-download-button")).toBeFocused();
+    await page.keyboard.press("End");
+    const compress = page.getByTestId("editor-compress-button");
+    await expect(compress).toBeFocused();
+    await expect(compress).toHaveAttribute("aria-disabled", "true");
+    await expect(compress).toContainText("Compress only before page edits");
+    await expect(compress).toHaveCSS("outline-color", "rgb(10, 10, 10)");
+    await expect(compress).toHaveCSS("opacity", "1");
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("editor-download-menu")).toBeVisible();
+    const menu = await page.getByTestId("editor-download-menu").boundingBox();
+    if (!menu) throw new Error("Missing Download menu");
+    expect(menu.x).toBeGreaterThanOrEqual(0);
+    expect(menu.x + menu.width).toBeLessThanOrEqual(viewport.width);
+    await page.keyboard.press("Escape");
+    await expect(downloadMenu).toBeFocused();
+    await page.keyboard.press("ArrowUp");
+    await expect(compress).toBeFocused();
+    await page.keyboard.press("Home");
+    await expect(page.getByTestId("editor-download-button")).toBeFocused();
+    await page.keyboard.press("Tab");
     await expect(page.getByRole("menu")).toHaveCount(0);
+    await expect(toolbar.locator(":focus")).toHaveCount(0);
 
-    // Selection, keyboard reordering and rotation still act on the same source page.
+    // Selecting pages slides in the selection bar under the toolbar.
+    const bar = page.getByRole("toolbar", { name: "Selected pages" });
+    await expect(bar).toHaveCount(0);
     await tiles.first().click();
+    await expect(bar).toBeVisible();
+    const toolbarBox = await toolbar.boundingBox();
+    await expect
+      .poll(async () => (await bar.boundingBox())?.y)
+      .toBeGreaterThanOrEqual(Math.floor((toolbarBox?.y ?? 0) + (toolbarBox?.height ?? 0)) - 1);
+    await expect(page.getByTestId("editor-selection-status")).toHaveText("1 page selected.");
     await page.keyboard.press("Alt+ArrowRight");
     await expect(tiles.nth(1)).toHaveAttribute("data-source-page", "1");
     await expect(tiles.nth(1)).toBeFocused();
     await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "true");
-    await edit.click();
     await page.getByTestId("editor-rotate-button").click();
     const movedPage = page.locator(".editor-page-grid > li").nth(1);
     await expect(movedPage.getByTestId("editor-page-canvas")).toHaveCSS("--page-rotation", "90deg");
-    await edit.click();
-    await deleteSelected.click();
-    await expect(page.getByTestId("editor-download-button")).toBeDisabled();
+    await page.getByTestId("editor-rotate-left-button").click();
+    await expect(movedPage.getByTestId("editor-page-canvas")).toHaveCSS("--page-rotation", "0deg");
+    await page.getByTestId("editor-rotate-button").click();
+    const selectionMore = page.getByTestId("editor-selection-more-button");
+    if (narrow) await selectionMore.click();
+    await page.getByTestId("editor-delete-button").click();
+    await expect(page.getByTestId("editor-extract-button")).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
     const restore = movedPage.getByTestId("editor-page-delete-button");
     await expect(restore).toHaveAccessibleName("Restore page 2");
     await expect(restore).toHaveClass(/is-marked/);
@@ -221,21 +258,29 @@ for (const viewport of [
     await expect(restore).toHaveAccessibleName("Mark page 2 for deletion");
     await expect(restore).not.toHaveClass(/is-marked/);
     await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "true");
+    for (const control of await bar.locator("button:visible").all()) {
+      const box = await control.boundingBox();
+      if (!box) throw new Error("Missing selection control");
+      expect(Number(box.width.toFixed(4))).toBeGreaterThanOrEqual(44);
+      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
+    }
 
-    const download = page.waitForEvent("download");
-    await page.getByTestId("editor-download-button").click();
-    const path = await (await download).path();
-    if (!path) throw new Error("PDF download failed");
-    const exported = await PDFDocument.load(await readFile(path));
-    expect(exported.getPageCount()).toBe(1);
-    expect(exported.getPage(0).getWidth()).toBe(400);
-    expect(exported.getPage(0).getRotation().angle).toBe(90);
+    if (narrow) await selectionMore.click();
+    const extracted = await savePDF(page, () => page.getByTestId("editor-extract-button").click());
+    expect(extracted.getPageCount()).toBe(1);
+    expect(extracted.getPage(0).getWidth()).toBe(400);
+    expect(extracted.getPage(0).getRotation().angle).toBe(90);
+    const whole = await savePDF(page, async () => {
+      await downloadMenu.click();
+      await page.getByTestId("editor-download-button").click();
+    });
+    expect(whole.getPageCount()).toBe(4);
 
     await tiles.nth(1).focus();
     await page.keyboard.press("Escape");
+    await expect(bar).toHaveCount(0);
     await review.click();
     await expect(review).toBeFocused();
-    await expect(page.getByTestId("editor-edit-menu-button")).toHaveCount(0);
     await expect(page.locator("[inert], [aria-modal='true']:visible")).toHaveCount(0);
     const stage = page.locator(".editor-review-stage");
     const stageBounds = await stage.boundingBox();
@@ -250,10 +295,11 @@ for (const viewport of [
     await expect(page.getByTestId("editor-pages-view-button")).toBeFocused();
 
     const chooser = page.waitForEvent("filechooser");
-    await page.getByTestId("editor-add-pdf-button").click();
+    await clickAddFiles(page);
     await (await chooser).setFiles({ ...(await report()), name: "additional.pdf" });
     await expect(tiles).toHaveCount(7);
     const files = page.getByTestId("editor-files-button");
+    if (narrow) await more.click();
     await files.click();
     const dialog = page.getByTestId("editor-files-dialog");
     await expect(page.getByTestId("editor-files-close-button")).toBeFocused();
@@ -262,7 +308,11 @@ for (const viewport of [
     await expect(dialog.getByTestId("editor-file-item").last()).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(dialog).not.toBeVisible();
-    await expect(files).toBeFocused();
+    // Files may sit in the closed overflow list; focus returns to what opened it.
+    await expect(narrow ? more : files).toBeFocused();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true
+    );
     expect(errors).toEqual([]);
   });
 }
@@ -299,10 +349,10 @@ test("touch taps release transient styles while selected states remain visible",
     "false"
   );
   await expect(duplicate).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-  const options = page.getByTestId("editor-download-options-button");
+  const options = page.getByTestId("editor-download-menu-button");
   await options.tap();
   await expect(options).toHaveAttribute("aria-expanded", "true");
-  await page.getByRole("heading", { name: "Pages", exact: true }).tap();
+  await page.locator(".editor-page-scroll").tap({ position: { x: 4, y: 4 } });
   await expect(options).toHaveAttribute("aria-expanded", "false");
   await expect(options).toHaveCSS("background-color", "rgb(0, 0, 0)");
   await expect(options).toHaveCSS("transform", "none");

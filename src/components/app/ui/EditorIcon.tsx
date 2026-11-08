@@ -5,8 +5,11 @@ import ChevronLeft from "lucide-solid/icons/chevron-left";
 import ChevronRight from "lucide-solid/icons/chevron-right";
 import Copy from "lucide-solid/icons/copy";
 import Download from "lucide-solid/icons/download";
+import Ellipsis from "lucide-solid/icons/ellipsis";
+import FileOutput from "lucide-solid/icons/file-output";
 import FileStack from "lucide-solid/icons/file-stack";
 import FileText from "lucide-solid/icons/file-text";
+import ImageIcon from "lucide-solid/icons/image";
 import LayoutGrid from "lucide-solid/icons/layout-grid";
 import Minus from "lucide-solid/icons/minus";
 import Plus from "lucide-solid/icons/plus";
@@ -31,6 +34,10 @@ const editorIcons = {
   next: ChevronRight,
   copy: Copy,
   open: Download,
+  more: Ellipsis,
+  extract: FileOutput,
+  image: ImageIcon,
+  "rotate-left": RotateCcw,
   document: FileText,
   files: FileStack,
   pages: LayoutGrid,

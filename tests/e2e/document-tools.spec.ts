@@ -33,11 +33,13 @@ async function draftAt(page: Page, tool: "Add text" | "Checkmark", x = 0.4, y = 
   await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
 }
 const toolNames = ["Read", "Add text", "Checkmark", "Fill fields", "Select additions"];
+// An open draft swaps the page tools out of the bar, so read them even while hidden.
+const hidden = { includeHidden: true } as const;
 async function pressed(page: Page) {
-  const toolbar = page.getByRole("toolbar", { name: "Page tools" });
+  const toolbar = page.getByRole("toolbar", { name: "Page tools", ...hidden });
   const names: string[] = [];
   for (const name of toolNames) {
-    const button = toolbar.getByRole("button", { name, exact: true });
+    const button = toolbar.getByRole("button", { name, exact: true, ...hidden });
     if ((await button.count()) && (await button.getAttribute("aria-pressed")) === "true")
       names.push(name);
   }
@@ -46,13 +48,13 @@ async function pressed(page: Page) {
 async function expectPressed(page: Page, name: string) {
   await expect.poll(() => pressed(page)).toEqual([name]);
   const button = page
-    .getByRole("toolbar", { name: "Page tools" })
-    .getByRole("button", { name, exact: true });
+    .getByRole("toolbar", { name: "Page tools", ...hidden })
+    .getByRole("button", { name, exact: true, ...hidden });
   // Pressed styling comes from the same state as aria-pressed.
   const look = (element: Element) => getComputedStyle(element).backgroundColor;
   const read = page
-    .getByRole("toolbar", { name: "Page tools" })
-    .getByRole("button", { name: name === "Read" ? "Add text" : "Read", exact: true });
+    .getByRole("toolbar", { name: "Page tools", ...hidden })
+    .getByRole("button", { name: name === "Read" ? "Add text" : "Read", exact: true, ...hidden });
   await expect
     .poll(async () => (await button.evaluate(look)) !== (await read.evaluate(look)))
     .toBe(true);

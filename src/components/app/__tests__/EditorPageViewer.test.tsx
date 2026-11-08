@@ -74,7 +74,6 @@ describe("EditorPageViewer", () => {
     render(() => (
       <EditorPageViewer
         pages={pages}
-        navigationPageIds={pages.map((page) => page.id)}
         activePageId={activePageId()}
         runtime={runtime}
         onActivePageChange={onActivePageChange}
@@ -119,7 +118,6 @@ describe("EditorPageViewer", () => {
     const view = render(() => (
       <EditorPageViewer
         pages={pages}
-        navigationPageIds={pages.map((page) => page.id)}
         activePageId={activePageId()}
         runtime={runtime}
         onActivePageChange={setActivePageId}
@@ -143,13 +141,12 @@ describe("EditorPageViewer", () => {
     }
   });
 
-  it("limits navigation to the selected inspection scope and leaves Escape native", async () => {
+  it("navigates every page and leaves Escape native", async () => {
     const pages = makePages();
 
     render(() => (
       <EditorPageViewer
         pages={pages}
-        navigationPageIds={["page-1", "page-3"]}
         activePageId="page-3"
         runtime={runtime}
         onActivePageChange={vi.fn()}
@@ -161,7 +158,7 @@ describe("EditorPageViewer", () => {
     );
     expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Previous page" })).toBeEnabled();
-    expect(await screen.findAllByRole("button", { name: /View page/ })).toHaveLength(2);
+    expect(await screen.findAllByRole("button", { name: /View page/ })).toHaveLength(3);
 
     const escapeEvent = new KeyboardEvent("keydown", {
       key: "Escape",
@@ -178,7 +175,6 @@ describe("EditorPageViewer", () => {
     render(() => (
       <EditorPageViewer
         pages={pages}
-        navigationPageIds={pages.map((page) => page.id)}
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
@@ -217,7 +213,6 @@ describe("EditorPageViewer", () => {
       render(() => (
         <EditorPageViewer
           pages={pages}
-          navigationPageIds={pages.map((page) => page.id)}
           activePageId="page-1"
           runtime={runtime}
           onActivePageChange={vi.fn()}
@@ -312,7 +307,6 @@ describe("EditorPageViewer", () => {
     render(() => (
       <EditorPageViewer
         pages={pages}
-        navigationPageIds={pages.map((page) => page.id)}
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
@@ -354,7 +348,6 @@ describe("EditorPageViewer", () => {
     render(() => (
       <EditorPageViewer
         pages={pages}
-        navigationPageIds={pages.map((page) => page.id)}
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
@@ -372,7 +365,6 @@ describe("EditorPageViewer", () => {
     render(() => (
       <EditorPageViewer
         pages={pages}
-        navigationPageIds={pages.map((page) => page.id)}
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
@@ -421,7 +413,6 @@ describe("EditorPageViewer", () => {
     const view = render(() => (
       <EditorPageViewer
         pages={pages}
-        navigationPageIds={pages.map((page) => page.id)}
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
@@ -460,7 +451,6 @@ describe("EditorPageViewer", () => {
         </section>
         <EditorPageViewer
           pages={pages}
-          navigationPageIds={pages.map((page) => page.id)}
           activePageId="page-1"
           runtime={runtime}
           onActivePageChange={vi.fn()}
@@ -482,7 +472,6 @@ describe("EditorPageViewer", () => {
     render(() => (
       <EditorPageViewer
         pages={pages}
-        navigationPageIds={pages.map((p) => p.id)}
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
@@ -555,7 +544,6 @@ describe("EditorPageViewer", () => {
     const view = render(() => (
       <EditorPageViewer
         pages={pages}
-        navigationPageIds={pages.map((p) => p.id)}
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
@@ -596,7 +584,6 @@ describe("EditorPageViewer", () => {
     const view = render(() => (
       <EditorPageViewer
         pages={pages}
-        navigationPageIds={pages.map((p) => p.id)}
         activePageId={activePageId()}
         runtime={runtime}
         onActivePageChange={setActivePageId}
@@ -656,7 +643,6 @@ describe("EditorPageViewer", () => {
     render(() => (
       <EditorPageViewer
         pages={pages}
-        navigationPageIds={pages.map((p) => p.id)}
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
@@ -695,7 +681,6 @@ describe("EditorPageViewer", () => {
     const view = render(() => (
       <EditorPageViewer
         pages={pages}
-        navigationPageIds={pages.map((p) => p.id)}
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
@@ -729,7 +714,6 @@ describe("EditorPageViewer", () => {
       render(() => (
         <EditorPageViewer
           pages={pages}
-          navigationPageIds={pages.map((p) => p.id)}
           activePageId="page-1"
           runtime={runtime}
           onActivePageChange={vi.fn()}
@@ -761,7 +745,6 @@ describe("EditorPageViewer", () => {
     render(() => (
       <EditorPageViewer
         pages={pages}
-        navigationPageIds={pages.map((p) => p.id)}
         activePageId="page-1"
         runtime={runtime}
         onActivePageChange={vi.fn()}
@@ -786,7 +769,6 @@ describe("EditorPageViewer", () => {
       render(() => (
         <EditorPageViewer
           pages={pages}
-          navigationPageIds={pages.map((p) => p.id)}
           activePageId={active()}
           runtime={runtime}
           onActivePageChange={setActive}

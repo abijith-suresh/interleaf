@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { unzipSync } from "fflate";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { clickSelectionAction } from "./toolbar";
 
 // Enough drawing operations to exercise PDF.js's streamed operator lists, as well
 // as enough pages to move thumbnails beyond the existing 200px observer margin.
@@ -106,15 +107,14 @@ for (const viewport of [
 
     // Export uses source pages, including the preserved selection and rotation.
     const pdfDownload = page.waitForEvent("download");
-    await page.getByTestId("editor-download-button").click();
+    await clickSelectionAction(page, "editor-extract-button");
     const pdfPath = await (await pdfDownload).path();
     if (!pdfPath) throw new Error("PDF download failed");
     const result = await PDFDocument.load(await readFile(pdfPath));
     expect(result.getPageCount()).toBe(1);
     expect(result.getPage(0).getRotation().angle).toBe(90);
-    await page.getByTestId("editor-download-options-button").click();
     const pngDownload = page.waitForEvent("download");
-    await page.getByTestId("editor-export-images-button").click();
+    await clickSelectionAction(page, "editor-export-selected-images-button");
     const pngPath = await (await pngDownload).path();
     if (!pngPath) throw new Error("PNG download failed");
     const archive = unzipSync(await readFile(pngPath));

@@ -12,13 +12,14 @@ import {
 import { hasPageAdditions } from "../../controllers/editor-additions-state";
 import { copyOrganizationPages } from "../../controllers/editor-history";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
-import type { AddedCheckmark, AddedText, PageState } from "../../types/interfaces";
+import type { AddedCheckmark, AddedText, PageState, PDFFields } from "../../types/interfaces";
 import EditorAdditionsEditor, {
   type AdditionsGesture,
   type DraftCommit,
 } from "./EditorAdditionsEditor";
 import EditorPageCanvas from "./EditorPageCanvas";
 import EditorButton from "./ui/EditorButton";
+import EditorOverflow from "./ui/EditorOverflow";
 
 const VIEWER_MAX_PIXELS = 16_000_000;
 const VIEWER_MOBILE_MAX_PIXELS = 4_000_000;
@@ -31,7 +32,6 @@ const VIEWER_RESIZE_DEBOUNCE_MS = 80;
 
 interface Props {
   pages: PageState[];
-  navigationPageIds: string[];
   activePageId: string | null;
   runtime: PDFRuntime;
   disabled?: boolean;
@@ -41,6 +41,14 @@ interface Props {
   onActivePageChange: (pageId: string) => void;
   onDraftChange?: (open: boolean) => void;
   registerDraftCommit?: (commit: DraftCommit | null) => void;
+  onRotatePage?: (pageId: string) => void;
+  onDuplicatePage?: (pageId: string) => void;
+  onTogglePageDeletion?: (pageId: string) => void;
+  onExportPageImages?: (pageId: string) => void;
+}
+
+function formatFieldCount(count: number): string {
+  return `${count} field${count === 1 ? "" : "s"}`;
 }
 
 export default function EditorPageViewer(props: Props) {
@@ -57,8 +65,8 @@ export default function EditorPageViewer(props: Props) {
   let draftCommit: DraftCommit | null = null;
   let tapStart: { x: number; y: number; pointer: number } | null = null;
   let previousPageKey = "";
-  let textHeader!: HTMLDivElement;
   let textToolbar!: HTMLDivElement;
+  let sheetSpace!: HTMLDivElement;
   let fitButton!: HTMLButtonElement;
   let zoomInButton!: HTMLButtonElement;
   let zoomOutButton!: HTMLButtonElement;
@@ -82,11 +90,13 @@ export default function EditorPageViewer(props: Props) {
   let resizeTimer: number | null = null;
   let renderNeeded = false;
 
-  const navigationPages = createMemo(() =>
-    props.navigationPageIds
-      .map((id) => props.pages.find((page) => page.id === id))
-      .filter((page): page is PageState => page !== undefined)
-  );
+  // Document view always shows every page, whatever is selected.
+  const navigationPages = () => props.pages;
+  const [fieldCounts, setFieldCounts] = createSignal(new Map<File, ReadonlyMap<number, number>>());
+  const fieldFiles = new Set<File>();
+  const fieldFibers: Fiber.Fiber<unknown, unknown>[] = [];
+  const fieldCount = (page: PageState | null | undefined) =>
+    page ? (fieldCounts().get(page.sourceFile)?.get(page.sourcePageNumber) ?? 0) : 0;
   const currentPage = createMemo(() => {
     const pages = navigationPages();
     return pages.find((page) => page.id === props.activePageId) ?? pages[0] ?? null;
@@ -543,6 +553,35 @@ export default function EditorPageViewer(props: Props) {
     });
   });
 
+  // Count the fillable fields on each source page once per file, for the
+  // "N fields" hints. The service caches each file's field inspection.
+  createEffect(() => {
+    for (const page of props.pages) {
+      const file = page.sourceFile;
+      if (fieldFiles.has(file)) continue;
+      fieldFiles.add(file);
+      let fiber: Fiber.Fiber<PDFFields, unknown>;
+      try {
+        fiber = props.runtime.runFork(PDFProcessing.use((service) => service.getFields(file)));
+      } catch {
+        continue;
+      }
+      fieldFibers.push(fiber);
+      void Effect.runPromise(Fiber.join(fiber)).then(
+        (result) => {
+          if (disposed) return;
+          const counts = new Map<number, number>();
+          if (!result.reason)
+            for (const widget of result.widgets)
+              if (!widget.reason)
+                counts.set(widget.pageNumber, (counts.get(widget.pageNumber) ?? 0) + 1);
+          setFieldCounts((current) => new Map(current).set(file, counts));
+        },
+        () => undefined
+      );
+    }
+  });
+
   onMount(() => {
     mounted = true;
     setToolsMounted(true);
@@ -567,6 +606,8 @@ export default function EditorPageViewer(props: Props) {
   onCleanup(() => {
     disposed = true;
     renderQueued = false;
+    for (const fiber of fieldFibers.splice(0))
+      void Effect.runPromise(Fiber.interrupt(fiber)).catch(() => undefined);
     endGesture();
     if (resizeTimer !== null) {
       window.clearTimeout(resizeTimer);
@@ -594,16 +635,90 @@ export default function EditorPageViewer(props: Props) {
       onKeyDown={handleKeyDown}
     >
       <header class="editor-review-header">
-        <div class="editor-review-heading">
+        <div class="editor-review-heading" aria-live="polite" aria-atomic="true">
           <h2 id="editor-review-title" data-testid="editor-viewer-title">
             Page {currentWorkspaceIndex() + 1}
           </h2>
-          <span class="editor-review-position" aria-live="polite" aria-atomic="true">
-            {currentNavigationIndex() + 1} of {navigationPages().length}
-            <Show when={currentPage()?.markedForDeletion}> · Marked for deletion</Show>
+          <span class="editor-review-meta">
+            <Show when={fieldCount(currentPage()) > 0}>
+              <span class="editor-field-count" data-testid="editor-page-field-count">
+                {formatFieldCount(fieldCount(currentPage()))}
+              </span>
+            </Show>
+            <Show when={currentPage()?.markedForDeletion}>
+              <span class="editor-review-marked">Marked for deletion</span>
+            </Show>
           </span>
         </div>
-        <div ref={textHeader} class="editor-text-header-tools" />
+        <Show when={currentPage()}>
+          {(page) => {
+            const number = () => currentWorkspaceIndex() + 1;
+            return (
+              <EditorOverflow
+                id="editor-page-actions"
+                label={`Page ${number()} actions`}
+                triggerTestId="editor-page-actions-button"
+                class="editor-page-actions"
+              >
+                <EditorButton
+                  data-testid="editor-document-rotate-button"
+                  variant="plain"
+                  icon="rotate"
+                  aria-label={`Rotate page ${number()} 90 degrees`}
+                  title="Rotate"
+                  disabled={props.disabled}
+                  onClick={() => props.onRotatePage?.(page().id)}
+                >
+                  <span class="editor-page-action-label">Rotate</span>
+                </EditorButton>
+                <EditorButton
+                  data-testid="editor-document-duplicate-button"
+                  variant="plain"
+                  icon="copy"
+                  aria-label={`Duplicate page ${number()}`}
+                  title="Duplicate"
+                  disabled={props.disabled}
+                  onClick={() => props.onDuplicatePage?.(page().id)}
+                >
+                  <span class="editor-page-action-label">Duplicate</span>
+                </EditorButton>
+                <EditorButton
+                  data-testid="editor-document-delete-button"
+                  variant="danger"
+                  icon={page().markedForDeletion ? "restore" : "delete"}
+                  classList={{ "is-marked": page().markedForDeletion }}
+                  aria-label={`Mark page ${number()} for deletion`}
+                  aria-pressed={page().markedForDeletion}
+                  title={page().markedForDeletion ? "Restore" : "Mark for deletion"}
+                  disabled={props.disabled}
+                  onClick={() => props.onTogglePageDeletion?.(page().id)}
+                >
+                  <span class="editor-page-action-label">
+                    {page().markedForDeletion ? "Restore" : "Mark for deletion"}
+                  </span>
+                </EditorButton>
+                <EditorButton
+                  data-testid="editor-document-export-image-button"
+                  variant="plain"
+                  icon="image"
+                  aria-label={
+                    page().markedForDeletion
+                      ? `Restore page ${number()} to export it as a PNG image`
+                      : `Export page ${number()} as a PNG image`
+                  }
+                  title="Export PNG"
+                  disabled={props.disabled}
+                  aria-disabled={page().markedForDeletion}
+                  onClick={() => {
+                    if (!page().markedForDeletion) props.onExportPageImages?.(page().id);
+                  }}
+                >
+                  <span class="editor-page-action-label">Export PNG</span>
+                </EditorButton>
+              </EditorOverflow>
+            );
+          }}
+        </Show>
         <fieldset class="editor-review-zoom" aria-label="Page zoom">
           <EditorButton
             ref={zoomOutButton}
@@ -683,7 +798,7 @@ export default function EditorPageViewer(props: Props) {
                     onFieldChange={props.onFieldChange}
                     runtime={props.runtime}
                     toolbar={textToolbar}
-                    header={textHeader}
+                    sheetSpace={sheetSpace}
                     stage={stage}
                     ready={hasFrame() && !props.disabled}
                     disabled={props.disabled}
@@ -707,6 +822,7 @@ export default function EditorPageViewer(props: Props) {
             )}
           </Show>
         </div>
+        <div ref={sheetSpace} class="editor-review-sheet-space" aria-hidden="true" />
         <Show when={renderState() === "loading" && !hasFrame()}>
           <p class="editor-review-state">Loading page…</p>
         </Show>
@@ -757,6 +873,9 @@ export default function EditorPageViewer(props: Props) {
                   classList={{ "is-active": currentPage()?.id === page.id }}
                   aria-current={currentPage()?.id === page.id ? "page" : undefined}
                   aria-label={`View page ${workspaceIndex() + 1}`}
+                  aria-describedby={
+                    fieldCount(page) > 0 ? `editor-filmstrip-fields-${page.id}` : undefined
+                  }
                   tabIndex={currentPage()?.id === page.id ? 0 : -1}
                   title={`Page ${workspaceIndex() + 1}`}
                   onClick={() => selectPage(page.id)}
@@ -768,7 +887,12 @@ export default function EditorPageViewer(props: Props) {
                     scrollRoot={filmstrip}
                     showRetry={false}
                   />
-                  <span>{workspaceIndex() + 1}</span>
+                  <span class="editor-review-filmstrip-number">{workspaceIndex() + 1}</span>
+                  <Show when={fieldCount(page) > 0}>
+                    <span id={`editor-filmstrip-fields-${page.id}`} class="editor-filmstrip-fields">
+                      {formatFieldCount(fieldCount(page))}
+                    </span>
+                  </Show>
                 </button>
               );
             }}

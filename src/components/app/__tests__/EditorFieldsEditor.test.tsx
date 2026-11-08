@@ -87,7 +87,9 @@ it.each(["failure", "success", "navigation", "disposal"])(
         }}
         rotation={0}
         onOpen={() => {}}
-        onClose={() => {}}
+        active
+        onActivate={() => {}}
+        hint={toolbar}
         focusInput={(input) => input.focus()}
         onChange={onChange}
       />
@@ -167,7 +169,9 @@ it.each(["Save", "Cancel"])(
         }}
         rotation={0}
         onOpen={() => {}}
-        onClose={() => {}}
+        active
+        onActivate={() => {}}
+        hint={toolbar}
         focusInput={(input) => input.focus()}
         onChange={onChange}
       />
@@ -243,7 +247,9 @@ it("reports the open answer and keeps other unsaved answers across history on th
       }}
       rotation={0}
       onOpen={() => {}}
-      onClose={() => {}}
+      active
+      onActivate={() => {}}
+      hint={toolbar}
       onDraftChange={(open) => reports.push(open)}
       focusInput={(input) => input.focus()}
       onChange={onChange}

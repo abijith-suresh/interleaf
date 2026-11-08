@@ -133,7 +133,6 @@ it.each([
       page={pages[0]}
       runtime={runtime}
       toolbar={toolbar}
-      header={header}
       stage={stage}
       ready
       disabled={busy()}

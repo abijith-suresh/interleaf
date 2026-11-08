@@ -99,14 +99,22 @@ function expectLastToast(text: string) {
   expect(screen.getAllByTestId("editor-toast").at(-1)).toHaveTextContent(text);
 }
 
-async function openEditMenu() {
-  fireEvent.click(screen.getByRole("button", { name: "Edit pages" }));
-  expect(await screen.findByRole("menu", { name: "Page editing options" })).toBeVisible();
+async function openDownloadMenu() {
+  fireEvent.click(screen.getByTestId("editor-download-menu-button"));
+  expect(await screen.findByRole("menu", { name: "Download options" })).toBeVisible();
 }
 
-async function openDownloadMenu() {
-  fireEvent.click(screen.getByRole("button", { name: "More download options" }));
-  expect(await screen.findByRole("menu", { name: "Download options" })).toBeVisible();
+// Download always builds every exportable page.
+async function downloadWholePDF() {
+  await openDownloadMenu();
+  fireEvent.click(screen.getByTestId("editor-download-button"));
+}
+
+// Extract to PDF builds the selection. Without one, Download builds every page.
+async function exportCurrent() {
+  const extract = screen.queryByTestId("editor-extract-button");
+  if (extract) fireEvent.click(extract);
+  else await downloadWholePDF();
 }
 
 async function openPDF(file = makeFile()) {
@@ -178,7 +186,7 @@ describe("Editor", () => {
   };
   const exportedState = async () => {
     const calls = pdfOperationsMocks.buildPDF.mock.calls.length;
-    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await exportCurrent();
     await waitFor(() => expect(pdfOperationsMocks.buildPDF).toHaveBeenCalledTimes(calls + 1));
     await idle();
     const call = pdfOperationsMocks.buildPDF.mock.calls.at(-1);
@@ -464,7 +472,7 @@ describe("Editor", () => {
     await openPDF(file);
     const state = async () => {
       const count = downloadPDF.mock.calls.length;
-      fireEvent.click(screen.getByTestId("editor-download-button"));
+      await exportCurrent();
       await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(count + 1));
       const call = pdfOperationsMocks.buildPDF.mock.calls.at(-1);
       if (!call) throw new Error("Missing export");
@@ -478,11 +486,8 @@ describe("Editor", () => {
     fireEvent.click(getPages()[1]);
     fireEvent.click(screen.getByRole("button", { name: "Rotate page 2 90 degrees" }));
     fireEvent.click(getPages()[0]);
-    await openEditMenu();
     fireEvent.click(screen.getByTestId("editor-rotate-button"));
-    await openEditMenu();
     fireEvent.click(screen.getByTestId("editor-delete-button"));
-    await openEditMenu();
     fireEvent.click(screen.getByTestId("editor-delete-button"));
     fireEvent.click(screen.getByRole("button", { name: "Duplicate page 2" }));
     await waitFor(() => expect(getPages()[2]).toHaveFocus());
@@ -592,9 +597,10 @@ describe("Editor", () => {
     }
     ignored(getPages()[0], { isComposing: true });
     ignored(getPages()[0], { altKey: true });
-    await openEditMenu();
-    ignored(screen.getByTestId("editor-select-all-button"));
-    fireEvent.keyDown(screen.getByTestId("editor-select-all-button"), { key: "Escape" });
+    await openDownloadMenu();
+    ignored(screen.getByTestId("editor-download-button"));
+    fireEvent.keyDown(screen.getByTestId("editor-download-button"), { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     const otherDialog = document.createElement("div");
     otherDialog.setAttribute("role", "dialog");
     otherDialog.setAttribute("aria-modal", "true");
@@ -651,7 +657,7 @@ describe("Editor", () => {
     );
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
     pdfOperationsMocks.buildPDF.mockReturnValueOnce(Effect.fail(new Error("export failed")));
-    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await downloadWholePDF();
     await waitFor(() => expectLastToast("Failed to export the PDF."));
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
     pdfServiceMocks.loadPDF
@@ -841,9 +847,9 @@ describe("Editor", () => {
     expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(
       "1 selected · 0 exportable"
     );
-    expect(screen.getByTestId("editor-download-button")).toBeDisabled();
+    expect(screen.getByTestId("editor-extract-button")).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getByTestId("editor-redo-button"));
-    expect(screen.getByTestId("editor-download-button")).not.toBeDisabled();
+    expect(screen.getByTestId("editor-extract-button")).toHaveAttribute("aria-disabled", "false");
     expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
   });
 
@@ -854,7 +860,7 @@ describe("Editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
     await waitFor(() => expect(getPages()[1]).toHaveFocus());
     fireEvent.keyDown(getPages()[1], { key: "z", ctrlKey: true });
-    const download = screen.getByTestId("editor-download-button");
+    const download = screen.getByTestId("editor-download-menu-button");
     download.focus();
     await Promise.resolve();
     expect(download).toHaveFocus();
@@ -948,8 +954,8 @@ describe("Editor", () => {
     expect(pdfOperationsMocks.buildPDF).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Document" }));
     expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 3");
-    expect(screen.queryByRole("button", { name: /Duplicate page/ })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("editor-download-button"));
+    expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
+    await exportCurrent();
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
     const [pages, options] = pdfOperationsMocks.buildPDF.mock.calls[0];
     expect(new Set(pages.map((page: { id: string }) => page.id)).size).toBe(8);
@@ -958,7 +964,7 @@ describe("Editor", () => {
       0, 90, 90, 90, 90, 90, 90, 0,
     ]);
     expect(options.selectedIndices).toBeUndefined();
-    fireEvent.click(screen.getByRole("button", { name: "More download options" }));
+    await openDownloadMenu();
     fireEvent.click(screen.getByTestId("editor-export-images-button"));
     await waitFor(() => expect(downloadFile).toHaveBeenCalledOnce());
     expect(pdfImageExportMocks.exportImages.mock.calls[0][0][2].id).toBe(pages[2].id);
@@ -979,7 +985,7 @@ describe("Editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Restore page 2" }));
     fireEvent.keyDown(getPages()[1], { altKey: true, key: "ArrowRight" });
     expect(getPages()[2]).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await exportCurrent();
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
     const [pages, options] = pdfOperationsMocks.buildPDF.mock.calls[0];
     expect(pages.map((page: { sourcePageNumber: number }) => page.sourcePageNumber)).toEqual([
@@ -1293,7 +1299,7 @@ describe("Editor", () => {
   it.each([
     {
       selectedIndex: 1,
-      selection: "All 3 exportable",
+      selection: null,
       pressed: ["false", "false", "false"],
       selectedIndices: undefined,
     },
@@ -1321,14 +1327,16 @@ describe("Editor", () => {
       );
 
       await waitFor(() => expect(getPages()).toHaveLength(3));
-      expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(selection);
+      if (selection)
+        expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(selection);
+      else expect(screen.queryByTestId("editor-selection-bar")).not.toBeInTheDocument();
       expect(getPages().map((tile) => tile.getAttribute("aria-pressed"))).toEqual(pressed);
       expect(pdfServiceMocks.releaseFile).toHaveBeenCalledExactlyOnceWith(removed);
       await waitFor(() =>
         expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
       );
 
-      fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+      await exportCurrent();
       await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
       const [pages, options] = pdfOperationsMocks.buildPDF.mock.calls[0];
       expect(pages.map((page: { sourceFile: File }) => page.sourceFile)).toEqual([
@@ -1492,40 +1500,46 @@ describe("Editor", () => {
     await waitFor(() => expect(pdfServiceMocks.reset).toHaveBeenCalledOnce());
   });
 
-  it("updates selection actions and compression eligibility when a page is selected", async () => {
+  it("shows selection actions only while pages are selected and keeps compression for the whole file", async () => {
     const tiles = await openPDF();
-    await openEditMenu();
-    for (const name of [
-      "No pages selected to clear",
-      "Select pages to rotate",
-      "Select pages to mark or restore",
-    ]) {
-      expect(screen.getByRole("menuitem", { name })).toHaveAttribute("aria-disabled", "true");
-    }
+    expect(screen.queryByRole("toolbar", { name: "Selected pages" })).not.toBeInTheDocument();
     await openDownloadMenu();
-    expect(screen.getByRole("menuitem", { name: "Compress the original PDF" })).toBeEnabled();
+    expect(screen.getByRole("menuitem", { name: "Compress the original PDF" })).toHaveAttribute(
+      "aria-disabled",
+      "false"
+    );
+    fireEvent.keyDown(screen.getByRole("menuitem", { name: "Compress the original PDF" }), {
+      key: "Escape",
+    });
     fireEvent.click(tiles[0]);
-    await openEditMenu();
+    const bar = screen.getByRole("toolbar", { name: "Selected pages" });
+    expect(bar).toHaveTextContent("1 selected");
+    expect(screen.getByTestId("editor-selection-status")).toHaveTextContent("1 page selected.");
     for (const name of [
       "Clear page selection",
-      "Rotate selected pages 90 degrees",
+      "Rotate selected page left 90 degrees",
+      "Rotate selected page right 90 degrees",
+      "Duplicate selected page",
       "Mark selected pages for deletion",
+      "Extract 1 selected page to a new PDF",
+      "Export selected pages as PNG images in a ZIP archive",
     ]) {
-      expect(screen.getByRole("menuitem", { name })).toBeEnabled();
+      expect(screen.getByRole("button", { name })).toHaveAttribute("aria-disabled", "false");
     }
+    // Download builds the whole document, so a selection does not block compression.
     await openDownloadMenu();
-    expect(screen.getByTestId("editor-compress-button")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("editor-compress-button")).toHaveAttribute("aria-disabled", "false");
   });
 
   it("uses one clear control after every page is selected", async () => {
-    await openPDF();
-
-    await openEditMenu();
-    expect(screen.getByRole("menuitem", { name: "Select all pages" })).toBeEnabled();
+    const tiles = await openPDF();
+    fireEvent.click(tiles[0]);
+    expect(screen.getByRole("button", { name: "Select all pages" })).toHaveAttribute(
+      "aria-disabled",
+      "false"
+    );
 
     fireEvent.click(screen.getByTestId("editor-select-all-button"));
-
-    await openEditMenu();
     await waitFor(() => {
       expect(screen.getByTestId("editor-select-all-button")).toHaveAccessibleName(
         "All pages selected"
@@ -1534,15 +1548,14 @@ describe("Editor", () => {
         "aria-disabled",
         "true"
       );
-      expect(screen.getByRole("menuitem", { name: "Clear page selection" })).toBeEnabled();
+      expect(screen.getByTestId("editor-selection-title")).toHaveTextContent("3 selected");
     });
 
     fireEvent.click(screen.getByTestId("editor-clear-selection-button"));
-
-    await openEditMenu();
     await waitFor(() =>
-      expect(screen.getByTestId("editor-select-all-button")).toHaveTextContent("Select all pages")
+      expect(screen.queryByTestId("editor-selection-bar")).not.toBeInTheDocument()
     );
+    await waitFor(() => expect(getPages()[0]).toHaveFocus());
   });
 
   it("prompts for a password and unlocks a protected PDF", async () => {
@@ -1608,8 +1621,7 @@ describe("Editor", () => {
 
   it("selects all pages and reports the rotation", async () => {
     const tiles = await openPDF();
-
-    await openEditMenu();
+    fireEvent.click(tiles[0]);
     fireEvent.click(screen.getByTestId("editor-select-all-button"));
 
     await waitFor(() =>
@@ -1619,12 +1631,10 @@ describe("Editor", () => {
         "true",
       ])
     );
-
-    await openEditMenu();
     fireEvent.click(screen.getByTestId("editor-rotate-button"));
     const status = await screen.findByTestId("editor-status-message");
-    await waitFor(() => expect(status).toHaveTextContent("Rotated 3 selected pages."));
-    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    await waitFor(() => expect(status).toHaveTextContent("Rotated 3 selected pages right."));
+    await downloadWholePDF();
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
     expect(
       pdfOperationsMocks.buildPDF.mock.calls[0][0].map(
@@ -1635,12 +1645,9 @@ describe("Editor", () => {
 
   it("marks selected pages for deletion before export", async () => {
     const tiles = await openPDF();
-
-    await openEditMenu();
+    fireEvent.click(tiles[0]);
     fireEvent.click(screen.getByTestId("editor-select-all-button"));
     await waitFor(() => expect(tiles[0].getAttribute("aria-pressed")).toBe("true"));
-
-    await openEditMenu();
     expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
     fireEvent.click(screen.getByTestId("editor-delete-button"));
 
@@ -1648,8 +1655,10 @@ describe("Editor", () => {
       expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual(["true", "true", "true"])
     );
     expect(screen.getByTestId("editor-status-bar")).toHaveTextContent("0 of 3 pages exportable.");
-    expect(screen.getByTestId("editor-download-button")).toBeDisabled();
+    expect(screen.getByTestId("editor-page-count")).toHaveTextContent("0 of 3 pages exportable");
+    expect(screen.getByTestId("editor-extract-button")).toHaveAttribute("aria-disabled", "true");
     await openDownloadMenu();
+    expect(screen.getByTestId("editor-download-button")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("editor-export-images-button")).toHaveAttribute(
       "aria-disabled",
       "true"
@@ -1657,7 +1666,6 @@ describe("Editor", () => {
     expect(screen.getByTestId("editor-export-images-button")).toHaveTextContent(
       "Export PNG images"
     );
-    await openEditMenu();
     expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Restore");
     expect(screen.getByTestId("editor-delete-button")).toHaveAttribute(
       "aria-label",
@@ -1665,8 +1673,6 @@ describe("Editor", () => {
     );
 
     fireEvent.click(screen.getByTestId("editor-delete-button"));
-
-    await openEditMenu();
     await waitFor(() => {
       expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual([
         "false",
@@ -1699,7 +1705,7 @@ describe("Editor", () => {
     expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
       "Moved page 3 to position 2."
     );
-    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await downloadWholePDF();
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
     const [pages, options] = pdfOperationsMocks.buildPDF.mock.calls[0];
     expect(pages.map((page: { sourcePageNumber: number }) => page.sourcePageNumber)).toEqual([
@@ -1732,7 +1738,7 @@ describe("Editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rotate page 2 90 degrees" }));
     fireEvent.click(screen.getByRole("button", { name: "Document" }));
     expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
-    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await exportCurrent();
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
     const [pages, options] = pdfOperationsMocks.buildPDF.mock.calls[0];
     expect(pages.map((page: { sourcePageNumber: number }) => page.sourcePageNumber)).toEqual([
@@ -1747,7 +1753,7 @@ describe("Editor", () => {
 
   it("does not reclaim focus from another control or from an unfocused keyboard event", async () => {
     const tiles = await openPDF();
-    const download = screen.getByTestId("editor-download-button");
+    const download = screen.getByTestId("editor-download-menu-button");
     tiles[2].focus();
     fireEvent.keyDown(tiles[2], { altKey: true, key: "ArrowLeft" });
     download.focus();
@@ -1779,7 +1785,7 @@ describe("Editor", () => {
     expect(focus).not.toHaveBeenCalled();
     expect(tiles[0]).toHaveFocus();
     pdfOperationsMocks.buildPDF.mockReturnValue(Effect.never);
-    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await downloadWholePDF();
     await waitFor(() => expect(tiles[0]).toBeDisabled());
     fireEvent.keyDown(tiles[0], { altKey: true, key: "ArrowRight" });
     await Promise.resolve();
@@ -1847,11 +1853,10 @@ describe("Editor", () => {
       expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
         "Moved page 1 to position 3."
       );
-      expect(screen.queryByTestId("editor-edit-menu")).not.toBeInTheDocument();
       expect(hitareas[0].closest("li")).not.toHaveClass("dragging");
       expect(dropTile).not.toHaveClass("drag-insert-after");
-      expect(screen.getByTestId("editor-selection-title")).toHaveTextContent("All 3 exportable");
-      fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+      expect(screen.queryByTestId("editor-selection-bar")).not.toBeInTheDocument();
+      await downloadWholePDF();
       await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
       expect(
         pdfOperationsMocks.buildPDF.mock.calls[0][0].map(
@@ -1925,17 +1930,13 @@ describe("Editor", () => {
       expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(
         "2 selected · 1 exportable"
       );
-      expect(screen.getByTestId("editor-download-button")).toHaveTextContent("Download PDF");
-      expect(screen.getByTestId("editor-download-button")).toHaveAccessibleName(
-        "Download a PDF with 1 exportable page"
+      expect(screen.getByTestId("editor-extract-button")).toHaveTextContent("Extract to PDF");
+      expect(screen.getByTestId("editor-extract-button")).toHaveAccessibleName(
+        "Extract 1 selected page to a new PDF"
       );
     });
-
-    await openEditMenu();
     expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
     fireEvent.click(screen.getByTestId("editor-delete-button"));
-
-    await openEditMenu();
     await waitFor(() => {
       expect(tiles[0]).toHaveAttribute("data-marked-for-deletion", "true");
       expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "true");
@@ -1972,16 +1973,18 @@ describe("Editor", () => {
   });
 
   it.each([
-    { scope: "all exportable pages", selectedIndices: undefined },
-    { scope: "selected pages", selectedIndices: [2] },
-  ])("downloads the PDF built for $scope", async ({ selectedIndices }) => {
+    { scope: "the whole document with nothing selected", select: false, extract: false },
+    { scope: "the whole document while pages are selected", select: true, extract: false },
+    { scope: "only the selection with Extract to PDF", select: true, extract: true },
+  ])("builds $scope", async ({ select, extract }) => {
     render(() => <Editor />);
     const file = makeFile();
     selectFile("upload", file);
     const tiles = await findPages();
-    if (selectedIndices) fireEvent.click(tiles[2]);
+    if (select) fireEvent.click(tiles[2]);
 
-    fireEvent.click(screen.getByRole("button", { name: /^Download a PDF/ }));
+    if (extract) fireEvent.click(screen.getByTestId("editor-extract-button"));
+    else await downloadWholePDF();
 
     await waitFor(() =>
       expect(downloadPDF).toHaveBeenCalledExactlyOnceWith({
@@ -1995,26 +1998,72 @@ describe("Editor", () => {
         expect.objectContaining({ sourceFile: file, sourcePageNumber: 2 }),
         expect.objectContaining({ sourceFile: file, sourcePageNumber: 3 }),
       ],
-      expect.objectContaining({ selectedIndices })
+      expect.objectContaining({ selectedIndices: extract ? [2] : undefined })
     );
   });
 
-  it("exports selected pages as PNG images", async () => {
+  it("exports PNG images of the selection, the whole document, or the active Document page", async () => {
     const tiles = await openPDF();
+    const lastImageScope = () => pdfImageExportMocks.exportImages.mock.calls.at(-1)?.[1];
 
     fireEvent.click(tiles[1]);
     await waitFor(() => expect(tiles[1].getAttribute("aria-pressed")).toBe("true"));
-    await openDownloadMenu();
-    fireEvent.click(screen.getByTestId("editor-export-images-button"));
-
+    fireEvent.click(screen.getByTestId("editor-export-selected-images-button"));
     await waitFor(() => expect(downloadFile).toHaveBeenCalledTimes(1));
     expect(downloadFile).toHaveBeenCalledWith(
       expect.objectContaining({ suggestedFileName: "interleaf-images.zip" }),
       "application/zip"
     );
-    expect(pdfImageExportMocks.exportImages).toHaveBeenCalledTimes(1);
     expect(pdfImageExportMocks.exportImages.mock.calls[0][0]).toHaveLength(3);
-    expect(pdfImageExportMocks.exportImages.mock.calls[0][1].selectedIndices).toEqual([1]);
+    expect(lastImageScope().selectedIndices).toEqual([1]);
+
+    await openDownloadMenu();
+    fireEvent.click(screen.getByTestId("editor-export-images-button"));
+    await waitFor(() => expect(downloadFile).toHaveBeenCalledTimes(2));
+    expect(lastImageScope().selectedIndices).toBeUndefined();
+
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.queryByTestId("editor-selection-bar")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("editor-document-view-button"));
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
+    fireEvent.click(screen.getByRole("button", { name: "Export page 2 as a PNG image" }));
+    await waitFor(() => expect(downloadFile).toHaveBeenCalledTimes(3));
+    expect(lastImageScope().selectedIndices).toEqual([1]);
+  });
+
+  it("shows every page in Document and acts on the active page from its header", async () => {
+    const tiles = await openPDF();
+    fireEvent.click(tiles[1]);
+    fireEvent.click(screen.getByTestId("editor-document-view-button"));
+    // A selection never narrows the Document view.
+    expect(screen.getAllByRole("button", { name: /^View page \d/ })).toHaveLength(3);
+    expect(screen.getByRole("toolbar", { name: "Selected pages" })).toHaveTextContent("1 selected");
+    fireEvent.click(screen.getByRole("button", { name: "Rotate page 2 90 degrees" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark page 2 for deletion" }));
+    expect(screen.getByRole("button", { name: "Mark page 2 for deletion" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByLabelText("Document preview")).toHaveTextContent("Marked for deletion");
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate page 2" }));
+    expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 3");
+    expect(screen.getAllByRole("button", { name: /^View page \d/ })).toHaveLength(4);
+    // The selected original keeps its selection; the copy is not selected.
+    expect(screen.getByTestId("editor-selection-title")).toHaveTextContent("1 selected");
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.queryByTestId("editor-selection-bar")).not.toBeInTheDocument();
+    await exportCurrent();
+    await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
+    const [pages, options] = pdfOperationsMocks.buildPDF.mock.calls[0];
+    expect(pages.map((page: { rotation: number }) => page.rotation)).toEqual([0, 90, 90, 0]);
+    // A copy starts unmarked, like a copy made in Pages.
+    expect(pages.map((page: { markedForDeletion: boolean }) => page.markedForDeletion)).toEqual([
+      false,
+      true,
+      false,
+      false,
+    ]);
+    expect(options.selectedIndices).toBeUndefined();
   });
 
   it("compresses the original uploaded PDF before page edits", async () => {
@@ -2081,7 +2130,7 @@ describe("Editor", () => {
 
     await openPDF();
 
-    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await downloadWholePDF();
 
     await waitFor(() => expectLastToast("Failed to export the PDF."));
     expect(downloadPDF).not.toHaveBeenCalled();
@@ -2103,16 +2152,16 @@ describe("Editor", () => {
     const { container } = render(() => <Editor />);
     selectFiles("upload", [safe, blocked]);
     await waitFor(() => expect(getPages()).toHaveLength(4));
-    fireEvent.click(screen.getByTestId("editor-download-button"));
+    await downloadWholePDF();
     const message =
-      "<img src=x>.pdf: This PDF has linked choice fields that cannot be preserved in this export. Select pages from other files or remove this file, then try again.";
+      "<img src=x>.pdf: This PDF has linked choice fields that cannot be preserved in this export. Extract pages from other files, or remove this file, then try again.";
     await waitFor(() => expectLastToast(message));
     expect(screen.getByTestId("editor-status-message")).toHaveTextContent(message);
     expect(container.querySelector('img[src="x"]')).toBeNull();
     expect(downloadPDF).not.toHaveBeenCalled();
     fireEvent.click(getPages()[0]);
     fireEvent.click(getPages()[1]);
-    fireEvent.click(screen.getByTestId("editor-download-button"));
+    fireEvent.click(screen.getByTestId("editor-extract-button"));
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
     expect(pdfOperationsMocks.buildPDF.mock.calls[1][1].selectedIndices).toEqual([0, 1]);
     expect(screen.getByTestId("editor-status-message")).toHaveTextContent("Export started.");

@@ -9,16 +9,19 @@ import type { DraftCommit } from "./EditorAdditionsEditor";
 import EditorButton from "./ui/EditorButton";
 
 interface Props {
+  /** False in Read mode: field targets stay clickable and open Fill fields. */
+  active: boolean;
+  onActivate: () => void;
   page: PageState;
   groupPageNumbers: readonly number[];
   runtime: PDFRuntime;
   geometry?: PageGeometry;
   rotation: number;
   toolbar: HTMLElement;
+  hint: HTMLElement;
   stage: HTMLElement;
   disabled?: boolean;
   onOpen: () => void;
-  onClose: () => void;
   onDraftChange?: (open: boolean) => void;
   registerCommit?: (commit: DraftCommit | null) => void;
   focusInput: (input: HTMLElement, reveal?: HTMLElement) => void;
@@ -91,7 +94,6 @@ export default function EditorFieldsEditor(props: Props) {
     setSelected(undefined);
     setError("");
     setSaving(false);
-    props.onClose();
     if (owned) focusLater(() => hit(widget) ?? props.stage);
   }
   function choose(widget: TextFieldWidget) {
@@ -208,7 +210,6 @@ export default function EditorFieldsEditor(props: Props) {
       }
       generation++;
       setSelected(undefined);
-      props.onClose();
       if (restore) focusLater(() => hit(widget) ?? props.stage);
       return true;
     } catch (cause) {
@@ -238,14 +239,7 @@ export default function EditorFieldsEditor(props: Props) {
     let live = true;
     void Effect.runPromise(Fiber.join(fiber)).then(
       (result) => {
-        if (live) {
-          setFields(result);
-          if (
-            result.reason ||
-            !result.widgets.some((widget) => widget.pageNumber === props.page.sourcePageNumber)
-          )
-            props.onOpen();
-        }
+        if (live) setFields(result);
       },
       () => {
         if (live)
@@ -314,19 +308,21 @@ export default function EditorFieldsEditor(props: Props) {
   }
   return (
     <>
+      <Show when={props.active && !selected()}>
+        <Portal mount={props.hint}>
+          <p class="editor-field-help" role="status">
+            {notice() ||
+              fields()?.reason ||
+              (fields()
+                ? widgets().length
+                  ? "Select an embedded field on the page."
+                  : "No embedded fields on this page. Use Add text."
+                : "Reading fields…")}
+          </p>
+        </Portal>
+      </Show>
       <Portal mount={props.toolbar}>
         <div ref={panel}>
-          <Show when={!selected()}>
-            <p class="editor-field-help" role="status">
-              {notice() ||
-                fields()?.reason ||
-                (fields()
-                  ? widgets().length
-                    ? "Select an embedded field on the page."
-                    : "No embedded fields on this page. Use Add text."
-                  : "Reading fields…")}
-            </p>
-          </Show>
           <Show when={selected()}>
             {(widget) => (
               <form
@@ -417,7 +413,10 @@ export default function EditorFieldsEditor(props: Props) {
               <button
                 type="button"
                 class="editor-field-hit"
-                classList={{ "is-selected": selected()?.widgetRef === widget.widgetRef }}
+                classList={{
+                  "is-selected": selected()?.widgetRef === widget.widgetRef,
+                  "is-passive": !props.active,
+                }}
                 data-field-ref={widget.fieldRef}
                 data-widget-ref={widget.widgetRef}
                 aria-label={`${widget.reason ? "Read-only field" : "Fill field"}: ${widget.label}`}
@@ -427,7 +426,9 @@ export default function EditorFieldsEditor(props: Props) {
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => {
                   event.stopPropagation();
-                  if (!props.disabled) choose(widget);
+                  if (props.disabled) return;
+                  if (!props.active) props.onActivate();
+                  choose(widget);
                 }}
                 onKeyDown={(event) => {
                   event.stopPropagation();

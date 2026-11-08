@@ -1,5 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
 import { createServer, type ViteDevServer } from "vite";
 import { exportCrossPageButtonFixture } from "../../src/services/__tests__/pdf-export-fixtures";
@@ -147,6 +147,14 @@ test("retained forms and saved text/checkmarks keep pixels and physical geometry
   expect(result.native.pageObjects).toBe(3);
   expect(result.native.orphanKids).toBe(false);
 });
+// Extract to PDF sits under More selection actions on phones.
+async function extractSelection(page: Page) {
+  const more = page.getByTestId("editor-selection-more-button");
+  if ((await more.isVisible()) && (await more.getAttribute("aria-expanded")) !== "true")
+    await more.click();
+  await page.getByTestId("editor-extract-button").click();
+}
+
 test("an unsupported linked choice export offers no partial download", async ({ page }) => {
   await page.goto("/app");
   await page.getByTestId("editor-upload-input").setInputFiles({
@@ -154,19 +162,19 @@ test("an unsupported linked choice export offers no partial download", async ({ 
     mimeType: "application/pdf",
     buffer: Buffer.from(await exportCrossPageButtonFixture()),
   });
-  await expect(page.getByTestId("editor-download-button")).toBeVisible();
+  await expect(page.getByTestId("editor-download-menu-button")).toBeVisible();
   // Exporting one page of the group would prune a positional radio option.
   await page.getByTestId("editor-page-tile").nth(1).click();
   const downloads: string[] = [];
   page.on("download", (download) => downloads.push(download.suggestedFilename()));
-  await page.getByTestId("editor-download-button").click();
+  await extractSelection(page);
   await expect(page.getByTestId("editor-status-message")).toHaveText(
-    "linked-choices.pdf: This PDF has linked choice fields that cannot be preserved in this export. Select pages from other files or remove this file, then try again."
+    "linked-choices.pdf: This PDF has linked choice fields that cannot be preserved in this export. Extract pages from other files, or remove this file, then try again."
   );
   await expect(page.getByTestId("editor-toast")).toHaveText(
-    "linked-choices.pdf: This PDF has linked choice fields that cannot be preserved in this export. Select pages from other files or remove this file, then try again."
+    "linked-choices.pdf: This PDF has linked choice fields that cannot be preserved in this export. Extract pages from other files, or remove this file, then try again."
   );
-  await expect(page.getByTestId("editor-download-button")).toBeEnabled();
+  await expect(page.getByTestId("editor-extract-button")).toHaveAttribute("aria-disabled", "false");
   expect(downloads).toEqual([]);
 });
 
@@ -194,17 +202,20 @@ for (const width of [1280, 320])
     // Exporting one page of the group would prune a positional radio option.
     await tiles.nth(0).click();
     await tiles.nth(3).click();
-    await page.getByTestId("editor-download-button").click();
+    await extractSelection(page);
     const message =
-      "radio-source.pdf: This PDF has linked choice fields that cannot be preserved in this export. Select pages from other files or remove this file, then try again.";
+      "radio-source.pdf: This PDF has linked choice fields that cannot be preserved in this export. Extract pages from other files, or remove this file, then try again.";
     await expect(page.getByTestId("editor-status-message")).toHaveText(message);
     await expect(page.getByTestId("editor-toast")).toHaveText(message);
-    await expect(page.getByTestId("editor-download-button")).toBeEnabled();
+    await expect(page.getByTestId("editor-extract-button")).toHaveAttribute(
+      "aria-disabled",
+      "false"
+    );
     expect(downloads).toEqual([]);
     await tiles.nth(3).click();
     await tiles.nth(1).click();
     const download = page.waitForEvent("download");
-    await page.getByTestId("editor-download-button").click();
+    await extractSelection(page);
     const path = await (await download).path();
     if (!path) throw Error("Missing recovered download");
     const pdf = await PDFDocument.load(await readFile(path));
