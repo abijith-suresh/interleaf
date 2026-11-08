@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
 import { createJpegFile, createPngFile } from "../../src/services/__tests__/pdf-fixtures";
-import { clickAddFiles, openFiles } from "./toolbar";
+import { clickAddFiles, openFiles, revealPageZoom } from "./toolbar";
 
 async function source(name: string, widths: number[]) {
   const pdf = await PDFDocument.create();
@@ -160,6 +160,7 @@ test("workspace focus survives view switches, toolbar arrow keys and responsive 
   // The narrowest layout moves Exit into the overflow list.
   await page.setViewportSize({ width: 320, height: 568 });
   await expect(documentButton).toBeFocused();
+  await revealPageZoom(page);
   await page.getByRole("button", { name: "Fit page", exact: true }).focus();
   await page.setViewportSize({ width: 568, height: 320 });
   await expect(page.getByRole("button", { name: "Fit page", exact: true })).toBeFocused();

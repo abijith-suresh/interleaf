@@ -522,7 +522,6 @@ body:has([data-page="editor"]) {
 
   .editor-toolbar-divider,
   .editor-page-count,
-  .editor-view-label,
   .editor-menu-trigger-label,
   .editor-download-menu .editor-menu-trigger > .editor-icon:last-child {
     display: none;
@@ -532,10 +531,14 @@ body:has([data-page="editor"]) {
     display: block;
   }
 
-  /* View segments become 44px icon boxes. */
+  /* Labels keep the view switch understandable on phones. */
   .editor-view-nav .editor-button {
-    width: 2.75rem;
-    padding: 0;
+    width: auto;
+    padding-inline: 0.5rem;
+  }
+
+  .editor-view-nav .editor-icon {
+    display: none;
   }
 
   .editor-download-menu .editor-menu-trigger {
@@ -566,6 +569,8 @@ body:has([data-page="editor"]) {
     display: grid;
     width: 13.5rem;
     max-width: calc(100vw - 1rem);
+    max-height: calc(100dvh - var(--overflow-top, 3.5rem) - 0.5rem);
+    overflow-y: auto;
     gap: 0.25rem;
     padding: 0.5rem;
     border-radius: var(--radius-2xl);
@@ -591,9 +596,8 @@ body:has([data-page="editor"]) {
   }
 }
 
-/* The narrowest phones keep seven 44px controls out of one row: Exit moves
-   into the overflow list, after a divider, away from Files. */
-@media (max-width: 359px) {
+/* Phones put Exit in More to leave room for both view labels. */
+@media (max-width: 47.99rem) {
   .editor-exit-row {
     display: none;
   }
@@ -1245,15 +1249,12 @@ body:has([data-page="editor"]) {
 }
 
 .editor-filmstrip-fields {
-  position: absolute;
-  bottom: 1.375rem;
-  left: 50%;
-  padding: 0 0.25rem;
+  justify-self: center;
+  padding: 0 0.125rem;
   border-radius: var(--radius-sm);
-  background: var(--color-inverse);
-  color: var(--color-fg-inverse);
+  background: var(--color-tray);
+  color: var(--color-fg);
   white-space: nowrap;
-  translate: -50% 0;
   @apply text-ui-xs;
   pointer-events: none;
 }
@@ -2649,5 +2650,89 @@ body:has([data-page="editor"]) {
 
   .password-modal-button-secondary:hover {
     background: var(--color-control-hover);
+  }
+}
+
+/* Cards' next type step for the primary action bars. */
+.editor-toolbar .editor-button,
+.editor-selection-bar .editor-button,
+.editor-toolbar .editor-menu-item-hint,
+.editor-selection-bar .editor-menu-item-hint {
+  @apply text-ui-sm;
+}
+
+/* The phone header shares one row with Read and Tools. Zoom lives in
+   page actions here, leaving room for the page title and field count. */
+@media (max-width: 700px) {
+  .editor-review-pane {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .editor-review-header {
+    grid-area: 1 / 1;
+    min-height: 0;
+    padding: 0.25rem 0.25rem 0.25rem 0.5rem;
+    gap: 0.25rem;
+  }
+
+  .editor-review-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  .editor-review-heading h2 {
+    white-space: nowrap;
+    @apply text-ui-sm;
+  }
+
+  .editor-review-marked {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .editor-document-tools {
+    grid-area: 1 / 2;
+    height: auto;
+    min-height: calc(var(--editor-control) + 0.5rem + 1px);
+    border-left: 0;
+  }
+
+  .editor-context-tools {
+    padding-inline: 0.25rem 0.5rem;
+  }
+
+  .editor-review-stage {
+    grid-area: 2 / 1 / 3 / -1;
+  }
+
+  .editor-review-bottom {
+    grid-area: 3 / 1 / 4 / -1;
+  }
+}
+
+@media (max-width: 47.99rem) {
+  .editor-page-actions .editor-review-zoom {
+    justify-content: space-between;
+    border-top: 1px solid var(--color-line);
+  }
+}
+
+@media (max-width: 400px) {
+  .editor-toolbar {
+    gap: 0;
+    padding-inline: calc(0.25rem + env(safe-area-inset-left))
+      calc(0.25rem + env(safe-area-inset-right));
+  }
+
+  .editor-view-nav {
+    gap: 0;
+    padding-inline: 0.125rem;
+  }
+
+  .editor-view-nav .editor-button {
+    padding-inline: 0.25rem;
   }
 }

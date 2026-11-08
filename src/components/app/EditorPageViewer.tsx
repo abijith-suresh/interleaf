@@ -715,39 +715,39 @@ export default function EditorPageViewer(props: Props) {
                 >
                   <span class="editor-page-action-label">Export PNG</span>
                 </EditorButton>
+                <fieldset class="editor-review-zoom" aria-label="Page zoom" data-overflow-keep-open>
+                  <EditorButton
+                    ref={zoomOutButton}
+                    aria-label="Zoom out"
+                    title="Zoom out"
+                    icon="minus"
+                    disabled={!hasFrame() || zoom() <= 1}
+                    onClick={() => changeZoom(zoom() / 1.4)}
+                  />
+                  <EditorButton
+                    ref={fitButton}
+                    aria-label="Fit page"
+                    title="Fit page"
+                    onClick={() => {
+                      resetView();
+                      requestResizeRender();
+                    }}
+                  >
+                    Fit
+                  </EditorButton>
+                  <EditorButton
+                    ref={zoomInButton}
+                    aria-label="Zoom in"
+                    title="Zoom in"
+                    icon="plus"
+                    disabled={!hasFrame() || zoom() >= 4}
+                    onClick={() => changeZoom(zoom() * 1.4)}
+                  />
+                </fieldset>
               </EditorOverflow>
             );
           }}
         </Show>
-        <fieldset class="editor-review-zoom" aria-label="Page zoom">
-          <EditorButton
-            ref={zoomOutButton}
-            aria-label="Zoom out"
-            title="Zoom out"
-            icon="minus"
-            disabled={!hasFrame() || zoom() <= 1}
-            onClick={() => changeZoom(zoom() / 1.4)}
-          />
-          <EditorButton
-            ref={fitButton}
-            aria-label="Fit page"
-            title="Fit page"
-            onClick={() => {
-              resetView();
-              requestResizeRender();
-            }}
-          >
-            Fit
-          </EditorButton>
-          <EditorButton
-            ref={zoomInButton}
-            aria-label="Zoom in"
-            title="Zoom in"
-            icon="plus"
-            disabled={!hasFrame() || zoom() >= 4}
-            onClick={() => changeZoom(zoom() * 1.4)}
-          />
-        </fieldset>
       </header>
 
       <section

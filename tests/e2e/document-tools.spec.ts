@@ -214,3 +214,24 @@ test("fields use readable names and visual order with Enter navigation", async (
   await page.getByRole("button", { name: "Fill field: Phone", exact: true }).click();
   await expect(phone).toHaveValue("555 0100");
 });
+
+for (const width of [1440, 375, 320]) {
+  test(`filmstrip field badges sit below page content at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    const pdf = await PDFDocument.create();
+    const sheet = pdf.addPage([400, 600]);
+    pdf
+      .getForm()
+      .createTextField("name")
+      .addToPage(sheet, { x: 40, y: 400, width: 200, height: 24 });
+    await upload(page, "form.pdf", Buffer.from(await pdf.save()));
+    const item = page.locator(".editor-review-filmstrip-item").first();
+    const badge = item.locator(".editor-filmstrip-fields");
+    await expect(badge).toHaveText("1 field");
+    await expect(item).toHaveAccessibleDescription("1 field");
+    const thumbnail = await item.locator(".canvas-container").boundingBox();
+    const box = await badge.boundingBox();
+    expect(box?.y).toBeGreaterThanOrEqual((thumbnail?.y ?? 0) + (thumbnail?.height ?? 0));
+    await expect(badge).toHaveCSS("background-color", "rgb(229, 229, 229)");
+  });
+}

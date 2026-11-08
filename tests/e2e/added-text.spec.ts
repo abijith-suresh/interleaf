@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { degrees, PDFDocument, PDFName, PDFNumber, StandardFonts } from "pdf-lib";
+import { revealPageZoom } from "./toolbar";
 
 async function source() {
   const document = await PDFDocument.create();
@@ -142,7 +143,9 @@ for (const width of [1280, 390]) {
   test(`keyboard text placement and movement at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
     await open(page);
+    await revealPageZoom(page);
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await revealPageZoom(page);
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
     await ready(page);
     const stage = page.locator(".editor-review-stage");
@@ -367,6 +370,7 @@ for (const [width, height] of [
     await place(page, "Mobile");
     await page.getByRole("button", { name: "Read", exact: true }).click();
     await expect(page.locator(".editor-text-layer")).not.toHaveClass(/is-editing/);
+    await revealPageZoom(page);
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
     await ready(page);
     const start = await point(page, 0.5, 0.5);

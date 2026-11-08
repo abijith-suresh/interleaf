@@ -40,7 +40,12 @@ export default function EditorOverflow(props: Props) {
     // Activating a control inside the list closes it. Focus returns to the
     // trigger only when the control itself has gone away.
     const handlePanelClick = (event: MouseEvent) => {
-      if (!open() || !(event.target instanceof Element) || !event.target.closest("button, a"))
+      if (
+        !open() ||
+        !(event.target instanceof Element) ||
+        !event.target.closest("button, a") ||
+        event.target.closest("[data-overflow-keep-open]")
+      )
         return;
       setOpen(false);
       queueMicrotask(() => {

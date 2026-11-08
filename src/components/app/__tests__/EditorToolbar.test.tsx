@@ -48,6 +48,8 @@ describe("EditorToolbar", () => {
       "true"
     );
     expect(screen.getByRole("button", { name: "Pages" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Pages" })).toHaveTextContent("Pages");
+    expect(screen.getByRole("button", { name: "Document" })).toHaveTextContent("Document");
     expect(toolbar).toHaveTextContent("3 pages");
     expect(screen.getAllByText("3 pages")).toHaveLength(1);
 

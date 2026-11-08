@@ -75,7 +75,8 @@ for (const width of [1280, 390]) {
 }
 
 for (const viewport of [
-  { width: 1280, height: 800 },
+  { width: 1440, height: 800 },
+  { width: 375, height: 844 },
   { width: 390, height: 844 },
   { width: 320, height: 568 },
   { width: 568, height: 320 },
@@ -157,6 +158,9 @@ for (const viewport of [
 
     // One toolbar row. Every visible control keeps a 44px hit target inside the viewport.
     const toolbar = page.getByRole("toolbar", { name: "Editor" });
+    if (viewport.width === 1440) {
+      await expect(page.getByTestId("editor-pages-view-button")).toHaveCSS("font-size", "14px");
+    }
     const controls = toolbar.locator("button:visible, a:visible");
     const centers: number[] = [];
     for (const control of await controls.all()) {
@@ -229,6 +233,9 @@ for (const viewport of [
     await expect(bar).toHaveCount(0);
     await tiles.first().click();
     await expect(bar).toBeVisible();
+    if (viewport.width === 1440) {
+      await expect(page.getByTestId("editor-rotate-button")).toHaveCSS("font-size", "14px");
+    }
     const toolbarBox = await toolbar.boundingBox();
     await expect
       .poll(async () => (await bar.boundingBox())?.y)
