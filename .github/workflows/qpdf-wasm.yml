@@ -10,7 +10,7 @@ permissions:
 jobs:
   scope:
     name: qpdf-scope
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       relevant: ${{ steps.scope.outputs.relevant }}
 
@@ -48,7 +48,7 @@ jobs:
     name: build-qpdf-wasm
     if: needs.scope.outputs.relevant == 'true'
     needs: scope
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container: emscripten/emsdk:3.1.72
 
     steps:
@@ -86,7 +86,7 @@ jobs:
     name: browser-smoke
     if: needs.scope.outputs.relevant == 'true'
     needs: [scope, build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Check out repository
@@ -126,7 +126,7 @@ jobs:
     name: qpdf
     if: always()
     needs: [scope, build, browser-smoke]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Verify qpdf checks passed
