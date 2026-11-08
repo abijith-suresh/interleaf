@@ -1081,21 +1081,32 @@ describe("missing references are null", () => {
     expect(saved.context.lookup(xobject)).toBeUndefined();
   });
 
-  it("drops missing /Annots entries and keeps the rest", async () => {
-    const doc = await PDFDocument.create(),
-      page = doc.addPage();
-    page.node.set(
-      N("Annots"),
-      doc.context.obj([
-        missing(doc, 100),
-        doc.context.register(doc.context.obj({ Subtype: "Text", Rect: [0, 0, 10, 10] })),
-      ])
-    );
-    const saved = await PDFDocument.load(await build([createPageState(file(await doc.save()), 1)]));
-    const annots = saved.getPage(0).node.lookup(N("Annots"), PDFArray);
-    expect(annots.size()).toBe(1);
-    expect(annots.lookup(0, PDFDict).lookup(N("Subtype"))).toBe(N("Text"));
-  });
+  it.each(["missing ref", "indirect null", "direct null"])(
+    "drops %s /Annots entries and keeps the rest",
+    async (kind) => {
+      const doc = await PDFDocument.create(),
+        page = doc.addPage();
+      const empty =
+        kind === "missing ref"
+          ? missing(doc, 100)
+          : kind === "direct null"
+            ? PDFNull
+            : doc.context.register(PDFNull);
+      page.node.set(
+        N("Annots"),
+        doc.context.obj([
+          empty,
+          doc.context.register(doc.context.obj({ Subtype: "Text", Rect: [0, 0, 10, 10] })),
+        ])
+      );
+      const saved = await PDFDocument.load(
+        await build([createPageState(file(await doc.save()), 1)])
+      );
+      const annots = saved.getPage(0).node.lookup(N("Annots"), PDFArray);
+      expect(annots.size()).toBe(1);
+      expect(annots.lookup(0, PDFDict).lookup(N("Subtype"))).toBe(N("Text"));
+    }
+  );
 
   // Retained widgets share one copied field whose Kids keep the missing (null)
   // kid in place.
@@ -1213,25 +1224,6 @@ describe("missing references are null", () => {
       .lookup(N("Dest"), PDFArray);
     expect(dest.get(0)).toBe(saved.getPage(1).ref);
     expect(dest.get(2)).toBe(PDFNull);
-  });
-
-  it("drops /Annots entries that point to a null object", async () => {
-    const doc = await PDFDocument.create(),
-      page = doc.addPage(),
-      empty = doc.context.nextRef();
-    doc.context.assign(empty, PDFNull);
-    page.node.set(
-      N("Annots"),
-      doc.context.obj([
-        empty,
-        PDFNull,
-        doc.context.register(doc.context.obj({ Subtype: "Text", Rect: [0, 0, 10, 10] })),
-      ])
-    );
-    const saved = await PDFDocument.load(await build([createPageState(file(await doc.save()), 1)]));
-    const annots = saved.getPage(0).node.lookup(N("Annots"), PDFArray);
-    expect(annots.size()).toBe(1);
-    expect(annots.lookup(0, PDFDict).lookup(N("Subtype"))).toBe(N("Text"));
   });
 });
 

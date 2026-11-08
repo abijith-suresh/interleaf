@@ -1,79 +1,20 @@
-import { readFile } from "node:fs/promises";
-import { expect, type Page, test } from "@playwright/test";
-import { degrees, PDFDocument, rgb, StandardFonts } from "pdf-lib";
-import { createServer, type ViteDevServer } from "vite";
+import { expect, type Page } from "@playwright/test";
 import { createJpegFile, createPngFile } from "../../src/services/__tests__/pdf-fixtures";
-import type { inspectPDF, inspectZIP } from "./fixtures/duplication";
-import { openFiles } from "./toolbar";
-
-let server: ViteDevServer;
-let url: string;
-test.beforeAll(async () => {
-  server = await createServer({
-    configFile: false,
-    cacheDir: `node_modules/.vite-history/${test.info().project.name}`,
-    plugins: [
-      {
-        name: "duplication-fixture",
-        configureServer(server) {
-          server.middlewares.use("/duplicate-test", (_request, response) => {
-            response.setHeader("Content-Type", "text/html");
-            response.end("<!doctype html><title>Duplication export inspection</title>");
-          });
-        },
-      },
-    ],
-    server: { host: "127.0.0.1", port: 0 },
-    optimizeDeps: { include: ["pdfjs-dist", "pdf-lib", "fflate"] },
-  });
-  await server.listen();
-  url = server.resolvedUrls?.local[0] ?? "";
-});
-test.afterAll(async () => {
-  await server?.close();
-});
+import { captureDownload } from "./fixtures/download";
+import type { inspectZIP } from "./fixtures/duplication";
+import { inspect, source } from "./fixtures/duplication-input";
+import { test } from "./fixtures/duplication-server";
+import { encryptedFixture, filePayload } from "./fixtures/files";
+import { downloadDocument, openFiles } from "./fixtures/toolbar";
 
 async function download(page: Page, action: () => Promise<unknown>) {
-  const pending = page.waitForEvent("download");
-  await action();
-  const path = await (await pending).path();
-  if (!path) throw new Error("Missing download");
-  return Array.from(await readFile(path));
-}
-async function inspect(reader: Page, bytes: number[]) {
-  return reader.evaluate(async (bytes): Promise<Awaited<ReturnType<typeof inspectPDF>>> => {
-    const path = "/tests/e2e/fixtures/duplication.ts";
-    return (await import(path)).inspectPDF(bytes);
-  }, bytes);
-}
-async function source(form = false) {
-  const pdf = await PDFDocument.create();
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  for (const [index, width] of [200, 240].entries()) {
-    const page = pdf.addPage([width, 300]);
-    page.drawText(`Source ${index + 1}`, { x: 20, y: 240, font, size: 20 });
-    page.drawRectangle({
-      x: 20,
-      y: 30,
-      width: 70,
-      height: 80,
-      color: rgb(index ? 0 : 1, 0, index ? 1 : 0),
-    });
-    if (!index) {
-      page.setRotation(degrees(90));
-      if (form) {
-        const field = pdf.getForm().createTextField("name");
-        field.setText("Current form baseline");
-        field.addToPage(page, { x: 15, y: 150, width: 170, height: 30, font });
-      }
-    }
-  }
-  return { name: "source.pdf", mimeType: "application/pdf", buffer: Buffer.from(await pdf.save()) };
+  return Array.from((await captureDownload(page, action)).bytes);
 }
 
 test("mixed history restores real PDF order, rotations, text, selected PNG pixels and compression", async ({
   page,
   context,
+  url,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -84,11 +25,7 @@ test("mixed history restores real PDF order, rotations, text, selected PNG pixel
   const redo = page.getByTestId("editor-redo-button");
   const reader = await context.newPage();
   await reader.goto(`${url}duplicate-test`);
-  const pdf = () =>
-    download(page, async () => {
-      await page.getByTestId("editor-download-menu-button").click();
-      await page.getByTestId("editor-download-button").click();
-    });
+  const pdf = () => download(page, () => downloadDocument(page));
   const original = await inspect(reader, await pdf());
   await page.getByRole("button", { name: "Rotate page 1 90 degrees", exact: true }).click();
   await page.getByRole("button", { name: "Duplicate page 1", exact: true }).click();
@@ -375,13 +312,11 @@ async function historyStep(page: Page, direction: "undo" | "redo") {
   await page.getByTestId(`editor-${direction}-button`).click();
   await idle(page);
 }
-async function imageInput(file: File) {
-  return { name: file.name, mimeType: file.type, buffer: Buffer.from(await file.arrayBuffer()) };
-}
 
 test("source and page history restores real mixed PDF, PNG and EXIF JPEG output including copied forms", async ({
   page,
   context,
+  url,
 }) => {
   test.setTimeout(90_000);
   await page.goto("/app");
@@ -389,14 +324,7 @@ test("source and page history restores real mixed PDF, PNG and EXIF JPEG output 
   const tiles = page.getByTestId("editor-page-tile");
   const reader = await context.newPage();
   await reader.goto(`${url}duplicate-test`);
-  const pdf = async () =>
-    inspect(
-      reader,
-      await download(page, async () => {
-        await page.getByTestId("editor-download-menu-button").click();
-        await page.getByTestId("editor-download-button").click();
-      })
-    );
+  const pdf = async () => inspect(reader, await download(page, () => downloadDocument(page)));
   const png = async () => {
     await page.getByTestId("editor-download-menu-button").click();
     const bytes = await download(page, () =>
@@ -412,8 +340,8 @@ test("source and page history restores real mixed PDF, PNG and EXIF JPEG output 
     .getByTestId("editor-add-pdf-input")
     .setInputFiles([
       await source(),
-      await imageInput(createPngFile()),
-      await imageInput(createJpegFile("portrait.jpg", true)),
+      await filePayload(createPngFile()),
+      await filePayload(createJpegFile("portrait.jpg", true)),
     ]);
   await expect(tiles).toHaveCount(6);
   const added = await pdf();
@@ -523,13 +451,11 @@ for (const viewport of [
 test("restoring an encrypted source re-prompts, cancels transactionally, and supports export after password retry", async ({
   page,
   context,
+  url,
 }) => {
   test.setTimeout(60_000);
   await page.goto("/app");
-  const encrypted = Buffer.from(
-    await readFile("tools/qpdf-wasm/fixtures/encrypted-40-bit-r3.b64", "utf8"),
-    "base64"
-  );
+  const encrypted = (await encryptedFixture()).buffer;
   await page
     .getByTestId("editor-upload-input")
     .setInputFiles({ name: "protected.pdf", mimeType: "application/pdf", buffer: encrypted });
@@ -539,14 +465,7 @@ test("restoring an encrypted source re-prompts, cancels transactionally, and sup
   await idle(page);
   const reader = await context.newPage();
   await reader.goto(`${url}duplicate-test`);
-  const pdf = async () =>
-    inspect(
-      reader,
-      await download(page, async () => {
-        await page.getByTestId("editor-download-menu-button").click();
-        await page.getByTestId("editor-download-button").click();
-      })
-    );
+  const pdf = async () => inspect(reader, await download(page, () => downloadDocument(page)));
   const original = await pdf();
   await openFiles(page);
   await page.getByTestId("editor-file-remove").click();

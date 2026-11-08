@@ -1,8 +1,8 @@
-import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { unzipSync } from "fflate";
 import { degrees, PDFDocument, rgb, StandardFonts } from "pdf-lib";
-import { clickSelectionAction, revealPageZoom } from "./toolbar";
+import { captureDownload } from "./fixtures/download";
+import { clickSelectionAction, revealPageZoom } from "./fixtures/toolbar";
 
 async function makeDocument() {
   const pdf = await PDFDocument.create();
@@ -184,21 +184,17 @@ for (const viewport of [
     await ready(page, 1, 2);
     // Download directly in Document with the original selection intact.
 
-    const pdfDownload = page.waitForEvent("download");
-    await clickSelectionAction(page, "editor-extract-button");
-    const pdfPath = await (await pdfDownload).path();
-    if (!pdfPath) throw new Error("Missing PDF download");
-    const pdf = await PDFDocument.load(await readFile(pdfPath));
+    const { bytes: pdfBytes } = await captureDownload(page, () =>
+      clickSelectionAction(page, "editor-extract-button")
+    );
+    const pdf = await PDFDocument.load(pdfBytes);
     expect(pdf.getPageCount()).toBe(1);
     expect(pdf.getPage(0).getRotation().angle).toBe(180);
     expect(pdf.getPage(0).getSize()).toEqual({ width: 600, height: 800 });
-    const pngDownload = page.waitForEvent("download");
-    await clickSelectionAction(page, "editor-export-selected-images-button");
-    const pngPath = await (await pngDownload).path();
-    if (!pngPath) throw new Error("Missing PNG download");
-    const images = Object.entries(unzipSync(await readFile(pngPath))).filter(([name]) =>
-      name.endsWith(".png")
+    const { bytes: pngBytes } = await captureDownload(page, () =>
+      clickSelectionAction(page, "editor-export-selected-images-button")
     );
+    const images = Object.entries(unzipSync(pngBytes)).filter(([name]) => name.endsWith(".png"));
     expect(images).toHaveLength(1);
     const png = Buffer.from(images[0][1]);
     expect(png.readUInt32BE(16)).toBe(1200);

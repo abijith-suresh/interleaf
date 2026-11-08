@@ -111,3 +111,26 @@ export function createOrientedJpegFile(orientation: number, name = "oriented.jpg
   ]);
   return new File([bytes], name, { type: "image/jpeg" });
 }
+
+export function makePDFPage(width = 100, height = 200) {
+  return {
+    rotate: 0,
+    view: [0, 0, width, height],
+    userUnit: 1,
+    getViewport: ({ scale = 1, rotation = 0 }) =>
+      rotation === 90 || rotation === 270
+        ? { width: height * scale, height: width * scale, transform: [1, 0, 0, -1, 0, height] }
+        : { width: width * scale, height: height * scale, transform: [1, 0, 0, -1, 0, height] },
+    cleanup: () => true,
+    render: () => ({ promise: Promise.resolve(), cancel: () => {} }),
+  };
+}
+
+export function makePDFDocument(page = makePDFPage()) {
+  return {
+    numPages: 5,
+    getMetadata: async () => ({ info: {} as Record<string, unknown> }),
+    getPage: async (_pageNumber: number) => page,
+    cleanup: async () => {},
+  };
+}

@@ -1,6 +1,8 @@
-import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { decodePDFRawStream, PDFArray, PDFDocument, PDFRawStream, StandardFonts } from "pdf-lib";
+import { captureDownload } from "./fixtures/download";
+import { expectDocumentReady } from "./fixtures/editor";
+import { downloadDocument } from "./fixtures/toolbar";
 
 const LEAVE_MESSAGE = "Leave the editor? Your pages aren't saved anywhere.";
 
@@ -33,11 +35,7 @@ async function open(page: Page) {
   await page.goto("/app");
   await load(page);
   await page.getByTestId("editor-document-view-button").click();
-  await ready(page);
-}
-
-async function ready(page: Page) {
-  await expect(page.locator(".editor-review-stage")).toHaveAttribute("data-render-state", "ready");
+  await expectDocumentReady(page);
 }
 
 async function draft(page: Page, tool: "Add text" | "Checkmark") {
@@ -50,12 +48,8 @@ async function draft(page: Page, tool: "Add text" | "Checkmark") {
 
 /** Decoded content of the downloaded PDF's first page. */
 async function download(page: Page) {
-  const downloading = page.waitForEvent("download");
-  await page.getByTestId("editor-download-menu-button").click();
-  await page.getByTestId("editor-download-button").click();
-  const path = await (await downloading).path();
-  if (!path) throw new Error("Missing PDF download");
-  const contents = (await PDFDocument.load(await readFile(path))).getPage(0).node.Contents();
+  const { bytes: pdfBytes } = await captureDownload(page, () => downloadDocument(page));
+  const contents = (await PDFDocument.load(pdfBytes)).getPage(0).node.Contents();
   const streams =
     contents instanceof PDFArray
       ? Array.from({ length: contents.size() }, (_, index) => contents.lookup(index, PDFRawStream))
@@ -77,7 +71,7 @@ test("download saves an open text edit so the PDF matches the page", async ({ pa
   await input.fill("Approved 2026-11-07");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
   await expect(input).toHaveCount(0);
-  await ready(page);
+  await expectDocumentReady(page);
 
   await page.getByRole("button", { name: "Edit added text: Approved 2026-11-07" }).click();
   await input.fill("CHANGED 2");
@@ -105,7 +99,7 @@ test("page navigation and view switches save open text, checkmark, and field dra
   await expect(title).toHaveText("Page 2");
   await expect(undo).toHaveAttribute("aria-label", "Undo Add text");
 
-  await ready(page);
+  await expectDocumentReady(page);
   await draft(page, "Checkmark");
   await expect(page.getByRole("button", { name: "Drag checkmark to move it" })).toBeVisible();
   await page.getByRole("button", { name: "View page 1" }).click();
@@ -113,7 +107,7 @@ test("page navigation and view switches save open text, checkmark, and field dra
   await expect(undo).toHaveAttribute("aria-label", "Undo Add checkmark");
   await expect(page.getByRole("button", { name: "Edit added text: Kept on next" })).toBeVisible();
 
-  await ready(page);
+  await expectDocumentReady(page);
   await page.getByRole("button", { name: "Fill fields", exact: true }).click();
   await page.getByRole("button", { name: "Fill field: name" }).click();
   await page.getByRole("textbox", { name: "Answer for name" }).fill("Ada");
@@ -140,10 +134,7 @@ test("an invalid draft blocks leaving it and shows why, while Cancel still disca
     () => page.getByTestId("editor-pages-view-button").click(),
     () => page.getByTestId("editor-page-viewer-next").click(),
     () => page.getByRole("button", { name: "View page 2" }).click(),
-    async () => {
-      await page.getByTestId("editor-download-menu-button").click();
-      await page.getByTestId("editor-download-button").click();
-    },
+    () => downloadDocument(page),
   ]) {
     await leave();
     await expect(page.locator("#editor-text-error")).toContainText("basic Latin");
@@ -225,7 +216,7 @@ test("selection and page actions save drafts and block invalid drafts", async ({
   await page.getByTestId("editor-pages-view-button").click();
   await page.getByTestId("editor-page-tile").first().click();
   await page.getByTestId("editor-document-view-button").click();
-  await ready(page);
+  await expectDocumentReady(page);
   await draft(page, "Add text");
   const input = page.getByLabel("Added text", { exact: true });
   await input.fill("Café");

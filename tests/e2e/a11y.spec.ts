@@ -1,11 +1,8 @@
-import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
-import { PDFDocument } from "pdf-lib";
+import { blankPdf, encryptedFixture } from "./fixtures/files";
 
 async function source(name: string) {
-  const pdf = await PDFDocument.create();
-  pdf.addPage([400, 600]);
-  return { name, mimeType: "application/pdf", buffer: Buffer.from(await pdf.save()) };
+  return blankPdf(name, [{ width: 400, height: 600 }]);
 }
 
 test("the mobile menu closes on Escape, outside click, and link navigation", async ({ page }) => {
@@ -54,10 +51,7 @@ test("a wrong password is flagged on the input and announced; the dialog is moda
   await page.getByTestId("editor-upload-input").setInputFiles({
     name: "protected.pdf",
     mimeType: "application/pdf",
-    buffer: Buffer.from(
-      await readFile("tools/qpdf-wasm/fixtures/encrypted-40-bit-r3.b64", "utf8"),
-      "base64"
-    ),
+    buffer: (await encryptedFixture()).buffer,
   });
   const dialog = page.getByRole("dialog", { name: "Password required" });
   const password = page.getByLabel("PDF password", { exact: true });

@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import {
   decodePDFRawStream,
@@ -9,6 +8,9 @@ import {
   PDFNumber,
   PDFRawStream,
 } from "pdf-lib";
+import { captureDownload } from "./fixtures/download";
+import { expectDocumentReady, openDocument } from "./fixtures/editor";
+import { downloadDocument, revealDocumentTools } from "./fixtures/toolbar";
 
 async function open(page: Page) {
   const pdf = await PDFDocument.create();
@@ -19,25 +21,14 @@ async function open(page: Page) {
   sheet.setRotation(degrees(90));
   sheet.drawText("Flat form: choose an answer", { x: 20, y: 400, size: 12 });
   sheet.drawRectangle({ x: 80, y: 170, width: 14, height: 14, borderWidth: 1 });
-  await page.goto("/app");
-  await page.getByTestId("editor-upload-input").setInputFiles({
+  await openDocument(page, {
     name: "form.pdf",
     mimeType: "application/pdf",
     buffer: Buffer.from(await pdf.save()),
   });
-  await page.getByTestId("editor-document-view-button").click();
-  await ready(page);
-}
-async function ready(page: Page) {
-  await expect(page.locator(".editor-review-stage")).toHaveAttribute("data-render-state", "ready");
-}
-async function tools(page: Page) {
-  const disclosure = page.getByRole("button", { name: "Tools", exact: true });
-  if ((await disclosure.isVisible()) && (await disclosure.getAttribute("aria-expanded")) !== "true")
-    await disclosure.click();
 }
 async function arm(page: Page) {
-  await tools(page);
+  await revealDocumentTools(page);
   await page.getByRole("button", { name: "Checkmark", exact: true }).press("Enter");
   await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
 }
@@ -52,7 +43,7 @@ async function place(page: Page) {
   await expect(
     page.getByRole("button", { name: "Edit added checkmark", exact: true })
   ).toBeFocused();
-  await ready(page);
+  await expectDocumentReady(page);
 }
 
 for (const [width, height] of [
@@ -133,7 +124,7 @@ for (const [width, height] of [
     await page.getByRole("button", { name: "Save checkmark", exact: true }).press("Enter");
     const hit = page.getByRole("button", { name: "Edit added checkmark", exact: true });
     await expect(hit).toBeFocused();
-    await ready(page);
+    await expectDocumentReady(page);
     for (const action of ["Cancel", "Escape", "Save checkmark"]) {
       await hit.press("Enter");
       await expect(size).toBeFocused();
@@ -169,7 +160,7 @@ test("point placement, drag, cancel, independent text and checkmark history, dup
   const savedPosition = await hit.evaluate((element) => [element.style.left, element.style.top]);
   await hit.click();
   const draft = page.getByRole("button", { name: "Drag checkmark to move it" });
-  await ready(page);
+  await expectDocumentReady(page);
   const before = await draft.boundingBox();
   if (!before) throw new Error("Missing draft");
   await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
@@ -186,12 +177,8 @@ test("point placement, drag, cancel, independent text and checkmark history, dup
   expect(await hit.evaluate((element) => [element.style.left, element.style.top])).toEqual(
     savedPosition
   );
-  const downloading = page.waitForEvent("download");
-  await page.getByTestId("editor-download-menu-button").click();
-  await page.getByTestId("editor-download-button").click();
-  const path = await (await downloading).path();
-  if (!path) throw new Error("Missing marked PDF download");
-  const downloaded = await PDFDocument.load(await readFile(path));
+  const { bytes: pdfBytes } = await captureDownload(page, () => downloadDocument(page));
+  const downloaded = await PDFDocument.load(pdfBytes);
   expect(downloaded.getPageCount()).toBe(1);
   const contents = downloaded.getPage(0).node.Contents();
   if (!(contents instanceof PDFArray)) throw new Error("Missing downloaded page content");
@@ -284,7 +271,7 @@ test.describe("touch checkmark gestures", () => {
       { x, y }
     );
     await expect(stage).toHaveAttribute("data-zoom", "2");
-    await ready(page);
+    await expectDocumentReady(page);
     await expect(page.getByLabel("Checkmark size in points")).toHaveCount(0);
     await expect(page.locator(".editor-text-layer")).toHaveClass(/is-placing/);
     await page.touchscreen.tap(x, y);
@@ -305,7 +292,7 @@ for (const kind of ["checkmark", "text"] as const) {
     await page.setViewportSize({ width: 568, height: 320 });
     await open(page);
     await place(page);
-    await tools(page);
+    await revealDocumentTools(page);
     await page
       .getByRole("button", { name: kind === "checkmark" ? "Checkmark" : "Add text", exact: true })
       .press("Enter");
@@ -325,7 +312,7 @@ for (const kind of ["checkmark", "text"] as const) {
     if (kind === "text") {
       await field.fill("Saved text");
       await page.getByRole("button", { name: "Save text", exact: true }).click();
-      await ready(page);
+      await expectDocumentReady(page);
       await page
         .getByRole("button", { name: "Edit added text: Saved text", exact: true })
         .press("Enter");

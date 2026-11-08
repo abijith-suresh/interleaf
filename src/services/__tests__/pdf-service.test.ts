@@ -3,6 +3,7 @@ import { runFork, runPromise } from "effect/Effect";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { PDFPasswordRequiredError } from "../../types/interfaces";
 import { type PDFDecrypt, PDFService, SharedPDFWorker } from "../pdf-service";
+import { makePDFDocument, makePDFPage } from "./pdf-fixtures";
 
 const getDocument = vi.hoisted(() => vi.fn<(params: { worker?: unknown }) => LoadingTask>());
 const workers = vi.hoisted(() => ({ created: [] as { destroy: () => void }[] }));
@@ -23,26 +24,21 @@ type LoadingTask = {
 };
 
 function makePage(width = 100, height = 200) {
+  const page = makePDFPage(width, height);
   return {
-    rotate: 0,
-    view: [0, 0, width, height],
-    userUnit: 1,
-    getViewport: vi.fn(({ scale = 1, rotation = 0 }) =>
-      rotation === 90 || rotation === 270
-        ? { width: height * scale, height: width * scale, transform: [1, 0, 0, -1, 0, height] }
-        : { width: width * scale, height: height * scale, transform: [1, 0, 0, -1, 0, height] }
-    ),
-    cleanup: vi.fn(() => true),
-    render: vi.fn(() => ({ promise: Promise.resolve(), cancel: vi.fn() })),
+    ...page,
+    getViewport: vi.fn(page.getViewport),
+    cleanup: vi.fn(page.cleanup),
+    render: vi.fn(page.render),
   };
 }
-
 function makeDocument(page = makePage()) {
+  const doc = makePDFDocument(page);
   return {
-    numPages: 5,
-    getMetadata: vi.fn(async () => ({ info: {} as Record<string, unknown> })),
-    getPage: vi.fn(async (_pageNumber: number) => page),
-    cleanup: vi.fn(async () => {}),
+    ...doc,
+    getMetadata: vi.fn(doc.getMetadata),
+    getPage: vi.fn(doc.getPage),
+    cleanup: vi.fn(doc.cleanup),
   };
 }
 
@@ -139,7 +135,7 @@ describe("PDFService", () => {
     page.rotate = 90;
     page.view = [20, 40, 120, 240];
     page.userUnit = 2.5;
-    page.getViewport.mockImplementation(({ scale, rotation }) => {
+    page.getViewport.mockImplementation(({ scale = 1, rotation }) => {
       expect(rotation).toBe(0);
       return {
         width: 100 * 2.5 * scale,

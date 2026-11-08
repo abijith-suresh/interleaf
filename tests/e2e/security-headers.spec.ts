@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
+import { saveDownload } from "./fixtures/download";
+import { expectDocumentReady } from "./fixtures/editor";
 
 const rule = (
   JSON.parse(readFileSync("vercel.json", "utf8")) as {
@@ -34,8 +36,8 @@ async function download(page: Page, id: string) {
   await page.getByTestId(id).click();
   const file = await pending;
   const path = test.info().outputPath(file.suggestedFilename());
-  await file.saveAs(path);
-  return readFileSync(path);
+  const bytes = await saveDownload(file, path);
+  return bytes;
 }
 
 test("pages are served with the vercel.json security headers", async ({ request }) => {
@@ -59,7 +61,7 @@ test("the editor opens, compresses and exports without CSP violations", async ({
   });
   await expect(page.getByTestId("editor-page-tile")).toHaveCount(1);
   await page.getByTestId("editor-document-view-button").click();
-  await expect(page.locator(".editor-review-stage")).toHaveAttribute("data-render-state", "ready");
+  await expectDocumentReady(page);
 
   await page.getByTestId("editor-download-menu-button").click();
   const compressed = await download(page, "editor-compress-button");
