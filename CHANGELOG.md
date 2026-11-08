@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.0.14](https://github.com/abijith-suresh/interleaf/compare/v0.0.13...v0.0.14) (2026-11-08)
+
+
+### Features
+
+* **brand:** add the leaf accent and readable icon lockup ([#369](https://github.com/abijith-suresh/interleaf/issues/369)) ([2cd79dc](https://github.com/abijith-suresh/interleaf/commit/2cd79dc435770fec967c91b49b9e6b1ce05807d7))
+* reorganise editor actions into a toolbar and selection bar ([#372](https://github.com/abijith-suresh/interleaf/issues/372)) ([99d5e06](https://github.com/abijith-suresh/interleaf/commit/99d5e0683c3d610d7137ecf4bbc4fd99b0bbe980))
+* show the editor at work in the homepage hero ([#367](https://github.com/abijith-suresh/interleaf/issues/367)) ([a20753e](https://github.com/abijith-suresh/interleaf/commit/a20753ed5db6cce661eeb5fed5bef47f4d4ba5d7))
+
+
+### Bug Fixes
+
+* **editor:** fix file handling in open, compress, and export ([#368](https://github.com/abijith-suresh/interleaf/issues/368)) ([54511c1](https://github.com/abijith-suresh/interleaf/commit/54511c1a8e97b2476c541dc70edc7c16e2d2354c))
+* **editor:** keep page grid selection, labels, and focus predictable ([#370](https://github.com/abijith-suresh/interleaf/issues/370)) ([e18662c](https://github.com/abijith-suresh/interleaf/commit/e18662ca7480d69dcd39da624a3db5f4fae5a3d0))
+* **editor:** tidy Document view fields, targets, and tool state ([#364](https://github.com/abijith-suresh/interleaf/issues/364)) ([3929e87](https://github.com/abijith-suresh/interleaf/commit/3929e875a180c065fc05da27eb7ae33d6d9afd67))
+* stop the editor from silently losing unsaved work ([#366](https://github.com/abijith-suresh/interleaf/issues/366)) ([4e857e1](https://github.com/abijith-suresh/interleaf/commit/4e857e12f5c404971878f5487523174a2f513461))
+
 ## [0.0.13](https://github.com/abijith-suresh/interleaf/compare/0.0.12...v0.0.13) (2026-11-06)
 
 
