@@ -312,13 +312,13 @@ body:has([data-page="editor"]) {
 }
 
 /* Cards' neutral ghost button, with a 44px hit area. */
-.editor-back {
+.editor-back,
+.editor-exit {
   position: relative;
   display: inline-flex;
   height: 2.25rem;
   align-items: center;
   gap: 0.5rem;
-  padding: 0 0.75rem;
   border-radius: var(--radius-button);
   color: var(--color-fg-muted);
   text-decoration: none;
@@ -329,14 +329,20 @@ body:has([data-page="editor"]) {
   @apply text-ui-sm;
 }
 
-.editor-back::before {
+.editor-back {
+  padding: 0 0.75rem;
+}
+
+.editor-back::before,
+.editor-exit::before {
   position: absolute;
   inset: -0.25rem 0;
   content: "";
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .editor-back:hover {
+  .editor-back:hover,
+  .editor-exit:hover {
     background: var(--color-hover);
     color: var(--color-fg);
   }
@@ -395,27 +401,8 @@ body:has([data-page="editor"]) {
 
 /* Exit: Cards' neutral ghost button with the wordmark. */
 .editor-exit {
-  position: relative;
-  display: inline-flex;
-  height: 2.25rem;
   flex: 0 0 auto;
-  align-items: center;
-  gap: 0.5rem;
   padding: 0 0.75rem 0 0.5rem;
-  border-radius: var(--radius-button);
-  color: var(--color-fg-muted);
-  text-decoration: none;
-  touch-action: manipulation;
-  transition-property: color, background-color;
-  transition-duration: 150ms;
-  transition-timing-function: var(--ease-tactile);
-  @apply text-ui-sm;
-}
-
-.editor-exit::before {
-  position: absolute;
-  inset: -0.25rem 0;
-  content: "";
 }
 
 .editor-exit-brand {
@@ -425,13 +412,6 @@ body:has([data-page="editor"]) {
 
 .editor-exit-overflow {
   display: none;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .editor-exit:hover {
-    background: var(--color-hover);
-    color: var(--color-fg);
-  }
 }
 
 .editor-toolbar-action .editor-icon {
@@ -536,10 +516,6 @@ body:has([data-page="editor"]) {
     display: none;
   }
 
-  .editor-menu-caption {
-    display: block;
-  }
-
   /* Labels keep the view switch understandable on phones. */
   .editor-view-nav .editor-button {
     width: auto;
@@ -569,17 +545,10 @@ body:has([data-page="editor"]) {
     display: none;
   }
 
-  .editor-overflow.is-open .editor-overflow-panel {
+  .editor-overflow.is-open .editor-overflow-panel,
+  .editor-menu-panel {
     box-sizing: border-box;
-    position: fixed;
-    top: var(--overflow-top, 3.5rem);
-    right: max(0.5rem, min(var(--overflow-right, 0.5rem), calc(100vw - 0.5rem - 13.5rem)));
-    z-index: 40;
     display: grid;
-    width: 13.5rem;
-    max-width: calc(100vw - 1rem);
-    max-height: calc(100dvh - var(--overflow-top, 3.5rem) - 0.5rem);
-    overflow-y: auto;
     gap: 0.25rem;
     padding: 0.5rem;
     border-radius: var(--radius-2xl);
@@ -587,6 +556,17 @@ body:has([data-page="editor"]) {
     box-shadow: var(--shadow-menu);
     transform-origin: top right;
     animation: editor-menu-in 150ms var(--ease-tactile);
+  }
+
+  .editor-overflow.is-open .editor-overflow-panel {
+    position: fixed;
+    top: var(--overflow-top, 3.5rem);
+    right: max(0.5rem, min(var(--overflow-right, 0.5rem), calc(100vw - 0.5rem - 13.5rem)));
+    z-index: 40;
+    width: 13.5rem;
+    max-width: calc(100vw - 1rem);
+    max-height: calc(100dvh - var(--overflow-top, 3.5rem) - 0.5rem);
+    overflow-y: auto;
   }
 
   .editor-overflow.is-open .editor-overflow-panel > :is(.editor-button, .editor-exit) {
@@ -742,10 +722,6 @@ body:has([data-page="editor"]) {
   transition-property: border-color, background-color;
 }
 
-.editor-dropzone.editor-button-secondary {
-  box-shadow: var(--shadow-sm);
-}
-
 .editor-dropzone:active {
   scale: none;
 }
@@ -889,26 +865,31 @@ body:has([data-page="editor"]) {
   @apply text-body-xs;
 }
 
-.editor-files-layer {
+.editor-files-layer,
+.password-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 40;
   display: flex;
   width: 100%;
   max-width: none;
   height: 100%;
   max-height: none;
   margin: 0;
-  justify-content: flex-end;
-  padding: 0;
   border: 0;
-  background: transparent;
   color: inherit;
-  overflow: hidden;
   overscroll-behavior: contain;
 }
 
-.editor-files-layer:not([open]) {
+.editor-files-layer {
+  z-index: 40;
+  justify-content: flex-end;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+.editor-files-layer:not([open]),
+.password-modal-backdrop:not([open]) {
   display: none;
 }
 
@@ -1140,32 +1121,12 @@ body:has([data-page="editor"]) {
 }
 
 @media (max-width: 400px) {
-  .editor-review-header {
-    gap: 0.25rem;
-    padding-right: 0.5rem;
-  }
-
-  .editor-review-heading {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0;
-  }
-
-  .editor-review-heading h2 {
-    white-space: nowrap;
-    @apply text-ui-sm;
-  }
-
   .editor-review-meta {
     @apply text-body-xs;
   }
 
   .editor-review-zoom {
     gap: 0;
-  }
-
-  .editor-review-header .editor-review-zoom .editor-button {
-    padding-inline: 0.5rem;
   }
 }
 
@@ -1641,24 +1602,29 @@ body:has([data-page="editor"]) {
   background: var(--color-primary-hover);
 }
 
+@media not all and (max-width: 47.99rem) {
+  .editor-menu-panel {
+    box-sizing: border-box;
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    border-radius: var(--radius-2xl);
+    background: var(--color-floating);
+    box-shadow: var(--shadow-menu);
+    transform-origin: top right;
+    animation: editor-menu-in 150ms var(--ease-tactile);
+  }
+}
+
 .editor-menu-panel {
-  box-sizing: border-box;
   position: absolute;
   top: calc(100% + 0.5rem);
   right: 0;
   z-index: 40;
-  display: grid;
   width: min(18rem, calc(100vw - 1rem));
   max-height: min(24rem, calc(100dvh - 5rem));
-  gap: 0.25rem;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0.5rem;
-  border-radius: var(--radius-2xl);
-  background: var(--color-floating);
-  box-shadow: var(--shadow-menu);
-  transform-origin: top right;
-  animation: editor-menu-in 150ms var(--ease-tactile);
 }
 
 @keyframes editor-menu-in {
@@ -1704,16 +1670,6 @@ body:has([data-page="editor"]) {
     background: var(--color-hover);
     color: var(--color-fg);
   }
-}
-
-.editor-menu-panel .editor-menu-item-danger {
-  color: var(--color-danger-fg);
-}
-
-.editor-menu-panel .editor-menu-item-danger:focus-visible,
-.editor-menu-panel .editor-menu-item-danger:hover:where(:not([aria-disabled="true"])) {
-  background: var(--color-danger-subtle);
-  color: var(--color-danger-fg);
 }
 
 .editor-menu-item-copy {
@@ -1905,7 +1861,6 @@ body:has([data-page="editor"]) {
   .editor-document-tools {
     grid-row: 1;
     grid-column: 2;
-    height: auto;
     min-height: calc(var(--editor-control) + 1px);
     border-left: 1px solid var(--color-line);
   }
@@ -2049,10 +2004,9 @@ body:has([data-page="editor"]) {
 }
 
 /* Cards' text input. */
-.editor-text-settings input {
+.editor-text-settings input,
+.password-modal-input {
   box-sizing: border-box;
-  min-height: var(--editor-control);
-  width: 4.5rem;
   padding: 0 0.75rem;
   border: 0;
   border-radius: var(--radius-lg);
@@ -2062,17 +2016,24 @@ body:has([data-page="editor"]) {
     var(--shadow-field);
   color: var(--color-fg);
   font-size: 1rem;
-  line-height: 1.5rem;
   transition: box-shadow 200ms ease-out;
 }
 
-.editor-text-settings input:hover {
+.editor-text-settings input {
+  min-height: var(--editor-control);
+  width: 4.5rem;
+  line-height: 1.5rem;
+}
+
+.editor-text-settings input:hover,
+.password-modal-input:hover {
   box-shadow:
     inset 0 0 0 1px var(--color-line-strong),
     var(--shadow-field);
 }
 
-.editor-text-settings input:focus-visible {
+.editor-text-settings input:focus-visible,
+.password-modal .password-modal-input:focus-visible {
   outline: none;
   box-shadow:
     inset 0 0 0 1px var(--color-line-focus),
@@ -2080,13 +2041,15 @@ body:has([data-page="editor"]) {
 }
 
 /* Invalid inputs: Cards' danger ring. */
-.editor-text-settings input[aria-invalid="true"] {
+.editor-text-settings input[aria-invalid="true"],
+.password-modal-input[aria-invalid="true"] {
   box-shadow:
     inset 0 0 0 1px var(--color-danger-fg),
     var(--shadow-field);
 }
 
-.editor-text-settings input[aria-invalid="true"]:focus-visible {
+.editor-text-settings input[aria-invalid="true"]:focus-visible,
+.password-modal .password-modal-input[aria-invalid="true"]:focus-visible {
   box-shadow:
     inset 0 0 0 1px var(--color-danger-fg),
     var(--shadow-focus-danger);
@@ -2137,7 +2100,7 @@ body:has([data-page="editor"]) {
   white-space: normal;
 }
 
-@media (max-width: 1099px) and (min-width: 701px) {
+@media (max-width: 1099px) and (min-width: 701px), (max-height: 450px) {
   .editor-draft-status {
     position: absolute;
     width: 1px;
@@ -2299,7 +2262,6 @@ body:has([data-page="editor"]) {
     flex-basis: 10rem;
   }
 
-  .editor-draft-panel .editor-text-settings .editor-draft-status,
   .editor-draft-panel .editor-text-settings .editor-text-font {
     position: absolute;
     width: 1px;
@@ -2482,28 +2444,13 @@ body:has([data-page="editor"]) {
 
 /* Password prompt: Cards' dialog. */
 .password-modal-backdrop {
-  position: fixed;
-  inset: 0;
   z-index: 50;
-  display: flex;
-  width: 100%;
-  max-width: none;
-  height: 100%;
-  max-height: none;
-  margin: 0;
   box-sizing: border-box;
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  border: 0;
   background: var(--color-overlay);
   backdrop-filter: blur(6px);
-  color: inherit;
-  overscroll-behavior: contain;
-}
-
-.password-modal-backdrop:not([open]) {
-  display: none;
 }
 
 .password-modal-backdrop::backdrop {
@@ -2559,50 +2506,15 @@ body:has([data-page="editor"]) {
 
 .password-modal-input {
   display: block;
-  box-sizing: border-box;
   width: calc(100% - 2.5rem);
   min-height: 2.75rem;
   margin: 1.25rem 1.25rem 1.25rem;
-  padding: 0 0.75rem;
-  border: 0;
-  border-radius: var(--radius-lg);
-  background: var(--color-field);
-  box-shadow:
-    inset 0 0 0 1px var(--color-field-line),
-    var(--shadow-field);
-  color: var(--color-fg);
   font: inherit;
   font-size: 1rem;
-  transition: box-shadow 200ms ease-out;
 }
 
 .password-modal-input::placeholder {
   color: var(--color-fg-muted);
-}
-
-.password-modal-input:hover {
-  box-shadow:
-    inset 0 0 0 1px var(--color-line-strong),
-    var(--shadow-field);
-}
-
-.password-modal-input[aria-invalid="true"] {
-  box-shadow:
-    inset 0 0 0 1px var(--color-danger-fg),
-    var(--shadow-field);
-}
-
-.password-modal .password-modal-input:focus-visible {
-  outline: none;
-  box-shadow:
-    inset 0 0 0 1px var(--color-line-focus),
-    var(--shadow-focus);
-}
-
-.password-modal .password-modal-input[aria-invalid="true"]:focus-visible {
-  box-shadow:
-    inset 0 0 0 1px var(--color-danger-fg),
-    var(--shadow-focus-danger);
 }
 
 .password-modal-actions {

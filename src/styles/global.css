@@ -42,11 +42,9 @@
   --color-tray: #e5e5e5;
   --color-track: #e5e5e5;
   --color-inverse: #0a0a0a;
-  --color-inverse-hover: #1b1b1b;
   --color-fg: #0a0a0a;
   --color-fg-muted: #525252;
   --color-fg-subtle: #a1a1a1;
-  --color-fg-disabled: #d4d4d4;
   --color-fg-inverse: #fff;
   --color-line: #e5e5e5;
   --color-line-strong: #d4d4d4;
@@ -66,7 +64,6 @@
   --color-accent: #17804f;
   --color-accent-subtle: rgb(23 128 79 / 0.1);
   --color-accent-selection: rgb(23 128 79 / 0.2);
-  --color-danger: #fb2c36;
   --color-danger-fg: #82181a;
   --color-danger-line: #ffc9c9;
   --color-danger-subtle: #fef2f2;
@@ -91,10 +88,6 @@
   --text-heading-5--line-height: 2rem;
   --text-heading-5--letter-spacing: 0em;
   --text-heading-5--font-weight: 500;
-  --text-heading-6: 1.25rem;
-  --text-heading-6--line-height: 1.75rem;
-  --text-heading-6--letter-spacing: 0em;
-  --text-heading-6--font-weight: 500;
   --text-ui-lg: 1.125rem;
   --text-ui-lg--line-height: 1.5rem;
   --text-ui-lg--letter-spacing: -0.015em;
@@ -204,7 +197,9 @@ body {
 /* Marketing components. Every page composes these; pages add no type or
    spacing scales of their own. */
 
-.marketing-container {
+.marketing-container,
+.site-nav-inner,
+.site-footer-inner {
   width: min(calc(100% - 2rem), 72rem);
   margin-inline: auto;
 }
@@ -315,11 +310,6 @@ body {
 .marketing-button-compact {
   height: 2rem;
   border-radius: var(--radius-button-sm);
-}
-
-.marketing-button-block {
-  display: flex;
-  width: 100%;
 }
 
 .marketing-section {
@@ -533,11 +523,6 @@ body {
 }
 
 /* Header: a surface bar over the canvas. */
-.site-nav-inner,
-.site-footer-inner {
-  width: min(calc(100% - 2rem), 72rem);
-  margin-inline: auto;
-}
 
 .site-nav {
   position: relative;
@@ -817,8 +802,7 @@ body {
 @media print {
   nav,
   footer,
-  .page-controls,
-  [data-page="editor"] aside {
+  .page-controls {
     display: none;
   }
 }

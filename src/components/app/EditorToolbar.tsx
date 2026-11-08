@@ -160,7 +160,6 @@ export default function EditorToolbar(props: Props) {
           menuLabel="Download options"
           testId="editor-download-menu-button"
           menuTestId="editor-download-menu"
-          variant="primary"
           icon="open"
           class="editor-download-menu"
           busy={props.busy}

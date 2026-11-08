@@ -18,7 +18,6 @@ interface MenuProps {
   testId?: string;
   menuTestId?: string;
   icon?: EditorIconName;
-  variant?: "secondary" | "primary";
   class?: string;
   busy?: boolean;
   busyLabel?: string;
@@ -130,7 +129,7 @@ export function EditorMenu(props: MenuProps) {
         }}
         data-testid={props.testId}
         class="editor-menu-trigger"
-        variant={props.variant ?? "secondary"}
+        variant="primary"
         icon={props.icon}
         aria-haspopup="menu"
         aria-label={props.busy ? props.busyLabel : (props.ariaLabel ?? props.label)}
