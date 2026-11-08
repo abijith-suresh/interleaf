@@ -9,7 +9,6 @@ import {
   Show,
   untrack,
 } from "solid-js";
-import { hasPageAdditions } from "../../controllers/editor-additions-state";
 import { copyOrganizationPages } from "../../controllers/editor-history";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { AddedCheckmark, AddedText, PageState, PDFFields } from "../../types/interfaces";
@@ -355,27 +354,18 @@ export default function EditorPageViewer(props: Props) {
                 pageDimensions = pageSize;
                 layoutPage();
                 const { renderScale } = getViewerScale(pageSize.width, pageSize.height);
-                if (hasPageAdditions(page)) {
-                  yield* service.renderPageState(
-                    {
-                      ...page,
-                      addedText: page.addedText?.filter((text) => text.id !== omittedTextId),
-                      addedCheckmarks: page.addedCheckmarks?.filter(
-                        (mark) => mark.id !== omittedTextId
-                      ),
-                    },
-                    staging,
-                    renderScale,
-                    rotation
-                  );
-                } else
-                  yield* service.renderPage(
-                    page.sourceFile,
-                    page.sourcePageNumber,
-                    staging,
-                    renderScale,
-                    rotation
-                  );
+                yield* service.renderPageState(
+                  {
+                    ...page,
+                    addedText: page.addedText?.filter((text) => text.id !== omittedTextId),
+                    addedCheckmarks: page.addedCheckmarks?.filter(
+                      (mark) => mark.id !== omittedTextId
+                    ),
+                  },
+                  staging,
+                  renderScale,
+                  rotation
+                );
               })
             )
           );

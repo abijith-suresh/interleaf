@@ -6,11 +6,6 @@ export interface WorkspaceFile {
   readonly pageIndices: readonly number[];
 }
 
-/**
- * Build the source-file index used by the workspace file drawer and selection
- * actions. File identity is intentional: two files with the same name remain
- * separate sources.
- */
 export function groupWorkspaceFiles(
   pages: readonly Pick<PageState, "sourceFile">[]
 ): WorkspaceFile[] {

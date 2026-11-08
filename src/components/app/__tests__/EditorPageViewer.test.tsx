@@ -3,6 +3,7 @@ import { Deferred, Effect } from "effect";
 import { createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { hasPageAdditions } from "@/controllers/editor-additions-state";
 import { makePDFRuntime, type PDFRuntime } from "@/services/pdf-runtime";
 import type { PageState } from "@/types/interfaces";
 
@@ -18,6 +19,23 @@ vi.mock("@/services/pdf-service", () => ({
     getPageRotation = pdfServiceMocks.getPageRotation;
     getPageSize = pdfServiceMocks.getPageSize;
     renderPage = pdfServiceMocks.renderPage;
+    renderPageState = (
+      page: PageState,
+      canvas: HTMLCanvasElement,
+      scale: number,
+      rotation: number,
+      maxPixels?: number
+    ) =>
+      hasPageAdditions(page)
+        ? Effect.void
+        : this.renderPage(
+            page.sourceFile,
+            page.sourcePageNumber,
+            canvas,
+            scale,
+            rotation,
+            maxPixels
+          );
     reset = pdfServiceMocks.reset;
     dispose = () => Effect.void;
   },

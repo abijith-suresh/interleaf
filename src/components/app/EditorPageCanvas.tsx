@@ -5,7 +5,6 @@ import {
   THUMBNAIL_MAX_PIXELS,
   THUMBNAIL_SCALE,
 } from "../../constants";
-import { hasPageAdditions } from "../../controllers/editor-additions-state";
 import { copyOrganizationPages } from "../../controllers/editor-history";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
@@ -103,23 +102,13 @@ export default function EditorPageCanvas(props: Props) {
               props.page.sourceFile,
               props.page.sourcePageNumber
             );
-            if (hasPageAdditions(props.page)) {
-              yield* service.renderPageState(
-                copyOrganizationPages([props.page])[0],
-                canvas,
-                THUMBNAIL_SCALE,
-                sourceRotation,
-                THUMBNAIL_MAX_PIXELS
-              );
-            } else
-              yield* service.renderPage(
-                props.page.sourceFile,
-                props.page.sourcePageNumber,
-                canvas,
-                THUMBNAIL_SCALE,
-                sourceRotation,
-                THUMBNAIL_MAX_PIXELS
-              );
+            yield* service.renderPageState(
+              copyOrganizationPages([props.page])[0],
+              canvas,
+              THUMBNAIL_SCALE,
+              sourceRotation,
+              THUMBNAIL_MAX_PIXELS
+            );
           })
         )
       );
