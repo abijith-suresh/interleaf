@@ -1,18 +1,9 @@
 import { Context, Effect, Exit, type Fiber, Layer, ManagedRuntime } from "effect";
-import type {
-  FieldAnswer,
-  PageGeometry,
-  PageState,
-  PDFCompressionResult,
-  PDFError,
-  PDFFields,
-  PDFImageExportResult,
-  PDFOperationResult,
-} from "../types/interfaces";
+import type { PageState, PDFCompressionResult, PDFError } from "../types/interfaces";
 import { PDFProcessingError } from "../types/interfaces";
 import { PDFCompressionService } from "./pdf-compression-service";
 import { collectFirstError } from "./pdf-errors";
-import type { PDFImageExportOptions } from "./pdf-image-export-service";
+import type { PDFImageExportOptions, PDFImageExportService } from "./pdf-image-export-service";
 import type {
   PDFBuildOptions,
   PDFImagesToPDFOptions,
@@ -25,53 +16,24 @@ import {
   type QpdfProcessingError,
 } from "./qpdf-processing";
 
-export interface PDFProcessingShape {
-  readonly getFields: (file: File) => Effect.Effect<PDFFields, PDFProcessingError>;
-  readonly validateFieldAnswer: (
-    file: File,
-    answer: FieldAnswer,
-    pageNumbers: readonly number[]
-  ) => Effect.Effect<void, PDFProcessingError>;
-  readonly loadPDF: (file: File) => Effect.Effect<void, PDFError>;
-  readonly loadPDFWithPassword: (file: File, password: string) => Effect.Effect<void, PDFError>;
+export interface PDFProcessingShape
+  extends Readonly<
+      Pick<
+        PDFService,
+        | "loadPDF"
+        | "loadPDFWithPassword"
+        | "renderPage"
+        | "renderPageState"
+        | "getPageGeometry"
+        | "getPageRotation"
+        | "getPageSize"
+      >
+    >,
+    Readonly<
+      Pick<PDFOperationsService, "getFields" | "validateFieldAnswer" | "buildPDF" | "imagesToPDF">
+    >,
+    Readonly<Pick<PDFImageExportService, "exportImages">> {
   readonly getPageCount: Effect.Effect<number>;
-  readonly renderPage: (
-    file: File,
-    pageNumber: number,
-    canvas: HTMLCanvasElement,
-    scale?: number,
-    rotation?: number,
-    maxPixels?: number
-  ) => Effect.Effect<void, PDFError>;
-  readonly renderPageState: (
-    page: PageState,
-    canvas: HTMLCanvasElement,
-    scale: number,
-    rotation: number,
-    maxCanvasPixels?: number
-  ) => Effect.Effect<void, PDFError>;
-  readonly getPageGeometry: (
-    file: File,
-    pageNumber: number
-  ) => Effect.Effect<PageGeometry, PDFError>;
-  readonly getPageRotation: (file: File, pageNumber: number) => Effect.Effect<number, PDFError>;
-  readonly getPageSize: (
-    file: File,
-    pageNumber: number,
-    rotation?: number
-  ) => Effect.Effect<{ readonly width: number; readonly height: number }, PDFError>;
-  readonly buildPDF: (
-    pages: readonly PageState[],
-    options?: PDFBuildOptions
-  ) => Effect.Effect<PDFOperationResult, PDFError>;
-  readonly imagesToPDF: (
-    files: readonly File[],
-    options?: PDFImagesToPDFOptions
-  ) => Effect.Effect<PDFOperationResult, PDFProcessingError>;
-  readonly exportImages: (
-    pages: readonly PageState[],
-    options?: PDFImageExportOptions
-  ) => Effect.Effect<PDFImageExportResult, PDFError>;
   readonly compressPDF: (
     file: File
   ) => Effect.Effect<PDFCompressionResult, PDFError | QpdfProcessingError>;

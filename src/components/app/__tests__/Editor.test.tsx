@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { Deferred, Effect } from "effect";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { hasPageAdditions } from "@/controllers/editor-additions-state";
+import type { PageState } from "@/types/interfaces";
 import { PDFPasswordRequiredError, PDFProcessingError } from "@/types/interfaces";
 
 const pdfServiceMocks = vi.hoisted(() => ({
@@ -47,6 +49,23 @@ vi.mock("@/services/pdf-service", () => ({
     getPageSize = pdfServiceMocks.getPageSize;
     getPageGeometry = pdfServiceMocks.getPageGeometry;
     renderPage = pdfServiceMocks.renderPage;
+    renderPageState = (
+      page: PageState,
+      canvas: HTMLCanvasElement,
+      scale: number,
+      rotation: number,
+      maxPixels?: number
+    ) =>
+      hasPageAdditions(page)
+        ? Effect.void
+        : this.renderPage(
+            page.sourceFile,
+            page.sourcePageNumber,
+            canvas,
+            scale,
+            rotation,
+            maxPixels
+          );
     releaseFile = pdfServiceMocks.releaseFile;
     reset = pdfServiceMocks.reset;
     dispose = pdfServiceMocks.dispose;

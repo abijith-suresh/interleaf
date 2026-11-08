@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import { createStore } from "solid-js/store";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { THUMBNAIL_INTERSECTION_MARGIN, THUMBNAIL_MAX_PIXELS, THUMBNAIL_SCALE } from "@/constants";
+import { hasPageAdditions } from "@/controllers/editor-additions-state";
 import { makePDFRuntime, type PDFRuntime } from "@/services/pdf-runtime";
 import type { PageState } from "@/types/interfaces";
 
@@ -73,6 +74,25 @@ describe("EditorPageCanvas", () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    pdfServiceMocks.renderPageState.mockImplementation(
+      (
+        page: PageState,
+        canvas: HTMLCanvasElement,
+        scale: number,
+        rotation: number,
+        maxPixels?: number
+      ) =>
+        hasPageAdditions(page)
+          ? Effect.void
+          : pdfServiceMocks.renderPage(
+              page.sourceFile,
+              page.sourcePageNumber,
+              canvas,
+              scale,
+              rotation,
+              maxPixels
+            )
+    );
     pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(0));
     pdfServiceMocks.renderPage.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.reset.mockReturnValue(Effect.succeed(undefined));
