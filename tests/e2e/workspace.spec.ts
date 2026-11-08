@@ -90,7 +90,7 @@ test("Download exports the whole document; Extract and Escape act on the selecti
   await expect(bar).toHaveCount(0);
   await expect(page.getByTestId("editor-selection-status")).toHaveText("");
   await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 3");
-  await page.getByRole("button", { name: "Restore page 3", exact: true }).click();
+  await page.getByTestId("editor-document-delete-button").click();
   await expect(page.getByTestId("editor-page-count")).toHaveText("3 pages");
   const restored = await downloadPDF(page);
   expect(restored.getPages().map((p) => p.getWidth())).toEqual([400, 420, 440]);

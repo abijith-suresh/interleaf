@@ -38,7 +38,7 @@ async function compressible(name: string) {
 
 async function compress(page: Page) {
   const pending = page.waitForEvent("download");
-  await page.getByTestId("editor-download-options-button").click();
+  await page.getByTestId("editor-download-menu-button").click();
   await page.getByTestId("editor-compress-button").click();
   const download = await pending;
   const path = test.info().outputPath(download.suggestedFilename());
@@ -63,13 +63,14 @@ test("opening a batch unlocks the protected file, skips the broken one, and open
   await expect(page.getByTestId("editor-toast").last()).toHaveText(message);
   await expect(page.getByTestId("editor-status-message")).toHaveText(message);
 
-  await page.getByTestId("editor-download-options-button").click();
+  await page.getByTestId("editor-download-menu-button").click();
   await expect(page.getByTestId("editor-compress-button")).toHaveAccessibleName(
     "Compress works on one untouched PDF"
   );
   await page.keyboard.press("Escape");
 
   const pending = page.waitForEvent("download");
+  await page.getByTestId("editor-download-menu-button").click();
   await page.getByTestId("editor-download-button").click();
   expect((await pending).suggestedFilename()).toBe("protected-edited.pdf");
 });
@@ -89,6 +90,7 @@ test("adding files to a workspace skips the broken one and adds the rest", async
   await expect(page.getByTestId("editor-status-message")).toHaveText(message);
 
   const pending = page.waitForEvent("download");
+  await page.getByTestId("editor-download-menu-button").click();
   await page.getByTestId("editor-download-button").click();
   expect((await pending).suggestedFilename()).toBe("report-6p-edited.pdf");
 });
@@ -137,4 +139,15 @@ test("compression reports the saving, and an already optimal file keeps its name
   await expect(page.getByTestId("editor-status-message")).toHaveText(
     "Export started. Already optimal. Exported the original."
   );
+});
+
+test("Extract names the PDF after its first exported source", async ({ page }) => {
+  await page.goto("/app");
+  await page
+    .getByTestId("editor-upload-input")
+    .setInputFiles([await source("report.pdf", 1), await source("appendix.pdf", 1)]);
+  await page.getByTestId("editor-page-tile").nth(1).click();
+  const pending = page.waitForEvent("download");
+  await page.getByTestId("editor-extract-button").click();
+  expect((await pending).suggestedFilename()).toBe("appendix-edited.pdf");
 });

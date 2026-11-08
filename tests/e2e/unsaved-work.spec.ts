@@ -219,3 +219,42 @@ test("reloading a workspace with pages asks first", async ({ page }) => {
   await dialog.dismiss();
   await expect(page.getByTestId("editor-page-grid")).toBeVisible();
 });
+
+test("selection and page actions save drafts and block invalid drafts", async ({ page }) => {
+  await open(page);
+  await page.getByTestId("editor-pages-view-button").click();
+  await page.getByTestId("editor-page-tile").first().click();
+  await page.getByTestId("editor-document-view-button").click();
+  await ready(page);
+  await draft(page, "Add text");
+  const input = page.getByLabel("Added text", { exact: true });
+  await input.fill("Café");
+  for (const action of [
+    page.getByTestId("editor-document-rotate-button"),
+    page.getByTestId("editor-document-duplicate-button"),
+    page.getByTestId("editor-document-delete-button"),
+    page.getByTestId("editor-document-export-image-button"),
+    page.getByTestId("editor-rotate-button"),
+    page.getByTestId("editor-duplicate-selected-button"),
+    page.getByTestId("editor-delete-button"),
+    page.getByTestId("editor-extract-button"),
+    page.getByTestId("editor-export-selected-images-button"),
+  ]) {
+    await action.click();
+    await expect(page.locator("#editor-text-error")).toContainText("basic Latin");
+    await expect(input).toHaveValue("Café");
+    await expect(input).toBeFocused();
+  }
+  await input.fill("Saved before marking");
+  await page.getByTestId("editor-delete-button").click();
+  await expect(input).toHaveCount(0);
+  await expect(page.getByTestId("editor-page-count")).toHaveText("1 of 2 pages exportable");
+  await page.getByTestId("editor-undo-button").click();
+  await expect(
+    page.getByRole("button", { name: "Edit added text: Saved before marking" })
+  ).toBeVisible();
+  await expect(page.getByTestId("editor-undo-button")).toHaveAttribute(
+    "aria-label",
+    "Undo Add text"
+  );
+});

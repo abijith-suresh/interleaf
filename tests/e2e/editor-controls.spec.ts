@@ -209,7 +209,7 @@ for (const viewport of [
     const compress = page.getByTestId("editor-compress-button");
     await expect(compress).toBeFocused();
     await expect(compress).toHaveAttribute("aria-disabled", "true");
-    await expect(compress).toContainText("Compress only before page edits");
+    await expect(compress).toContainText("Compress works on one untouched PDF");
     await expect(compress).toHaveCSS("outline-color", "rgb(10, 10, 10)");
     await expect(compress).toHaveCSS("opacity", "1");
     await page.keyboard.press("Enter");

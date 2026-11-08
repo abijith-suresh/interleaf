@@ -1386,6 +1386,31 @@ describe("Editor", () => {
     }
   );
 
+  it("returns focus to Files when closed during redo source cleanup", async () => {
+    render(() => <Editor />);
+    selectFiles("upload", [makeFile("first.pdf"), makeFile("second.pdf")]);
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    const files = screen.getByTestId("editor-files-button");
+    fireEvent.click(files);
+    fireEvent.click(screen.getAllByTestId("editor-file-remove")[0]);
+    await waitFor(() => expect(files).toBeEnabled());
+    const close = screen.getByTestId("editor-files-close-button");
+    close.focus();
+    fireEvent.keyDown(close, { key: "z", ctrlKey: true });
+    await waitFor(() => expect(getPages()).toHaveLength(6));
+    await waitFor(() => expect(files).toBeEnabled());
+    const release = Deferred.makeUnsafe<void>();
+    pdfServiceMocks.releaseFile.mockReturnValueOnce(Deferred.await(release));
+    fireEvent.keyDown(close, { key: "z", ctrlKey: true, shiftKey: true });
+    await waitFor(() => expect(getPages()).toHaveLength(3));
+    expect(files).toBeDisabled();
+    fireEvent.click(close);
+    await Promise.resolve();
+    expect(screen.getByTestId("editor-undo-button")).toHaveFocus();
+    await Effect.runPromise(Deferred.succeed(release, undefined));
+    await waitFor(() => expect(files).toHaveFocus());
+  });
+
   it("returns to the uploader after the last removal and keeps the files dialog closed on reload", async () => {
     await openPDF(makeFile("only.pdf"));
 
@@ -2209,7 +2234,7 @@ describe("Editor", () => {
       "false",
       "true",
     ]);
-    fireEvent.click(screen.getByTestId("editor-download-button"));
+    fireEvent.click(screen.getByTestId("editor-extract-button"));
     await waitFor(() => expect(downloadPDF).toHaveBeenCalledOnce());
     expect(pdfOperationsMocks.buildPDF.mock.calls[0][1].selectedIndices).toEqual([0, 3]);
   });

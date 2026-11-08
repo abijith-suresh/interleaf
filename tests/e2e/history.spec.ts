@@ -175,21 +175,32 @@ for (const viewport of [
       const bounds = await button.boundingBox();
       expect(bounds).toBeTruthy();
       if (!bounds) throw new Error("Missing history button");
-      expect(bounds.width).toBeGreaterThanOrEqual(44);
-      expect(bounds.height).toBeGreaterThanOrEqual(44);
+      // Compact controls extend their hit area beyond their visual box.
+      expect(
+        await button.evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          const x = bounds.x + bounds.width / 2;
+          const y = bounds.y + bounds.height / 2;
+          return [
+            [x - 21, y],
+            [x + 21, y],
+            [x, y - 21],
+            [x, y + 21],
+          ].every(([px, py]) => element.contains(document.elementFromPoint(px, py)));
+        })
+      ).toBe(true);
       expect(bounds.x).toBeGreaterThanOrEqual(0);
       expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
       expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
     }
-    // History and Exit share the one toolbar row. The narrowest phones list Exit
-    // under More, after Add files and Files.
+    // History stays in the toolbar. Phones list Exit under More.
     const toolbar = await page.getByRole("toolbar", { name: "Editor" }).boundingBox();
     const undoBox = await page.getByTestId("editor-undo-button").boundingBox();
     if (!toolbar || !undoBox) throw new Error("Missing toolbar");
     expect(undoBox.y).toBeGreaterThanOrEqual(toolbar.y - 1);
     expect(undoBox.y + undoBox.height).toBeLessThanOrEqual(toolbar.y + toolbar.height + 1);
     const exit = page.getByTestId("editor-exit-link");
-    if (viewport.width < 360) {
+    if (viewport.width < 768) {
       await expect(exit).toBeHidden();
       await page.getByTestId("editor-more-button").click();
       await expect(page.getByRole("link", { name: "Exit editor" })).toBeVisible();

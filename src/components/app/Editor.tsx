@@ -109,12 +109,12 @@ export default function Editor() {
   const pdfRuntime = makePDFRuntime();
   let disposed = false;
   let filesFocusGeneration = 0;
-  let restoreFilesAfterRemoval: (() => void) | undefined;
+  let restoreFilesAfterCleanup: (() => void) | undefined;
   let draftCommit: DraftCommit | null = null;
 
   function invalidateFilesFocus(): void {
     filesFocusGeneration++;
-    restoreFilesAfterRemoval = undefined;
+    restoreFilesAfterCleanup = undefined;
   }
 
   const [phase, setPhase] = createSignal<"upload" | "edit">("upload");
@@ -323,6 +323,9 @@ export default function Editor() {
                   if (disposed) return;
                   setOperation("idle");
                   if (!committed) setStatusMessage("Files were not restored.");
+                  const restoreFiles = restoreFilesAfterCleanup;
+                  restoreFilesAfterCleanup = undefined;
+                  restoreFiles?.();
                   restoreFocus();
                 })
               )
@@ -864,11 +867,15 @@ export default function Editor() {
           ? editorRoot.querySelector<HTMLButtonElement>('[data-testid="editor-undo-button"]')
           : returnTarget;
       target?.focus();
-      if (operation() === "removing" && pages.length > 0 && filesButton?.disabled) {
+      if (
+        (operation() === "removing" || operation() === "restoring") &&
+        pages.length > 0 &&
+        filesButton?.disabled
+      ) {
         const fallback = document.activeElement;
         // Cleanup can outlive closing the dialog. Return to Files once enabled,
         // only while focus still belongs to the fallback chosen above.
-        restoreFilesAfterRemoval = () => {
+        restoreFilesAfterCleanup = () => {
           if (
             !disposed &&
             version === filesFocusGeneration &&
@@ -1029,8 +1036,8 @@ export default function Editor() {
           "error"
         );
     } finally {
-      const restoreFiles = restoreFilesAfterRemoval;
-      restoreFilesAfterRemoval = undefined;
+      const restoreFiles = restoreFilesAfterCleanup;
+      restoreFilesAfterCleanup = undefined;
       if (!disposed) {
         setOperation("idle");
         if (restoreFiles) queueMicrotask(restoreFiles);
@@ -1071,7 +1078,7 @@ export default function Editor() {
     const page = pages[index];
     if (!page) return;
     const copy = duplicatePageState(page);
-    // Download exports only selected pages, so the copy never changes the selection.
+    // Keep Extract targeting the same originals when a copy is inserted.
     organize("page duplication", () => {
       setPages(produce((draft) => draft.splice(index + 1, 0, copy)));
       setSelectedIndices((selection) => remapSelectionAfterInsert(selection, index + 1));
@@ -1660,7 +1667,7 @@ export default function Editor() {
                   ? afterDraft(() => changeWorkspaceView("pages"))
                   : changeWorkspaceView(view)
               }
-              onAddFiles={requestAddFiles}
+              onAddFiles={() => afterDraft(requestAddFiles)}
               onOpenFiles={() => afterDraft(() => setFilesOpen(true))}
               onUndo={() => restoreOrganization("undo")}
               onRedo={() => restoreOrganization("redo")}
@@ -1682,7 +1689,7 @@ export default function Editor() {
                 onRotateLeft={() => afterDraft(() => handleRotateSelected("left"))}
                 onRotateRight={() => afterDraft(() => handleRotateSelected("right"))}
                 onDuplicate={() => afterDraft(handleDuplicateSelected)}
-                onDelete={handleDeleteSelected}
+                onDelete={() => afterDraft(handleDeleteSelected)}
                 onExtract={() => afterDraft(handleExtract)}
                 onExportImages={() => afterDraft(handleExportSelectedImages)}
               />
@@ -1723,7 +1730,9 @@ export default function Editor() {
                     runtime={pdfRuntime}
                     onRotatePage={(pageId) => afterDraft(() => handleDocumentRotate(pageId))}
                     onDuplicatePage={(pageId) => afterDraft(() => handleDocumentDuplicate(pageId))}
-                    onTogglePageDeletion={handleDocumentDeletion}
+                    onTogglePageDeletion={(pageId) =>
+                      afterDraft(() => handleDocumentDeletion(pageId))
+                    }
                     onExportPageImages={(pageId) => afterDraft(() => handleExportPageImage(pageId))}
                     onActivePageChange={(pageId) => setActivePageId(pageId)}
                     onDraftChange={setDraftOpen}
