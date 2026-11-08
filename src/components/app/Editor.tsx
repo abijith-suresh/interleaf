@@ -1609,7 +1609,7 @@ export default function Editor() {
           <header class="editor-header">
             <div class="editor-header-left">
               <a href={base} class="editor-brand" aria-label="Interleaf home">
-                <EditorWordmark />
+                <Wordmark />
               </a>
             </div>
             <h1 class="sr-only">Interleaf PDF editor</h1>

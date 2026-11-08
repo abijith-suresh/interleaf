@@ -548,20 +548,16 @@ body {
   @apply text-ui-lg;
 }
 
-/* The leaf sits where Inter draws the dot of the i. Em units keep it on the
-   glyph at any size. */
-.brand-i {
-  position: relative;
+.brand-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.brand-leaf {
-  position: absolute;
-  top: 0.1em;
-  left: 50%;
-  width: 0.3em;
-  height: 0.3em;
-  fill: var(--color-accent);
-  transform: translateX(-40%);
+.brand-tile {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
 }
 
 .nav-actions {
