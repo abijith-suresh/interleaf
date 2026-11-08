@@ -114,3 +114,58 @@ export function remapSelectionAfterMove(
 
   return next;
 }
+
+/** Shifts selected indices past a page inserted at `insertedIndex`, so the same pages stay selected. */
+export function remapSelectionAfterInsert(
+  selectedIndices: Set<number>,
+  insertedIndex: number
+): Set<number> {
+  return new Set(
+    Array.from(selectedIndices, (index) => (index >= insertedIndex ? index + 1 : index))
+  );
+}
+
+/**
+ * The page a grid navigation key moves focus to, or null when the key does
+ * not navigate or focus is already at that edge. Down from a full row moves
+ * to the last page when the next row is shorter.
+ */
+export function gridNavigationTarget(
+  key: string,
+  index: number,
+  pageCount: number,
+  columns: number
+): number | null {
+  if (pageCount === 0 || index < 0 || index >= pageCount) return null;
+  const cols = Math.max(1, Math.floor(columns));
+  const last = pageCount - 1;
+  let target: number;
+  switch (key) {
+    case "ArrowLeft":
+      target = index - 1;
+      break;
+    case "ArrowRight":
+      target = index + 1;
+      break;
+    case "ArrowUp":
+      target = index - cols;
+      break;
+    case "ArrowDown":
+      target =
+        index + cols <= last
+          ? index + cols
+          : Math.floor(index / cols) < Math.floor(last / cols)
+            ? last
+            : index;
+      break;
+    case "Home":
+      target = 0;
+      break;
+    case "End":
+      target = last;
+      break;
+    default:
+      return null;
+  }
+  return target < 0 || target > last || target === index ? null : target;
+}

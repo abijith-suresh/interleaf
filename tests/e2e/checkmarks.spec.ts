@@ -220,9 +220,6 @@ test("point placement, drag, cancel, independent text and checkmark history, dup
   await page.getByRole("button", { name: "Edit added text: Answer", exact: true }).click();
   await page.getByLabel("Added text", { exact: true }).fill("Copy");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
-  await page.getByTestId("editor-pages-view-button").click();
-  await page.getByRole("button", { name: "Page 2", exact: true }).click();
-  await page.getByTestId("editor-document-view-button").click();
   await page.getByRole("button", { name: "Previous page", exact: true }).click();
   await page.getByRole("button", { name: "Select additions" }).click();
   await expect(

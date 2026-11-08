@@ -90,6 +90,8 @@ test("mixed history restores real PDF order, rotations, text, selected PNG pixel
   await expect(tiles.nth(1)).toBeFocused();
   await page.keyboard.press("Alt+ArrowRight");
   await expect(tiles.nth(2)).toBeFocused();
+  // Select the copy, then page 2, which stays the active page.
+  await tiles.nth(2).click();
   await tiles.nth(1).click();
   for (const id of ["editor-rotate-button", "editor-delete-button", "editor-delete-button"]) {
     await page.getByTestId("editor-edit-menu-button").click();
@@ -252,15 +254,16 @@ test("Document keeps keyboard focus when undo removes the active copy or disable
 }) => {
   await page.goto("/app");
   await page.getByTestId("editor-upload-input").setInputFiles(await source());
-  await page.getByRole("button", { name: "Duplicate page 1", exact: true }).click();
+  // Copy the last page, so redo leaves the active copy on the last page.
+  await page.getByRole("button", { name: "Duplicate page 2", exact: true }).click();
   await page.getByTestId("editor-document-view-button").click();
   const filmstrip = page.getByRole("navigation", { name: "Document pages" });
-  await filmstrip.getByRole("button", { name: "View page 2", exact: true }).focus();
+  await filmstrip.getByRole("button", { name: "View page 3", exact: true }).focus();
   await page.keyboard.press("Control+z");
   await expect(filmstrip.getByRole("button", { name: "View page 1", exact: true })).toBeFocused();
   await page.keyboard.press("Control+Shift+z");
-  await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 2");
-  await expect(filmstrip.getByRole("button", { name: "View page 2", exact: true })).toHaveAttribute(
+  await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 3");
+  await expect(filmstrip.getByRole("button", { name: "View page 3", exact: true })).toHaveAttribute(
     "aria-current",
     "page"
   );
@@ -269,7 +272,7 @@ test("Document keeps keyboard focus when undo removes the active copy or disable
   await next.focus();
   await page.keyboard.press("Control+y");
   await expect(next).toBeDisabled();
-  await expect(filmstrip.getByRole("button", { name: "View page 2", exact: true })).toBeFocused();
+  await expect(filmstrip.getByRole("button", { name: "View page 3", exact: true })).toBeFocused();
 });
 
 test("text controls, open menus, dialogs and failed imports preserve history; source commits extend it", async ({
@@ -304,12 +307,13 @@ test("text controls, open menus, dialogs and failed imports preserve history; so
   await page.keyboard.press("Control+z");
   await expect(undo).toHaveAttribute("aria-disabled", "false");
   await page.keyboard.press("Escape");
+  // The Files dialog takes history and announces it inside the modal.
   await page.getByTestId("editor-files-button").click();
   await page.keyboard.press("Control+z");
+  await expect(page.getByTestId("editor-files-notice")).toHaveText("Undid page rotation.");
   await expect(undo).toHaveAttribute("aria-disabled", "true");
+  await expect(redo).toHaveAttribute("aria-disabled", "false");
   await page.getByTestId("editor-files-close-button").click();
-  await expect(undo).toHaveAttribute("aria-disabled", "false");
-  await undo.click();
   await page.getByTestId("editor-add-pdf-input").setInputFiles({
     name: "broken.pdf",
     mimeType: "application/pdf",
@@ -389,8 +393,9 @@ test("source and page history restores real mixed PDF, PNG and EXIF JPEG output 
   await page.getByRole("button", { name: "Rotate page 6 90 degrees", exact: true }).click();
   await tiles.nth(5).focus();
   await page.keyboard.press("Alt+ArrowLeft");
-  await page.getByTestId("editor-edit-menu-button").click();
-  await page.getByRole("menuitem", { name: "Clear page selection", exact: true }).click();
+  await expect(page.locator('[data-testid="editor-page-tile"][aria-pressed="true"]')).toHaveCount(
+    0
+  );
   await page.getByRole("button", { name: "Mark page 1 for deletion", exact: true }).click();
   const changed = await pdf();
   const changedPNG = await png();

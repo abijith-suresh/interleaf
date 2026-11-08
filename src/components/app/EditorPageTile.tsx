@@ -13,6 +13,8 @@ interface Props {
   index: number;
   busy: boolean;
   selected: boolean;
+  /** The grid's single tab stop: only this tile and its actions are in the tab order. */
+  tabStop: boolean;
   isDragSource: boolean;
   dragOverDirection: "before" | "after" | null;
   scrollRoot: HTMLDivElement;
@@ -178,7 +180,9 @@ export default function EditorPageTile(props: Props) {
               ? `Page ${props.index + 1}, marked for deletion`
               : `Page ${props.index + 1}`
           }
-          aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+          aria-describedby="editor-page-grid-help"
+          aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Home End Space R Delete Backspace Alt+ArrowLeft Alt+ArrowRight"
+          tabIndex={props.tabStop ? 0 : -1}
           disabled={props.busy}
           onClick={props.onClick}
           onKeyDown={props.onKeyDown}
@@ -194,6 +198,7 @@ export default function EditorPageTile(props: Props) {
             class="btn-page-duplicate"
             title="Duplicate page"
             aria-label={`Duplicate page ${props.index + 1}`}
+            tabIndex={props.tabStop ? 0 : -1}
             disabled={props.busy}
             draggable={false}
             onDragStart={preventActionDrag}
@@ -205,9 +210,13 @@ export default function EditorPageTile(props: Props) {
             data-testid="editor-page-delete-button"
             class="btn-page-delete"
             classList={{ "is-marked": props.page.markedForDeletion }}
-            title="Mark page for deletion"
-            aria-label={`Mark page ${props.index + 1} for deletion`}
-            aria-pressed={props.page.markedForDeletion}
+            title={props.page.markedForDeletion ? "Restore page" : "Mark page for deletion"}
+            aria-label={
+              props.page.markedForDeletion
+                ? `Restore page ${props.index + 1}`
+                : `Mark page ${props.index + 1} for deletion`
+            }
+            tabIndex={props.tabStop ? 0 : -1}
             disabled={props.busy}
             draggable={false}
             onDragStart={preventActionDrag}
@@ -220,6 +229,7 @@ export default function EditorPageTile(props: Props) {
             class="btn-page-rotate"
             title="Rotate 90°"
             aria-label={`Rotate page ${props.index + 1} 90 degrees`}
+            tabIndex={props.tabStop ? 0 : -1}
             disabled={props.busy}
             draggable={false}
             onDragStart={preventActionDrag}

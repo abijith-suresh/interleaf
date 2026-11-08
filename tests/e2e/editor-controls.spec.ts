@@ -42,15 +42,17 @@ for (const width of [1280, 390]) {
     await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "Duplicate page 2", exact: true }).click();
     await expect(tiles.nth(2)).toBeFocused();
+    // The copy is focused but not selected; the selection stays on its source.
+    await expect(tiles.nth(2)).toHaveAttribute("aria-pressed", "false");
     await page.keyboard.press("Alt+ArrowLeft");
     await expect(tiles.nth(1)).toBeFocused();
-    await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "true");
-    await expect(tiles.nth(2)).toHaveAttribute("aria-pressed", "false");
+    await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "false");
+    await expect(tiles.nth(2)).toHaveAttribute("aria-pressed", "true");
     await page.keyboard.press("Alt+ArrowRight");
     await expect(tiles.nth(2)).toBeFocused();
-    await expect(tiles.nth(2)).toHaveAttribute("aria-pressed", "true");
+    await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "true");
     await page.getByTestId("editor-document-view-button").click();
-    await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 3");
+    await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 2");
     const download = page.waitForEvent("download");
     await page.getByTestId("editor-download-button").click();
     const path = await (await download).path();
@@ -118,7 +120,7 @@ for (const viewport of [
     const tiles = page.getByTestId("editor-page-tile");
     await expect(tiles).toHaveCount(4);
     await expect(tiles.nth(1)).toBeFocused();
-    await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "true");
+    await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "false");
     await expect(tiles.nth(0)).toHaveAttribute("aria-pressed", "false");
     await expect(page.locator(".editor-page-grid > li.dragging")).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
@@ -213,10 +215,10 @@ for (const viewport of [
     await deleteSelected.click();
     await expect(page.getByTestId("editor-download-button")).toBeDisabled();
     const restore = movedPage.getByTestId("editor-page-delete-button");
-    await expect(restore).toHaveAttribute("aria-pressed", "true");
+    await expect(restore).toHaveAccessibleName("Restore page 2");
     await expect(restore).toHaveClass(/is-marked/);
     await restore.click();
-    await expect(restore).toHaveAttribute("aria-pressed", "false");
+    await expect(restore).toHaveAccessibleName("Mark page 2 for deletion");
     await expect(restore).not.toHaveClass(/is-marked/);
     await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "true");
 
@@ -285,13 +287,17 @@ test("touch taps release transient styles while selected states remain visible",
   await expect(rotate).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await remove.tap();
   await expect(remove).toHaveCSS("background-color", "rgb(254, 242, 242)");
-  await expect(remove).toHaveAttribute("aria-pressed", "true");
+  await expect(remove).toHaveAccessibleName("Restore page 1");
   await remove.tap();
   await expect(remove).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   const duplicate = page.getByTestId("editor-page-duplicate-button").first();
   await duplicate.tap();
   await expect(page.getByTestId("editor-page-tile")).toHaveCount(4);
-  await expect(page.getByTestId("editor-page-tile").nth(1)).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("editor-page-tile").nth(1)).toBeFocused();
+  await expect(page.getByTestId("editor-page-tile").nth(1)).toHaveAttribute(
+    "aria-pressed",
+    "false"
+  );
   await expect(duplicate).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   const options = page.getByTestId("editor-download-options-button");
   await options.tap();
