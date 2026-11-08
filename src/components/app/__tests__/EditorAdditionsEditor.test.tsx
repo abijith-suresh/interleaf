@@ -4,6 +4,7 @@ import { createSignal } from "solid-js";
 import { afterEach, expect, it, vi } from "vitest";
 import { makePDFRuntime } from "../../../services/pdf-runtime";
 import type { AddedText, PageState } from "../../../types/interfaces";
+import { mockAdditionGeometry } from "./addition-fixtures";
 
 const validate = vi.hoisted(() => vi.fn());
 vi.mock("../../../services/pdf-text", () => ({ validateAddedText: validate }));
@@ -30,12 +31,7 @@ afterEach(() => vi.restoreAllMocks());
 it.each(["failure", "success", "busy", "navigation", "disposal"])(
   "pending validation preserves later external focus after %s",
   async (outcome) => {
-    vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
-      new DOMRect(0, 0, 400, 600),
-    ] as unknown as DOMRectList);
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
-      new DOMRect(0, 0, 400, 600)
-    );
+    mockAdditionGeometry();
     const pending = Promise.withResolvers<void>();
     validate.mockReset().mockReturnValue(pending.promise);
     const runtime = makePDFRuntime();
@@ -106,12 +102,7 @@ it.each(["failure", "success", "busy", "navigation", "disposal"])(
 );
 
 it.each(["text", "checkmark"] as const)("busy Save cannot commit a new %s draft", async (kind) => {
-  vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
-    new DOMRect(0, 0, 400, 600),
-  ] as unknown as DOMRectList);
-  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(0, 0, 400, 600)
-  );
+  mockAdditionGeometry();
   validate.mockReset().mockResolvedValue(undefined);
   const runtime = makePDFRuntime();
   const [busy, setBusy] = createSignal(false);
@@ -186,12 +177,7 @@ it.each(["text", "checkmark"] as const)("busy Save cannot commit a new %s draft"
 });
 
 it("reports an open draft until it is saved, canceled, or unmounted", async () => {
-  vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
-    new DOMRect(0, 0, 400, 600),
-  ] as unknown as DOMRectList);
-  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(0, 0, 400, 600)
-  );
+  mockAdditionGeometry();
   validate.mockReset().mockResolvedValue(undefined);
   const runtime = makePDFRuntime();
   const toolbar = document.createElement("div"),

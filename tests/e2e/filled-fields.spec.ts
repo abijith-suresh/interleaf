@@ -2,30 +2,21 @@ import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { inspectExport } from "../../src/services/__tests__/pdf-export-inspection";
 import { textFieldFixture } from "../../src/services/__tests__/pdf-field-fixtures";
-import { openFiles } from "./toolbar";
+import { captureDownload } from "./fixtures/download";
+import { expectDocumentReady, openDocument } from "./fixtures/editor";
+import { downloadDocument, openFiles, revealDocumentTools } from "./fixtures/toolbar";
 
-async function ready(page: Page) {
-  await expect(page.locator(".editor-review-stage")).toHaveAttribute("data-render-state", "ready");
-}
-async function tools(page: Page) {
-  const button = page.getByRole("button", { name: "Tools", exact: true });
-  if ((await button.isVisible()) && (await button.getAttribute("aria-expanded")) !== "true")
-    await button.click();
-}
 async function open(page: Page) {
   const fixture = await textFieldFixture();
-  await page.goto("/app");
-  await page.getByTestId("editor-upload-input").setInputFiles({
+  await openDocument(page, {
     name: "form.pdf",
     mimeType: "application/pdf",
     buffer: Buffer.from(fixture.bytes),
   });
-  await page.getByTestId("editor-document-view-button").click();
-  await ready(page);
   return fixture;
 }
 async function arm(page: Page) {
-  await tools(page);
+  await revealDocumentTools(page);
   await page.getByRole("button", { name: "Fill fields", exact: true }).click();
   await expect(page.locator(".editor-field-hit")).toHaveCount(4);
 }
@@ -51,7 +42,7 @@ for (const [width, height] of [
     await input.fill("ANSWER");
     await page.getByRole("button", { name: "Save answer", exact: true }).click();
     await expect(hit).toBeFocused();
-    await ready(page);
+    await expectDocumentReady(page);
     await hit.press("Enter");
     await expect(input).toHaveValue("ANSWER");
     await page.getByRole("button", { name: "Next field", exact: true }).click();
@@ -66,15 +57,15 @@ for (const [width, height] of [
     await input.fill("");
     await page.getByRole("button", { name: "Save answer", exact: true }).click();
     await expect(hit).toBeFocused();
-    await ready(page);
+    await expectDocumentReady(page);
     await page.getByTestId("editor-undo-button").click();
-    await ready(page);
+    await expectDocumentReady(page);
     await hit.click();
     await expect(input).toHaveValue("ANSWER");
     await input.press("Escape");
     await expect(hit).toBeFocused();
     await page.getByTestId("editor-redo-button").click();
-    await ready(page);
+    await expectDocumentReady(page);
     await hit.click();
     await expect(input).toHaveValue("");
     await input.fill("W".repeat(16));
@@ -83,7 +74,7 @@ for (const [width, height] of [
     await expect(input).toBeFocused();
     await input.press("Escape");
     await expect(hit).toBeFocused();
-    await tools(page);
+    await revealDocumentTools(page);
     await page
       .getByRole("button", { name: "Read", exact: true })
       .filter({ visible: true })
@@ -105,14 +96,9 @@ test("saved answers survive source history and download", async ({ page }) => {
   await hit.click();
   await page.getByRole("textbox", { name: "Answer for Answer" }).fill("SAVED");
   await page.getByRole("button", { name: "Save answer", exact: true }).click();
-  await ready(page);
-  const download = page.waitForEvent("download");
-  await page.getByTestId("editor-download-menu-button").click();
-  await page.getByTestId("editor-download-button").click();
-  const saved = await download;
-  const path = await saved.path();
-  if (!path) throw Error("No download");
-  const result = await inspectExport(new Uint8Array(await readFile(path)));
+  await expectDocumentReady(page);
+  const { bytes: downloadedBytes } = await captureDownload(page, () => downloadDocument(page));
+  const result = await inspectExport(new Uint8Array(downloadedBytes));
   expect(result.pageObjects).toBe(2);
   expect(result.widgetObjects).toBe(6);
   expect(result.orphanKids).toBe(false);
@@ -129,7 +115,7 @@ test("saved answers survive source history and download", async ({ page }) => {
   await expect(page.getByTestId("editor-page-viewer")).toHaveCount(0);
   await page.getByTestId("editor-undo-button").click();
   await page.getByTestId("editor-document-view-button").click();
-  await ready(page);
+  await expectDocumentReady(page);
   await arm(page);
   await page.locator(`[data-widget-ref="${fixture.widgetRefs[0]}"]`).click();
   await expect(page.getByRole("textbox", { name: "Answer for Answer" })).toHaveValue("SAVED");
@@ -149,8 +135,8 @@ test("protected PDFs keep manual text available while embedded filling is unavai
   await page.getByLabel("PDF password", { exact: true }).fill("623");
   await page.getByRole("button", { name: "Unlock", exact: true }).click();
   await page.getByTestId("editor-document-view-button").click();
-  await ready(page);
-  await tools(page);
+  await expectDocumentReady(page);
+  await revealDocumentTools(page);
   await page.getByRole("button", { name: "Fill fields", exact: true }).click();
   await expect(
     page
@@ -162,17 +148,12 @@ test("protected PDFs keep manual text available while embedded filling is unavai
   await page.locator(".editor-review-stage").press("Enter");
   await page.getByRole("textbox", { name: "Added text", exact: true }).fill("Manual");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
-  await ready(page);
+  await expectDocumentReady(page);
   await expect(
     page.getByRole("button", { name: "Edit added text: Manual", exact: true })
   ).toBeFocused();
-  const download = page.waitForEvent("download");
-  await page.getByTestId("editor-download-menu-button").click();
-  await page.getByTestId("editor-download-button").click();
-  const result = await download;
-  const path = await result.path();
-  if (!path) throw Error("Missing protected export");
-  const exported = await inspectExport(new Uint8Array(await readFile(path)));
+  const { bytes: downloadedBytes } = await captureDownload(page, () => downloadDocument(page));
+  const exported = await inspectExport(new Uint8Array(downloadedBytes));
   expect(exported.pageObjects).toBe(12);
   expect(exported.widgetObjects).toBe(0);
 });
@@ -189,7 +170,7 @@ test("logical page duplicates and duplicate-of-duplicate keep independent saved 
     await answer.fill(value);
     await page.getByRole("button", { name: "Save answer", exact: true }).click();
     await expect(hit).toBeFocused();
-    await ready(page);
+    await expectDocumentReady(page);
   }
   await save("ORIGINAL");
   await page.getByTestId("editor-pages-view-button").click();
@@ -200,29 +181,24 @@ test("logical page duplicates and duplicate-of-duplicate keep independent saved 
   await selectedCopy.press("Escape");
   await expect(page.getByRole("toolbar", { name: "Selected pages" })).toHaveCount(0);
   await page.getByTestId("editor-document-view-button").click();
-  await ready(page);
+  await expectDocumentReady(page);
   await arm(page);
   await page.getByRole("button", { name: "View page 2", exact: true }).click();
-  await ready(page);
+  await expectDocumentReady(page);
   await save("COPY");
   await page.getByRole("button", { name: "View page 3", exact: true }).click();
-  await ready(page);
+  await expectDocumentReady(page);
   await hit.click();
   await expect(answer).toHaveValue("ORIGINAL");
   await answer.press("Escape");
   await save("THIRD");
   await page.getByRole("button", { name: "View page 1", exact: true }).click();
-  await ready(page);
+  await expectDocumentReady(page);
   await hit.click();
   await expect(answer).toHaveValue("ORIGINAL");
   await answer.press("Escape");
-  const promise = page.waitForEvent("download");
-  await page.getByTestId("editor-download-menu-button").click();
-  await page.getByTestId("editor-download-button").click();
-  const download = await promise,
-    path = await download.path();
-  if (!path) throw Error("Missing duplicated export");
-  const saved = await inspectExport(new Uint8Array(await readFile(path)));
+  const { bytes: downloadedBytes } = await captureDownload(page, () => downloadDocument(page));
+  const saved = await inspectExport(new Uint8Array(downloadedBytes));
   expect(saved.pageObjects).toBe(4);
   expect(saved.widgetObjects).toBe(14);
   expect(saved.orphanKids).toBe(false);

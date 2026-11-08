@@ -36,3 +36,14 @@ export async function revealPageZoom(page: Page) {
     });
   }
 }
+
+export async function downloadDocument(page: Page) {
+  await page.getByTestId("editor-download-menu-button").click();
+  await page.getByTestId("editor-download-button").click();
+}
+
+export async function revealDocumentTools(page: Page) {
+  const disclosure = page.getByRole("button", { name: "Tools", exact: true });
+  if ((await disclosure.isVisible()) && (await disclosure.getAttribute("aria-expanded")) !== "true")
+    await disclosure.click();
+}

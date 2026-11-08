@@ -1,10 +1,12 @@
-import { readFile } from "node:fs/promises";
 import { expect, type Page } from "@playwright/test";
 import { unzipSync } from "fflate";
 import { decodePDFRawStream, PDFArray, PDFDocument, PDFRawStream } from "pdf-lib";
 import { createJpegFile, createPngFile } from "../../src/services/__tests__/pdf-fixtures";
+import { saveDownload as saveArtifact } from "./fixtures/download";
+import { expectDocumentReady } from "./fixtures/editor";
+import { encryptedFixture, filePayload } from "./fixtures/files";
 import { test } from "./fixtures/privacy";
-import { clickAddFiles } from "./toolbar";
+import { clickAddFiles } from "./fixtures/toolbar";
 
 async function source() {
   const pdf = await PDFDocument.create();
@@ -20,10 +22,6 @@ async function source() {
   };
 }
 
-async function image(file: File) {
-  return { name: file.name, mimeType: file.type, buffer: Buffer.from(await file.arrayBuffer()) };
-}
-
 async function saveDownload(page: Page, id: string, filename: string) {
   const pending = page.waitForEvent("download");
   // Download, PNG export, and compression are items in the Download menu.
@@ -33,13 +31,9 @@ async function saveDownload(page: Page, id: string, filename: string) {
   const download = await pending;
   expect(download.url()).toMatch(/^(blob:|data:)/);
   const path = test.info().outputPath(filename);
-  await download.saveAs(path);
+  const bytes = await saveArtifact(download, path);
   expect(await download.failure()).toBeNull();
-  return readFile(path);
-}
-
-async function ready(page: Page) {
-  await expect(page.locator(".editor-review-stage")).toHaveAttribute("data-render-state", "ready");
+  return bytes;
 }
 
 async function exportPNG(page: Page, filename: string, id = "editor-export-images-button") {
@@ -82,12 +76,12 @@ test("mixed files, organization, saved text/checkmarks and PDF/PNG downloads sta
   await page.goto("/app");
   await page
     .getByTestId("editor-upload-input")
-    .setInputFiles([await source(), await image(createPngFile())]);
+    .setInputFiles([await source(), await filePayload(createPngFile())]);
   const tiles = page.getByTestId("editor-page-tile");
   await expect(tiles).toHaveCount(3);
   const chooser = page.waitForEvent("filechooser");
   await clickAddFiles(page);
-  await (await chooser).setFiles(await image(createJpegFile()));
+  await (await chooser).setFiles(await filePayload(createJpegFile()));
   await expect(tiles).toHaveCount(4);
   await page.getByRole("button", { name: "Duplicate page 1", exact: true }).click();
   await expect(tiles).toHaveCount(5);
@@ -102,17 +96,17 @@ test("mixed files, organization, saved text/checkmarks and PDF/PNG downloads sta
   await page.getByTestId("editor-redo-button").click();
   await expect(tiles.nth(1)).toHaveAttribute("data-marked-for-deletion", "true");
   await page.getByTestId("editor-document-view-button").click();
-  await ready(page);
+  await expectDocumentReady(page);
   await page.getByRole("button", { name: "Add text", exact: true }).click();
   await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
   await page.locator(".editor-review-stage").press("Enter");
   await page.getByLabel("Added text", { exact: true }).fill("Private draft");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
-  await ready(page);
+  await expectDocumentReady(page);
   await page.getByRole("button", { name: "Checkmark", exact: true }).click();
   await page.locator(".editor-review-stage").press("Enter");
   await page.getByRole("button", { name: "Save checkmark", exact: true }).click();
-  await ready(page);
+  await expectDocumentReady(page);
   await expect(page.getByRole("button", { name: "Edit added text: Private draft" })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Edit added checkmark", exact: true })
@@ -144,10 +138,7 @@ test("password opening and native PDF/PNG exports stay in the browser", async ({
   await page.getByTestId("editor-upload-input").setInputFiles({
     name: "private-protected.pdf",
     mimeType: "application/pdf",
-    buffer: Buffer.from(
-      await readFile("tools/qpdf-wasm/fixtures/encrypted-40-bit-r3.b64", "utf8"),
-      "base64"
-    ),
+    buffer: (await encryptedFixture()).buffer,
   });
   const password = page.getByLabel("PDF password", { exact: true });
   await password.fill("wrong");
@@ -157,7 +148,7 @@ test("password opening and native PDF/PNG exports stay in the browser", async ({
   await page.getByRole("button", { name: "Unlock", exact: true }).click();
   await expect(page.locator(".password-modal")).toHaveCount(0);
   await page.getByTestId("editor-document-view-button").click();
-  await ready(page);
+  await expectDocumentReady(page);
   const pdf = await PDFDocument.load(
     await saveDownload(page, "editor-download-button", "unlocked.pdf")
   );

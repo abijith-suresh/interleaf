@@ -18,6 +18,7 @@ import { makePDFRuntime } from "../../../services/pdf-runtime";
 import * as pdfText from "../../../services/pdf-text";
 import type { AddedText, PageState } from "../../../types/interfaces";
 import EditorAdditionsEditor from "../EditorAdditionsEditor";
+import { mockAdditionGeometry } from "./addition-fixtures";
 
 const geometry = {
   bounds: [0, 0, 400, 600] as const,
@@ -69,12 +70,7 @@ it.each([
     }
     return read();
   });
-  vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
-    new DOMRect(0, 0, 400, 600),
-  ] as unknown as DOMRectList);
-  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(0, 0, 400, 600)
-  );
+  mockAdditionGeometry();
   const runtime = makePDFRuntime();
   const operations = new PDFOperationsService({
     getPageGeometry: () => Effect.succeed(geometry),

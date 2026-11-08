@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { PDFArray, PDFDict, PDFDocument, PDFName } from "pdf-lib";
+import { expectDocumentReady } from "./fixtures/editor";
+import { revealDocumentTools } from "./fixtures/toolbar";
 
 async function open(page: Page, fixture: string) {
   let bytes = Buffer.from(
@@ -31,9 +33,8 @@ async function open(page: Page, fixture: string) {
     buffer: bytes,
   });
   await page.getByTestId("editor-document-view-button").click();
-  await expect(page.locator(".editor-review-stage")).toHaveAttribute("data-render-state", "ready");
-  const tools = page.getByRole("button", { name: "Tools", exact: true });
-  if (await tools.isVisible()) await tools.click();
+  await expectDocumentReady(page);
+  await revealDocumentTools(page);
   await page.getByRole("button", { name: "Fill fields", exact: true }).click();
   await expect(page.locator(".editor-field-hit").first()).toBeVisible();
 }

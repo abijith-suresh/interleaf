@@ -1,7 +1,7 @@
-import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
-import { clickAddFiles, clickSelectionAction } from "./toolbar";
+import { captureDownload } from "./fixtures/download";
+import { clickAddFiles, clickSelectionAction, downloadDocument } from "./fixtures/toolbar";
 
 async function report() {
   const pdf = await PDFDocument.create();
@@ -19,11 +19,8 @@ const image = {
 };
 
 async function savePDF(page: Page, action: () => Promise<unknown>) {
-  const download = page.waitForEvent("download");
-  await action();
-  const path = await (await download).path();
-  if (!path) throw new Error("PDF download failed");
-  return PDFDocument.load(await readFile(path));
+  const { bytes: pdfBytes } = await captureDownload(page, action);
+  return PDFDocument.load(pdfBytes);
 }
 
 for (const width of [1280, 390]) {
@@ -66,10 +63,7 @@ for (const width of [1280, 390]) {
       clickSelectionAction(page, "editor-extract-button")
     );
     expect(extracted.getPages().map((p) => p.getWidth())).toEqual([440]);
-    const whole = await savePDF(page, async () => {
-      await page.getByTestId("editor-download-menu-button").click();
-      await page.getByTestId("editor-download-button").click();
-    });
+    const whole = await savePDF(page, () => downloadDocument(page));
     expect(whole.getPages().map((p) => p.getWidth())).toEqual([400, 440, 440, 420]);
   });
 }

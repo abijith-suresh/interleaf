@@ -1,6 +1,8 @@
-import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { PDFDocument, StandardFonts } from "pdf-lib";
+import { saveDownload } from "./fixtures/download";
+import { blankPdf, encryptedFixture } from "./fixtures/files";
+import { downloadDocument } from "./fixtures/toolbar";
 
 const broken = {
   name: "broken.pdf",
@@ -9,16 +11,14 @@ const broken = {
 };
 
 async function source(name: string, pageCount: number) {
-  const pdf = await PDFDocument.create();
-  for (let index = 0; index < pageCount; index++) pdf.addPage([400, 600]);
-  return { name, mimeType: "application/pdf", buffer: Buffer.from(await pdf.save()) };
+  return blankPdf(
+    name,
+    Array.from({ length: pageCount }, () => ({ width: 400, height: 600 }))
+  );
 }
 
 async function locked() {
-  const buffer = Buffer.from(
-    await readFile("tools/qpdf-wasm/fixtures/encrypted-40-bit-r3.b64", "utf8"),
-    "base64"
-  );
+  const buffer = (await encryptedFixture()).buffer;
   const pageCount = (await PDFDocument.load(buffer, { ignoreEncryption: true })).getPageCount();
   return { file: { name: "protected.pdf", mimeType: "application/pdf", buffer }, pageCount };
 }
@@ -42,8 +42,8 @@ async function compress(page: Page) {
   await page.getByTestId("editor-compress-button").click();
   const download = await pending;
   const path = test.info().outputPath(download.suggestedFilename());
-  await download.saveAs(path);
-  return { name: download.suggestedFilename(), buffer: await readFile(path) };
+  const bytes = await saveDownload(download, path);
+  return { name: download.suggestedFilename(), buffer: bytes };
 }
 
 test("opening a batch unlocks the protected file, skips the broken one, and opens the rest", async ({
@@ -70,8 +70,7 @@ test("opening a batch unlocks the protected file, skips the broken one, and open
   await page.keyboard.press("Escape");
 
   const pending = page.waitForEvent("download");
-  await page.getByTestId("editor-download-menu-button").click();
-  await page.getByTestId("editor-download-button").click();
+  await downloadDocument(page);
   expect((await pending).suggestedFilename()).toBe("protected-edited.pdf");
 });
 
@@ -90,8 +89,7 @@ test("adding files to a workspace skips the broken one and adds the rest", async
   await expect(page.getByTestId("editor-status-message")).toHaveText(message);
 
   const pending = page.waitForEvent("download");
-  await page.getByTestId("editor-download-menu-button").click();
-  await page.getByTestId("editor-download-button").click();
+  await downloadDocument(page);
   expect((await pending).suggestedFilename()).toBe("report-6p-edited.pdf");
 });
 

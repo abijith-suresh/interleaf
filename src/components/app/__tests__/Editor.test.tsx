@@ -197,6 +197,17 @@ describe("Editor", () => {
     );
   });
 
+  function failThirdLoad(file: File, cause: Error) {
+    pdfServiceMocks.loadPDF
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(
+        Effect.fail(
+          new PDFProcessingError({ operation: "load-pdf-js", file, cause, message: cause.message })
+        )
+      );
+  }
+
   const idle = () =>
     waitFor(() => expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false"));
   const step = async (direction: "undo" | "redo") => {
@@ -665,15 +676,11 @@ describe("Editor", () => {
     pdfServiceMocks.loadPDF.mockReturnValueOnce(Effect.fail(new PDFPasswordRequiredError(second)));
     selectFiles("add", [second]);
     await waitFor(() => expect(promptForPassword).toHaveBeenCalledOnce());
-    await waitFor(() =>
-      expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
-    );
+    await idle();
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
     pdfOperationsMocks.imagesToPDF.mockReturnValueOnce(Effect.fail(new Error("conversion failed")));
     selectFiles("add", [makeImageFile()]);
-    await waitFor(() =>
-      expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
-    );
+    await idle();
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
     pdfOperationsMocks.buildPDF.mockReturnValueOnce(Effect.fail(new Error("export failed")));
     await downloadWholePDF();
@@ -684,9 +691,7 @@ describe("Editor", () => {
       .mockReturnValueOnce(Effect.fail(new Error("invalid PDF")));
     selectFiles("add", [makeFile("broken-one.pdf"), makeFile("broken-two.pdf")]);
     await waitFor(() => expectLastToast("Could not open 2 files."));
-    await waitFor(() =>
-      expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
-    );
+    await idle();
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
     expect(getPages()).toHaveLength(3);
     selectFiles("add", [second]);
@@ -700,9 +705,7 @@ describe("Editor", () => {
     fireEvent.click(screen.getByTestId("editor-files-button"));
     fireEvent.click(screen.getAllByTestId("editor-file-remove")[0]);
     await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(first));
-    await waitFor(() =>
-      expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
-    );
+    await idle();
     expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "false");
     expect(screen.getByTestId("editor-undo-button")).toHaveAttribute(
       "aria-label",
@@ -712,9 +715,7 @@ describe("Editor", () => {
     fireEvent.click(screen.getAllByTestId("editor-file-remove")[0]);
     await waitFor(() => expect(screen.getByTestId("editor-upload-input")).toBeInTheDocument());
     expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(second);
-    await waitFor(() =>
-      expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
-    );
+    await idle();
     selectFiles("upload", [makeFile("fresh.pdf")]);
     await findPages();
     expect(screen.getByTestId("editor-undo-button")).toHaveAttribute(
@@ -1197,19 +1198,7 @@ describe("Editor", () => {
     const failedFile = makeFile("broken.pdf");
     const invalid = new Error("Invalid PDF structure.");
     invalid.name = "InvalidPDFException";
-    pdfServiceMocks.loadPDF
-      .mockReturnValueOnce(Effect.succeed(undefined))
-      .mockReturnValueOnce(Effect.succeed(undefined))
-      .mockReturnValueOnce(
-        Effect.fail(
-          new PDFProcessingError({
-            operation: "load-pdf-js",
-            file: failedFile,
-            cause: invalid,
-            message: invalid.message,
-          })
-        )
-      );
+    failThirdLoad(failedFile, invalid);
     render(() => <Editor />);
 
     selectFiles("upload", [makeFile("good.pdf"), makeImageFile(), failedFile]);
@@ -1351,9 +1340,7 @@ describe("Editor", () => {
       else expect(screen.queryByTestId("editor-selection-bar")).not.toBeInTheDocument();
       expect(getPages().map((tile) => tile.getAttribute("aria-pressed"))).toEqual(pressed);
       expect(pdfServiceMocks.releaseFile).toHaveBeenCalledExactlyOnceWith(removed);
-      await waitFor(() =>
-        expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
-      );
+      await idle();
 
       await exportCurrent();
       await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
@@ -1448,9 +1435,7 @@ describe("Editor", () => {
       expect.objectContaining({ name: "only.pdf" })
     );
 
-    await waitFor(() =>
-      expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
-    );
+    await idle();
     selectFile("upload", makeFile("fresh.pdf"));
     await findPages();
     expect(screen.getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
@@ -1474,19 +1459,7 @@ describe("Editor", () => {
 
   it("adds the valid files to a workspace and names the one that failed", async () => {
     const failedFile = makeFile("broken-add.pdf");
-    pdfServiceMocks.loadPDF
-      .mockReturnValueOnce(Effect.succeed(undefined))
-      .mockReturnValueOnce(Effect.succeed(undefined))
-      .mockReturnValueOnce(
-        Effect.fail(
-          new PDFProcessingError({
-            operation: "load-pdf-js",
-            file: failedFile,
-            cause: new Error("Invalid PDF"),
-            message: "Invalid PDF",
-          })
-        )
-      );
+    failThirdLoad(failedFile, new Error("Invalid PDF"));
     await openPDF(makeFile("existing.pdf"));
 
     selectFiles("add", [makeFile("good-add.pdf"), failedFile]);
@@ -2255,9 +2228,7 @@ describe("Editor", () => {
     fireEvent.click(screen.getByTestId("editor-files-button"));
     fireEvent.click(screen.getAllByTestId("editor-file-remove")[0]);
     await waitFor(() => expect(getPages()).toHaveLength(3));
-    await waitFor(() =>
-      expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false")
-    );
+    await idle();
     const close = screen.getByTestId("editor-files-close-button");
     close.focus();
     const undo = new KeyboardEvent("keydown", {

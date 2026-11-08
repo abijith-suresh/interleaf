@@ -1,8 +1,8 @@
-import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { unzipSync } from "fflate";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
-import { clickSelectionAction } from "./toolbar";
+import { captureDownload } from "./fixtures/download";
+import { clickSelectionAction } from "./fixtures/toolbar";
 
 // Enough drawing operations to exercise PDF.js's streamed operator lists, as well
 // as enough pages to move thumbnails beyond the existing 200px observer margin.
@@ -106,18 +106,16 @@ for (const viewport of [
     await expect(page.getByTestId("editor-page-canvas-error")).toHaveCount(0);
 
     // Export uses source pages, including the preserved selection and rotation.
-    const pdfDownload = page.waitForEvent("download");
-    await clickSelectionAction(page, "editor-extract-button");
-    const pdfPath = await (await pdfDownload).path();
-    if (!pdfPath) throw new Error("PDF download failed");
-    const result = await PDFDocument.load(await readFile(pdfPath));
+    const { bytes: pdfBytes } = await captureDownload(page, () =>
+      clickSelectionAction(page, "editor-extract-button")
+    );
+    const result = await PDFDocument.load(pdfBytes);
     expect(result.getPageCount()).toBe(1);
     expect(result.getPage(0).getRotation().angle).toBe(90);
-    const pngDownload = page.waitForEvent("download");
-    await clickSelectionAction(page, "editor-export-selected-images-button");
-    const pngPath = await (await pngDownload).path();
-    if (!pngPath) throw new Error("PNG download failed");
-    const archive = unzipSync(await readFile(pngPath));
+    const { bytes: pngBytes } = await captureDownload(page, () =>
+      clickSelectionAction(page, "editor-export-selected-images-button")
+    );
+    const archive = unzipSync(pngBytes);
     const images = Object.entries(archive).filter(([name]) => name.endsWith(".png"));
     expect(images).toHaveLength(1);
     expect([...images[0][1].slice(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);

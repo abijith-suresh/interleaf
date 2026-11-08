@@ -1,30 +1,28 @@
-import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
 import { createJpegFile, createPngFile } from "../../src/services/__tests__/pdf-fixtures";
-import { clickAddFiles, openFiles, revealPageZoom } from "./toolbar";
+import { captureDownload } from "./fixtures/download";
+import { expectDocumentReady } from "./fixtures/editor";
+import { blankPdf, encryptedFixture, filePayload } from "./fixtures/files";
+import { clickAddFiles, downloadDocument, openFiles, revealPageZoom } from "./fixtures/toolbar";
 
 async function source(name: string, widths: number[]) {
-  const pdf = await PDFDocument.create();
-  for (const width of widths) pdf.addPage([width, 600]);
-  return { name, mimeType: "application/pdf", buffer: Buffer.from(await pdf.save()) };
+  return blankPdf(
+    name,
+    widths.map((width) => ({ width, height: 600 }))
+  );
 }
 
 async function downloadPDF(page: Page) {
-  const download = page.waitForEvent("download");
-  await page.getByTestId("editor-download-menu-button").click();
-  await page.getByTestId("editor-download-button").click();
-  const path = await (await download).path();
-  if (!path) throw new Error("Missing PDF download");
-  return PDFDocument.load(await readFile(path));
+  const { bytes: pdfBytes } = await captureDownload(page, () => downloadDocument(page));
+  return PDFDocument.load(pdfBytes);
 }
 
 async function extractPDF(page: Page) {
-  const download = page.waitForEvent("download");
-  await page.getByTestId("editor-extract-button").click();
-  const path = await (await download).path();
-  if (!path) throw new Error("Missing extracted PDF");
-  return PDFDocument.load(await readFile(path));
+  const { bytes: pngBytes } = await captureDownload(page, () =>
+    page.getByTestId("editor-extract-button").click()
+  );
+  return PDFDocument.load(pngBytes);
 }
 
 test("numbered short-landscape filmstrip shows every workspace page while some are selected", async ({
@@ -125,7 +123,7 @@ test("source removal while reading remaps selection and replaces only the remove
   await expect(page.getByTestId("editor-files-button")).toBeFocused();
   await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 1");
   await expect(page.getByTestId("editor-selection-title")).toHaveText("1 selected");
-  await expect(page.locator(".editor-review-stage")).toHaveAttribute("data-render-state", "ready");
+  await expectDocumentReady(page);
   const extracted = await extractPDF(page);
   expect(extracted.getPages().map((p) => p.getWidth())).toEqual([500]);
   const pdf = await downloadPDF(page);
@@ -182,18 +180,12 @@ test("Document keeps untouched compression and password dialogs available withou
   await page.getByTestId("editor-download-menu-button").click();
   const compress = page.getByTestId("editor-compress-button");
   await expect(compress).toHaveAttribute("aria-disabled", "false");
-  const download = page.waitForEvent("download");
-  await compress.click();
-  const path = await (await download).path();
-  if (!path) throw new Error("Missing compressed PDF");
-  const compressed = await PDFDocument.load(await readFile(path));
+  const { bytes: compressedBytes } = await captureDownload(page, () => compress.click());
+  const compressed = await PDFDocument.load(compressedBytes);
   expect(compressed.getPages().map((p) => p.getWidth())).toEqual([400, 420]);
   const chooser = page.waitForEvent("filechooser");
   await clickAddFiles(page);
-  const encrypted = Buffer.from(
-    await readFile("tools/qpdf-wasm/fixtures/encrypted-40-bit-r3.b64", "utf8"),
-    "base64"
-  );
+  const encrypted = (await encryptedFixture()).buffer;
   await (await chooser).setFiles({
     name: "protected.pdf",
     mimeType: "application/pdf",
@@ -235,18 +227,13 @@ test("mixed image opening and additions retain EXIF orientation through both wor
 }) => {
   const png = createPngFile();
   const jpeg = createJpegFile("portrait.jpg", true);
-  const imageInput = async (file: File) => ({
-    name: file.name,
-    mimeType: file.type,
-    buffer: Buffer.from(await file.arrayBuffer()),
-  });
   await page.goto("/app");
   await page
     .getByTestId("editor-upload-input")
     .setInputFiles([
       await source("mixed.pdf", [400]),
-      await imageInput(png),
-      await imageInput(jpeg),
+      await filePayload(png),
+      await filePayload(jpeg),
     ]);
   await expect(page.getByTestId("editor-page-tile")).toHaveCount(3);
   await page.getByTestId("editor-document-view-button").click();
@@ -258,7 +245,7 @@ test("mixed image opening and additions retain EXIF orientation through both wor
   ]);
   const chooser = page.waitForEvent("filechooser");
   await clickAddFiles(page);
-  await (await chooser).setFiles([await source("added.pdf", [500]), await imageInput(jpeg)]);
+  await (await chooser).setFiles([await source("added.pdf", [500]), await filePayload(jpeg)]);
   await expect(page.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false");
   await expect(page.getByTestId("editor-document-view-button")).toHaveAttribute(
     "aria-pressed",
@@ -306,12 +293,11 @@ for (const width of [1280, 375]) {
     await page.keyboard.press("Escape");
     await action("Mark page 3 for deletion");
     // With nothing selected, the active page is the PNG target.
-    const png = page.waitForEvent("download");
-    await action("Export page 3 as a PNG image");
-    const zip = await (await png).path();
-    if (!zip) throw new Error("Missing PNG export");
+    const { bytes: pngBytes } = await captureDownload(page, () =>
+      action("Export page 3 as a PNG image")
+    );
     const { unzipSync } = await import("fflate");
-    expect(Object.keys(unzipSync(await readFile(zip)))).toHaveLength(1);
+    expect(Object.keys(unzipSync(pngBytes))).toHaveLength(1);
     const pdf = await downloadPDF(page);
     expect(pdf.getPages().map((p) => [p.getWidth(), p.getRotation().angle])).toEqual([
       [400, 0],

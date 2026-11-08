@@ -1,31 +1,24 @@
 import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
+import { expectDocumentReady, openDocument } from "./fixtures/editor";
+import { blankPdf } from "./fixtures/files";
+import { revealDocumentTools } from "./fixtures/toolbar";
 
-async function ready(page: Page) {
-  await expect(page.locator(".editor-review-stage")).toHaveAttribute("data-render-state", "ready");
-}
 async function upload(page: Page, name: string, buffer: Buffer) {
-  await page.goto("/app");
-  await page
-    .getByTestId("editor-upload-input")
-    .setInputFiles({ name, mimeType: "application/pdf", buffer });
-  await page.getByTestId("editor-document-view-button").click();
-  await ready(page);
+  await openDocument(page, { name, mimeType: "application/pdf", buffer });
 }
 async function blankPages(page: Page) {
-  const pdf = await PDFDocument.create();
-  pdf.addPage([400, 600]);
-  pdf.addPage([400, 600]);
-  await upload(page, "blank.pdf", Buffer.from(await pdf.save()));
-}
-async function tools(page: Page) {
-  const disclosure = page.getByRole("button", { name: "Tools", exact: true });
-  if ((await disclosure.isVisible()) && (await disclosure.getAttribute("aria-expanded")) !== "true")
-    await disclosure.click();
+  await openDocument(
+    page,
+    await blankPdf("blank.pdf", [
+      { width: 400, height: 600 },
+      { width: 400, height: 600 },
+    ])
+  );
 }
 async function draftAt(page: Page, tool: "Add text" | "Checkmark", x = 0.4, y = 0.5) {
-  await tools(page);
+  await revealDocumentTools(page);
   await page.getByRole("button", { name: tool, exact: true }).click();
   await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
   const box = await page.locator(".editor-review-page").boundingBox();
@@ -65,34 +58,34 @@ test("one tool is pressed while drafting, after cancel, and after a page change"
 }) => {
   test.slow();
   await blankPages(page);
-  await tools(page);
+  await revealDocumentTools(page);
   await expectPressed(page, "Read");
   for (const tool of ["Add text", "Checkmark"] as const) {
     await draftAt(page, tool);
     await expectPressed(page, tool);
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
-    await tools(page);
+    await revealDocumentTools(page);
     await expectPressed(page, "Read");
   }
   await draftAt(page, "Add text");
   await page.getByLabel("Added text", { exact: true }).fill("Saved");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
-  await ready(page);
-  await tools(page);
+  await expectDocumentReady(page);
+  await revealDocumentTools(page);
   await expectPressed(page, "Select additions");
   await page.getByRole("button", { name: "Edit added text: Saved", exact: true }).click();
   await expectPressed(page, "Select additions");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await tools(page);
+  await revealDocumentTools(page);
   await expectPressed(page, "Select additions");
   await draftAt(page, "Checkmark", 0.6, 0.7);
   await expectPressed(page, "Checkmark");
   await page.getByLabel("Checkmark size in points").press("Escape");
-  await tools(page);
+  await revealDocumentTools(page);
   await expectPressed(page, "Select additions");
   await page.getByRole("button", { name: "Next page", exact: true }).click();
-  await ready(page);
-  await tools(page);
+  await expectDocumentReady(page);
+  await revealDocumentTools(page);
   await expectPressed(page, "Read");
 });
 
@@ -113,11 +106,11 @@ async function placeBoth(page: Page) {
   await draftAt(page, "Add text", 0.3, 0.3);
   await page.getByLabel("Added text", { exact: true }).fill("Small");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
-  await ready(page);
+  await expectDocumentReady(page);
   await draftAt(page, "Checkmark", 0.5, 0.7);
   await page.getByRole("button", { name: "Save checkmark", exact: true }).click();
-  await ready(page);
-  await tools(page);
+  await expectDocumentReady(page);
+  await revealDocumentTools(page);
   await page.getByRole("button", { name: "Select additions" }).click();
 }
 
@@ -165,7 +158,7 @@ async function openContact(page: Page) {
     "base64"
   );
   await upload(page, "contact.pdf", bytes);
-  await tools(page);
+  await revealDocumentTools(page);
   await page.getByRole("button", { name: "Fill fields", exact: true }).click();
   await expect(page.locator(".editor-field-hit")).toHaveCount(3);
 }

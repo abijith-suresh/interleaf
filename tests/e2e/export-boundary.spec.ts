@@ -1,8 +1,9 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
 import { createServer, type ViteDevServer } from "vite";
 import { exportCrossPageButtonFixture } from "../../src/services/__tests__/pdf-export-fixtures";
+import { captureDownload } from "./fixtures/download";
 import type {
   checkAdditions,
   checkButtonFailure,
@@ -12,6 +13,7 @@ import type {
   checkIndirectRoles,
   checkOptionalNullActions,
 } from "./fixtures/export-boundary";
+import { clickSelectionAction } from "./fixtures/toolbar";
 
 let server: ViteDevServer, url: string;
 test.beforeAll(async () => {
@@ -149,10 +151,7 @@ test("retained forms and saved text/checkmarks keep pixels and physical geometry
 });
 // Extract to PDF sits under More selection actions on phones.
 async function extractSelection(page: Page) {
-  const more = page.getByTestId("editor-selection-more-button");
-  if ((await more.isVisible()) && (await more.getAttribute("aria-expanded")) !== "true")
-    await more.click();
-  await page.getByTestId("editor-extract-button").click();
+  await clickSelectionAction(page, "editor-extract-button");
 }
 
 test("an unsupported linked choice export offers no partial download", async ({ page }) => {
@@ -214,11 +213,8 @@ for (const width of [1280, 320])
     expect(downloads).toEqual([]);
     await tiles.nth(3).click();
     await tiles.nth(1).click();
-    const download = page.waitForEvent("download");
-    await extractSelection(page);
-    const path = await (await download).path();
-    if (!path) throw Error("Missing recovered download");
-    const pdf = await PDFDocument.load(await readFile(path));
+    const { bytes: pdfBytes } = await captureDownload(page, () => extractSelection(page));
+    const pdf = await PDFDocument.load(pdfBytes);
     expect(pdf.getPageCount()).toBe(2);
     expect(pdf.getPages().map((p) => p.getWidth())).toEqual([400, 410]);
     expect(downloads).toHaveLength(1);

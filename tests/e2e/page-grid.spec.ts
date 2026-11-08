@@ -1,20 +1,19 @@
-import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
+import { captureDownload } from "./fixtures/download";
+import { blankPdf } from "./fixtures/files";
+import { downloadDocument } from "./fixtures/toolbar";
 
 async function source(name: string, pageCount: number, width = 400) {
-  const pdf = await PDFDocument.create();
-  for (let index = 0; index < pageCount; index++) pdf.addPage([width + index, 600]);
-  return { name, mimeType: "application/pdf", buffer: Buffer.from(await pdf.save()) };
+  return blankPdf(
+    name,
+    Array.from({ length: pageCount }, (_, index) => ({ width: width + index, height: 600 }))
+  );
 }
 
 async function downloadPDF(page: Page) {
-  const pending = page.waitForEvent("download");
-  await page.getByTestId("editor-download-menu-button").click();
-  await page.getByTestId("editor-download-button").click();
-  const path = await (await pending).path();
-  if (!path) throw new Error("PDF download failed");
-  return PDFDocument.load(await readFile(path));
+  const { bytes: pdfBytes } = await captureDownload(page, () => downloadDocument(page));
+  return PDFDocument.load(pdfBytes);
 }
 
 test("duplicating a page keeps the selection, so the next download covers every page", async ({

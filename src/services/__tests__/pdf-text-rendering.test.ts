@@ -2,6 +2,7 @@ import { Effect, Fiber } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PageState, PDFFields } from "../../types/interfaces";
 import { PDFService } from "../pdf-service";
+import { makePDFDocument, makePDFPage } from "./pdf-fixtures";
 
 const mocks = vi.hoisted(() => ({
   getDocument: vi.fn(),
@@ -71,17 +72,12 @@ function documentTask(events: string[] = []) {
   });
   return {
     task: {
-      promise: Promise.resolve({
-        getPage: async () => ({
-          rotate: 0,
-          view: [0, 0, 100, 200],
-          userUnit: 1,
+      promise: Promise.resolve(
+        makePDFDocument({
+          ...makePDFPage(),
           getViewport: () => ({ width: 100, height: 200, transform: [1, 0, 0, -1, 0, 200] }),
-          render: () => ({ promise: Promise.resolve(), cancel: () => {} }),
-          cleanup: () => true,
-        }),
-        cleanup: async () => {},
-      }),
+        })
+      ),
       destroy,
     },
     destroy,

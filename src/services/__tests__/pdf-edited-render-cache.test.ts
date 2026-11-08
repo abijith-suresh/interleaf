@@ -6,6 +6,7 @@ import { createPageStates } from "../../controllers/editor-page-state";
 import type { PageState } from "../../types/interfaces";
 import { PDFService } from "../pdf-service";
 import { textFieldFixture } from "./pdf-field-fixtures";
+import { makePDFDocument, makePDFPage } from "./pdf-fixtures";
 
 const pdfjs = vi.hoisted(() => ({
   workers: 0,
@@ -23,22 +24,16 @@ vi.mock("pdfjs-dist", () => ({
   getDocument: (params: { data: Uint8Array; worker: unknown }) => {
     pdfjs.loads.push(params);
     return {
-      promise: Promise.resolve({
-        getMetadata: async () => ({ info: {} }),
-        getPage: async () => ({
-          rotate: 0,
-          view: [0, 0, 340, 460],
-          userUnit: 1,
+      promise: Promise.resolve(
+        makePDFDocument({
+          ...makePDFPage(340, 460),
           getViewport: ({ scale = 1 }) => ({
             width: 340 * scale,
             height: 460 * scale,
             transform: [scale, 0, 0, -scale, 0, 460 * scale],
           }),
-          render: () => ({ promise: Promise.resolve(), cancel: () => {} }),
-          cleanup: () => true,
-        }),
-        cleanup: async () => {},
-      }),
+        })
+      ),
       destroy: async () => {},
     };
   },

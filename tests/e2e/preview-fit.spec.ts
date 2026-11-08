@@ -1,8 +1,8 @@
-import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { unzipSync } from "fflate";
 import { degrees, PDFDocument, rgb } from "pdf-lib";
-import { clickSelectionAction } from "./toolbar";
+import { captureDownload } from "./fixtures/download";
+import { clickSelectionAction } from "./fixtures/toolbar";
 
 async function makePages() {
   const pdf = await PDFDocument.create();
@@ -187,21 +187,17 @@ for (const scenario of [
       await page.getByTestId("editor-document-view-button").click();
       await expectFittedPage(page, 600, 1200, scenario.budget);
       await page.getByTestId("editor-pages-view-button").click();
-      const pdfDownload = page.waitForEvent("download");
-      await clickSelectionAction(page, "editor-extract-button");
-      const pdfPath = await (await pdfDownload).path();
-      if (!pdfPath) throw new Error("PDF download failed");
-      const pdf = await PDFDocument.load(await readFile(pdfPath));
+      const { bytes: pdfBytes } = await captureDownload(page, () =>
+        clickSelectionAction(page, "editor-extract-button")
+      );
+      const pdf = await PDFDocument.load(pdfBytes);
       expect(pdf.getPageCount()).toBe(1);
       expect(pdf.getPage(0).getSize()).toEqual({ width: 600, height: 1200 });
       expect(pdf.getPage(0).getRotation().angle).toBe(180);
-      const pngDownload = page.waitForEvent("download");
-      await clickSelectionAction(page, "editor-export-selected-images-button");
-      const pngPath = await (await pngDownload).path();
-      if (!pngPath) throw new Error("PNG download failed");
-      const images = Object.entries(unzipSync(await readFile(pngPath))).filter(([name]) =>
-        name.endsWith(".png")
+      const { bytes: pngBytes } = await captureDownload(page, () =>
+        clickSelectionAction(page, "editor-export-selected-images-button")
       );
+      const images = Object.entries(unzipSync(pngBytes)).filter(([name]) => name.endsWith(".png"));
       expect(images).toHaveLength(1);
       const png = Buffer.from(images[0][1]);
       expect([...png.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);

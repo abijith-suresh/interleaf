@@ -1,78 +1,19 @@
-import { readFile } from "node:fs/promises";
-import { expect, type Page, test } from "@playwright/test";
-import { degrees, PDFDocument, rgb, StandardFonts } from "pdf-lib";
-import { createServer, type ViteDevServer } from "vite";
-import type { inspectPDF, inspectZIP } from "./fixtures/duplication";
-import { openFiles } from "./toolbar";
-
-let server: ViteDevServer;
-let url: string;
-test.beforeAll(async () => {
-  server = await createServer({
-    configFile: false,
-    cacheDir: `node_modules/.vite-duplication/${test.info().project.name}`,
-    plugins: [
-      {
-        name: "duplication-fixture",
-        configureServer(server) {
-          server.middlewares.use("/duplicate-test", (_request, response) => {
-            response.setHeader("Content-Type", "text/html");
-            response.end("<!doctype html><title>Duplication export inspection</title>");
-          });
-        },
-      },
-    ],
-    server: { host: "127.0.0.1", port: 0 },
-    optimizeDeps: { include: ["pdfjs-dist", "pdf-lib", "fflate"] },
-  });
-  await server.listen();
-  url = server.resolvedUrls?.local[0] ?? "";
-});
-test.afterAll(async () => {
-  await server?.close();
-});
+import { expect, type Page } from "@playwright/test";
+import { PDFDocument } from "pdf-lib";
+import { captureDownload } from "./fixtures/download";
+import type { inspectZIP } from "./fixtures/duplication";
+import { inspect, source } from "./fixtures/duplication-input";
+import { test } from "./fixtures/duplication-server";
+import { downloadDocument, openFiles } from "./fixtures/toolbar";
 
 async function download(page: Page, action: () => Promise<unknown>) {
-  const pending = page.waitForEvent("download");
-  await action();
-  const path = await (await pending).path();
-  if (!path) throw new Error("Missing download");
-  return Array.from(await readFile(path));
-}
-async function inspect(reader: Page, bytes: number[]) {
-  return reader.evaluate(async (bytes): Promise<Awaited<ReturnType<typeof inspectPDF>>> => {
-    const path = "/tests/e2e/fixtures/duplication.ts";
-    return (await import(path)).inspectPDF(bytes);
-  }, bytes);
-}
-async function source(form = false) {
-  const pdf = await PDFDocument.create();
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  for (const [index, width] of [200, 240].entries()) {
-    const page = pdf.addPage([width, 300]);
-    page.drawText(`Source ${index + 1}`, { x: 20, y: 240, font, size: 20 });
-    page.drawRectangle({
-      x: 20,
-      y: 30,
-      width: 70,
-      height: 80,
-      color: rgb(index ? 0 : 1, 0, index ? 1 : 0),
-    });
-    if (!index) {
-      page.setRotation(degrees(90));
-      if (form) {
-        const field = pdf.getForm().createTextField("name");
-        field.setText("Current form baseline");
-        field.addToPage(page, { x: 15, y: 150, width: 170, height: 30, font });
-      }
-    }
-  }
-  return { name: "source.pdf", mimeType: "application/pdf", buffer: Buffer.from(await pdf.save()) };
+  return Array.from((await captureDownload(page, action)).bytes);
 }
 
 test("copies retain independent organization, real PDF/PNG content and source removal", async ({
   page,
   context,
+  url,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -150,13 +91,7 @@ test("copies retain independent organization, real PDF/PNG content and source re
   await page.getByTestId("editor-download-menu-button").click();
   await expect(page.getByTestId("editor-compress-button")).toHaveAttribute("aria-disabled", "true");
   await page.keyboard.press("Escape");
-  const all = await inspect(
-    reader,
-    await download(page, async () => {
-      await page.getByTestId("editor-download-menu-button").click();
-      await page.getByTestId("editor-download-button").click();
-    })
-  );
+  const all = await inspect(reader, await download(page, () => downloadDocument(page)));
   expect(all.count).toBe(3);
   expect(all.pages.map((p) => [p.text, p.rotation, p.libRotation])).toEqual([
     ["Source 1", 180, 180],
@@ -177,6 +112,7 @@ test("copies retain independent organization, real PDF/PNG content and source re
 test("repeated form source pages keep the existing separate copyPages export baseline", async ({
   page,
   context,
+  url,
 }) => {
   const input = await source(true);
   const original = await PDFDocument.load(input.buffer);

@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { expect, type Page } from "@playwright/test";
 import {
   decodePDFRawStream,
@@ -8,25 +7,20 @@ import {
   type PDFPage,
   PDFRawStream,
 } from "pdf-lib";
+import { saveDownload } from "./fixtures/download";
+import { expectDocumentReady } from "./fixtures/editor";
+import { encryptedFixture } from "./fixtures/files";
 import { test } from "./fixtures/privacy";
-
-async function fixture(name: string) {
-  return {
-    name: `${name}.pdf`,
-    mimeType: "application/pdf",
-    buffer: Buffer.from(await readFile(`tools/qpdf-wasm/fixtures/${name}.b64`, "utf8"), "base64"),
-  };
-}
+import { downloadDocument } from "./fixtures/toolbar";
 
 async function download(page: Page, filename: string) {
   const pending = page.waitForEvent("download");
-  await page.getByTestId("editor-download-menu-button").click();
-  await page.getByTestId("editor-download-button").click();
+  await downloadDocument(page);
   const saved = await pending;
   const path = test.info().outputPath(filename);
-  await saved.saveAs(path);
+  const bytes = await saveDownload(saved, path);
   expect(await saved.failure()).toBeNull();
-  return PDFDocument.load(await readFile(path));
+  return PDFDocument.load(bytes);
 }
 
 function operators(page: PDFPage) {
@@ -61,20 +55,20 @@ test("an unlocked AES-256 PDF exports every page as vectors with added text", as
   await page.goto("/app");
   await page
     .getByTestId("editor-upload-input")
-    .setInputFiles(await fixture("encrypted-256-bit-r6"));
+    .setInputFiles(await encryptedFixture("encrypted-256-bit-r6"));
   await page.getByLabel("PDF password", { exact: true }).fill("wwwww");
   await page.getByRole("button", { name: "Unlock", exact: true }).click();
   await expect(page.locator(".password-modal")).toHaveCount(0);
   await expect(page.getByTestId("editor-page-tile")).toHaveCount(30);
 
   await page.getByTestId("editor-document-view-button").click();
-  await expect(page.locator(".editor-review-stage")).toHaveAttribute("data-render-state", "ready");
+  await expectDocumentReady(page);
   await page.getByRole("button", { name: "Add text", exact: true }).click();
   await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
   await page.locator(".editor-review-stage").press("Enter");
   await page.getByLabel("Added text", { exact: true }).fill("Protected note");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
-  await expect(page.locator(".editor-review-stage")).toHaveAttribute("data-render-state", "ready");
+  await expectDocumentReady(page);
   await expect(page.getByRole("button", { name: "Edit added text: Protected note" })).toBeVisible();
 
   const pdf = await download(page, "protected-edited.pdf");
@@ -91,7 +85,7 @@ test("an owner-password-only PDF opens without a prompt and exports every page",
   await page.goto("/app");
   await page
     .getByTestId("editor-upload-input")
-    .setInputFiles(await fixture("encrypted-256-bit-owner-only"));
+    .setInputFiles(await encryptedFixture("encrypted-256-bit-owner-only"));
   await expect(page.getByTestId("editor-page-tile")).toHaveCount(30);
   await expect(page.locator(".password-modal")).toHaveCount(0);
 
@@ -102,7 +96,7 @@ test("an R3 PDF with a non-ASCII password exports after unlocking", async ({ pag
   await page.goto("/app");
   await page
     .getByTestId("editor-upload-input")
-    .setInputFiles(await fixture("encrypted-128-bit-r3-latin1-password"));
+    .setInputFiles(await encryptedFixture("encrypted-128-bit-r3-latin1-password"));
   await page.getByLabel("PDF password", { exact: true }).fill("é");
   await page.getByRole("button", { name: "Unlock", exact: true }).click();
   await expect(page.locator(".password-modal")).toHaveCount(0);

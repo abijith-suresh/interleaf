@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { degrees, PDFDocument, PDFName, PDFNumber, StandardFonts } from "pdf-lib";
-import { revealPageZoom } from "./toolbar";
+import { expectDocumentReady, openDocument } from "./fixtures/editor";
+import { revealDocumentTools, revealPageZoom } from "./fixtures/toolbar";
 
 async function source() {
   const document = await PDFDocument.create();
@@ -22,13 +23,7 @@ async function source() {
   };
 }
 async function open(page: Page) {
-  await page.goto("/app");
-  await page.getByTestId("editor-upload-input").setInputFiles(await source());
-  await page.getByTestId("editor-document-view-button").click();
-  await ready(page);
-}
-async function ready(page: Page) {
-  await expect(page.locator(".editor-review-stage")).toHaveAttribute("data-render-state", "ready");
+  await openDocument(page, await source());
 }
 async function point(page: Page, x = 0.35, y = 0.55) {
   const frame = await page.locator(".editor-review-page").boundingBox();
@@ -36,8 +31,7 @@ async function point(page: Page, x = 0.35, y = 0.55) {
   return { x: frame.x + frame.width * x, y: frame.y + frame.height * y };
 }
 async function place(page: Page, text = "Added text") {
-  const disclosure = page.getByRole("button", { name: "Tools", exact: true });
-  if (await disclosure.isVisible()) await disclosure.click();
+  await revealDocumentTools(page);
   await page.getByRole("button", { name: "Add text", exact: true }).click();
   // Geometry is measured independently of bitmap rendering.
   await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
@@ -46,7 +40,7 @@ async function place(page: Page, text = "Added text") {
   await page.getByLabel("Added text", { exact: true }).fill(text);
   await page.getByRole("button", { name: "Save text", exact: true }).click();
   await expect(page.getByLabel("Added text", { exact: true })).toHaveCount(0);
-  await ready(page);
+  await expectDocumentReady(page);
 }
 
 for (const [width, height] of [
@@ -147,12 +141,11 @@ for (const width of [1280, 390]) {
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
     await revealPageZoom(page);
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
-    await ready(page);
+    await expectDocumentReady(page);
     const stage = page.locator(".editor-review-stage");
     await stage.press("ArrowRight");
     await stage.press("ArrowDown");
-    const disclosure = page.getByRole("button", { name: "Tools", exact: true });
-    if (await disclosure.isVisible()) await disclosure.click();
+    await revealDocumentTools(page);
     await page.getByRole("button", { name: "Add text", exact: true }).press("Enter");
     await expect(stage).toBeFocused();
     await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
@@ -261,7 +254,7 @@ test("point placement, validation, editing, movement, rotation and history retai
   await input.fill("Changed");
   await page.getByLabel("Text size in points").fill("24");
   await page.getByRole("button", { name: "Rotate text 90 degrees" }).click();
-  await ready(page);
+  await expectDocumentReady(page);
   const draft = page.getByRole("button", { name: "Drag text to move it" });
   const before = await draft.boundingBox();
   if (!before) throw new Error("Missing draft");
@@ -285,7 +278,7 @@ test("point placement, validation, editing, movement, rotation and history retai
     .poll(() => draft.evaluate((element) => [element.style.left, element.style.top]))
     .toEqual(savedPosition);
   await page.mouse.up();
-  await ready(page);
+  await expectDocumentReady(page);
   await page.getByRole("button", { name: "Save text", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Edit added text: Changed", exact: true })
@@ -372,7 +365,7 @@ for (const [width, height] of [
     await expect(page.locator(".editor-text-layer")).not.toHaveClass(/is-editing/);
     await revealPageZoom(page);
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
-    await ready(page);
+    await expectDocumentReady(page);
     const start = await point(page, 0.5, 0.5);
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
@@ -454,7 +447,7 @@ test.describe("touch text placement", () => {
       }, events);
     }
     await expect.poll(() => stage.getAttribute("data-zoom").then(Number)).toBeGreaterThan(1.5);
-    await ready(page);
+    await expectDocumentReady(page);
     await expect(page.getByLabel("Added text", { exact: true })).toHaveCount(0);
     await expect(page.locator(".editor-text-layer")).toHaveClass(/is-placing/);
     const box = await stage.boundingBox();
@@ -511,7 +504,7 @@ test("undo and redo wait for open text and field drafts instead of discarding th
 
   await page.getByRole("button", { name: "Save text", exact: true }).click();
   await expect(input).toHaveCount(0);
-  await ready(page);
+  await expectDocumentReady(page);
   await expect(undo).toHaveAttribute("aria-disabled", "false");
   await page.keyboard.press("ControlOrMeta+z");
   await expect(page.getByRole("button", { name: "Edit added text: Hello" })).toHaveCount(0);
