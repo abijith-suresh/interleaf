@@ -482,8 +482,9 @@ export default function Editor() {
     document.addEventListener("keydown", handleHistoryKeyDown);
     document.addEventListener("focusin", rememberFocus);
     window.addEventListener("resize", retainVisibleFocus);
-    // The workspace lives only in this page, so leaving it loses every page.
-    onCleanup(guardLeave(() => !disposed && pages.length > 0));
+    // The workspace lives only in this page, so leaving it loses every page,
+    // including pages that undo could still bring back.
+    onCleanup(guardLeave(() => !disposed && (pages.length > 0 || history().undo.length > 0)));
     onCleanup(() => {
       document.removeEventListener("keydown", handleHistoryKeyDown);
       document.removeEventListener("focusin", rememberFocus);
