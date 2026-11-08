@@ -1,20 +1,21 @@
 ---
+import HeroDemo from "./HeroDemo.astro";
 import MarketingHero from "./MarketingHero.astro";
 
 const base = import.meta.env.BASE_URL;
 
 const steps = [
   {
-    title: "Bring together",
-    body: "Open PDFs and PNG or JPEG images in one place, and add more files as you work.",
+    title: "Bring files together",
+    body: "Open PDFs and PNG or JPEG images at once, or add more as you go. Images become PDF pages.",
   },
   {
-    title: "Shape pages",
-    body: "Reorder, rotate, and duplicate pages, mark pages for deletion, or extract a selection into a new PDF. Add text and checkmarks in Document view.",
+    title: "Put pages in order",
+    body: "Drag to reorder, rotate in 90° steps, duplicate, or mark pages for deletion. In Document view, add text and checkmarks or fill supported form fields.",
   },
   {
-    title: "Keep it local",
-    body: "Everything runs in your browser. Nothing is uploaded.",
+    title: "Keep it on your device",
+    body: "Every step runs in your browser. Nothing is uploaded, and there is no account to create.",
   },
 ];
 ---
@@ -26,42 +27,23 @@ const steps = [
       document ready.
     </h1>
     <p class="marketing-lede">
-      Open PDFs and PNG or JPEG images together, review and shape their pages, and export the
-      result. Your files never leave your device.
+      Combine PDFs and images, put every page in order, and download one PDF. Your files never
+      leave your device.
     </p>
-    <a class="marketing-button" href={base + "app"}>Open editor</a>
+    <div class="landing-hero-action">
+      <a class="marketing-button" href={base + "app"}>Open editor</a>
+      <p class="landing-hero-note">Runs in your browser. No uploads, no account.</p>
+    </div>
   </div>
 
-  <div slot="secondary" class="workspace-cue" aria-hidden="true">
-    <div class="cue-top">
-      <span class="cue-dot"></span>
-      <span class="cue-rule"></span>
-      <span class="cue-rule cue-rule-short"></span>
-    </div>
-    <div class="cue-field">
-      <span class="sheet sheet-back"></span>
-      <span class="sheet sheet-middle"></span>
-      <span class="sheet sheet-front">
-        <span class="sheet-heading"></span>
-        <span class="sheet-line sheet-line-wide"></span>
-        <span class="sheet-line"></span>
-        <span class="sheet-line sheet-line-short"></span>
-        <span class="sheet-line"></span>
-      </span>
-      <span class="sheet-marker"></span>
-    </div>
-    <div class="cue-bottom">
-      <span class="cue-rule cue-rule-long"></span>
-      <span class="cue-dot cue-dot-small"></span>
-    </div>
-  </div>
+  <HeroDemo slot="secondary" />
 </MarketingHero>
 
 <section class="marketing-section" aria-labelledby="workflow-title">
   <div class="marketing-container">
     <div class="marketing-section-head">
       <h2 id="workflow-title" class="marketing-section-title">
-        The work between opening a file and sending it.
+        From a stack of files to one finished PDF.
       </h2>
     </div>
 
@@ -86,168 +68,19 @@ const steps = [
     max-width: 38rem;
   }
 
-  .landing-hero-copy .marketing-button {
+  .landing-hero-action {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
     margin-top: 2rem;
   }
 
-  /* The workspace illustration: a Cards card with a recessed well that
-     holds a stack of pages. */
-  .workspace-cue {
-    width: min(100%, 25rem);
-    aspect-ratio: 1.08;
-    justify-self: end;
-    overflow: hidden;
-    border-radius: var(--radius-2xl);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .cue-top,
-  .cue-bottom {
-    display: flex;
-    height: 2.75rem;
-    align-items: center;
-    gap: 0.5rem;
-    padding-inline: 1.25rem;
-  }
-
-  .cue-top {
-    border-bottom: 1px solid var(--color-line);
-  }
-
-  .cue-bottom {
-    justify-content: space-between;
-    border-top: 1px solid var(--color-line);
-  }
-
-  .cue-dot {
-    display: block;
-    width: 0.5rem;
-    height: 0.5rem;
-    flex: 0 0 auto;
-    border-radius: 50%;
-    background: var(--color-line-strong);
-  }
-
-  .cue-dot-small {
-    width: 0.375rem;
-    height: 0.375rem;
-  }
-
-  .cue-rule {
-    display: block;
-    width: 2.5rem;
-    height: 0.375rem;
-    border-radius: 999px;
-    background: var(--color-track);
-  }
-
-  .cue-rule-short {
-    width: 1rem;
-  }
-
-  .cue-rule-long {
-    width: 4.5rem;
-  }
-
-  .cue-field {
-    position: relative;
-    min-height: 15rem;
-    margin: 1.25rem;
-    overflow: hidden;
-    border-radius: var(--radius-xl);
-    background: var(--color-subtle);
-    box-shadow: inset 0 0 0 1px var(--color-line);
-  }
-
-  .sheet {
-    position: absolute;
-    display: block;
-    width: 42%;
-    height: 69%;
-    border-radius: var(--radius-xs);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .sheet-back {
-    top: 15%;
-    left: 17%;
-    transform: rotate(-8deg);
-  }
-
-  .sheet-middle {
-    top: 19%;
-    left: 28%;
-    transform: rotate(5deg);
-  }
-
-  .sheet-front {
-    top: 12%;
-    left: 25%;
-    display: flex;
-    width: 48%;
-    height: 73%;
-    flex-direction: column;
-    gap: 0.75rem;
-    padding: 1.25rem;
-    transform: rotate(-2deg);
-    box-shadow:
-      0 0 0 2px var(--color-surface),
-      0 0 0 4px var(--color-accent),
-      var(--shadow-sm);
-  }
-
-  .sheet-heading,
-  .sheet-line {
-    display: block;
-    height: 0.25rem;
-    border-radius: 999px;
-    background: var(--color-track);
-  }
-
-  .sheet-heading {
-    width: 64%;
-    height: 0.5rem;
-    margin-bottom: 0.25rem;
-    background: var(--color-fg);
-  }
-
-  .sheet-line-wide {
-    width: 88%;
-  }
-
-  .sheet-line-short {
-    width: 48%;
-  }
-
-  /* The selection point: the accent with its halo, on the selected page. */
-  .sheet-marker {
-    position: absolute;
-    top: 9%;
-    right: 24%;
-    width: 1rem;
-    height: 1rem;
-    border-radius: 50%;
-    background: var(--color-accent);
-    box-shadow:
-      0 0 0 2px var(--color-surface),
-      0 0 0 6px var(--color-accent-subtle);
-  }
-
-  @media (max-width: 47.99rem) {
-    .workspace-cue {
-      justify-self: center;
-    }
-  }
-
-  @media (max-width: 36rem) {
-    .workspace-cue {
-      width: min(100%, 20rem);
-    }
-
-    .cue-field {
-      min-height: 13rem;
-    }
+  .landing-hero-note {
+    margin: 0;
+    color: var(--color-fg-muted);
+    font-size: var(--text-body-sm);
+    line-height: var(--text-body-sm--line-height);
+    letter-spacing: var(--text-body-sm--letter-spacing);
   }
 </style>

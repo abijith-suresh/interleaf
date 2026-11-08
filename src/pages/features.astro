@@ -1,8 +1,9 @@
 ---
+import FeatureVignette from "../components/marketing/FeatureVignette.astro";
 import MarketingLayout from "../components/marketing/MarketingLayout.astro";
 import MarketingHero from "../components/marketing/MarketingHero.astro";
 
-const capabilities = [
+const capabilities: { title: string; description: string; vignette?: "text" | "field" }[] = [
   {
     title: "Bring a document together",
     description:
@@ -27,11 +28,13 @@ const capabilities = [
     title: "Add text",
     description:
       "Add one line of printable basic Latin text in Document view, using Helvetica. Drag, rotate, edit, or delete it.",
+    vignette: "text",
   },
   {
     title: "Fill supported form fields",
     description:
       "Fill embedded, unencrypted, single-line PDF text fields with basic Latin answers, using Helvetica. Other field types stay read-only.",
+    vignette: "field",
   },
   {
     title: "Mark flat forms",
@@ -85,7 +88,10 @@ const capabilities = [
                 </svg>
               </span>
               <h2 class="marketing-row-title">{capability.title}</h2>
-              <p class="marketing-row-body">{capability.description}</p>
+              <div class="marketing-row-body">
+                <p>{capability.description}</p>
+                {capability.vignette && <FeatureVignette kind={capability.vignette} />}
+              </div>
             </li>
           ))
         }
