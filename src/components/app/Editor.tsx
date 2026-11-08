@@ -386,7 +386,7 @@ export default function Editor() {
       return "Restore marked pages to compress the original PDF";
     }
     if (new Set(pages.map((page) => page.sourceFile)).size > 1) {
-      return "Compress works on a single opened PDF";
+      return "Compress works on one untouched PDF";
     }
     return "Compress only before page edits";
   }

@@ -1016,7 +1016,7 @@ describe("Editor", () => {
     await openDownloadMenu();
     const compress = screen.getByTestId("editor-compress-button");
     expect(compress).toHaveAttribute("aria-disabled", "true");
-    expect(compress).toHaveAccessibleName("Compress works on a single opened PDF");
+    expect(compress).toHaveAccessibleName("Compress works on one untouched PDF");
   });
 
   it("rejects unsupported files with an error toast", async () => {
