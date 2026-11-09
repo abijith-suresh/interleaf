@@ -21,7 +21,7 @@
         "@commitlint/cli": "^21.2.4",
         "@commitlint/config-conventional": "^21.2.4",
         "@effect/vitest": "4.1.2",
-        "@embedpdf/engine-runtime": "3.0.0-next.15",
+        "@embedpdf/engine-runtime": "3.0.0-next.22",
         "@embedpdf/engine-runtime-wasm32": "3.0.0-next.15",
         "@embedpdf/pdfium": "2.15.1",
         "@fontsource/inter": "^5.3.0",
@@ -212,25 +212,25 @@
 
     "@effect/vitest": ["@effect/vitest@4.1.2", "", { "peerDependencies": { "effect": "^4.1.2", "vitest": ">=5.0.0 <6.0.0" } }, "sha512-JJPwAHkJHxvM/woW9mMW/khjasAHcmwWdOMAgMy16rfqsxcVhFDnrRsvN9VI2+kMv8zDCCyBE2q1n5hzZlfE0w=="],
 
-    "@embedpdf/engine-runtime": ["@embedpdf/engine-runtime@3.0.0-next.15", "", { "dependencies": { "detect-libc": "^2.1.2" }, "optionalDependencies": { "@embedpdf/engine-runtime-darwin-arm64": "3.0.0-next.15", "@embedpdf/engine-runtime-darwin-x64": "3.0.0-next.15", "@embedpdf/engine-runtime-linux-arm64": "3.0.0-next.15", "@embedpdf/engine-runtime-linux-x64": "3.0.0-next.15", "@embedpdf/engine-runtime-linuxmusl-arm64": "3.0.0-next.15", "@embedpdf/engine-runtime-linuxmusl-x64": "3.0.0-next.15", "@embedpdf/engine-runtime-wasm32": "3.0.0-next.15", "@embedpdf/engine-runtime-win32-arm64": "3.0.0-next.15", "@embedpdf/engine-runtime-win32-x64": "3.0.0-next.15" } }, "sha512-NYqrZWtCoKtSwml41C+58IVJoM9M3/85IvLXqgkm+i37MbTAtngTDPU/AL+0AxxsM17Ij9GxXPc6SFM2hytfkw=="],
+    "@embedpdf/engine-runtime": ["@embedpdf/engine-runtime@3.0.0-next.22", "", { "dependencies": { "detect-libc": "^2.1.2" }, "optionalDependencies": { "@embedpdf/engine-runtime-darwin-arm64": "3.0.0-next.22", "@embedpdf/engine-runtime-darwin-x64": "3.0.0-next.22", "@embedpdf/engine-runtime-linux-arm64": "3.0.0-next.22", "@embedpdf/engine-runtime-linux-x64": "3.0.0-next.22", "@embedpdf/engine-runtime-linuxmusl-arm64": "3.0.0-next.22", "@embedpdf/engine-runtime-linuxmusl-x64": "3.0.0-next.22", "@embedpdf/engine-runtime-wasm32": "3.0.0-next.22", "@embedpdf/engine-runtime-win32-arm64": "3.0.0-next.22", "@embedpdf/engine-runtime-win32-x64": "3.0.0-next.22" } }, "sha512-aoJizF2jxUcXjX81/R4rtSulFWuME1UFykTs5plKbZHlqYNhkvN/cRBCVyHqPg+330Ohp0kSYugVmQszc5sybg=="],
 
-    "@embedpdf/engine-runtime-darwin-arm64": ["@embedpdf/engine-runtime-darwin-arm64@3.0.0-next.15", "", { "os": "darwin", "cpu": "arm64" }, "sha512-HmyDitxp/QlODVO3XbtDpAL/klDsObvMt440nGKNv3+ob7MKFH8c4NLM97hmUrva8mzeUMT1qLc6jX+gwDR9CQ=="],
+    "@embedpdf/engine-runtime-darwin-arm64": ["@embedpdf/engine-runtime-darwin-arm64@3.0.0-next.22", "", { "os": "darwin", "cpu": "arm64" }, "sha512-m9B8E4hs3U4PDt/8npUyjKm5dOi18106la8JjVjEhBsqgGlbYtrI4XthY5DoCG4PZIHA1Q1JObmgUi+ygAxywA=="],
 
-    "@embedpdf/engine-runtime-darwin-x64": ["@embedpdf/engine-runtime-darwin-x64@3.0.0-next.15", "", { "os": "darwin", "cpu": "x64" }, "sha512-zq6f687usFI/iIBhoKdI80bsQy5Yqu2a95AUdVgAPoJ7cmYYYoy4KC+z4O5XBdaj2OOV/2/FIeMu+eroGhaTiw=="],
+    "@embedpdf/engine-runtime-darwin-x64": ["@embedpdf/engine-runtime-darwin-x64@3.0.0-next.22", "", { "os": "darwin", "cpu": "x64" }, "sha512-/vFJGF2B2TKH5k/yOLYaulT4KwsoqLDcmJjpz/cqLc+z6aM2/v1F1yjuGvoAYbIlkdVe/Qdjn69CFYOtBRpcYQ=="],
 
-    "@embedpdf/engine-runtime-linux-arm64": ["@embedpdf/engine-runtime-linux-arm64@3.0.0-next.15", "", { "os": "linux", "cpu": "arm64" }, "sha512-OkkeYl0tjBl8KDM7aK7kZrExd7oe03P3wJy3PdgeLGjQHQR8MO5zok59ps+DMRCyVHqxUKbtRnGJ3NLI+7I5ag=="],
+    "@embedpdf/engine-runtime-linux-arm64": ["@embedpdf/engine-runtime-linux-arm64@3.0.0-next.22", "", { "os": "linux", "cpu": "arm64" }, "sha512-J6F3RD2uCQP/PtC5bI8XcZK0mROaEMNXpcW9CDRpup9t8vkwmRCJHBxC26Rk8AhLOY/NxJiUDbvDRMJ+KnSZvg=="],
 
-    "@embedpdf/engine-runtime-linux-x64": ["@embedpdf/engine-runtime-linux-x64@3.0.0-next.15", "", { "os": "linux", "cpu": "x64" }, "sha512-NRYE2n3K7ZzjGc5VkFVjcUiIHp1+SMouYpH8y4dnztIHheRww+t5WkF0bMihSHOG1QA1483EVfTr9CzrHDS/0A=="],
+    "@embedpdf/engine-runtime-linux-x64": ["@embedpdf/engine-runtime-linux-x64@3.0.0-next.22", "", { "os": "linux", "cpu": "x64" }, "sha512-M3qIpqJLuWHUQRVXwnu0L1BpqYUFIg3ebWjzxrAzMTHoM0UXunapwlhzObqLrImVu6rb7osLe7PBOr/KkUgtlQ=="],
 
-    "@embedpdf/engine-runtime-linuxmusl-arm64": ["@embedpdf/engine-runtime-linuxmusl-arm64@3.0.0-next.15", "", { "os": "linux", "cpu": "arm64" }, "sha512-CbrBWPA6/aV2Yr27M8FkXvO2oxvqFm+QuELfrTDXDMEBLtB8cAa2fZIT5x2XF89RTXnYs+G3ksG2jR/EPYYD/A=="],
+    "@embedpdf/engine-runtime-linuxmusl-arm64": ["@embedpdf/engine-runtime-linuxmusl-arm64@3.0.0-next.22", "", { "os": "linux", "cpu": "arm64" }, "sha512-hvwH6UqE8niPmbj+UmempoeXdnsGcp2FLTuHBi/+t6avq8aqRHTAsF0KepwSgVjFmlOHAvMW0CBr4ZQ5D1OhAw=="],
 
-    "@embedpdf/engine-runtime-linuxmusl-x64": ["@embedpdf/engine-runtime-linuxmusl-x64@3.0.0-next.15", "", { "os": "linux", "cpu": "x64" }, "sha512-k1+lSM+Ahmds1NIQ1P850ADqKNwz/xsVkHpQ7ipFgjRc9AhoYO5iQjACwMvplqTwb8xmAh+ZNtJZZEzsL2REDQ=="],
+    "@embedpdf/engine-runtime-linuxmusl-x64": ["@embedpdf/engine-runtime-linuxmusl-x64@3.0.0-next.22", "", { "os": "linux", "cpu": "x64" }, "sha512-fLATJYL9f8VoocVu50roAeEtsBl7vqA2LwvHFIruk72EYcYcA6j8T5L7c+YCG5lgbbn5rO82dKmW5JxvOkWb5A=="],
 
     "@embedpdf/engine-runtime-wasm32": ["@embedpdf/engine-runtime-wasm32@3.0.0-next.15", "", {}, "sha512-/qapSUmJ4FIcXm3JaVEygfcAe9tck+z2iIgxRcvxhdrbItx4LDMKa10HiCT8jtmIAw0dF7O6PZuJV/pHxDIcCw=="],
 
-    "@embedpdf/engine-runtime-win32-arm64": ["@embedpdf/engine-runtime-win32-arm64@3.0.0-next.15", "", { "os": "win32", "cpu": "arm64" }, "sha512-6zKHi5RGkUrlRqQwH5DH/I9HX+MFYvU0t9ajlQkcbGfUbJTSQny5/eiT571GVl5BLTmLFJ0sccSjwoYhK0Zzng=="],
+    "@embedpdf/engine-runtime-win32-arm64": ["@embedpdf/engine-runtime-win32-arm64@3.0.0-next.22", "", { "os": "win32", "cpu": "arm64" }, "sha512-STe7j5F9Y/3hXzUthPrPV9JPDXbK1zZHoGHg/a1pG3sUTlLFIC2F1j1j+EF0ZzfAGResEsH1egASeF7csL0sOA=="],
 
-    "@embedpdf/engine-runtime-win32-x64": ["@embedpdf/engine-runtime-win32-x64@3.0.0-next.15", "", { "os": "win32", "cpu": "x64" }, "sha512-yv1qFZeZ0KWhDl5QosUMAW21kK7fSBI0ceWHDlRtofApX4Dr2VeyWXNR0M4ajAfDSN2FvndvjOUjwlUzQPzLfQ=="],
+    "@embedpdf/engine-runtime-win32-x64": ["@embedpdf/engine-runtime-win32-x64@3.0.0-next.22", "", { "os": "win32", "cpu": "x64" }, "sha512-VpcC7Yi51GLv7VLfKdPs5RbWaLy1fGa/yxaxwUXEhHnQbtJm1V73gtcOKDDf6Vv9bky22T3UzLiIGhPgicdndg=="],
 
     "@embedpdf/pdfium": ["@embedpdf/pdfium@2.15.1", "", {}, "sha512-qDH4gEkGSQT0iM+07Hpm3LyvoB7PEFbW3Qyk6+LPkEYLJYfHagkHM1OzYlDq2EDOhJRguykTkzdMOT3/w27x5Q=="],
 
@@ -1191,6 +1191,8 @@
     "@commitlint/is-ignored/semver": ["semver@7.8.5", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA=="],
 
     "@conventional-changelog/git-client/semver": ["semver@7.8.5", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA=="],
+
+    "@embedpdf/engine-runtime/@embedpdf/engine-runtime-wasm32": ["@embedpdf/engine-runtime-wasm32@3.0.0-next.22", "", {}, "sha512-F7lqE78f3WGQNs3Tl2q9GIAg2oLz7YmirROLfxod8qDQpwd1j9URdZOXc9uc0ek24w5HlZWHxnZezLgaJ8a0BA=="],
 
     "@emnapi/core/tslib": ["tslib@2.8.1", "", {}, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
 
