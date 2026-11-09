@@ -23,10 +23,10 @@
   },
   "dependencies": {
     "@astrojs/solid-js": "^7.1.2",
-    "astro": "^7.4.4",
+    "astro": "^7.4.7",
     "effect": "4.1.2",
     "fflate": "^0.8.3",
-    "lucide-solid": "1.66.0",
+    "lucide-solid": "1.69.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.5.438",
     "solid-js": "^1.9.18"
@@ -34,7 +34,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.12",
     "@astrojs/sitemap": "^3.7.4",
-    "@biomejs/biome": "^2.6.4",
+    "@biomejs/biome": "^2.6.5",
     "@commitlint/cli": "^21.2.4",
     "@commitlint/config-conventional": "^21.2.4",
     "@effect/vitest": "4.1.2",
@@ -42,18 +42,18 @@
     "@embedpdf/engine-runtime-wasm32": "3.0.0-next.15",
     "@embedpdf/pdfium": "2.15.1",
     "@fontsource/inter": "^5.3.0",
-    "@playwright/test": "^1.64.1",
+    "@playwright/test": "^1.65.0",
     "@resvg/resvg-js": "^2.6.2",
     "@solidjs/testing-library": "^0.8.10",
-    "@tailwindcss/vite": "^4.3.3",
+    "@tailwindcss/vite": "^4.3.4",
     "@testing-library/jest-dom": "^7.0.1",
     "husky": "^9.1.7",
     "jsdom": "^31.0.0",
     "lint-staged": "^17.6.0",
     "satori": "^0.63.2",
     "typescript": "6",
-    "vite": "^8.3.5",
+    "vite": "^8.3.6",
     "vite-plugin-solid": "^2.11.15",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   }
 }
