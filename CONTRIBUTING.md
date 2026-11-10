@@ -86,6 +86,8 @@ Follow the existing Astro, SolidJS, TypeScript, and Tailwind patterns. The code 
 
 ### Testing
 
+- Assert behaviour, not palette values: compare against an element's resting state or another element instead of literal colours.
+
 Tests are co-located with source: `src/**/__tests__/*.test.ts`.
 
 ```sh
