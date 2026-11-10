@@ -276,3 +276,68 @@ it("names the current page tool and keeps one Read control", async () => {
     stage.remove();
   }
 });
+
+it.each(["text", "checkmark"] as const)(
+  "%s size entry retains its spelling through draft updates and saves only on submit",
+  async (kind) => {
+    mockAdditionGeometry();
+    validate.mockReset().mockResolvedValue(undefined);
+    const runtime = makePDFRuntime();
+    const toolbar = document.createElement("div"),
+      stage = document.createElement("section");
+    document.body.append(toolbar, stage);
+    const base = { id: "saved", x: 100, y: 100, rotation: 0 };
+    const onChange = vi.fn();
+    const view = render(() => (
+      <EditorAdditionsEditor
+        page={{
+          id: "page",
+          sourceFile: new File(["pdf"], "source.pdf"),
+          sourcePageNumber: 1,
+          rotation: 0,
+          markedForDeletion: false,
+          addedText: kind === "text" ? [{ ...base, text: "Saved", fontSize: 16 }] : [],
+          addedCheckmarks: kind === "checkmark" ? [{ ...base, size: 16 }] : [],
+        }}
+        runtime={runtime}
+        toolbar={toolbar}
+        stage={stage}
+        ready
+        onChange={onChange}
+        onCheckmarksChange={onChange}
+        onEditing={() => {}}
+        registerTap={() => {}}
+        registerGesture={() => {}}
+      />
+    ));
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Select additions" }));
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: kind === "text" ? "Edit added text: Saved" : "Edit added checkmark",
+        })
+      );
+      const size = screen.getByLabelText<HTMLInputElement>(
+        kind === "text" ? "Text size in points" : "Checkmark size in points"
+      );
+      fireEvent.input(size, { target: { value: "03" } });
+      expect(size.value).toBe("03");
+      fireEvent.click(screen.getByRole("button", { name: `Rotate ${kind} 90 degrees` }));
+      expect(size.value).toBe("03");
+      fireEvent.input(size, { target: { value: "" } });
+      expect(size.value).toBe("");
+      fireEvent.input(size, { target: { value: "32" } });
+      expect(onChange).not.toHaveBeenCalled();
+      fireEvent.submit(size.closest("form")!);
+      await waitFor(() => expect(onChange).toHaveBeenCalledOnce());
+      expect(onChange.mock.calls[0][1][0]).toMatchObject(
+        kind === "text" ? { fontSize: 32 } : { size: 32 }
+      );
+    } finally {
+      view.unmount();
+      await runtime.dispose();
+      toolbar.remove();
+      stage.remove();
+    }
+  }
+);

@@ -8,6 +8,7 @@ import {
   PDFNumber,
   PDFRawStream,
 } from "pdf-lib";
+import { expectTypedAdditionSize } from "./fixtures/addition-size";
 import { captureDownload } from "./fixtures/download";
 import { expectDocumentReady, openDocument } from "./fixtures/editor";
 import { downloadDocument, revealDocumentTools } from "./fixtures/toolbar";
@@ -392,3 +393,8 @@ for (const kind of ["checkmark", "text"] as const) {
     ).toBeFocused();
   });
 }
+
+test("typed checkmark sizes survive replacement, clearing and saved edits", async ({ page }) => {
+  await open(page);
+  await expectTypedAdditionSize(page, "checkmark");
+});
