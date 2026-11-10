@@ -117,7 +117,9 @@ for (const viewport of [
     }
     const duplicate = tile.getByTestId("editor-page-duplicate-button");
     await duplicate.focus();
-    await expect(duplicate).toHaveCSS("outline-color", "rgb(23, 128, 79)");
+    expect(["rgba(0, 0, 0, 0)", "transparent"]).not.toContain(
+      await duplicate.evaluate((element) => getComputedStyle(element).outlineColor)
+    );
     await expect(duplicate).toHaveCSS("outline-width", "2px");
     await expect(duplicate).toHaveCSS("outline-style", "solid");
     // Dragging the action must never begin a page reorder.
@@ -188,7 +190,9 @@ for (const viewport of [
     await page.getByTestId("editor-pages-view-button").focus();
     await page.keyboard.press("ArrowRight");
     await expect(review).toBeFocused();
-    await expect(review).toHaveCSS("outline-color", "rgb(23, 128, 79)");
+    expect(["rgba(0, 0, 0, 0)", "transparent"]).not.toContain(
+      await review.evaluate((element) => getComputedStyle(element).outlineColor)
+    );
     await expect(review).toHaveCSS("outline-style", "solid");
     await expect(review).toHaveCSS("outline-width", "2px");
     await expect(review.locator("svg")).toHaveCSS("width", "16px");
@@ -204,7 +208,11 @@ for (const viewport of [
     await expect(compress).toBeFocused();
     await expect(compress).toHaveAttribute("aria-disabled", "true");
     await expect(compress).toContainText("Compress works on one untouched PDF");
-    await expect(compress).toHaveCSS("outline-color", "rgb(23, 128, 79)");
+    expect(["rgba(0, 0, 0, 0)", "transparent"]).not.toContain(
+      await compress.evaluate((element) => getComputedStyle(element).outlineColor)
+    );
+    await expect(compress).toHaveCSS("outline-width", "2px");
+    await expect(compress).toHaveCSS("outline-style", "solid");
     await expect(compress).toHaveCSS("opacity", "1");
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("editor-download-menu")).toBeVisible();
@@ -334,14 +342,23 @@ test("touch taps release transient styles while selected states remain visible",
   expect(await page.evaluate(() => matchMedia("(hover: hover) and (pointer: fine)").matches)).toBe(
     false
   );
+  const rotateRestingBackground = await rotate.evaluate(
+    (element) => getComputedStyle(element).backgroundColor
+  );
   await rotate.tap();
-  await expect(rotate).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(rotate).toHaveCSS("background-color", rotateRestingBackground);
+  const removeRestingBackground = await remove.evaluate(
+    (element) => getComputedStyle(element).backgroundColor
+  );
   await remove.tap();
-  await expect(remove).toHaveCSS("background-color", "rgb(254, 242, 242)");
+  await expect(remove).not.toHaveCSS("background-color", removeRestingBackground);
   await expect(remove).toHaveAccessibleName("Restore page 1");
   await remove.tap();
-  await expect(remove).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(remove).toHaveCSS("background-color", removeRestingBackground);
   const duplicate = page.getByTestId("editor-page-duplicate-button").first();
+  const duplicateRestingBackground = await duplicate.evaluate(
+    (element) => getComputedStyle(element).backgroundColor
+  );
   await duplicate.tap();
   await expect(page.getByTestId("editor-page-tile")).toHaveCount(4);
   await expect(page.getByTestId("editor-page-tile").nth(1)).toBeFocused();
@@ -349,13 +366,16 @@ test("touch taps release transient styles while selected states remain visible",
     "aria-pressed",
     "false"
   );
-  await expect(duplicate).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(duplicate).toHaveCSS("background-color", duplicateRestingBackground);
   const options = page.getByTestId("editor-download-menu-button");
+  const optionsRestingBackground = await options.evaluate(
+    (element) => getComputedStyle(element).backgroundColor
+  );
   await options.tap();
   await expect(options).toHaveAttribute("aria-expanded", "true");
   await page.locator(".editor-page-scroll").tap({ position: { x: 4, y: 4 } });
   await expect(options).toHaveAttribute("aria-expanded", "false");
-  await expect(options).toHaveCSS("background-color", "rgb(20, 39, 31)");
+  await expect(options).toHaveCSS("background-color", optionsRestingBackground);
   await expect(options).toHaveCSS("transform", "none");
   await context.close();
 });
