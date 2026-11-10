@@ -225,6 +225,6 @@ for (const width of [1440, 375, 320]) {
     const thumbnail = await item.locator(".canvas-container").boundingBox();
     const box = await badge.boundingBox();
     expect(box?.y).toBeGreaterThanOrEqual((thumbnail?.y ?? 0) + (thumbnail?.height ?? 0));
-    await expect(badge).toHaveCSS("background-color", "rgb(229, 229, 229)");
+    await expect(badge).toHaveCSS("background-color", "rgb(226, 231, 228)");
   });
 }
