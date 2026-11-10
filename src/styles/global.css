@@ -160,6 +160,7 @@
 }
 
 :root {
+  --section-gap: clamp(3rem, 6vw, 5rem);
   color-scheme: light;
 }
 
@@ -210,11 +211,11 @@ body {
 /* Hero: "home" is the two-column landing hero; "page" stacks a title over
    one lede for every inner page. */
 .marketing-hero-home {
-  padding-block: 5rem 4rem;
+  padding-block: 4rem 3rem;
 }
 
 .marketing-hero-page {
-  padding-block: 4rem 2.5rem;
+  padding-block: 3.5rem 2rem;
 }
 
 .marketing-hero-grid {
@@ -310,17 +311,29 @@ body {
   scale: 0.97;
 }
 
+.marketing-button-leaf {
+  background: var(--color-leaf);
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.3),
+    0 1px 2px 0 rgb(0 0 0 / 0.24);
+  color: var(--color-fg);
+}
+
+.marketing-button-leaf:hover {
+  background: color-mix(in srgb, var(--color-leaf) 88%, white);
+}
+
+.marketing-button-leaf:active {
+  background: color-mix(in srgb, var(--color-leaf) 88%, black);
+}
+
 .marketing-button-compact {
   height: 2rem;
   border-radius: var(--radius-button-sm);
 }
 
 .marketing-section {
-  padding-bottom: 3rem;
-}
-
-.marketing-section:last-child {
-  padding-bottom: 4rem;
+  padding-bottom: var(--section-gap);
 }
 
 .marketing-section-head {
@@ -348,7 +361,7 @@ body {
 
 .marketing-row {
   display: grid;
-  grid-template-columns: 2.5rem minmax(0, 0.75fr) minmax(0, 1.25fr);
+  grid-template-columns: 2.5rem minmax(10rem, 16rem) minmax(0, 1fr);
   align-items: start;
   gap: 0.25rem 1.5rem;
   padding: 1.25rem 1.5rem;
@@ -386,7 +399,7 @@ body {
 }
 
 .marketing-row-body {
-  max-width: 32rem;
+  max-width: 40rem;
   margin: 0;
   padding-top: 0.625rem;
   color: var(--color-fg-muted);
@@ -405,9 +418,9 @@ body {
   text-decoration-color: currentColor;
 }
 
-/* The closing card above the footer on inner pages. */
+/* The closing band above the footer. */
 .marketing-cta {
-  padding-bottom: 4rem;
+  padding-bottom: var(--section-gap);
 }
 
 .marketing-cta-inner {
@@ -418,27 +431,27 @@ body {
   gap: 1.5rem 3rem;
   padding: 2rem;
   border-radius: var(--radius-2xl);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
+  background: var(--color-inverse);
 }
 
 .marketing-cta .marketing-section-title {
+  color: var(--color-fg-inverse);
   @apply text-heading-5;
 }
 
 .marketing-cta-copy {
   margin: 0.25rem 0 0;
-  color: var(--color-fg-muted);
+  color: rgb(255 255 255 / 0.72);
   @apply text-body-md;
 }
 
 @media (max-width: 47.99rem) {
   .marketing-hero-home {
-    padding-block: 3rem;
+    padding-block: 2.5rem 2rem;
   }
 
   .marketing-hero-page {
-    padding-block: 3rem 2rem;
+    padding-block: 2.5rem 1.5rem;
   }
 
   .marketing-hero-grid {
@@ -523,6 +536,10 @@ body {
 .marketing-page summary:focus-visible {
   outline: 2px solid var(--color-line-focus);
   outline-offset: 2px;
+}
+
+.marketing-cta a:focus-visible {
+  outline-color: var(--color-leaf);
 }
 
 /* Header: a surface bar over the canvas. */
@@ -685,6 +702,18 @@ body {
   }
 }
 
+.mobile-nav-divider {
+  width: 100%;
+  margin: 0.25rem 0;
+  border: 0;
+  border-top: 1px solid var(--color-line);
+}
+
+.mobile-nav-panel > .marketing-button {
+  width: 100%;
+  height: 2.75rem;
+}
+
 /* Cards' menu item, grown to a 44px touch target. The current page takes
    the chosen fill; hover and focus stay a step lighter. */
 .mobile-nav-link {
@@ -726,7 +755,7 @@ body {
   }
 
   .nav-actions > .marketing-button {
-    margin-left: 0;
+    display: none;
   }
 }
 
@@ -737,7 +766,7 @@ body {
 }
 
 .site-footer-inner {
-  padding-block: 3rem 1.5rem;
+  padding-block: 2rem;
 }
 
 .footer-main {
@@ -763,15 +792,7 @@ body {
   margin-inline: -0.75rem;
 }
 
-.footer-bottom {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  margin-top: 2.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--color-line);
-  color: var(--color-fg-muted);
+.footer-brand .footer-copyright {
   @apply text-body-xs;
 }
 
@@ -783,6 +804,7 @@ body {
 
   .footer-links {
     justify-content: flex-end;
+    margin-inline: 0;
   }
 }
 

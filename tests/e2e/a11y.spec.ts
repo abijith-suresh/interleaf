@@ -12,14 +12,15 @@ test("the mobile menu closes on Escape, outside click, and link navigation", asy
   const summary = menu.locator("summary");
   const nav = page.getByRole("navigation", { name: "Main navigation" });
 
-  // The editor action stays in the header; the menu holds only the page links.
-  await expect(nav.getByRole("link", { name: "Open editor" })).toBeVisible();
+  // The editor action moves into the menu on phones.
+  await expect(nav.locator(".nav-actions > .marketing-button")).toBeHidden();
   await expect(summary).toHaveAccessibleName("Menu");
 
   await summary.focus();
   await page.keyboard.press("Enter");
   await expect(menu).toHaveJSProperty("open", true);
-  await expect(menu.getByRole("link")).toHaveText(["Features", "FAQ"]);
+  await expect(menu.getByRole("link")).toHaveText(["Features", "FAQ", "Open editor"]);
+  await expect(menu.getByRole("link", { name: "Open editor" })).toBeVisible();
   // The dropdown hangs from the trigger's right edge.
   const rightEdge = (selector: string) =>
     page.locator(selector).evaluate((node) => Math.round(node.getBoundingClientRect().right));
@@ -42,6 +43,11 @@ test("the mobile menu closes on Escape, outside click, and link navigation", asy
   await page.locator("details.mobile-nav summary").click();
   await page.locator("details.mobile-nav").getByRole("link", { name: "FAQ" }).click();
   await expect(page.locator("details.mobile-nav")).toHaveJSProperty("open", false);
+
+  await page.locator("details.mobile-nav summary").click();
+  await page.locator("details.mobile-nav").getByRole("link", { name: "Open editor" }).click();
+  await expect(page).toHaveURL(/\/app\/?$/);
+  await expect(page.locator("details.mobile-nav[open]")).toHaveCount(0);
 });
 
 test("a wrong password is flagged on the input and announced; the dialog is modal", async ({
