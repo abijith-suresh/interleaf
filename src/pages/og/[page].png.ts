@@ -47,11 +47,11 @@ const headingFontData = interFont(500);
 
 // Cards tokens from the marketing theme in src/styles/global.css.
 const colors = {
-  canvas: "#f5f5f5",
+  canvas: "#f1f3f1",
   surface: "#ffffff",
-  fg: "#0a0a0a",
-  fgMuted: "#525252",
-  line: "#e5e5e5",
+  fg: "#11201a",
+  fgMuted: "#4e5a54",
+  line: "#dde3df",
   accent: "#17804f",
 };
 
