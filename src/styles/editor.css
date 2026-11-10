@@ -80,8 +80,10 @@ body:has([data-page="editor"]) {
   touch-action: manipulation;
   white-space: nowrap;
   transition-property: color, background-color, box-shadow, opacity, scale;
-  transition-duration: 150ms;
-  transition-timing-function: var(--ease-tactile);
+  transition-duration: 150ms, 150ms, 150ms, 150ms, 240ms;
+  transition-timing-function:
+    var(--ease-tactile), var(--ease-tactile), var(--ease-tactile), var(--ease-tactile),
+    var(--ease-spring);
   @apply text-ui-sm;
 }
 
@@ -172,10 +174,43 @@ body:has([data-page="editor"]) {
 
 .editor-button:active:where(:not(:disabled, [aria-disabled="true"])) {
   scale: 0.97;
+  transition-duration: 60ms;
+  transition-timing-function: var(--ease-tactile);
 }
 
 .editor-button-icon:active:where(:not(:disabled, [aria-disabled="true"])) {
   scale: 0.94;
+  transition-duration: 60ms;
+  transition-timing-function: var(--ease-tactile);
+}
+
+.editor-button-primary:active:where(
+  :not(
+    :disabled,
+    [aria-disabled="true"],
+    .editor-menu-item,
+    .editor-view-nav *,
+    .editor-text-toolbar *
+  )
+) {
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.1),
+    0 0 0 1px var(--color-primary),
+    0 0 0 0 transparent;
+}
+
+.editor-button-secondary:active:where(
+  :not(
+    :disabled,
+    [aria-disabled="true"],
+    .editor-menu-item,
+    .editor-view-nav *,
+    .editor-text-toolbar *
+  )
+) {
+  box-shadow:
+    0 0 0 1px rgb(17 32 26 / 0.1),
+    0 0 0 0 transparent;
 }
 
 /* Icon-only buttons. Ghost ones draw a 36px visual inside a 44px box with a
@@ -594,6 +629,7 @@ body:has([data-page="editor"]) {
 
 /* Pages and Document: Cards' segmented control. */
 .editor-view-nav {
+  position: relative;
   display: flex;
   flex: 0 0 auto;
   min-width: 0;
@@ -609,6 +645,8 @@ body:has([data-page="editor"]) {
    that reach past the tray. The active segment's raised fill is drawn
    behind its label. */
 .editor-view-nav .editor-button {
+  position: relative;
+  z-index: 1;
   --editor-hit-inset: 0.5rem;
   isolation: isolate;
   min-height: 2.75rem;
@@ -638,21 +676,46 @@ body:has([data-page="editor"]) {
   color: var(--color-fg);
 }
 
-.editor-view-nav .editor-button[aria-pressed="true"]::after {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: calc(var(--radius-lg) - 0.25rem);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
-  content: "";
-}
-
 @media (hover: hover) and (pointer: fine) {
   .editor-view-nav .editor-button:hover:where(:not([aria-disabled="true"])) {
     background: transparent;
     color: var(--color-fg);
   }
+}
+
+.editor-segment-indicator {
+  position: absolute;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  left: 0;
+  z-index: 0;
+  width: var(--segment-w);
+  border-radius: calc(var(--radius-lg) - 0.25rem);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+  translate: var(--segment-x) 0;
+}
+
+.editor-segment-indicator[data-ready] {
+  transition:
+    translate 220ms var(--ease-out-expo),
+    width 220ms var(--ease-out-expo);
+}
+
+.editor-segment-indicator[data-hidden] {
+  opacity: 0;
+}
+
+@keyframes editor-view-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+
+.editor-workspace-main[data-entering] > :not(input) {
+  animation: editor-view-in 180ms var(--ease-out-expo);
 }
 
 .editor-workspace-main {
@@ -1268,7 +1331,7 @@ body:has([data-page="editor"]) {
   box-shadow: var(--shadow-sm);
   -webkit-user-select: none;
   user-select: none;
-  transition-property: box-shadow, opacity;
+  transition-property: box-shadow, background-color, opacity;
   transition-duration: 150ms;
   transition-timing-function: var(--ease-tactile);
 }
@@ -1363,7 +1426,10 @@ body:has([data-page="editor"]) {
   border-radius: var(--radius-xs);
   background: var(--color-subtle);
   box-shadow: inset 0 0 0 1px var(--color-line);
-  transition: opacity 150ms var(--ease-tactile);
+  transition:
+    box-shadow 150ms var(--ease-tactile),
+    background-color 150ms var(--ease-tactile),
+    opacity 150ms var(--ease-tactile);
 }
 
 .canvas-container.thumbnail-placeholder {
@@ -1880,6 +1946,18 @@ body:has([data-page="editor"]) {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .editor-app .editor-button,
+  .editor-app .editor-button:active,
+  .editor-app .editor-page,
+  .editor-app .canvas-container,
+  .editor-app .editor-segment-indicator[data-ready] {
+    transition: none;
+  }
+
+  .editor-workspace-main[data-entering] > :not(input) {
+    animation: none;
+  }
+
   .editor-app *,
   .editor-app *::before,
   .editor-app *::after {
@@ -1943,6 +2021,7 @@ body:has([data-page="editor"]) {
 }
 
 .editor-text-toolbar {
+  position: relative;
   display: flex;
   flex: 0 0 auto;
   min-width: 0;
@@ -1956,6 +2035,8 @@ body:has([data-page="editor"]) {
 
 /* Pick-one page tools use the same raised segments as the view switch. */
 .editor-text-toolbar .editor-button {
+  position: relative;
+  z-index: 1;
   --editor-hit-inset: 0.5rem;
   isolation: isolate;
   min-height: 2.75rem;
@@ -1982,16 +2063,6 @@ body:has([data-page="editor"]) {
   background: transparent;
   box-shadow: none;
   color: var(--color-fg);
-}
-
-.editor-text-toolbar .editor-button[aria-pressed="true"]::after {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: calc(var(--radius-lg) - 0.25rem);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
-  content: "";
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -2397,8 +2468,8 @@ body:has([data-page="editor"]) {
     color: var(--color-fg);
   }
 
-  .editor-text-content.is-open .editor-text-toolbar .editor-button::after {
-    content: none;
+  .editor-text-toolbar .editor-segment-indicator {
+    display: none;
   }
 
   .editor-text-content.is-open .editor-text-toolbar .editor-button:hover:where(:not(:disabled)) {
