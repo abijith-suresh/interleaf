@@ -1,0 +1,41 @@
+---
+interface Props {
+  asideOnMobile?: boolean;
+}
+
+const { asideOnMobile = false } = Astro.props;
+---
+
+<div class="marketing-container marketing-split">
+  <aside class:list={{ "aside-on-mobile": asideOnMobile }}><slot name="aside" /></aside>
+  <div class="marketing-split-main"><slot /></div>
+</div>
+
+<style>
+  .marketing-split {
+    display: grid;
+    gap: 3rem;
+    align-items: start;
+  }
+  aside {
+    display: none;
+  }
+  aside.aside-on-mobile {
+    display: block;
+    order: 1;
+  }
+  .marketing-split-main {
+    min-width: 0;
+  }
+  @media (min-width: 64rem) {
+    .marketing-split {
+      grid-template-columns: 14rem minmax(0, 1fr);
+    }
+    aside, aside.aside-on-mobile {
+      display: block;
+      position: sticky;
+      top: 2rem;
+      order: 0;
+    }
+  }
+</style>

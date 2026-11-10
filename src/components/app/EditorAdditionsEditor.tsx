@@ -22,6 +22,7 @@ import type { AddedCheckmark, AddedText, PageGeometry, PageState } from "../../t
 import EditorFieldsEditor from "./EditorFieldsEditor";
 import EditorButton from "./ui/EditorButton";
 import EditorIcon from "./ui/EditorIcon";
+import { attachSegmentIndicator } from "./ui/segment-indicator";
 
 type Addition = AddedText | AddedCheckmark;
 const isText = (item: Addition): item is AddedText => "text" in item;
@@ -90,6 +91,9 @@ export default function EditorAdditionsEditor(props: Props) {
   // The field panel and hint live inside the portalled toolbar, which exists after mount.
   const [panelsMounted, setPanelsMounted] = createSignal(false);
   onMount(() => setPanelsMounted(true));
+  let toolToolbar!: HTMLDivElement;
+  let toolIndicator!: HTMLSpanElement;
+  onMount(() => onCleanup(attachSegmentIndicator(toolToolbar, toolIndicator)));
   let layer!: HTMLDivElement;
   let fieldPanel!: HTMLDivElement;
   let fieldHint!: HTMLDivElement;
@@ -644,7 +648,13 @@ export default function EditorAdditionsEditor(props: Props) {
               tabIndex={-1}
               classList={{ "is-open": toolsOpen() }}
             >
-              <div class="editor-text-toolbar" role="toolbar" aria-label="Page tools">
+              <div
+                ref={toolToolbar}
+                class="editor-text-toolbar"
+                role="toolbar"
+                aria-label="Page tools"
+              >
+                <span ref={toolIndicator} class="editor-segment-indicator" aria-hidden="true" />
                 <EditorButton
                   icon="eye"
                   aria-pressed={activeTool() === "read"}
