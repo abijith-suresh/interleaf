@@ -111,7 +111,7 @@ CI runs the suite in Chromium, Firefox, and WebKit.
 - Tailwind CSS v4 with CSS-first `@theme` tokens in `global.css`.
 - Editor-specific styles in `editor.css`.
 - Use existing utility classes and CSS custom properties.
-- Follow the [Cards](https://github.com/oliur/cards) design system defaults: white surfaces on a grey canvas, quiet neutrals, and color only for actions and state.
+- Follow the [Cards](https://github.com/oliur/cards) structure with Interleaf's Evergreen palette: white surfaces on a green-tinted neutral canvas, evergreen ink, and the leaf green only for selection, focus, and Interleaf's own additions to a page.
 
 ## Copy And Voice
 

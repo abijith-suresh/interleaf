@@ -355,7 +355,7 @@ test("touch taps release transient styles while selected states remain visible",
   await expect(options).toHaveAttribute("aria-expanded", "true");
   await page.locator(".editor-page-scroll").tap({ position: { x: 4, y: 4 } });
   await expect(options).toHaveAttribute("aria-expanded", "false");
-  await expect(options).toHaveCSS("background-color", "rgb(0, 0, 0)");
+  await expect(options).toHaveCSS("background-color", "rgb(20, 39, 31)");
   await expect(options).toHaveCSS("transform", "none");
   await context.close();
 });

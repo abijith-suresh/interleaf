@@ -661,7 +661,7 @@ body:has([data-page="editor"]) {
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  background: var(--color-canvas);
+  background: var(--color-workspace);
 }
 
 /* Empty state */
@@ -945,7 +945,7 @@ body:has([data-page="editor"]) {
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  background: var(--color-canvas);
+  background: var(--color-workspace);
 }
 
 .editor-review-header {
@@ -1044,7 +1044,7 @@ body:has([data-page="editor"]) {
   min-height: 0;
   flex: 1;
   padding: 2rem;
-  background: var(--color-canvas);
+  background: var(--color-workspace);
   overflow: auto;
   overscroll-behavior: contain;
   touch-action: none;
@@ -1140,7 +1140,7 @@ body:has([data-page="editor"]) {
   gap: 0.75rem;
   margin: 0;
   padding: 1rem;
-  background: rgb(245 245 245 / 0.86);
+  background: color-mix(in srgb, var(--color-canvas) 86%, transparent);
   color: var(--color-fg-muted);
   text-align: center;
   @apply text-body-sm;
@@ -1380,7 +1380,7 @@ body:has([data-page="editor"]) {
   justify-content: center;
   gap: 0.5rem;
   padding: 1rem;
-  background: rgb(250 250 250 / 0.94);
+  background: color-mix(in srgb, var(--color-subtle) 94%, transparent);
   color: var(--color-fg-muted);
   text-align: center;
   @apply text-body-xs;
