@@ -1,3 +1,4 @@
+import { onCleanup, onMount } from "solid-js";
 import Wordmark from "../shared/Wordmark";
 import EditorHistoryControls from "./EditorHistoryControls";
 import EditorButton from "./ui/EditorButton";
@@ -5,6 +6,7 @@ import EditorIcon from "./ui/EditorIcon";
 import { EditorMenu, EditorMenuItem } from "./ui/EditorMenu";
 import EditorOverflow from "./ui/EditorOverflow";
 import { createRovingToolbar } from "./ui/roving-toolbar";
+import { attachSegmentIndicator } from "./ui/segment-indicator";
 
 interface Props {
   base: string;
@@ -36,6 +38,9 @@ interface Props {
 }
 
 export default function EditorToolbar(props: Props) {
+  let viewNav!: HTMLFieldSetElement;
+  let viewIndicator!: HTMLSpanElement;
+  onMount(() => onCleanup(attachSegmentIndicator(viewNav, viewIndicator)));
   let toolbar!: HTMLDivElement;
   createRovingToolbar(() => toolbar);
 
@@ -71,7 +76,8 @@ export default function EditorToolbar(props: Props) {
             <Wordmark />
           </span>
         </a>
-        <fieldset class="editor-view-nav" aria-label="Workspace views">
+        <fieldset ref={viewNav} class="editor-view-nav" aria-label="Workspace views">
+          <span ref={viewIndicator} class="editor-segment-indicator" aria-hidden="true" />
           <EditorButton
             data-testid="editor-pages-view-button"
             data-view="pages"
