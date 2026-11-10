@@ -109,7 +109,7 @@ const groups: {
         groups.map((group) => (
           <section class="feature-group" aria-labelledby={`features-${group.label.toLowerCase()}`}>
             <h2 id={`features-${group.label.toLowerCase()}`}>{group.label}</h2>
-            <div class="feature-grid">
+            <div class:list={["feature-grid", group.capabilities.length === 2 && "is-pair"]}>
               {group.capabilities.map((capability) => (
                 <article class="feature-card">
                   <span class="feature-icon">
@@ -208,6 +208,20 @@ const groups: {
     margin-top: 0;
   }
 
+  @media (width < 48rem) {
+    .feature-card {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      padding: 1.25rem;
+    }
+
+    .feature-card p,
+    .feature-vignette {
+      grid-column: 1 / -1;
+    }
+  }
+
   @media (min-width: 48rem) {
     .feature-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -217,6 +231,10 @@ const groups: {
   @media (min-width: 64rem) {
     .feature-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .feature-grid.is-pair {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 </style>
