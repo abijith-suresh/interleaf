@@ -1,6 +1,7 @@
 ---
 import MarketingHero from "./MarketingHero.astro";
 import MarketingLayout from "./MarketingLayout.astro";
+import MarketingSplit from "./MarketingSplit.astro";
 
 interface LinkPart {
   href: string;
@@ -32,7 +33,14 @@ const { title, description, heading, headingId, intro, sections } = Astro.props;
   <MarketingHero titleId={headingId} title={heading} lede={intro} />
 
   <section class="marketing-section" aria-label={`${heading} contents`}>
-    <div class="marketing-container">
+    <MarketingSplit asideOnMobile={false}>
+      <nav slot="aside" aria-label="On this page">
+        {
+          sections.map((section) => (
+            <a class="marketing-link" href={`#${section.id}`}>{section.title}</a>
+          ))
+        }
+      </nav>
       <div class="marketing-rows">
         {
           sections.map((section) => (
@@ -54,6 +62,15 @@ const { title, description, heading, headingId, intro, sections } = Astro.props;
           ))
         }
       </div>
-    </div>
+    </MarketingSplit>
   </section>
 </MarketingLayout>
+
+<style>
+  nav .marketing-link {
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+    transition: none;
+  }
+</style>
