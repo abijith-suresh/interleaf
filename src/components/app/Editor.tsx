@@ -1,5 +1,14 @@
 import { Effect, Fiber } from "effect";
-import { batch, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import {
+  batch,
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+} from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
 import {
   ROTATION_STEP,
@@ -127,6 +136,24 @@ export default function Editor() {
   const [filePickerOpen, setFilePickerOpen] = createSignal(false);
   const [filesOpen, setFilesOpen] = createSignal(false);
   const [workspaceView, setWorkspaceView] = createSignal<"pages" | "document">("pages");
+  let workspaceContent: HTMLElement | undefined;
+  let enteringTimer: ReturnType<typeof setTimeout> | undefined;
+  const finishViewEnter = () => {
+    workspaceContent?.removeAttribute("data-entering");
+    clearTimeout(enteringTimer);
+  };
+  onMount(() => {
+    let previousView = workspaceView();
+    createEffect(() => {
+      const view = workspaceView();
+      if (view === previousView) return;
+      previousView = view;
+      finishViewEnter();
+      workspaceContent?.setAttribute("data-entering", "");
+      enteringTimer = setTimeout(finishViewEnter, 250);
+    });
+  });
+  onCleanup(finishViewEnter);
   const [activePageId, setActivePageId] = createSignal<string | null>(null);
   const [draftOpen, setDraftOpen] = createSignal(false);
   const [operation, setOperation] = createSignal<EditorOperation>("idle");
@@ -1704,6 +1731,10 @@ export default function Editor() {
               {selectionAnnouncement()}
             </p>
             <section
+              ref={workspaceContent}
+              onAnimationEnd={(event) => {
+                if (event.animationName === "editor-view-in") finishViewEnter();
+              }}
               id="editor-workspace-content"
               class="editor-workspace-main"
               aria-label={workspaceView() === "pages" ? "Pages workspace" : "Document workspace"}
