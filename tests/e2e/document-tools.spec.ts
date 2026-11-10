@@ -44,7 +44,7 @@ async function expectPressed(page: Page, name: string) {
     .getByRole("toolbar", { name: "Page tools", ...hidden })
     .getByRole("button", { name, exact: true, ...hidden });
   // Pressed styling comes from the same state as aria-pressed.
-  const look = (element: Element) => getComputedStyle(element).backgroundColor;
+  const look = (element: Element) => getComputedStyle(element).color;
   const read = page
     .getByRole("toolbar", { name: "Page tools", ...hidden })
     .getByRole("button", { name: name === "Read" ? "Add text" : "Read", exact: true, ...hidden });
@@ -228,3 +228,21 @@ for (const width of [1440, 375, 320]) {
     await expect(badge).toHaveCSS("background-color", "rgb(229, 229, 229)");
   });
 }
+
+test("phone page-tool disclosure names the current tool and lists Read once", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await blankPages(page);
+  const disclosure = page.getByRole("button", { name: "Page tool: Read", exact: true });
+  await disclosure.click();
+  const tools = page.getByRole("toolbar", { name: "Page tools" });
+  await expect(tools.getByRole("button", { name: "Read", exact: true })).toHaveCount(1);
+  await tools.getByRole("button", { name: "Add text", exact: true }).click();
+  const current = page.getByRole("button", { name: "Page tool: Add text", exact: true });
+  await expect(current).toHaveAttribute("aria-expanded", "false");
+  await current.click();
+  await expect(tools.getByRole("button", { name: "Read", exact: true })).toHaveCount(1);
+  await expect(tools.getByRole("button", { name: "Add text", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+});

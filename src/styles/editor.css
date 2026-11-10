@@ -137,15 +137,6 @@ body:has([data-page="editor"]) {
   color: currentColor;
 }
 
-/* The active tool in Document view is what you point with: an accent ring
-   on a light accent fill. */
-.editor-context-tools .editor-button-secondary[aria-pressed="true"],
-.editor-selection-bar .editor-overflow-trigger[aria-expanded="true"] {
-  background: var(--color-accent-subtle);
-  box-shadow: inset 0 0 0 2px var(--color-accent);
-  color: var(--color-fg);
-}
-
 .editor-button:disabled,
 .editor-button[aria-disabled="true"] {
   cursor: not-allowed;
@@ -463,8 +454,11 @@ body:has([data-page="editor"]) {
   display: none;
 }
 
-.editor-overflow-trigger[aria-expanded="true"] {
+/* Open menu triggers use a neutral fill without a ring or shadow. */
+.editor-overflow-trigger[aria-expanded="true"],
+.editor-selection-bar .editor-overflow-trigger[aria-expanded="true"] {
   background: var(--color-selected);
+  box-shadow: none;
   color: var(--color-fg);
 }
 
@@ -1598,6 +1592,12 @@ body:has([data-page="editor"]) {
   opacity: 0.72;
 }
 
+/* Secondary open menu triggers use a neutral fill without a ring or shadow. */
+.editor-menu-trigger[aria-expanded="true"]:not(.editor-button-primary) {
+  background: var(--color-selected);
+  box-shadow: none;
+}
+
 .editor-menu-trigger[aria-expanded="true"].editor-button-primary {
   background: var(--color-primary-hover);
 }
@@ -1945,8 +1945,64 @@ body:has([data-page="editor"]) {
 .editor-text-toolbar {
   display: flex;
   flex: 0 0 auto;
-  align-items: center;
+  min-width: 0;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.25rem;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-tray);
+}
+
+/* Pick-one page tools use the same raised segments as the view switch. */
+.editor-text-toolbar .editor-button {
+  --editor-hit-inset: 0.5rem;
+  isolation: isolate;
+  min-height: 2.75rem;
+  flex: 0 0 auto;
   gap: 0.5rem;
+  margin-block: calc(-1 * var(--editor-hit-inset));
+  padding: 0 0.5rem;
+  border-block: var(--editor-hit-inset) solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-fg-muted);
+}
+
+.editor-text-toolbar .editor-button .editor-icon {
+  color: currentColor;
+}
+
+.editor-text-toolbar .editor-button:active {
+  scale: none;
+}
+
+.editor-text-toolbar .editor-button[aria-pressed="true"] {
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-fg);
+}
+
+.editor-text-toolbar .editor-button[aria-pressed="true"]::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: calc(var(--radius-lg) - 0.25rem);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  content: "";
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .editor-text-toolbar .editor-button:hover:where(:not([aria-disabled="true"])) {
+    background: transparent;
+    color: var(--color-fg);
+  }
+}
+
+.editor-text-tool-check {
+  display: none;
 }
 
 .editor-context-hint {
@@ -2191,6 +2247,7 @@ body:has([data-page="editor"]) {
   display: none;
 }
 
+/* Open page-tool disclosures use a neutral fill without a ring or shadow. */
 .editor-text-disclosure[aria-expanded="true"] {
   background: var(--color-selected);
   box-shadow: none;
@@ -2279,7 +2336,7 @@ body:has([data-page="editor"]) {
   }
 }
 
-/* Phones: the page tools open as a Cards menu panel under Tools. */
+/* Phone page tools use flat menu rows with a neutral current item. */
 @media (max-width: 700px) {
   .editor-context-tools {
     gap: 0.5rem;
@@ -2316,7 +2373,46 @@ body:has([data-page="editor"]) {
   }
 
   .editor-text-content.is-open .editor-text-toolbar {
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .editor-text-content.is-open .editor-text-toolbar .editor-button {
+    width: 100%;
+    min-height: var(--editor-control);
+    justify-content: flex-start;
+    margin: 0;
+    padding: 0.5rem;
+    border: 0;
+    border-radius: calc(var(--radius-2xl) - 0.5rem);
+    background: transparent;
+    box-shadow: none;
+    color: var(--color-fg-muted);
+    text-align: left;
+    white-space: normal;
+    @apply text-body-sm;
+  }
+
+  .editor-text-content.is-open .editor-text-toolbar .editor-button[aria-pressed="true"] {
+    background: var(--color-selected);
+    color: var(--color-fg);
+  }
+
+  .editor-text-content.is-open .editor-text-toolbar .editor-button::after {
+    content: none;
+  }
+
+  .editor-text-content.is-open .editor-text-toolbar .editor-button:hover:where(:not(:disabled)) {
+    background: var(--color-hover);
+    color: var(--color-fg);
+  }
+
+  .editor-text-content.is-open .editor-button[aria-pressed="true"] .editor-text-tool-check {
+    display: flex;
+    margin-left: auto;
   }
 
   .editor-context-hint .editor-text-hint,
@@ -2582,8 +2678,7 @@ body:has([data-page="editor"]) {
   @apply text-ui-sm;
 }
 
-/* The phone header shares one row with Read and Tools. Zoom lives in
-   page actions here, leaving room for the page title and field count. */
+/* The phone header shares one row with the current page-tool disclosure. */
 @media (max-width: 700px) {
   .editor-review-pane {
     display: grid;

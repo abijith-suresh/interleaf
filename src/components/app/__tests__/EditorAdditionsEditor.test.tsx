@@ -236,3 +236,43 @@ it("reports an open draft until it is saved, canceled, or unmounted", async () =
     for (const element of [toolbar, header, stage]) element.remove();
   }
 });
+
+it("names the current page tool and keeps one Read control", async () => {
+  const runtime = makePDFRuntime();
+  const toolbar = document.createElement("div"),
+    stage = document.createElement("section");
+  document.body.append(toolbar, stage);
+  const view = render(() => (
+    <EditorAdditionsEditor
+      page={{
+        id: "page",
+        sourceFile: new File(["pdf"], "source.pdf"),
+        sourcePageNumber: 1,
+        rotation: 0,
+        markedForDeletion: false,
+      }}
+      runtime={runtime}
+      toolbar={toolbar}
+      stage={stage}
+      ready
+      onChange={() => {}}
+      onEditing={() => {}}
+      registerTap={() => {}}
+      registerGesture={() => {}}
+    />
+  ));
+  try {
+    fireEvent.click(screen.getByRole("button", { name: "Page tool: Read" }));
+    expect(screen.getAllByRole("button", { name: "Read" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    expect(screen.getByRole("button", { name: "Page tool: Add text" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+  } finally {
+    view.unmount();
+    await runtime.dispose();
+    toolbar.remove();
+    stage.remove();
+  }
+});

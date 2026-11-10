@@ -87,7 +87,7 @@ for (const [width, height] of [
       parseFloat(element.style.top),
     ]);
     if (width !== 1280)
-      await expect(page.getByRole("button", { name: "Tools", exact: true })).toHaveAttribute(
+      await expect(page.getByRole("button", { name: /^Page tool:/ })).toHaveAttribute(
         "aria-expanded",
         "false"
       );
@@ -140,7 +140,7 @@ for (const [width, height] of [
     await expect(
       width === 1280
         ? page.getByRole("button", { name: "Add text", exact: true })
-        : page.getByRole("button", { name: "Tools", exact: true })
+        : page.getByRole("button", { name: /^Page tool:/ })
     ).toBeFocused();
     const layout = await page.evaluate(() => ({
       overflow: document.documentElement.scrollWidth > innerWidth,
@@ -280,6 +280,7 @@ test.describe("touch checkmark gestures", () => {
     await expect(
       page.getByRole("button", { name: "Edit added checkmark", exact: true })
     ).toBeVisible();
+    await revealDocumentTools(page);
     await page.getByRole("button", { name: "Read", exact: true }).tap();
     await expect(page.locator(".editor-text-layer")).not.toHaveClass(/is-editing/);
   });
@@ -339,7 +340,7 @@ for (const kind of ["checkmark", "text"] as const) {
       await page.keyboard.press("Shift+Tab");
     }
     await expect(draft).toBeFocused();
-    await expect(page.getByRole("button", { name: "Tools", exact: true })).toHaveAttribute(
+    await expect(page.getByRole("button", { name: /^Page tool:/ })).toHaveAttribute(
       "aria-expanded",
       "false"
     );
@@ -385,7 +386,7 @@ for (const kind of ["checkmark", "text"] as const) {
     await cancel.click();
     await expect(
       page.getByRole("button", {
-        name: kind === "text" ? "Edit added text: Saved text" : "Tools",
+        name: kind === "text" ? "Edit added text: Saved text" : /^Page tool:/,
         exact: true,
       })
     ).toBeFocused();
