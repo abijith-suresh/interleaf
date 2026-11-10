@@ -752,7 +752,11 @@ export default function EditorAdditionsEditor(props: Props) {
               </Show>
             </div>
           </div>
-          <div ref={draftPanel} class="editor-draft-panel">
+          <div
+            ref={draftPanel}
+            class="editor-draft-panel"
+            onPointerDown={(event) => event.stopPropagation()}
+          >
             <Show when={draft()}>
               <form
                 class="editor-text-settings"
