@@ -6,7 +6,7 @@
    JavaScript, under reduced motion, and before the loop starts. */
 ---
 
-<div class="hero-demo">
+<figure class="hero-demo">
   <div
     class="demo-frame is-merged is-moved is-rotated is-marked is-download-open"
     data-hero-demo
@@ -159,7 +159,12 @@
 
     <svg class="demo-cursor" viewBox="0 0 24 24"><path d="M5 3l14 8-6.2 1.6L10 19z"></path></svg>
   </div>
-</div>
+  <!-- The picture is decorative; this caption is its text alternative for screen readers. -->
+  <figcaption class="sr-only">
+    Two PDFs merged into one set, a scanned page moved to the front and turned upright, and an
+    extra page marked for deletion before download.
+  </figcaption>
+</figure>
 
 <script>
   // One step of the loop: the classes it adds, the class it removes, where the
