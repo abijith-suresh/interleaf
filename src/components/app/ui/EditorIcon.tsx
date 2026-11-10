@@ -6,6 +6,7 @@ import ChevronRight from "lucide-solid/icons/chevron-right";
 import Copy from "lucide-solid/icons/copy";
 import Download from "lucide-solid/icons/download";
 import Ellipsis from "lucide-solid/icons/ellipsis";
+import Eye from "lucide-solid/icons/eye";
 import FileOutput from "lucide-solid/icons/file-output";
 import FileStack from "lucide-solid/icons/file-stack";
 import FileText from "lucide-solid/icons/file-text";
@@ -24,6 +25,7 @@ import X from "lucide-solid/icons/x";
 import { Dynamic } from "solid-js/web";
 
 const editorIcons = {
+  eye: Eye,
   text: Type,
   checkmark: Check,
   back: ArrowLeft,

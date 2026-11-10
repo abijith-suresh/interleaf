@@ -21,6 +21,7 @@ import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { AddedCheckmark, AddedText, PageGeometry, PageState } from "../../types/interfaces";
 import EditorFieldsEditor from "./EditorFieldsEditor";
 import EditorButton from "./ui/EditorButton";
+import EditorIcon from "./ui/EditorIcon";
 
 type Addition = AddedText | AddedCheckmark;
 const isText = (item: Addition): item is AddedText => "text" in item;
@@ -132,6 +133,14 @@ export default function EditorAdditionsEditor(props: Props) {
       additions: additions().length,
     });
   });
+  const activeToolName = () =>
+    ({
+      read: "Read",
+      text: "Add text",
+      checkmark: "Checkmark",
+      fields: "Fill fields",
+      edit: "Edit additions",
+    })[activeTool()];
   const invalidSize = () => {
     const current = draft();
     const size = current ? additionSize(current) : undefined;
@@ -618,24 +627,15 @@ export default function EditorAdditionsEditor(props: Props) {
           <div class="editor-context-tools">
             <div class="editor-text-mobile-bar">
               <EditorButton
-                aria-pressed={activeTool() === "read"}
-                onClick={() => {
-                  cancel();
-                  setMode("read");
-                  setToolsOpen(false);
-                }}
-              >
-                Read
-              </EditorButton>
-              <EditorButton
                 ref={disclosure}
-                aria-label="Tools"
+                aria-label={`Page tool: ${activeToolName()}`}
                 class="editor-text-disclosure"
                 aria-expanded={toolsOpen()}
                 aria-controls="editor-page-tools"
                 onClick={() => setToolsOpen(!toolsOpen())}
               >
-                Tools
+                {activeToolName()}
+                <EditorIcon name="chevron-down" />
               </EditorButton>
             </div>
             <div
@@ -646,6 +646,7 @@ export default function EditorAdditionsEditor(props: Props) {
             >
               <div class="editor-text-toolbar" role="toolbar" aria-label="Page tools">
                 <EditorButton
+                  icon="eye"
                   aria-pressed={activeTool() === "read"}
                   onClick={() => {
                     cancel();

@@ -134,7 +134,7 @@ for (const width of [320, 1280])
       await open(page, "field-navigation");
       const hits = page.getByRole("button", { name: "Fill field: Answer", exact: true });
       const select = async (hit: Locator) => {
-        const tools = page.getByRole("button", { name: "Tools", exact: true });
+        const tools = page.getByRole("button", { name: /^Page tool:/ });
         // Close the compact popup to expose the page, retaining the field tool and drafts.
         if (width === 320 && (await tools.getAttribute("aria-expanded")) === "true")
           await tools.click();

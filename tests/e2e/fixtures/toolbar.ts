@@ -43,7 +43,7 @@ export async function downloadDocument(page: Page) {
 }
 
 export async function revealDocumentTools(page: Page) {
-  const disclosure = page.getByRole("button", { name: "Tools", exact: true });
+  const disclosure = page.getByRole("button", { name: /^Page tool:/ });
   if ((await disclosure.isVisible()) && (await disclosure.getAttribute("aria-expanded")) !== "true")
     await disclosure.click();
 }

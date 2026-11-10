@@ -140,13 +140,13 @@ for (const width of [375, 320]) {
     );
     await page.getByRole("button", { name: "Document", exact: true }).click();
     const header = await page.locator(".editor-review-header").boundingBox();
-    const tools = await page.getByRole("button", { name: "Tools", exact: true }).boundingBox();
+    const tools = await page.getByRole("button", { name: /^Page tool:/ }).boundingBox();
     expect(
       Math.abs(
         (header?.y ?? 0) + (header?.height ?? 0) / 2 - (tools?.y ?? 0) - (tools?.height ?? 0) / 2
       )
     ).toBeLessThan(2);
-    await page.getByRole("button", { name: "Tools", exact: true }).click();
+    await page.getByRole("button", { name: /^Page tool:/ }).click();
     await expect(page.getByRole("button", { name: "Add text", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
     await page.getByTestId("editor-page-actions-button").click();

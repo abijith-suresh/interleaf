@@ -44,7 +44,7 @@ async function expectPressed(page: Page, name: string) {
     .getByRole("toolbar", { name: "Page tools", ...hidden })
     .getByRole("button", { name, exact: true, ...hidden });
   // Pressed styling comes from the same state as aria-pressed.
-  const look = (element: Element) => getComputedStyle(element).backgroundColor;
+  const look = (element: Element) => getComputedStyle(element).color;
   const read = page
     .getByRole("toolbar", { name: "Page tools", ...hidden })
     .getByRole("button", { name: name === "Read" ? "Add text" : "Read", exact: true, ...hidden });
@@ -226,5 +226,46 @@ for (const width of [1440, 375, 320]) {
     const box = await badge.boundingBox();
     expect(box?.y).toBeGreaterThanOrEqual((thumbnail?.y ?? 0) + (thumbnail?.height ?? 0));
     await expect(badge).toHaveCSS("background-color", "rgb(226, 231, 228)");
+  });
+}
+
+test("phone page-tool disclosure names the current tool and lists Read once", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await blankPages(page);
+  const disclosure = page.getByRole("button", { name: "Page tool: Read", exact: true });
+  await disclosure.click();
+  const tools = page.getByRole("toolbar", { name: "Page tools" });
+  await expect(tools.getByRole("button", { name: "Read", exact: true })).toHaveCount(1);
+  await tools.getByRole("button", { name: "Add text", exact: true }).click();
+  const current = page.getByRole("button", { name: "Page tool: Add text", exact: true });
+  await expect(current).toHaveAttribute("aria-expanded", "false");
+  await current.click();
+  await expect(tools.getByRole("button", { name: "Read", exact: true })).toHaveCount(1);
+  await expect(tools.getByRole("button", { name: "Add text", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+});
+
+for (const width of [320, 375, 390]) {
+  test(`phone page title stays clear of the active tool at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await openContact(page);
+    await revealDocumentTools(page);
+    await page.getByRole("button", { name: "Add text", exact: true }).click();
+    const heading = page.locator(".editor-review-heading");
+    const tools = page.locator(".editor-document-tools");
+    const headingBox = await heading.boundingBox();
+    const toolsBox = await tools.boundingBox();
+    expect(headingBox).not.toBeNull();
+    expect(toolsBox).not.toBeNull();
+    for (const content of [heading.locator("h2"), heading.locator(".editor-field-count")]) {
+      await expect(content).toBeVisible();
+      const box = await content.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x + box!.width).toBeLessThanOrEqual(headingBox!.x + headingBox!.width);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(toolsBox!.x);
+    }
+    await expect(page.locator(".editor-context-hint .editor-text-hint")).toBeVisible();
   });
 }
