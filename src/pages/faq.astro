@@ -1,6 +1,7 @@
 ---
 import MarketingHero from "../components/marketing/MarketingHero.astro";
 import MarketingLayout from "../components/marketing/MarketingLayout.astro";
+import MarketingSplit from "../components/marketing/MarketingSplit.astro";
 
 const questions = [
   {
@@ -36,6 +37,12 @@ const questions = [
     a: "Interleaf opens PDFs and PNG or JPEG images together, converts images to PDF pages, and reviews pages one at a time with zoom. It reorders, rotates, and duplicates pages, marks pages for deletion, and undoes or redoes up to 32 changes. It adds one-line basic Latin text and checkmarks, and fills supported single-line PDF text fields. It extracts selected pages into a new PDF, exports pages as PNG images, unlocks password-protected PDFs, and compresses one untouched PDF. All operations run in your browser.",
   },
 ];
+
+const groups = [
+  { id: "privacy-and-files", title: "Privacy and files", questions: [0, 1, 3, 6] },
+  { id: "using-interleaf", title: "Using Interleaf", questions: [2, 7] },
+  { id: "the-project", title: "The project", questions: [4, 5] },
+];
 ---
 
 <MarketingLayout
@@ -50,37 +57,128 @@ const questions = [
   />
 
   <section class="marketing-section" aria-label="Frequently asked questions">
-    <div class="marketing-container">
-      <div class="faq-list">
+    <MarketingSplit asideOnMobile={false}>
+      <div slot="aside">
+        <nav aria-label="FAQ sections">
+          {
+            groups.map((group) => (
+              <a class="marketing-link" href={`#${group.id}`}>{group.title}</a>
+            ))
+          }
+        </nav>
+        <div class="faq-contact">
+          <p>Still have a question?</p>
+          <a
+            href="https://github.com/abijith-suresh/interleaf/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Ask on GitHub</a>
+        </div>
+      </div>
+      <div class="faq-groups">
         {
-          questions.map((item, index) => (
-            <details class="faq-item" open={index === 0}>
-              <summary>
-                <span class="faq-question">{item.q}</span>
-                <svg class="faq-chevron" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="m6 9 6 6 6-6"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                  />
-                </svg>
-              </summary>
-              <div class="faq-answer">
-                <p>{item.a}</p>
+          groups.map((group) => (
+            <section id={group.id} aria-labelledby={`${group.id}-title`} class="faq-group">
+              <h2 id={`${group.id}-title`}>{group.title}</h2>
+              <div class="faq-list">
+                {group.questions.map((questionIndex) => (
+                  <details class="faq-item" open={questionIndex === 0}>
+                    <summary>
+                      <span class="faq-question">{questions[questionIndex].q}</span>
+                      <svg class="faq-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="m6 9 6 6 6-6"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                        />
+                      </svg>
+                    </summary>
+                    <div class="faq-answer">
+                      <p>{questions[questionIndex].a}</p>
+                    </div>
+                  </details>
+                ))}
               </div>
-            </details>
+            </section>
           ))
         }
+        <div class="faq-contact faq-contact-mobile">
+          <p>Still have a question?</p>
+          <a
+            href="https://github.com/abijith-suresh/interleaf/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Ask on GitHub</a>
+        </div>
       </div>
-    </div>
+    </MarketingSplit>
   </section>
 </MarketingLayout>
 
 <style>
   @reference "../styles/global.css";
+
+  .faq-groups {
+    display: grid;
+    gap: 2rem;
+    min-width: 0;
+  }
+
+  .faq-group {
+    scroll-margin-top: 1.5rem;
+  }
+
+  .faq-group h2 {
+    @apply text-ui-xs;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-fg-muted);
+    margin: 0 0 0.75rem;
+  }
+
+  nav {
+    margin-bottom: 1.5rem;
+  }
+
+  nav .marketing-link {
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+    transition: none;
+  }
+
+  .faq-contact {
+    padding: 1rem;
+    border-radius: var(--radius-2xl);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+    color: var(--color-fg);
+    @apply text-ui-sm;
+  }
+
+  .faq-contact p {
+    margin: 0 0 0.5rem;
+  }
+
+  .faq-contact a {
+    color: var(--color-fg);
+    text-decoration-line: underline;
+    text-decoration-color: var(--color-line-strong);
+    text-underline-offset: 4px;
+  }
+
+  .faq-contact a:hover {
+    text-decoration-color: currentColor;
+  }
+
+  @media (min-width: 64rem) {
+    .faq-contact-mobile {
+      display: none;
+    }
+  }
 
   /* Cards' accordion inside one card: a line between items, a chevron that
      turns over while open. */
