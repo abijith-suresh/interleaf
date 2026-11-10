@@ -30,3 +30,24 @@ const { title, description, currentPage, closingCta = true } = Astro.props;
     <Footer />
   </div>
 </Layout>
+
+<script>
+  // Astro runs this module once, so the document listener survives swaps without stacking.
+  document.addEventListener("astro:after-swap", () => {
+    const content = document.querySelector(".marketing-content");
+    const main = content?.querySelector("main");
+    if (!content || !main) return;
+
+    content.setAttribute("data-entering", "");
+    const cleanup = () => {
+      content.removeAttribute("data-entering");
+      main.removeEventListener("animationend", onEnd);
+      window.clearTimeout(timeout);
+    };
+    const onEnd = (event: AnimationEvent) => {
+      if (event.animationName === "marketing-enter") cleanup();
+    };
+    const timeout = window.setTimeout(cleanup, 300);
+    main.addEventListener("animationend", onEnd);
+  });
+</script>
