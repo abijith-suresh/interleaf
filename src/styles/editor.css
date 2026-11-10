@@ -2001,10 +2001,6 @@ body:has([data-page="editor"]) {
   }
 }
 
-.editor-text-tool-check {
-  display: none;
-}
-
 .editor-context-hint {
   display: flex;
   min-width: 0;
@@ -2410,11 +2406,6 @@ body:has([data-page="editor"]) {
     color: var(--color-fg);
   }
 
-  .editor-text-content.is-open .editor-button[aria-pressed="true"] .editor-text-tool-check {
-    display: flex;
-    margin-left: auto;
-  }
-
   .editor-context-hint .editor-text-hint,
   .editor-context-hint .editor-field-help {
     display: -webkit-box;
@@ -2682,7 +2673,7 @@ body:has([data-page="editor"]) {
 @media (max-width: 700px) {
   .editor-review-pane {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr) auto;
   }
 

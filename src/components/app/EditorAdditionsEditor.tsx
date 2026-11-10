@@ -646,6 +646,7 @@ export default function EditorAdditionsEditor(props: Props) {
             >
               <div class="editor-text-toolbar" role="toolbar" aria-label="Page tools">
                 <EditorButton
+                  icon="eye"
                   aria-pressed={activeTool() === "read"}
                   onClick={() => {
                     cancel();
@@ -654,9 +655,6 @@ export default function EditorAdditionsEditor(props: Props) {
                   }}
                 >
                   Read
-                  <span class="editor-text-tool-check">
-                    <EditorIcon name="checkmark" />
-                  </span>
                 </EditorButton>
                 <EditorButton
                   ref={addButton}
@@ -673,9 +671,6 @@ export default function EditorAdditionsEditor(props: Props) {
                   }}
                 >
                   Add text
-                  <span class="editor-text-tool-check">
-                    <EditorIcon name="checkmark" />
-                  </span>
                 </EditorButton>
                 <EditorButton
                   icon="checkmark"
@@ -691,9 +686,6 @@ export default function EditorAdditionsEditor(props: Props) {
                   }}
                 >
                   Checkmark
-                  <span class="editor-text-tool-check">
-                    <EditorIcon name="checkmark" />
-                  </span>
                 </EditorButton>
                 <EditorButton
                   icon="page-actions"
@@ -706,9 +698,6 @@ export default function EditorAdditionsEditor(props: Props) {
                   }}
                 >
                   Fill fields
-                  <span class="editor-text-tool-check">
-                    <EditorIcon name="checkmark" />
-                  </span>
                 </EditorButton>
                 <EditorButton
                   icon="page-actions"
@@ -727,9 +716,6 @@ export default function EditorAdditionsEditor(props: Props) {
                   }}
                 >
                   Edit additions
-                  <span class="editor-text-tool-check">
-                    <EditorIcon name="checkmark" />
-                  </span>
                 </EditorButton>
               </div>
             </div>

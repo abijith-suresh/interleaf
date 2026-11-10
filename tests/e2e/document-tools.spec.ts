@@ -246,3 +246,26 @@ test("phone page-tool disclosure names the current tool and lists Read once", as
     "true"
   );
 });
+
+for (const width of [320, 375, 390]) {
+  test(`phone page title stays clear of the active tool at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await openContact(page);
+    await revealDocumentTools(page);
+    await page.getByRole("button", { name: "Add text", exact: true }).click();
+    const heading = page.locator(".editor-review-heading");
+    const tools = page.locator(".editor-document-tools");
+    const headingBox = await heading.boundingBox();
+    const toolsBox = await tools.boundingBox();
+    expect(headingBox).not.toBeNull();
+    expect(toolsBox).not.toBeNull();
+    for (const content of [heading.locator("h2"), heading.locator(".editor-field-count")]) {
+      await expect(content).toBeVisible();
+      const box = await content.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x + box!.width).toBeLessThanOrEqual(headingBox!.x + headingBox!.width);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(toolsBox!.x);
+    }
+    await expect(page.locator(".editor-context-hint .editor-text-hint")).toBeVisible();
+  });
+}
