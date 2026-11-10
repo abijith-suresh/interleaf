@@ -3,58 +3,91 @@ import FeatureVignette from "../components/marketing/FeatureVignette.astro";
 import MarketingLayout from "../components/marketing/MarketingLayout.astro";
 import MarketingHero from "../components/marketing/MarketingHero.astro";
 
-const capabilities: { title: string; description: string; vignette?: "text" | "field" }[] = [
+const groups: {
+  label: string;
+  capabilities: { title: string; description: string; icon: string; vignette?: "text" | "field" }[];
+}[] = [
   {
-    title: "Bring a document together",
-    description:
-      "Open PDFs and PNG or JPEG images in the same workspace. Images become PDF pages. Add more files later, or remove a source file and its pages.",
+    label: "Assemble",
+    capabilities: [
+      {
+        icon: '<path d="M15 2h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8" /><path d="M16.706 2.706A2.4 2.4 0 0 0 15 2v5a1 1 0 0 0 1 1h5a2.4 2.4 0 0 0-.706-1.706z" /><path d="M5 7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 1.732-1" />',
+        title: "Bring a document together",
+        description:
+          "Open PDFs and PNG or JPEG images in the same workspace. Images become PDF pages. Add more files later, or remove a source file and its pages.",
+      },
+      {
+        icon: '<circle cx="12" cy="16" r="1" /><rect x="3" y="10" width="18" height="12" rx="2" /><path d="M7 10V7a5 5 0 0 1 10 0v3" />',
+        title: "Open protected files",
+        description:
+          "An in-browser prompt asks for the password. Enter it to unlock a protected PDF and keep working.",
+      },
+    ],
   },
   {
-    title: "Shape the pages",
-    description:
-      "Reorder pages with drag and drop, rotate them in 90-degree steps, and mark the ones you no longer need. Duplicate a page to rotate, mark, or move each copy on its own.",
+    label: "Arrange",
+    capabilities: [
+      {
+        icon: '<path d="m3 16 4 4 4-4" /><path d="M7 20V4" /><path d="m21 8-4-4-4 4" /><path d="M17 4v16" />',
+        title: "Shape the pages",
+        description:
+          "Reorder pages with drag and drop, rotate them in 90-degree steps, and mark the ones you no longer need. Duplicate a page to rotate, mark, or move each copy on its own.",
+      },
+      {
+        icon: '<path d="M12 5v16" /><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" />',
+        title: "Review every page",
+        description:
+          "Switch between Pages to organize and Document to read. Move through pages with previous and next controls, or use the filmstrip. Zoom up to 4 times the fitted size.",
+      },
+      {
+        icon: '<path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />',
+        title: "Undo and redo",
+        description:
+          "Undo or redo up to 32 changes in the current session, including page, source, text, checkmark, and field changes. History keeps up to 48 MiB of inactive source files.",
+      },
+    ],
   },
   {
-    title: "Review every page",
-    description:
-      "Switch between Pages to organize and Document to read. Move through pages with previous and next controls, or use the filmstrip. Zoom up to 4 times the fitted size.",
+    label: "Annotate",
+    capabilities: [
+      {
+        icon: '<path d="M12 4v16" /><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2" /><path d="M9 20h6" />',
+        title: "Add text",
+        description:
+          "Add one line of printable basic Latin text in Document view, using Helvetica. Drag, rotate, edit, or delete it.",
+        vignette: "text",
+      },
+      {
+        icon: '<path d="M12 20h-1a2 2 0 0 1-2-2 2 2 0 0 1-2 2H6" /><path d="M13 8h7a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-7" /><path d="M5 16H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h1" /><path d="M6 4h1a2 2 0 0 1 2 2 2 2 0 0 1 2-2h1" /><path d="M9 6v12" />',
+        title: "Fill supported form fields",
+        description:
+          "Fill embedded, unencrypted, single-line PDF text fields with basic Latin answers, using Helvetica. Other field types stay read-only.",
+        vignette: "field",
+      },
+      {
+        icon: '<rect width="18" height="18" x="3" y="3" rx="2" /><path d="m16 9-5.5 5.5L8 12" />',
+        title: "Mark flat forms",
+        description:
+          "Add checkmarks to flat or scanned forms in Document view. Move, resize, rotate, or delete each one.",
+      },
+    ],
   },
   {
-    title: "Undo and redo",
-    description:
-      "Undo or redo up to 32 changes in the current session, including page, source, text, checkmark, and field changes. History keeps up to 48 MiB of inactive source files.",
-  },
-  {
-    title: "Add text",
-    description:
-      "Add one line of printable basic Latin text in Document view, using Helvetica. Drag, rotate, edit, or delete it.",
-    vignette: "text",
-  },
-  {
-    title: "Fill supported form fields",
-    description:
-      "Fill embedded, unencrypted, single-line PDF text fields with basic Latin answers, using Helvetica. Other field types stay read-only.",
-    vignette: "field",
-  },
-  {
-    title: "Mark flat forms",
-    description:
-      "Add checkmarks to flat or scanned forms in Document view. Move, resize, rotate, or delete each one.",
-  },
-  {
-    title: "Open protected files",
-    description:
-      "An in-browser prompt asks for the password. Enter it to unlock a protected PDF and keep working.",
-  },
-  {
-    title: "Reduce a PDF",
-    description:
-      "Losslessly compress one untouched PDF in your browser. Compression is available before page edits.",
-  },
-  {
-    title: "Take pages with you",
-    description:
-      "Extract selected pages into a new PDF. You can also export selected pages, or every exportable page, as PNG images in a ZIP archive. Saved text, checkmarks, and answers appear in both.",
+    label: "Export",
+    capabilities: [
+      {
+        icon: '<path d="M12 15V3" /><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" />',
+        title: "Take pages with you",
+        description:
+          "Extract selected pages into a new PDF. You can also export selected pages, or every exportable page, as PNG images in a ZIP archive. Saved text, checkmarks, and answers appear in both.",
+      },
+      {
+        icon: '<path d="m14 10 7-7" /><path d="M20 10h-6V4" /><path d="m3 21 7-7" /><path d="M4 14h6v6" />',
+        title: "Reduce a PDF",
+        description:
+          "Losslessly compress one untouched PDF in your browser. Compression is available before page edits.",
+      },
+    ],
   },
 ];
 ---
@@ -67,35 +100,123 @@ const capabilities: { title: string; description: string; vignette?: "text" | "f
   <MarketingHero
     titleId="features-title"
     title="Everything before the export."
-    lede="Interleaf is a local workspace that runs entirely in your browser. The list below covers what it does today."
+    lede="A local workspace for PDFs and images. Everything here runs in your browser."
   />
 
-  <section class="marketing-section" aria-label="Features">
+  <div class="marketing-section">
     <div class="marketing-container">
-      <ul class="marketing-rows">
-        {
-          capabilities.map((capability) => (
-            <li class="marketing-row">
-              <span class="marketing-row-marker" aria-hidden="true">
-                <svg viewBox="0 0 24 24">
-                  <path
-                    d="M20 6 9 17l-5-5"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"></path>
-                </svg>
-              </span>
-              <h2 class="marketing-row-title">{capability.title}</h2>
-              <div class="marketing-row-body">
-                <p>{capability.description}</p>
-                {capability.vignette && <FeatureVignette kind={capability.vignette} />}
-              </div>
-            </li>
-          ))
-        }
-      </ul>
+      {
+        groups.map((group) => (
+          <section class="feature-group" aria-labelledby={`features-${group.label.toLowerCase()}`}>
+            <h2 id={`features-${group.label.toLowerCase()}`}>{group.label}</h2>
+            <div class="feature-grid">
+              {group.capabilities.map((capability) => (
+                <article class="feature-card">
+                  <span class="feature-icon">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                      set:html={capability.icon}
+                    />
+                  </span>
+                  <h3>{capability.title}</h3>
+                  <p>{capability.description}</p>
+                  {capability.vignette && (
+                    <div class="feature-vignette">
+                      <FeatureVignette kind={capability.vignette} />
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          </section>
+        ))
+      }
     </div>
-  </section>
+  </div>
 </MarketingLayout>
+
+<style>
+  @reference "../styles/global.css";
+
+  .feature-group + .feature-group {
+    margin-top: 2.5rem;
+  }
+
+  .feature-group h2 {
+    @apply text-ui-xs;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-fg-muted);
+    margin: 0 0 0.75rem;
+  }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .feature-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    border-radius: var(--radius-2xl);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .feature-icon {
+    display: grid;
+    width: 2.5rem;
+    height: 2.5rem;
+    place-items: center;
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
+    color: var(--color-fg-muted);
+  }
+
+  .feature-icon svg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .feature-card h3 {
+    @apply text-ui-md;
+    margin: 0;
+    color: var(--color-fg);
+  }
+
+  .feature-card p {
+    @apply text-body-sm;
+    margin: 0;
+    color: var(--color-fg-muted);
+  }
+
+  .feature-vignette {
+    margin-top: auto;
+  }
+
+  .feature-vignette :global(.vignette) {
+    max-width: none;
+    margin-top: 0;
+  }
+
+  @media (min-width: 48rem) {
+    .feature-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .feature-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+</style>
