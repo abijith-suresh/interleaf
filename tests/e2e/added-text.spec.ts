@@ -53,7 +53,7 @@ for (const [width, height] of [
   }) => {
     await page.setViewportSize({ width, height });
     await open(page);
-    const disclosure = page.getByRole("button", { name: "Tools", exact: true });
+    const disclosure = page.getByRole("button", { name: /^Page tool:/ });
     await disclosure.click();
     await page.getByRole("button", { name: "Add text", exact: true }).press("Enter");
     // Choosing a tool closes the Tools menu.
@@ -129,7 +129,7 @@ for (const width of [1280, 390]) {
     await page.getByRole("button", { name: "Delete added text" }).press("Enter");
     const fallback =
       width === 390
-        ? page.getByRole("button", { name: "Tools", exact: true })
+        ? page.getByRole("button", { name: /^Page tool:/ })
         : page.getByRole("button", { name: "Add text", exact: true });
     await expect(fallback).toBeFocused();
   });
@@ -361,6 +361,7 @@ for (const [width, height] of [
     await page.setViewportSize({ width, height });
     await open(page);
     await place(page, "Mobile");
+    await revealDocumentTools(page);
     await page.getByRole("button", { name: "Read", exact: true }).click();
     await expect(page.locator(".editor-text-layer")).not.toHaveClass(/is-editing/);
     await revealPageZoom(page);
@@ -398,7 +399,7 @@ test.describe("touch text placement", () => {
     browserName,
   }) => {
     await open(page);
-    await page.getByRole("button", { name: "Tools", exact: true }).tap();
+    await page.getByRole("button", { name: /^Page tool:/ }).tap();
     await page.getByRole("button", { name: "Add text", exact: true }).tap();
     await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
     const stage = page.locator(".editor-review-stage");
