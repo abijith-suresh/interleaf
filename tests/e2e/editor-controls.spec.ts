@@ -1,7 +1,29 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
 import { captureDownload } from "./fixtures/download";
 import { clickAddFiles, clickSelectionAction, downloadDocument } from "./fixtures/toolbar";
+
+async function mouseDragToTile(page: Page, source: Locator, target: Locator) {
+  await source.hover();
+  const start = await source.boundingBox();
+  const end = await target.boundingBox();
+  if (!start || !end) throw new Error("Missing drag endpoints");
+  const x = end.x + end.width / 2;
+  const y = end.y + end.height / 2;
+  // Both endpoints must be on screen, including short landscape viewports.
+  expect(
+    await target.evaluate(
+      (element, point) => element.contains(document.elementFromPoint(point.x, point.y)),
+      { x, y }
+    )
+  ).toBe(true);
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(x, y, { steps: 12 });
+  // A second move also delivers dragover in browsers that start the drag on arrival.
+  await page.mouse.move(x, y);
+  await page.mouse.up();
+}
 
 async function report() {
   const pdf = await PDFDocument.create();
@@ -123,10 +145,25 @@ for (const viewport of [
     await expect(duplicate).toHaveCSS("outline-width", "2px");
     await expect(duplicate).toHaveCSS("outline-style", "solid");
     // Dragging the action must never begin a page reorder.
-    await duplicate.dispatchEvent("dragstart");
-    await expect(tile).not.toHaveClass(/dragging/);
-    await page.keyboard.press("Space");
+    const rows = page.locator(".editor-page-grid > li");
     const tiles = page.getByTestId("editor-page-tile");
+    const order = () =>
+      tiles.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-source-page")));
+    for (const action of await actions.all()) {
+      await mouseDragToTile(page, action, rows.nth(1));
+      await expect.poll(order).toEqual(["1", "2", "3"]);
+      await expect(page.getByTestId("editor-undo-button")).toBeDisabled();
+      await expect(page.locator(".editor-page-grid > li.dragging")).toHaveCount(0);
+    }
+    // Positive control: the same real mouse gesture from the hit area must reorder.
+    await mouseDragToTile(page, tiles.first(), rows.nth(1));
+    await expect.poll(order).toEqual(["2", "1", "3"]);
+    await page.getByTestId("editor-undo-button").click();
+    await expect.poll(order).toEqual(["1", "2", "3"]);
+    await expect(page.getByTestId("editor-undo-button")).toBeDisabled();
+    // A mouse drag may move focus; keyboard activation starts with explicit focus.
+    await duplicate.focus();
+    await page.keyboard.press("Space");
     await expect(tiles).toHaveCount(4);
     await expect(tiles.nth(1)).toBeFocused();
     await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "false");
