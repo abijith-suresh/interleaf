@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { degrees, PDFDocument, PDFName, PDFNumber, StandardFonts } from "pdf-lib";
+import { expectMouseAdditionSize, expectTypedAdditionSize } from "./fixtures/addition-size";
 import { expectDocumentReady, openDocument } from "./fixtures/editor";
 import { revealDocumentTools, revealPageZoom } from "./fixtures/toolbar";
 
@@ -522,4 +523,14 @@ test("undo and redo wait for open text and field drafts instead of discarding th
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(answer).toHaveCount(0);
   await expect(undo).toHaveAttribute("aria-disabled", "false");
+});
+
+test("typed text sizes survive replacement, clearing and saved edits", async ({ page }) => {
+  await open(page);
+  await expectTypedAdditionSize(page, "text");
+});
+
+test("mouse clicks keep text draft controls focused", async ({ page }) => {
+  await open(page);
+  await expectMouseAdditionSize(page, "text");
 });

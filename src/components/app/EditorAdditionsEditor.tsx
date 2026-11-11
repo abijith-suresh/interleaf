@@ -1,5 +1,14 @@
 import { Effect, Fiber } from "effect";
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+  untrack,
+} from "solid-js";
 import { Portal } from "solid-js/web";
 import { MAX_TEXT_SIZE, MIN_TEXT_SIZE } from "../../constants";
 import {
@@ -743,10 +752,15 @@ export default function EditorAdditionsEditor(props: Props) {
               </Show>
             </div>
           </div>
-          <div ref={draftPanel} class="editor-draft-panel">
+          <div
+            ref={draftPanel}
+            class="editor-draft-panel"
+            onPointerDown={(event) => event.stopPropagation()}
+          >
             <Show when={draft()}>
               <form
                 class="editor-text-settings"
+                noValidate
                 onSubmit={(event) => {
                   event.preventDefault();
                   void save();
@@ -798,10 +812,12 @@ export default function EditorAdditionsEditor(props: Props) {
                     }
                     min={minimumSize()}
                     max={maximumSize()}
-                    value={(() => {
+                    // Seed each draft once. Writing parsed numbers back during input
+                    // erases partial numbers and moves the caret.
+                    value={untrack(() => {
                       const current = draft();
                       return current ? additionSize(current) : undefined;
-                    })()}
+                    })}
                     disabled={saving()}
                     onInput={(event) =>
                       patch(
