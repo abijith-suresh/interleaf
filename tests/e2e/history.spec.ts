@@ -199,12 +199,14 @@ test("pointer and touch drags record one committed move and ignore canceled gest
     );
   };
   await touch("touchstart", 0, 0);
+  // This is the long-press synchronisation point before touchmove.
   await expect(rows.nth(0)).toHaveClass(/dragging/);
   await touch("touchmove", 0, 1);
   await touch("touchcancel", 0, 1);
   await expect(undo).toHaveAttribute("aria-disabled", "true");
   await expect(page.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
   await touch("touchstart", 0, 0);
+  // This is the long-press synchronisation point before touchmove.
   await expect(rows.nth(0)).toHaveClass(/dragging/);
   await touch("touchmove", 0, 1);
   await touch("touchend", 0, 1);

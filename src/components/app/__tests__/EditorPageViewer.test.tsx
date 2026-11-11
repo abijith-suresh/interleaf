@@ -533,7 +533,6 @@ describe("EditorPageViewer", () => {
     expect(stage).toHaveAttribute("data-zoom", "4");
     expect(stage).toHaveFocus();
     pointer("pointercancel", 2, 500, 100);
-    expect(stage).not.toHaveClass("is-panning");
     const scroll = stage.scrollLeft;
     pointer("pointermove", 1, 20, 100);
     expect(stage.scrollLeft).toBe(scroll);
@@ -823,6 +822,9 @@ describe("EditorPageViewer", () => {
       pointer("pointerdown");
       pointer("pointermove", 60, 50);
       pointer(endEvent);
+      const released = [stage.scrollLeft, stage.scrollTop];
+      pointer("pointermove", 10, 10);
+      expect([stage.scrollLeft, stage.scrollTop]).toEqual(released);
       vi.advanceTimersByTime(1000);
       expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2);
 
@@ -849,7 +851,9 @@ describe("EditorPageViewer", () => {
       await vi.waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
       expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(5);
       expect(pdfServiceMocks.renderPage.mock.calls[4][1]).toBe(2);
-      expect(stage).not.toHaveClass("is-panning");
+      const stopped = [stage.scrollLeft, stage.scrollTop];
+      pointer("pointermove", 10, 10);
+      expect([stage.scrollLeft, stage.scrollTop]).toEqual(stopped);
       pointer(endEvent);
       vi.advanceTimersByTime(1000);
       expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(5);

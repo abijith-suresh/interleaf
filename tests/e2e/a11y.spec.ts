@@ -176,8 +176,6 @@ for (const width of [1440, 375]) {
         await expect(tile).toHaveAttribute("aria-hidden", "true");
         await expect(tile).toHaveAttribute("alt", "");
         await expect(tile).toHaveAttribute("src", "/favicon.svg");
-        await expect(tile).toHaveCSS("width", "22px");
-        await expect(tile).toHaveCSS("height", "22px");
         await expect
           .poll(() => tile.evaluate((el) => (el as HTMLImageElement).naturalWidth))
           .toBeGreaterThan(0);

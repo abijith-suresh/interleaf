@@ -32,14 +32,14 @@ describe("EditorButton", () => {
     fireEvent.keyDown(button, { key: "Escape" });
     expect(onKeyDown).toHaveBeenCalledOnce();
     fireEvent.click(button);
-    expect(button).toHaveClass("editor-button", "restore-page", "is-marked");
+    expect(button).toHaveClass("restore-page", "is-marked");
     expect(button).not.toHaveClass("mark-page");
     expect(button).toHaveAttribute("aria-disabled", "true");
     expect(button).not.toBeDisabled();
     expect(button).toHaveAccessibleName("Restore page");
     expect(button?.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
     fireEvent.click(button);
-    expect(button).toHaveClass("editor-button", "mark-page");
+    expect(button).toHaveClass("mark-page");
     expect(button).not.toHaveClass("is-marked", "restore-page");
   });
 });

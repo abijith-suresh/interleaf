@@ -14,9 +14,9 @@ describe("promptForPassword", () => {
 
     expect(within(dialog).getByText("protected.pdf")).toBeInTheDocument();
     if (isRetry) {
-      expect(error).not.toHaveClass("is-hidden");
+      expect(screen.getByLabelText("PDF password")).toHaveAccessibleDescription(error.textContent!);
     } else {
-      expect(error).toHaveClass("is-hidden");
+      expect(screen.getByLabelText("PDF password")).not.toHaveAttribute("aria-describedby");
     }
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));

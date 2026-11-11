@@ -135,10 +135,20 @@ test("the page grid is one tab stop with arrow, Home, End, Space, R and Delete k
   await page.keyboard.press("r");
   await expect(canvas).toHaveCSS("--page-rotation", "90deg");
   await page.keyboard.press("Delete");
-  await expect(tiles.nth(11)).toHaveAttribute("data-marked-for-deletion", "true");
+  await expect(
+    tiles
+      .nth(11)
+      .locator("xpath=ancestor::li")
+      .getByRole("button", { name: /^Restore page [0-9]+$/ })
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "Restore page 12", exact: true })).toBeVisible();
   await page.keyboard.press("Backspace");
-  await expect(tiles.nth(11)).toHaveAttribute("data-marked-for-deletion", "false");
+  await expect(
+    tiles
+      .nth(11)
+      .locator("xpath=ancestor::li")
+      .getByRole("button", { name: /^Mark page [0-9]+ for deletion$/ })
+  ).toBeVisible();
   await expect(tiles.nth(11)).toBeFocused();
 
   // Keyboard reorder still works, and focus follows the moved page.

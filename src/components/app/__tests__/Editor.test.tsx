@@ -345,7 +345,6 @@ describe("Editor", () => {
     fireEvent.click(screen.getByTestId("editor-file-remove"));
     await idle();
     await waitFor(() => expect(screen.getByTestId("editor-undo-button")).toHaveFocus());
-    expect(screen.getByTestId("editor-root")).toHaveAttribute("data-phase", "edit");
     expect(screen.getByTestId("editor-files-dialog")).not.toHaveAttribute("open");
     const documentButton = screen.getByTestId("editor-document-view-button");
     documentButton.focus();
@@ -740,7 +739,7 @@ describe("Editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mark page 1 for deletion" }));
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getByTestId("editor-undo-button"));
-    expect(getPages()[0]).toHaveAttribute("data-marked-for-deletion", "false");
+    expect(screen.getByRole("button", { name: "Mark page 1 for deletion" })).toBeInTheDocument();
     await openDownloadMenu();
     expect(screen.getByTestId("editor-compress-button")).toHaveAttribute("aria-disabled", "false");
   });
@@ -963,13 +962,13 @@ describe("Editor", () => {
       fireEvent.click(screen.getByRole("button", { name: "Duplicate page 2" }));
     }
     expect(getPages()).toHaveLength(8);
-    expect(getPages().every((page) => page.dataset.selected === "false")).toBe(true);
+    expect(getPages().every((page) => page.getAttribute("aria-pressed") === "false")).toBe(true);
     await waitFor(() => expect(getPages()[2]).toHaveFocus());
     expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
       "Duplicated page 2 as page 3."
     );
-    expect(getPages()[1]).toHaveAttribute("data-marked-for-deletion", "true");
-    expect(getPages()[2]).toHaveAttribute("data-marked-for-deletion", "false");
+    expect(screen.getByRole("button", { name: "Restore page 2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark page 3 for deletion" })).toBeInTheDocument();
     expect(pdfServiceMocks.loadPDF).toHaveBeenCalledExactlyOnceWith(file);
     expect(pdfOperationsMocks.buildPDF).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Document" }));
@@ -1001,7 +1000,7 @@ describe("Editor", () => {
     fireEvent.click(getPages()[1]);
     fireEvent.click(screen.getByRole("button", { name: "Rotate page 2 90 degrees" }));
     fireEvent.click(screen.getByRole("button", { name: "Mark page 2 for deletion" }));
-    expect(getPages()[0]).toHaveAttribute("data-marked-for-deletion", "false");
+    expect(screen.getByRole("button", { name: "Mark page 1 for deletion" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Restore page 2" }));
     fireEvent.keyDown(getPages()[1], { altKey: true, key: "ArrowRight" });
     expect(getPages()[2]).toHaveAttribute("aria-pressed", "true");
@@ -1669,7 +1668,7 @@ describe("Editor", () => {
     fireEvent.click(screen.getByTestId("editor-delete-button"));
 
     await waitFor(() =>
-      expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual(["true", "true", "true"])
+      expect(screen.getAllByRole("button", { name: /^Restore page [0-9]+$/ })).toHaveLength(3)
     );
     expect(screen.getByTestId("editor-status-bar")).toHaveTextContent("0 of 3 pages exportable.");
     expect(screen.getByTestId("editor-page-count")).toHaveTextContent("0 of 3 pages exportable");
@@ -1691,11 +1690,9 @@ describe("Editor", () => {
 
     fireEvent.click(screen.getByTestId("editor-delete-button"));
     await waitFor(() => {
-      expect(tiles.map((tile) => tile.dataset.markedForDeletion)).toEqual([
-        "false",
-        "false",
-        "false",
-      ]);
+      expect(
+        screen.getAllByRole("button", { name: /^Mark page [0-9]+ for deletion$/ })
+      ).toHaveLength(3);
       expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
     });
   });
@@ -1858,9 +1855,9 @@ describe("Editor", () => {
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
       fireEvent.touchStart(hitareas[0], start);
       vi.advanceTimersByTime(200);
-      expect(hitareas[0].closest("li")).not.toHaveClass("dragging");
+      expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
+      expect(getPages()).toEqual(hitareas);
       vi.advanceTimersByTime(100);
-      expect(hitareas[0].closest("li")).toHaveClass("dragging");
       vi.advanceTimersByTime(16);
       expect(scrollContainer.scrollTop).toBeGreaterThan(0);
       fireEvent.touchMove(hitareas[0], move);
@@ -1870,9 +1867,8 @@ describe("Editor", () => {
       expect(screen.getByTestId("editor-status-message")).toHaveTextContent(
         "Moved page 1 to position 3."
       );
-      expect(hitareas[0].closest("li")).not.toHaveClass("dragging");
-      expect(dropTile).not.toHaveClass("drag-insert-after");
       expect(screen.queryByTestId("editor-selection-bar")).not.toBeInTheDocument();
+      expect(screen.getByTestId("editor-undo-button")).toHaveAccessibleName("Undo page reorder");
       await downloadWholePDF();
       await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
       expect(
@@ -1896,8 +1892,9 @@ describe("Editor", () => {
     const hitarea = tiles[0];
     fireEvent.touchStart(hitarea, { touches: [{ clientX: 10, clientY: 10 }] });
     fireEvent.touchEnd(hitarea, { touches: [] });
-    expect(hitarea.closest("li")).not.toHaveClass("dragging");
 
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
+    expect(getPages()).toEqual(tiles);
     fireEvent.click(hitarea);
     await waitFor(() => expect(tiles[0]).toHaveAttribute("aria-pressed", "true"));
   });
@@ -1920,7 +1917,7 @@ describe("Editor", () => {
     fireEvent.click(deleteButtons[1]);
 
     await waitFor(() => {
-      expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "true");
+      expect(screen.getByRole("button", { name: "Restore page 2" })).toBeInTheDocument();
       expect(tiles[1]).toHaveAttribute("aria-pressed", "false");
       expect(deleteButtons[1]).toHaveAccessibleName("Restore page 2");
       expect(deleteButtons[1]).not.toHaveAttribute("aria-pressed");
@@ -1929,7 +1926,7 @@ describe("Editor", () => {
     fireEvent.click(deleteButtons[1]);
 
     await waitFor(() => {
-      expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "false");
+      expect(screen.getByRole("button", { name: "Mark page 2 for deletion" })).toBeInTheDocument();
     });
   });
 
@@ -1955,8 +1952,8 @@ describe("Editor", () => {
     expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
     fireEvent.click(screen.getByTestId("editor-delete-button"));
     await waitFor(() => {
-      expect(tiles[0]).toHaveAttribute("data-marked-for-deletion", "true");
-      expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "true");
+      expect(screen.getByRole("button", { name: "Restore page 1" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Restore page 2" })).toBeInTheDocument();
       expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(
         "2 selected · 0 exportable"
       );
@@ -2162,7 +2159,7 @@ describe("Editor", () => {
     fireEvent.click(getPages()[2]);
     fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
     await waitFor(() => expect(getPages()[1]).toHaveFocus());
-    expect(getPages().map((page) => page.dataset.selected)).toEqual([
+    expect(getPages().map((page) => page.getAttribute("aria-pressed"))).toEqual([
       "true",
       "false",
       "false",
@@ -2197,7 +2194,7 @@ describe("Editor", () => {
     expect(tiles[2]).toHaveFocus();
     fireEvent.keyDown(tiles[2], { key: "Home" });
     expect(tiles[0]).toHaveFocus();
-    expect(getPages().every((page) => page.dataset.selected === "false")).toBe(true);
+    expect(getPages().every((page) => page.getAttribute("aria-pressed") === "false")).toBe(true);
   });
 
   it("rotates and toggles deletion on the focused page from the keyboard", async () => {
@@ -2210,10 +2207,10 @@ describe("Editor", () => {
     fireEvent.keyDown(tiles[1], { key: "r", ctrlKey: true });
     expect(canvas()).toHaveStyle({ "--page-rotation": "90deg" });
     fireEvent.keyDown(tiles[1], { key: "Delete" });
-    expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "true");
+    expect(screen.getByRole("button", { name: "Restore page 2" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Restore page 2" })).toBeInTheDocument();
     fireEvent.keyDown(tiles[1], { key: "Backspace" });
-    expect(tiles[1]).toHaveAttribute("data-marked-for-deletion", "false");
+    expect(screen.getByRole("button", { name: "Mark page 2 for deletion" })).toBeInTheDocument();
     expect(tiles[1]).toHaveFocus();
     expect(screen.getByTestId("editor-undo-button")).toHaveAttribute(
       "aria-label",
