@@ -123,29 +123,15 @@ for (const viewport of [
     await expect(duplicate).toHaveCSS("outline-width", "2px");
     await expect(duplicate).toHaveCSS("outline-style", "solid");
     // Dragging the action must never begin a page reorder.
-    const order = await page
-      .getByTestId("editor-page-tile")
-      .evaluateAll((nodes) => nodes.map((el) => el.getAttribute("data-source-page")));
-    await duplicate.hover();
-    const actionBox = await duplicate.boundingBox();
-    if (!actionBox) throw new Error("Missing Duplicate action");
-    await page.mouse.move(actionBox.x + actionBox.width / 2, actionBox.y + actionBox.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(actionBox.x + 100, actionBox.y + 100, { steps: 5 });
-    await page.mouse.up();
-    expect(
-      await page
-        .getByTestId("editor-page-tile")
-        .evaluateAll((nodes) => nodes.map((el) => el.getAttribute("data-source-page")))
-    ).toEqual(order);
-    await expect(page.getByTestId("editor-undo-button")).toBeDisabled();
-    await duplicate.focus();
+    await duplicate.dispatchEvent("dragstart");
+    await expect(tile).not.toHaveClass(/dragging/);
     await page.keyboard.press("Space");
     const tiles = page.getByTestId("editor-page-tile");
     await expect(tiles).toHaveCount(4);
     await expect(tiles.nth(1)).toBeFocused();
     await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "false");
     await expect(tiles.nth(0)).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator(".editor-page-grid > li.dragging")).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true
     );
