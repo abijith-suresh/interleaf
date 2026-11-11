@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.0.15](https://github.com/abijith-suresh/interleaf/compare/v0.0.14...v0.0.15) (2026-11-11)
+
+
+### Features
+
+* add motion to editor controls ([#389](https://github.com/abijith-suresh/interleaf/issues/389)) ([585d89a](https://github.com/abijith-suresh/interleaf/commit/585d89a3c6e937f8647c26d2edcc4ce5969d15d4))
+* add motion to marketing pages ([#390](https://github.com/abijith-suresh/interleaf/issues/390)) ([fa304d7](https://github.com/abijith-suresh/interleaf/commit/fa304d789b9b5663c2dfaca67975ad8779200789))
+* group features into cards ([#385](https://github.com/abijith-suresh/interleaf/issues/385)) ([76329ac](https://github.com/abijith-suresh/interleaf/commit/76329accd741ba87f2ec6ee1d9e435b0de1aaecc))
+
+
+### Bug Fixes
+
+* keep focus on draft controls when clicked ([#391](https://github.com/abijith-suresh/interleaf/issues/391)) ([e6d1933](https://github.com/abijith-suresh/interleaf/commit/e6d1933ed64b676dda20b5a6c59e3076eb6ec767))
+* stop page action drags from reordering pages ([#393](https://github.com/abijith-suresh/interleaf/issues/393)) ([fb9e430](https://github.com/abijith-suresh/interleaf/commit/fb9e430707a9baa7a8cd2b40ac4e87986aa20a9e))
+* unify editor selection states ([#383](https://github.com/abijith-suresh/interleaf/issues/383)) ([49f528c](https://github.com/abijith-suresh/interleaf/commit/49f528cd62a8f023f5dd359c95e9574c846b771f))
+
 ## [0.0.14](https://github.com/abijith-suresh/interleaf/compare/v0.0.13...v0.0.14) (2026-11-08)
 
 
