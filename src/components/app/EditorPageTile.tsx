@@ -37,6 +37,8 @@ interface Props {
 
 export default function EditorPageTile(props: Props) {
   const [touchLifted, setTouchLifted] = createSignal(false);
+  let pressedAction = false;
+  let tile!: HTMLLIElement;
   let hitarea: HTMLButtonElement | undefined;
   let touchDragTimer: number | null = null;
   let touchDragId: number | null = null;
@@ -113,6 +115,21 @@ export default function EditorPageTile(props: Props) {
   };
 
   onMount(() => {
+    const rememberPress = (event: PointerEvent) => {
+      pressedAction =
+        event.target instanceof Element && !!event.target.closest(".page-action-buttons");
+    };
+    const resetPress = () => {
+      pressedAction = false;
+    };
+    tile.addEventListener("pointerdown", rememberPress, true);
+    window.addEventListener("pointerup", resetPress, true);
+    window.addEventListener("pointercancel", resetPress, true);
+    onCleanup(() => {
+      tile.removeEventListener("pointerdown", rememberPress, true);
+      window.removeEventListener("pointerup", resetPress, true);
+      window.removeEventListener("pointercancel", resetPress, true);
+    });
     const element = hitarea;
     if (!element) return;
     element.addEventListener("touchstart", handleTouchStart, { passive: true });
@@ -128,11 +145,6 @@ export default function EditorPageTile(props: Props) {
     });
   });
 
-  const preventActionDrag = (event: DragEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
   const tileClass = () => {
     const classes = ["editor-page"];
     if (props.selected) classes.push("selected");
@@ -145,13 +157,20 @@ export default function EditorPageTile(props: Props) {
 
   return (
     <li
+      ref={tile}
       data-page-index={props.index}
       data-source-page={props.page.sourcePageNumber}
       data-selected={props.selected}
       data-marked-for-deletion={props.page.markedForDeletion}
       class={tileClass()}
       draggable={!props.busy && !touchLifted()}
-      onDragStart={props.onDragStart}
+      onDragStart={(event) => {
+        if (pressedAction) {
+          event.preventDefault();
+          return;
+        }
+        props.onDragStart(event);
+      }}
       onDragOver={props.onDragOver}
       onDragEnter={props.onDragEnter}
       onDragLeave={props.onDragLeave}
@@ -200,8 +219,6 @@ export default function EditorPageTile(props: Props) {
             aria-label={`Duplicate page ${props.index + 1}`}
             tabIndex={props.tabStop ? 0 : -1}
             disabled={props.busy}
-            draggable={false}
-            onDragStart={preventActionDrag}
             onClick={props.onDuplicate}
             variant="plain"
             icon="copy"
@@ -218,8 +235,6 @@ export default function EditorPageTile(props: Props) {
             }
             tabIndex={props.tabStop ? 0 : -1}
             disabled={props.busy}
-            draggable={false}
-            onDragStart={preventActionDrag}
             onClick={props.onDelete}
             variant="danger"
             icon={props.page.markedForDeletion ? "restore" : "delete"}
@@ -231,8 +246,6 @@ export default function EditorPageTile(props: Props) {
             aria-label={`Rotate page ${props.index + 1} 90 degrees`}
             tabIndex={props.tabStop ? 0 : -1}
             disabled={props.busy}
-            draggable={false}
-            onDragStart={preventActionDrag}
             onClick={props.onRotate}
             variant="plain"
             icon="rotate"
