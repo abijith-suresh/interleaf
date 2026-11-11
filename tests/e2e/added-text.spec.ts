@@ -362,17 +362,37 @@ for (const [width, height] of [
     await page.setViewportSize({ width, height });
     await open(page);
     await place(page, "Mobile");
+    const saved = await page
+      .locator(".editor-text-hit")
+      .evaluateAll((nodes) => nodes.map((el) => el.getAttribute("style")));
     await revealDocumentTools(page);
     await page.getByRole("button", { name: "Read", exact: true }).click();
-    await expect(page.locator(".editor-text-layer")).not.toHaveClass(/is-editing/);
     await revealPageZoom(page);
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await page.keyboard.press("Escape");
     await expectDocumentReady(page);
-    const start = await point(page, 0.5, 0.5);
+    const stage = page.locator(".editor-review-stage");
+    const beforePan = await stage.evaluate((el) => [el.scrollLeft, el.scrollTop]);
+    const stageBox = await stage.boundingBox();
+    if (!stageBox) throw new Error("Missing stage");
+    const start = { x: stageBox.x + stageBox.width / 2, y: stageBox.y + stageBox.height / 2 };
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
-    await page.mouse.move(start.x - 25, start.y - 15, { steps: 3 });
+    await page.mouse.move(
+      start.x + (beforePan[0] > 0 ? 25 : -25),
+      start.y + (beforePan[1] > 0 ? 20 : -20),
+      { steps: 3 }
+    );
     await page.mouse.up();
+    expect(await stage.evaluate((el) => [el.scrollLeft, el.scrollTop])).not.toEqual(beforePan);
+    await expect(page.getByLabel("Added text", { exact: true })).toHaveCount(0);
+    await revealDocumentTools(page);
+    await page.getByRole("button", { name: "Select additions", exact: true }).click();
+    expect(
+      await page
+        .locator(".editor-text-hit")
+        .evaluateAll((nodes) => nodes.map((el) => el.getAttribute("style")))
+    ).toEqual(saved);
     await expect(page.getByLabel("Added text", { exact: true })).toHaveCount(0);
     const measurements = await page.evaluate(() => ({
       overflow: document.documentElement.scrollWidth > innerWidth,
@@ -451,7 +471,6 @@ test.describe("touch text placement", () => {
     await expect.poll(() => stage.getAttribute("data-zoom").then(Number)).toBeGreaterThan(1.5);
     await expectDocumentReady(page);
     await expect(page.getByLabel("Added text", { exact: true })).toHaveCount(0);
-    await expect(page.locator(".editor-text-layer")).toHaveClass(/is-placing/);
     const box = await stage.boundingBox();
     if (!box) throw new Error("Missing stage");
     await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);

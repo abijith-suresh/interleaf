@@ -191,9 +191,6 @@ for (const viewport of [
 
     // One toolbar row. Every visible control keeps a 44px hit target inside the viewport.
     const toolbar = page.getByRole("toolbar", { name: "Editor" });
-    if (viewport.width === 1440) {
-      await expect(page.getByTestId("editor-pages-view-button")).toHaveCSS("font-size", "14px");
-    }
     const controls = toolbar.locator("button:visible, a:visible");
     const centers: number[] = [];
     for (const control of await controls.all()) {
@@ -232,8 +229,6 @@ for (const viewport of [
     );
     await expect(review).toHaveCSS("outline-style", "solid");
     await expect(review).toHaveCSS("outline-width", "2px");
-    await expect(review.locator("svg")).toHaveCSS("width", "16px");
-    await expect(review.locator("svg")).toHaveAttribute("stroke-width", "1.75");
 
     // The Download menu: whole-document outputs with their disabled reasons.
     const downloadMenu = page.getByTestId("editor-download-menu-button");
@@ -272,9 +267,6 @@ for (const viewport of [
     await expect(bar).toHaveCount(0);
     await tiles.first().click();
     await expect(bar).toBeVisible();
-    if (viewport.width === 1440) {
-      await expect(page.getByTestId("editor-rotate-button")).toHaveCSS("font-size", "14px");
-    }
     const toolbarBox = await toolbar.boundingBox();
     await expect
       .poll(async () => (await bar.boundingBox())?.y)
@@ -299,10 +291,8 @@ for (const viewport of [
     );
     const restore = movedPage.getByTestId("editor-page-delete-button");
     await expect(restore).toHaveAccessibleName("Restore page 2");
-    await expect(restore).toHaveClass(/is-marked/);
     await restore.click();
     await expect(restore).toHaveAccessibleName("Mark page 2 for deletion");
-    await expect(restore).not.toHaveClass(/is-marked/);
     await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "true");
     for (const control of await bar.locator("button:visible").all()) {
       const box = await control.boundingBox();

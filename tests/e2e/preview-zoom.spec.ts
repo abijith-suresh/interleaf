@@ -118,7 +118,9 @@ for (const viewport of [
     await page.mouse.down();
     await page.mouse.move(0, 0, { steps: 4 });
     await page.mouse.up();
-    await expect(stage).not.toHaveClass(/is-panning/);
+    const released = await stage.evaluate((el) => [el.scrollLeft, el.scrollTop]);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 3 });
+    expect(await stage.evaluate((el) => [el.scrollLeft, el.scrollTop])).toEqual(released);
     await expect(page.getByRole("heading", { name: "Page 2", exact: true })).toBeVisible();
     await stage.focus();
     await page.keyboard.press("End");
@@ -336,10 +338,18 @@ test.describe("touch preview", () => {
     await touches("touchMove", [{ id: 1, x: 70, y: y - 80 }]);
     await expect.poll(() => stage.evaluate((el) => el.scrollTop)).toBeGreaterThan(before);
     await touches("touchCancel", []);
-    await expect(stage).not.toHaveClass(/is-panning/);
+    const cancelled = await stage.evaluate((el) => [el.scrollLeft, el.scrollTop]);
+    await stage.dispatchEvent("pointermove", {
+      pointerId: 1,
+      pointerType: "touch",
+      clientX: 10,
+      clientY: 10,
+    });
+    expect(await stage.evaluate((el) => [el.scrollLeft, el.scrollTop])).toEqual(cancelled);
     const settledZoom = Number(await stage.getAttribute("data-zoom"));
     await ready(page, settledZoom);
     // An unexpected native capture loss terminates every remaining pointer.
+    const captureLost = await stage.evaluate((el) => [el.scrollLeft, el.scrollTop]);
     await stage.evaluate((el) => {
       const id = (el as HTMLElement & { testTouches?: Map<number, unknown> }).testTouches ? 7 : 1;
       (el as HTMLElement).setPointerCapture = () => {};
@@ -358,10 +368,17 @@ test.describe("touch preview", () => {
         new PointerEvent("pointermove", { pointerId: id, clientX: 0, clientY: 0, bubbles: true })
       );
     });
-    await expect(stage).not.toHaveClass(/is-panning/);
+    expect(await stage.evaluate((el) => [el.scrollLeft, el.scrollTop])).toEqual(captureLost);
     await page.getByTestId("editor-page-viewer-next").click();
     await ready(page, 1, 2);
-    await expect(stage).not.toHaveClass(/is-panning/);
+    const navigated = await stage.evaluate((el) => [el.scrollLeft, el.scrollTop]);
+    await stage.dispatchEvent("pointermove", {
+      pointerId: 1,
+      pointerType: "touch",
+      clientX: 10,
+      clientY: 10,
+    });
+    expect(await stage.evaluate((el) => [el.scrollLeft, el.scrollTop])).toEqual(navigated);
     await revealPageZoom(page);
     await page.getByRole("button", { name: "Zoom in", exact: true }).tap();
     await ready(page, 1.4, 2);

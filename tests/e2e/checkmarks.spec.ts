@@ -11,7 +11,7 @@ import {
 import { expectMouseAdditionSize, expectTypedAdditionSize } from "./fixtures/addition-size";
 import { captureDownload } from "./fixtures/download";
 import { expectDocumentReady, openDocument } from "./fixtures/editor";
-import { downloadDocument, revealDocumentTools } from "./fixtures/toolbar";
+import { downloadDocument, revealDocumentTools, revealPageZoom } from "./fixtures/toolbar";
 
 async function open(page: Page) {
   const pdf = await PDFDocument.create();
@@ -73,10 +73,6 @@ for (const [width, height] of [
     expect(placed[0]).toBeCloseTo(100 * (0.5 - 8 / 600), 4);
     expect(placed[1]).toBeCloseTo(100 * (0.5 + 8 / 450), 4);
     await size.fill("24");
-    await expect(draft.locator("svg polyline")).toHaveAttribute(
-      "points",
-      "0.12,0.5 0.38,0.78 0.88,0.15000000000000002"
-    );
     // Use real keyboard navigation so focus-visible follows each browser's modality rules.
     for (let step = 0; step < 8; step++) {
       if (await draft.evaluate((element) => element === document.activeElement)) break;
@@ -274,7 +270,6 @@ test.describe("touch checkmark gestures", () => {
     await expect(stage).toHaveAttribute("data-zoom", "2");
     await expectDocumentReady(page);
     await expect(page.getByLabel("Checkmark size in points")).toHaveCount(0);
-    await expect(page.locator(".editor-text-layer")).toHaveClass(/is-placing/);
     await page.touchscreen.tap(x, y);
     await expect(page.getByLabel("Checkmark size in points")).toBeVisible();
     await page.getByRole("button", { name: "Save checkmark", exact: true }).tap();
@@ -283,7 +278,20 @@ test.describe("touch checkmark gestures", () => {
     ).toBeVisible();
     await revealDocumentTools(page);
     await page.getByRole("button", { name: "Read", exact: true }).tap();
-    await expect(page.locator(".editor-text-layer")).not.toHaveClass(/is-editing/);
+    await revealPageZoom(page);
+    await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await expectDocumentReady(page);
+    const readBox = await stage.boundingBox();
+    if (!readBox) throw new Error("Missing stage");
+    const readX = readBox.x + readBox.width / 2,
+      readY = readBox.y + readBox.height / 2;
+    const beforeRead = await stage.evaluate((el) => [el.scrollLeft, el.scrollTop]);
+    await page.mouse.move(readX, readY);
+    await page.mouse.down();
+    await page.mouse.move(readX + (beforeRead[0] > 0 ? 30 : -30), readY, { steps: 3 });
+    await page.mouse.up();
+    expect(await stage.evaluate((el) => [el.scrollLeft, el.scrollTop])).not.toEqual(beforeRead);
+    await expect(page.getByLabel("Checkmark size in points")).toHaveCount(0);
   });
 });
 

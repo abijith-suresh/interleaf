@@ -84,7 +84,10 @@ for (const width of [320, 390]) {
     expect(region).toMatchObject({ inside: true, hit: true, overflow: false });
     await input.fill("A usable answer");
     await page.getByRole("button", { name: "Save answer", exact: true }).click();
-    await expect(page.locator(".editor-field-hit.is-selected")).toHaveCount(0);
+    await expect(input).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Fill field: Applicant full name", exact: true })
+    ).toBeFocused();
   });
 }
 for (const width of [568, 667]) {

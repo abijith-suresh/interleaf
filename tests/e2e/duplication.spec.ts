@@ -36,8 +36,18 @@ test("copies retain independent organization, real PDF/PNG content and source re
   );
   await page.keyboard.press("Space");
   await expect(tiles.nth(1)).toHaveAttribute("aria-pressed", "true");
-  await expect(tiles.nth(0)).toHaveAttribute("data-marked-for-deletion", "true");
-  await expect(tiles.nth(1)).toHaveAttribute("data-marked-for-deletion", "false");
+  await expect(
+    tiles
+      .nth(0)
+      .locator("xpath=ancestor::li")
+      .getByRole("button", { name: /^Restore page [0-9]+$/ })
+  ).toBeVisible();
+  await expect(
+    tiles
+      .nth(1)
+      .locator("xpath=ancestor::li")
+      .getByRole("button", { name: /^Mark page [0-9]+ for deletion$/ })
+  ).toBeVisible();
   await expect(rows.nth(1).getByTestId("editor-page-canvas")).toHaveCSS("--page-rotation", "90deg");
   await page.getByTestId("editor-document-view-button").click();
   await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 2");
@@ -79,7 +89,12 @@ test("copies retain independent organization, real PDF/PNG content and source re
   await page.getByRole("button", { name: "Duplicate page 2", exact: true }).click();
   await page.getByRole("button", { name: "Rotate page 3 90 degrees", exact: true }).click();
   await page.getByRole("button", { name: "Mark page 3 for deletion", exact: true }).click();
-  await expect(tiles.nth(1)).toHaveAttribute("data-marked-for-deletion", "false");
+  await expect(
+    tiles
+      .nth(1)
+      .locator("xpath=ancestor::li")
+      .getByRole("button", { name: /^Mark page [0-9]+ for deletion$/ })
+  ).toBeVisible();
   await page.getByRole("button", { name: "Restore page 3", exact: true }).click();
   await tiles.nth(2).focus();
   await page.keyboard.press("Space");

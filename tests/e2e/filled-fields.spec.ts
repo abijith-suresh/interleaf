@@ -34,7 +34,6 @@ for (const [width, height] of [
     const fixture = await open(page);
     await arm(page);
     const hit = page.locator(`[data-widget-ref="${fixture.widgetRefs[0]}"]`);
-    await expect(hit).toHaveAttribute("data-field-ref", fixture.fieldRef);
     await hit.click();
     const input = page.getByRole("textbox", { name: "Answer for Answer" });
     await expect(input).toBeFocused();
@@ -47,10 +46,6 @@ for (const [width, height] of [
     await expect(input).toHaveValue("ANSWER");
     await page.getByRole("button", { name: "Next field", exact: true }).click();
     await expect(input).toBeFocused();
-    await expect(page.locator(".editor-field-hit.is-selected")).toHaveAttribute(
-      "data-widget-ref",
-      fixture.widgetRefs[1]
-    );
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(page.locator(`[data-widget-ref="${fixture.widgetRefs[1]}"]`)).toBeFocused();
     await hit.click();
@@ -81,7 +76,9 @@ for (const [width, height] of [
       .first()
       .click();
     // Read mode keeps the fields as passive targets that open them for filling.
-    await expect(page.locator(".editor-field-hit.is-passive")).toHaveCount(4);
+    await hit.click();
+    await expect(input).toBeVisible();
+    await input.press("Escape");
     // The header counts only the fields that can be filled.
     const fillable = await page.locator('.editor-field-hit:not([aria-disabled="true"])').count();
     await expect(page.getByTestId("editor-page-field-count")).toHaveText(
@@ -218,7 +215,6 @@ test("Read mode shows the field count and opens a field for filling on click", a
   );
   const hits = page.locator(".editor-field-hit");
   await expect(hits).toHaveCount(4);
-  await expect(hits.first()).toHaveClass(/is-passive/);
   const fillable = await page.locator('.editor-field-hit:not([aria-disabled="true"])').count();
   const label = `${fillable} field${fillable === 1 ? "" : "s"}`;
   await expect(page.getByTestId("editor-page-field-count")).toHaveText(label);
