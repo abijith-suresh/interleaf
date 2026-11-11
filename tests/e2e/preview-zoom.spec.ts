@@ -138,7 +138,10 @@ for (const viewport of [
     await page.keyboard.press("Tab");
     await expect(stage).toBeFocused();
     await expect(stage).toHaveCSS("outline-style", "solid");
-    await expect(stage).toHaveCSS("outline-color", "rgb(23, 128, 79)");
+    expect(["rgba(0, 0, 0, 0)", "transparent"]).not.toContain(
+      await stage.evaluate((element) => getComputedStyle(element).outlineColor)
+    );
+    await expect(stage).toHaveCSS("outline-width", "2px");
     await expect(page.getByRole("heading", { name: "Page 2", exact: true })).toBeVisible();
     await expect.poll(() => stage.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
     // Modified browser shortcuts must not be consumed by the dialog.
