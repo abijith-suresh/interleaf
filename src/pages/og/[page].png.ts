@@ -37,37 +37,40 @@ const pages: Record<string, { title: string; description: string }> = {
 };
 
 // Satori draws text as paths, so resvg never needs these fonts. Satori renders
-// a variable font at its default instance only, so headings use static Inter.
-const interFont = (weight: 400 | 500) =>
-  readFileSync(
-    join(process.cwd(), `node_modules/@fontsource/inter/files/inter-latin-${weight}-normal.woff`)
-  );
-const bodyFontData = interFont(400);
-const headingFontData = interFont(500);
+// a variable font at its default instance only, so the image uses static cuts.
+const fontFile = (file: string) =>
+  readFileSync(join(process.cwd(), "node_modules/@fontsource", file));
+const bodyFontData = fontFile("inter/files/inter-latin-400-normal.woff");
+const wordmarkFontData = fontFile("inter/files/inter-latin-500-normal.woff");
+const displayFontData = fontFile("source-serif-4/files/source-serif-4-latin-600-normal.woff");
 
-// Cards tokens from the marketing theme in src/styles/global.css.
+// Folio tokens from src/styles/global.css.
 const colors = {
-  canvas: "#f1f3f1",
-  surface: "#ffffff",
-  fg: "#11201a",
-  fgMuted: "#4e5a54",
-  line: "#dde3df",
-  accent: "#17804f",
+  canvas: "#f3f0e8",
+  surface: "#fcfbf8",
+  fg: "#191b17",
+  fgMuted: "#55584f",
+  line: "#e0dacd",
+  lineStrong: "#cbc3b2",
 };
 
 const svgImage = (svg: string) =>
   `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 
-// The app icon, from the favicon, and the leaf that dots the wordmark's first i.
+// The site's wordmark: the app icon from the favicon, then plain "interleaf".
 const markSrc = svgImage(readFileSync(join(process.cwd(), "public/favicon.svg"), "utf-8"));
-const leafSrc = svgImage(
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M1 9A6.9 6.9 0 0 1 9 1A6.9 6.9 0 0 1 1 9z" fill="${colors.accent}"/></svg>`
-);
 
 const wordmarkSize = 34;
-const markSize = 64;
-
-const cardInset = 40;
+const markSize = 40;
+const inset = 48;
+// The interleaved sheet: a second sheet's edge behind the card.
+const sheetOffset = 8;
+const sheet = {
+  boxSizing: "border-box",
+  width: socialPreviewSize.width - 2 * inset - sheetOffset,
+  height: socialPreviewSize.height - 2 * inset - sheetOffset,
+  borderRadius: 12,
+} as const;
 
 export function getStaticPaths() {
   return Object.keys(pages).flatMap((page) =>
@@ -86,122 +89,106 @@ export const GET: APIRoute = async ({ props }) => {
     props: {
       style: {
         display: "flex",
+        position: "relative",
         width: socialPreviewSize.width,
         height: socialPreviewSize.height,
-        alignItems: "center",
-        justifyContent: "center",
         backgroundColor: colors.canvas,
         color: colors.fg,
         fontFamily: "Inter",
         fontWeight: 400,
       },
-      children: {
-        type: "div",
-        props: {
-          style: {
-            display: "flex",
-            width: socialPreviewSize.width - 2 * cardInset,
-            height: socialPreviewSize.height - 2 * cardInset,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: colors.surface,
-            border: `1px solid ${colors.line}`,
-            borderRadius: 12,
-          },
-          children: {
-            type: "div",
-            props: {
-              // Keep every element inside the centered square used by compact cards.
-              style: {
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                width: 600,
-                textAlign: "center",
-              },
-              children: [
-                {
-                  type: "img",
-                  props: { src: markSrc, width: markSize, height: markSize },
-                },
-                {
-                  type: "div",
-                  props: {
-                    style: {
-                      display: "flex",
-                      marginTop: 20,
-                      fontSize: wordmarkSize,
-                      fontWeight: 500,
-                      lineHeight: 1,
-                      letterSpacing: "-0.02em",
-                    },
-                    children: [
-                      {
-                        type: "div",
-                        props: {
-                          style: { display: "flex", position: "relative" },
-                          children: [
-                            "ı",
-                            {
-                              type: "img",
-                              props: {
-                                src: leafSrc,
-                                width: wordmarkSize * 0.3,
-                                height: wordmarkSize * 0.3,
-                                style: {
-                                  position: "absolute",
-                                  top: 0,
-                                  left: "50%",
-                                  transform: "translateX(-40%)",
-                                },
-                              },
-                            },
-                          ],
-                        },
-                      },
-                      "nterleaf",
-                    ],
-                  },
-                },
-                {
-                  type: "div",
-                  props: {
-                    style: {
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      marginTop: 40,
-                      fontSize: 72,
-                      fontWeight: 500,
-                      lineHeight: 1.1,
-                      letterSpacing: "-0.02em",
-                    },
-                    children: title.split("\n").map((line) => ({
-                      type: "span",
-                      props: { children: line },
-                    })),
-                  },
-                },
-                {
-                  type: "div",
-                  props: {
-                    style: {
-                      marginTop: 24,
-                      maxWidth: 520,
-                      color: colors.fgMuted,
-                      fontSize: 26,
-                      lineHeight: 1.4,
-                      letterSpacing: "-0.01em",
-                      textWrap: "balance",
-                    },
-                    children: description,
-                  },
-                },
-              ],
+      children: [
+        {
+          type: "div",
+          props: {
+            style: {
+              ...sheet,
+              position: "absolute",
+              top: inset + sheetOffset,
+              left: inset + sheetOffset,
+              backgroundColor: colors.surface,
+              border: `1px solid ${colors.lineStrong}`,
             },
           },
         },
-      },
+        {
+          type: "div",
+          props: {
+            style: {
+              ...sheet,
+              position: "absolute",
+              top: inset,
+              left: inset,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              padding: 64,
+              backgroundColor: colors.surface,
+              border: `1px solid ${colors.line}`,
+            },
+            children: [
+              {
+                type: "div",
+                props: {
+                  style: {
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 14,
+                    fontSize: wordmarkSize,
+                    fontWeight: 500,
+                    lineHeight: 1,
+                    letterSpacing: "-0.02em",
+                  },
+                  children: [
+                    { type: "img", props: { src: markSrc, width: markSize, height: markSize } },
+                    "interleaf",
+                  ],
+                },
+              },
+              {
+                type: "div",
+                props: {
+                  style: { display: "flex", flexDirection: "column" },
+                  children: [
+                    {
+                      type: "div",
+                      props: {
+                        style: {
+                          display: "flex",
+                          flexDirection: "column",
+                          fontFamily: "Source Serif 4",
+                          fontSize: 80,
+                          fontWeight: 600,
+                          lineHeight: 1.05,
+                          letterSpacing: "-0.02em",
+                        },
+                        children: title.split("\n").map((line) => ({
+                          type: "span",
+                          props: { children: line },
+                        })),
+                      },
+                    },
+                    {
+                      type: "div",
+                      props: {
+                        style: {
+                          marginTop: 24,
+                          maxWidth: 760,
+                          color: colors.fgMuted,
+                          fontSize: 30,
+                          lineHeight: 1.35,
+                          letterSpacing: "-0.01em",
+                        },
+                        children: description,
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      ],
     },
   };
 
@@ -209,7 +196,8 @@ export const GET: APIRoute = async ({ props }) => {
     ...socialPreviewSize,
     fonts: [
       { name: "Inter", data: bodyFontData, weight: 400, style: "normal" },
-      { name: "Inter", data: headingFontData, weight: 500, style: "normal" },
+      { name: "Inter", data: wordmarkFontData, weight: 500, style: "normal" },
+      { name: "Source Serif 4", data: displayFontData, weight: 600, style: "normal" },
     ],
   });
 
