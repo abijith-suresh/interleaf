@@ -137,7 +137,7 @@ describe("PDFService", () => {
         await expect(runPromise(service.getPageSize(file, 1, rotation))).rejects.toMatchObject({
           operation: "get-page-size",
           file,
-          message: "Rotation must use 90-degree steps.",
+          message: "PageViewport: Invalid rotation, must be a multiple of 90 degrees.",
         });
       }
       expect(pdf.getPage).toHaveBeenCalledTimes(1);

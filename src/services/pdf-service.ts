@@ -2,7 +2,6 @@ import { Cause, Deferred, Effect, Exit, Fiber, Option, Semaphore } from "effect"
 import type * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { hasPageAdditions } from "../controllers/editor-additions-state";
-import { normalizeQuarterTurn } from "../controllers/text-geometry";
 import {
   type PageGeometry,
   type PageState,
@@ -211,13 +210,18 @@ export class PDFService {
       Effect.gen({ self: this }, function* () {
         const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
         const metadata = yield* this.getPageMetadata(record, pageNumber, "get-page-size");
-        return yield* Effect.try({
-          try: () =>
-            normalizeQuarterTurn(rotation) % 180 === 0
-              ? { width: metadata.width, height: metadata.height }
-              : { width: metadata.height, height: metadata.width },
-          catch: (cause) => processingError("get-page-size", file, cause),
-        });
+        // PDF.js rejects the same rotations with the same message.
+        if (rotation % 90 !== 0)
+          return yield* Effect.fail(
+            processingError(
+              "get-page-size",
+              file,
+              new Error("PageViewport: Invalid rotation, must be a multiple of 90 degrees.")
+            )
+          );
+        return (rotation / 90) % 2 === 0
+          ? { width: metadata.width, height: metadata.height }
+          : { width: metadata.height, height: metadata.width };
       })
     );
   }
