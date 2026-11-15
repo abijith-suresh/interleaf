@@ -1,8 +1,8 @@
 import { writeFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
-import { createServer, type ViteDevServer } from "vite";
 import { exportCrossPageButtonFixture } from "../../src/services/__tests__/pdf-export-fixtures";
+import { type DevServer, startDevServer } from "./fixtures/dev-server";
 import { captureDownload } from "./fixtures/download";
 import type {
   checkAdditions,
@@ -15,27 +15,9 @@ import type {
 } from "./fixtures/export-boundary";
 import { clickSelectionAction } from "./fixtures/toolbar";
 
-let server: ViteDevServer, url: string;
+let server: DevServer;
 test.beforeAll(async () => {
-  server = await createServer({
-    configFile: false,
-    cacheDir: `node_modules/.vite-export-boundary-tests/${test.info().project.name}`,
-    plugins: [
-      {
-        name: "boundary-test",
-        configureServer(s) {
-          s.middlewares.use("/boundary-test", (_req, res) => {
-            res.setHeader("Content-Type", "text/html");
-            res.end("<!doctype html><title>Export boundary test</title>");
-          });
-        },
-      },
-    ],
-    server: { host: "127.0.0.1", port: 0 },
-    optimizeDeps: { include: ["effect", "pdfjs-dist", "pdf-lib", "fflate"] },
-  });
-  await server.listen();
-  url = server.resolvedUrls?.local[0] ?? "";
+  server = await startDevServer("export-boundary", test.info());
 });
 test.afterAll(async () => {
   await server?.close();
@@ -44,7 +26,7 @@ test.afterAll(async () => {
 test("saved exports retain widgets/AP/pixels while excluding omitted page objects and answers", async ({
   page,
 }, info) => {
-  await page.goto(`${url}boundary-test`);
+  await page.goto(server.url);
   const result: Awaited<ReturnType<typeof checkFormExports>> = await page.evaluate(async () => {
     const path = "/tests/e2e/fixtures/export-boundary.ts";
     return (await import(path)).checkFormExports();
@@ -79,7 +61,7 @@ test("saved exports retain widgets/AP/pixels while excluding omitted page object
 test("direct and named destinations agree with actual saved output Page references", async ({
   page,
 }) => {
-  await page.goto(`${url}boundary-test`);
+  await page.goto(server.url);
   const results: Awaited<ReturnType<typeof checkDestinations>> = await page.evaluate(async () => {
     const path = "/tests/e2e/fixtures/export-boundary.ts";
     return (await import(path)).checkDestinations();
@@ -98,7 +80,7 @@ test("direct and named destinations agree with actual saved output Page referenc
 test("cross-page button Opt fails clearly rather than changing a saved answer", async ({
   page,
 }, info) => {
-  await page.goto(`${url}boundary-test`);
+  await page.goto(server.url);
   const result: Awaited<ReturnType<typeof checkButtonFailure>> = await page.evaluate(async () => {
     const path = "/tests/e2e/fixtures/export-boundary.ts";
     return (await import(path)).checkButtonFailure();
@@ -118,7 +100,7 @@ test("cross-page button Opt fails clearly rather than changing a saved answer", 
 test("retained forms and saved text/checkmarks keep pixels and physical geometry", async ({
   page,
 }, info) => {
-  await page.goto(`${url}boundary-test`);
+  await page.goto(server.url);
   const result: Awaited<ReturnType<typeof checkAdditions>> = await page.evaluate(async () => {
     const path = "/tests/e2e/fixtures/export-boundary.ts";
     return (await import(path)).checkAdditions();
@@ -224,7 +206,7 @@ for (const width of [1280, 320])
 test("indirect role names cannot bypass omitted widget/page reconciliation", async ({
   page,
 }, info) => {
-  await page.goto(`${url}boundary-test`);
+  await page.goto(server.url);
   const result: Awaited<ReturnType<typeof checkIndirectRoles>> = await page.evaluate(async () => {
     const path = "/tests/e2e/fixtures/export-boundary.ts";
     return (await import(path)).checkIndirectRoles();
@@ -286,7 +268,7 @@ test("indirect role names cannot bypass omitted widget/page reconciliation", asy
 test("subtree Counts cannot substitute workspace pages and resource/AP lookup names preserve pixels", async ({
   page,
 }, info) => {
-  await page.goto(`${url}boundary-test`);
+  await page.goto(server.url);
   const result: Awaited<ReturnType<typeof checkCountsAndResourceNames>> = await page.evaluate(
     async () => {
       const path = "/tests/e2e/fixtures/export-boundary.ts";
@@ -337,7 +319,7 @@ test("subtree Counts cannot substitute workspace pages and resource/AP lookup na
 test("optional null actions preserve saved text/widgets/AP and omitted-target safety", async ({
   page,
 }, info) => {
-  await page.goto(`${url}boundary-test`);
+  await page.goto(server.url);
   const result: Awaited<ReturnType<typeof checkOptionalNullActions>> = await page.evaluate(
     async () => {
       const path = "/tests/e2e/fixtures/export-boundary.ts";
