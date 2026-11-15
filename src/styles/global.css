@@ -34,12 +34,25 @@
   src: url("/fonts/source-serif-4-latin-opsz-normal.woff2") format("woff2");
 }
 
+/* A Georgia fallback sized to Source Serif 4. It covers every weight, so a
+   missed font paints regular Georgia instead of a synthetic bold. */
+@font-face {
+  font-family: "Source Serif Fallback";
+  font-style: normal;
+  font-weight: 200 900;
+  src: local("Georgia");
+  size-adjust: 94.8%;
+  ascent-override: 109.3%;
+  descent-override: 35.3%;
+  line-gap-override: 0%;
+}
+
 /* Folio: paper on a desk, ink, and one green. The marketing pages and the
    editor share these tokens. Pure white is kept for PDF pages, so they read
    as sheets on the paper canvas. */
 @theme {
   --font-ui: "Inter Variable", "Inter Fallback", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Source Serif 4 Variable", Georgia, ui-serif, serif;
+  --font-display: "Source Serif 4 Variable", "Source Serif Fallback", ui-serif, serif;
 
   /* PDF pages only. */
   --color-white: #fff;
