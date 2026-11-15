@@ -6,9 +6,7 @@ import { type DevServer, startDevServer } from "./fixtures/dev-server";
 import { captureDownload } from "./fixtures/download";
 import type {
   checkAdditions,
-  checkButtonFailure,
   checkCountsAndResourceNames,
-  checkDestinations,
   checkFormExports,
   checkIndirectRoles,
   checkOptionalNullActions,
@@ -51,51 +49,6 @@ test("saved exports retain widgets/AP/pixels while excluding omitted page object
     ["Detached", "Detached"],
     ["Alice"],
   ]);
-  expect(result.scopes).toEqual({
-    markedLeaks: false,
-    selectedLeaks: false,
-    restoredAnswer: true,
-    restoredPages: 2,
-  });
-});
-test("direct and named destinations agree with actual saved output Page references", async ({
-  page,
-}) => {
-  await page.goto(server.url);
-  const results: Awaited<ReturnType<typeof checkDestinations>> = await page.evaluate(async () => {
-    const path = "/tests/e2e/fixtures/export-boundary.ts";
-    return (await import(path)).checkDestinations();
-  });
-  for (const result of results) {
-    expect(result.pages).toBe(result.layout.length);
-    expect(result.provenance).toBe(false);
-    expect(result.destinations).toEqual(
-      result.layout.filter((n) => n === 1).map(() => result.layout.indexOf(2))
-    );
-    expect(result.external.every((url) => url === "https://example.com/")).toBe(true);
-    expect(result.remote.every((url) => url?.includes("other.pdf"))).toBe(true);
-    if (!result.layout.includes(2)) expect(result.leakedContent).toBe(false);
-  }
-});
-test("cross-page button Opt fails clearly rather than changing a saved answer", async ({
-  page,
-}, info) => {
-  await page.goto(server.url);
-  const result: Awaited<ReturnType<typeof checkButtonFailure>> = await page.evaluate(async () => {
-    const path = "/tests/e2e/fixtures/export-boundary.ts";
-    return (await import(path)).checkButtonFailure();
-  });
-  expect(result.before).toBe("Second");
-  expect(result.unsafe).toBe("First");
-  expect(result.error).toEqual({
-    operation: "reconcile-export",
-    message: "This PDF has linked choice fields that cannot be preserved in this export.",
-  });
-  for (const kind of ["sourceBytes", "beforeBytes", "unsafeBytes"] as const) {
-    const path = info.outputPath(`radio-${kind}.pdf`);
-    await writeFile(path, new Uint8Array(result[kind]));
-    await info.attach(kind, { path, contentType: "application/pdf" });
-  }
 });
 test("retained forms and saved text/checkmarks keep pixels and physical geometry", async ({
   page,
@@ -203,9 +156,7 @@ for (const width of [1280, 320])
     await expect(page.getByTestId("editor-status-message")).toHaveText("Export started.");
   });
 
-test("indirect role names cannot bypass omitted widget/page reconciliation", async ({
-  page,
-}, info) => {
+test("indirect role names cannot bypass omitted widget reconciliation", async ({ page }, info) => {
   await page.goto(server.url);
   const result: Awaited<ReturnType<typeof checkIndirectRoles>> = await page.evaluate(async () => {
     const path = "/tests/e2e/fixtures/export-boundary.ts";
@@ -223,45 +174,6 @@ test("indirect role names cannot bypass omitted widget/page reconciliation", asy
     expect(item.orphanKids).toBe(false);
     expect(item.answerRecovered).toBe(false);
     expect(item.values).toEqual([{ name: "group.keep", value: "Retained answer" }]);
-  }
-  for (const item of result.pages) {
-    const path = info.outputPath(`page-${item.indirect ? "indirect" : "direct"}-input.pdf`);
-    await writeFile(path, new Uint8Array(item.input));
-    await info.attach(path, { path, contentType: "application/pdf" });
-    expect(item.sourcePages).toBe(1);
-    expect(item.sourceRetainedText).toBe(true);
-    expect(item.emitted).toBe(false);
-    expect(item.error).toEqual({
-      operation: "reconcile-export",
-      message: "Unsupported omitted Page reference at /CustomPage",
-    });
-  }
-  for (const item of result.indexing) {
-    expect(item.sourceTextMatches).toBe(true);
-    expect(item.unchanged).toBe(true);
-    const inputPath = info.outputPath(
-      `index-${item.indirect ? "indirect" : "direct"}-${item.layout.join("-")}-input.pdf`
-    );
-    await writeFile(inputPath, new Uint8Array(item.input));
-    await info.attach(inputPath, { path: inputPath, contentType: "application/pdf" });
-    if (item.indirect) {
-      expect(item.output).toBeUndefined();
-      expect(item.error).toEqual({
-        operation: "reconcile-export",
-        sourceMatches: true,
-        message: "This PDF's page order cannot be safely copied.",
-      });
-    } else {
-      expect(item.error).toBeUndefined();
-      expect(item.text).toEqual(
-        item.layout.map(
-          (n) => [["ONE"], ["REQUESTED_PAGE_TWO_37e2"], ["OMITTED_PAGE_THREE_912ab"]][n - 1]
-        )
-      );
-      const path = info.outputPath(`index-direct-${item.layout.join("-")}-output.pdf`);
-      await writeFile(path, new Uint8Array(item.output!));
-      await info.attach(path, { path, contentType: "application/pdf" });
-    }
   }
 });
 

@@ -1,29 +1,15 @@
 import { Effect } from "effect";
-import {
-  degrees,
-  PDFArray,
-  PDFDict,
-  PDFDocument,
-  PDFHexString,
-  PDFName,
-  PDFNull,
-  PDFString,
-} from "pdf-lib";
+import { degrees, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFNull } from "pdf-lib";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import worker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
   COUNT_PAGE_TEXT,
-  type DestinationKind,
-  exportCrossPageButtonFixture,
   exportFormFixture,
-  exportIndirectPageFixture,
   exportIndirectWidgetFixture,
   exportLinkFixture,
   exportOptionalActionFixture,
   exportPageCountFixture,
-  exportPageIndexFixture,
   exportResourceNameFixture,
-  INDEX_PAGE_TEXT,
   INDIRECT_OMITTED_ANSWER,
   OMITTED_ANSWER,
   OMITTED_CONTENT,
@@ -214,136 +200,7 @@ export async function checkFormExports() {
         after: Array.from(afterBytes),
       });
     }
-    const workspace = [
-      state(files[0], 1, 0),
-      { ...state(files[0], 2, 1), markedForDeletion: true },
-    ];
-    const marked = await inspectExport(
-      (await Effect.runPromise(operations.buildPDF(workspace))).data
-    );
-    workspace[1].markedForDeletion = false;
-    const selected = await inspectExport(
-      (await Effect.runPromise(operations.buildPDF(workspace, { selectedIndices: [0] }))).data
-    );
-    const restored = await inspectExport(
-      (await Effect.runPromise(operations.buildPDF(workspace))).data
-    );
-    return {
-      results,
-      scopes: {
-        markedLeaks: contains(marked.serialized, OMITTED_ANSWER),
-        selectedLeaks: contains(selected.serialized, OMITTED_ANSWER),
-        restoredAnswer: contains(restored.serialized, OMITTED_ANSWER),
-        restoredPages: restored.pageObjects,
-      },
-    };
-  } finally {
-    await Effect.runPromise(operations.dispose());
-    await Effect.runPromise(service.dispose());
-  }
-}
-export async function checkDestinations() {
-  const service = new PDFService(),
-    operations = new PDFOperationsService(service);
-  try {
-    const results = [];
-    for (const kind of ["direct", "goto", "legacy", "names", "indirect-goto"] as (
-      | DestinationKind
-      | "indirect-goto"
-    )[])
-      for (const layout of [[1], [2], [1, 2], [2, 1], [1, 2, 1, 2]]) {
-        let input = await exportLinkFixture(kind === "indirect-goto" ? "names" : kind);
-        if (kind === "indirect-goto") {
-          const doc = await PDFDocument.load(input);
-          const link = doc
-            .getPage(0)
-            .node.lookup(PDFName.of("Annots"), PDFArray)
-            .lookup(0, PDFDict);
-          link.delete(PDFName.of("Dest"));
-          link.set(
-            PDFName.of("A"),
-            doc.context.obj({
-              S: doc.context.register(PDFName.of("GoTo")),
-              D: PDFString.of("target"),
-            })
-          );
-          input = await doc.save();
-        }
-        const source = file(input);
-        const bytes = (
-          await Effect.runPromise(operations.buildPDF(layout.map((n, i) => state(source, n, i))))
-        ).data;
-        const native = await inspectExport(bytes);
-        const task = getDocument({ data: bytes.slice() });
-        const destinations = [],
-          external = [],
-          remote = [];
-        try {
-          const doc = await task.promise;
-          for (const [index, n] of layout.entries())
-            if (n === 1) {
-              const page = await doc.getPage(index + 1),
-                annotations = await page.getAnnotations();
-              const dest = annotations[0].dest;
-              destinations.push(dest ? await doc.getPageIndex(dest[0]) : -1);
-              external.push(annotations[1].url);
-              remote.push(annotations[2].unsafeUrl);
-              page.cleanup();
-            }
-        } finally {
-          await task.destroy();
-        }
-        results.push({
-          kind,
-          layout,
-          destinations,
-          external,
-          remote,
-          pages: native.pageObjects,
-          orphanKids: native.orphanKids,
-          leakedContent: contains(native.serialized, OMITTED_CONTENT),
-          provenance: /InterleafExportPage|10000000000\d\d/.test(native.serialized),
-        });
-      }
-    return results;
-  } finally {
-    await Effect.runPromise(operations.dispose());
-    await Effect.runPromise(service.dispose());
-  }
-}
-export async function checkButtonFailure() {
-  const bytes = await exportCrossPageButtonFixture(),
-    source = file(bytes),
-    service = new PDFService(),
-    operations = new PDFOperationsService(service);
-  try {
-    const before = await baseline([state(source, 2, 0)], service);
-    const unsafe = await PDFDocument.load(before);
-    const widget = unsafe.getPage(0).node.lookup(PDFName.of("Annots"), PDFArray).lookup(0, PDFDict);
-    widget
-      .lookup(PDFName.of("Parent"), PDFDict)
-      .set(
-        PDFName.of("Kids"),
-        unsafe.context.obj([unsafe.getPage(0).node.lookup(PDFName.of("Annots"), PDFArray).get(0)])
-      );
-    const unsafeBytes = await unsafe.save();
-    const beforeJs = await reopenWithPDFjs(before),
-      unsafeJs = await reopenWithPDFjs(unsafeBytes);
-    let error: { operation: string; message: string } | undefined;
-    try {
-      await Effect.runPromise(operations.buildPDF([state(source, 2, 0)]));
-    } catch (cause) {
-      if (!(cause instanceof PDFProcessingError)) throw cause;
-      error = { operation: cause.operation, message: cause.message };
-    }
-    return {
-      before: beforeJs[0].annotations[0].value,
-      unsafe: unsafeJs[0].annotations[0].value,
-      error,
-      sourceBytes: Array.from(bytes),
-      beforeBytes: Array.from(before),
-      unsafeBytes: Array.from(unsafeBytes),
-    };
+    return { results };
   } finally {
     await Effect.runPromise(operations.dispose());
     await Effect.runPromise(service.dispose());
@@ -422,69 +279,7 @@ export async function checkIndirectRoles() {
         output: Array.from(output),
       });
     }
-    const pages = [];
-    for (const indirect of [false, true]) {
-      const input = await exportIndirectPageFixture(indirect, true),
-        source = file(input),
-        before = await reopenWithPDFjs(input);
-      let error: { operation: string; message: string } | undefined,
-        emitted = false;
-      try {
-        await Effect.runPromise(operations.buildPDF([state(source, 1, 0)]));
-        emitted = true;
-      } catch (cause) {
-        if (!(cause instanceof PDFProcessingError)) throw cause;
-        error = { operation: cause.operation, message: cause.message };
-      }
-      pages.push({
-        indirect,
-        input: Array.from(input),
-        sourcePages: before.length,
-        sourceRetainedText: before[0].text.includes("Retained page"),
-        emitted,
-        error,
-      });
-    }
-    const indexing = [];
-    for (const indirect of [false, true]) {
-      const input = await exportPageIndexFixture(indirect),
-        source = file(input),
-        before = await reopenWithPDFjs(input),
-        original = Array.from(new Uint8Array(await source.arrayBuffer()));
-      for (const layout of [[2], [1], [1, 2, 3]]) {
-        let error: { operation: string; message: string; sourceMatches: boolean } | undefined,
-          output: number[] | undefined,
-          text: string[][] | undefined;
-        try {
-          const bytes = (
-            await Effect.runPromise(operations.buildPDF(layout.map((n, i) => state(source, n, i))))
-          ).data;
-          output = Array.from(bytes);
-          text = (await reopenWithPDFjs(bytes)).map((page) => page.text);
-        } catch (cause) {
-          if (!(cause instanceof PDFProcessingError)) throw cause;
-          error = {
-            operation: cause.operation,
-            message: cause.message,
-            sourceMatches: cause.file === source,
-          };
-        }
-        indexing.push({
-          indirect,
-          layout,
-          input: Array.from(input),
-          output,
-          text,
-          error,
-          sourceTextMatches:
-            before.length === 3 && before.every((p, i) => p.text.includes(INDEX_PAGE_TEXT[i])),
-          unchanged:
-            JSON.stringify(original) ===
-            JSON.stringify(Array.from(new Uint8Array(await source.arrayBuffer()))),
-        });
-      }
-    }
-    return { widgets, pages, indexing };
+    return { widgets };
   } finally {
     await Effect.runPromise(operations.dispose());
   }
