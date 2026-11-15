@@ -1,21 +1,16 @@
 import { Effect } from "effect";
 import { Zip, ZipPassThrough } from "fflate";
-import { hasPageAdditions } from "../controllers/editor-additions-state";
 import type { PageState, PDFError, PDFImageExportResult } from "../types/interfaces";
-import { PDFNoPagesError, PDFProcessingError } from "../types/interfaces";
+import { activePages, PDFNoPagesError, PDFProcessingError } from "../types/interfaces";
 import { fileStem } from "../utils/file-names";
 import { processingError } from "./pdf-errors";
+import type { PDFBuildOptions } from "./pdf-operations-service";
 import type { PDFService } from "./pdf-service";
 
 const IMAGE_EXPORT_SCALE = 2;
 export const IMAGE_EXPORT_MAX_PIXELS = 16_000_000;
 const MAX_IMAGE_ARCHIVE_BYTES = 128 * 1024 * 1024;
 const IMAGE_EXPORT_LIMIT_MESSAGE = "Image export is too large. Export fewer pages and try again.";
-
-export interface PDFImageExportOptions {
-  readonly selectedIndices?: readonly number[];
-  readonly onProgress?: (progress: { completed: number; total: number }) => void;
-}
 
 function archiveFileName(pages: readonly PageState[]): string {
   const sourceFiles = new Set(pages.map((page) => page.sourceFile));
@@ -62,19 +57,14 @@ function canvasToPNG(
 
 export class PDFImageExportService {
   constructor(
-    private readonly pdfService: Pick<PDFService, "getPageRotation" | "renderPage"> &
-      Partial<Pick<PDFService, "renderPageState">>
+    private readonly pdfService: Pick<PDFService, "getPageRotation" | "renderPageState">
   ) {}
 
   exportImages(
     pages: readonly PageState[],
-    options: PDFImageExportOptions = {}
+    options: PDFBuildOptions = {}
   ): Effect.Effect<PDFImageExportResult, PDFError> {
-    const pagesToExport = options.selectedIndices
-      ? options.selectedIndices
-          .map((index) => pages[index])
-          .filter((page): page is PageState => Boolean(page) && !page.markedForDeletion)
-      : pages.filter((page) => !page.markedForDeletion);
+    const pagesToExport = activePages(pages, options.selectedIndices);
 
     if (pagesToExport.length === 0) {
       return Effect.fail(new PDFNoPagesError({ message: "No pages to export as images." }));
@@ -111,41 +101,20 @@ export class PDFImageExportService {
         );
 
         for (const [index, page] of pagesToExport.entries()) {
-          const canvas = yield* Effect.try({
-            try: () => document.createElement("canvas"),
-            catch: (cause) => processingError("create-image-canvas", page.sourceFile, cause),
-          });
+          const canvas = document.createElement("canvas");
 
           const imageData = yield* Effect.gen({ self: this }, function* () {
             const sourceRotation = yield* this.pdfService.getPageRotation(
               page.sourceFile,
               page.sourcePageNumber
             );
-            if (hasPageAdditions(page)) {
-              if (!this.pdfService.renderPageState)
-                return yield* Effect.fail(
-                  processingError(
-                    "draw-text",
-                    page.sourceFile,
-                    new Error("Saved additions could not be rendered.")
-                  )
-                );
-              yield* this.pdfService.renderPageState(
-                page,
-                canvas,
-                IMAGE_EXPORT_SCALE,
-                (sourceRotation + page.rotation) % 360,
-                IMAGE_EXPORT_MAX_PIXELS
-              );
-            } else
-              yield* this.pdfService.renderPage(
-                page.sourceFile,
-                page.sourcePageNumber,
-                canvas,
-                IMAGE_EXPORT_SCALE,
-                (sourceRotation + page.rotation) % 360,
-                IMAGE_EXPORT_MAX_PIXELS
-              );
+            yield* this.pdfService.renderPageState(
+              page,
+              canvas,
+              IMAGE_EXPORT_SCALE,
+              (sourceRotation + page.rotation) % 360,
+              IMAGE_EXPORT_MAX_PIXELS
+            );
             return yield* canvasToPNG(canvas, page.sourceFile);
           }).pipe(
             Effect.ensuring(
@@ -170,10 +139,7 @@ export class PDFImageExportService {
                 : processingError("zip-images", page.sourceFile, cause),
           });
 
-          yield* Effect.try({
-            try: () => options.onProgress?.({ completed: index + 1, total: pagesToExport.length }),
-            catch: (cause) => processingError("report-progress", page.sourceFile, cause),
-          });
+          options.onProgress?.({ completed: index + 1, total: pagesToExport.length });
         }
 
         const data = yield* Effect.try({

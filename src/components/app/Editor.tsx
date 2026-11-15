@@ -613,28 +613,22 @@ export default function Editor() {
     service: PDFProcessingShape,
     file: File
   ): Effect.Effect<number | SkippedFile, never, never> {
-    const unlock = (isRetry: boolean): Effect.Effect<boolean, unknown> =>
+    const unlock = (isRetry: boolean): Effect.Effect<number | SkippedFile, unknown> =>
       Effect.gen(function* () {
         const password = yield* Effect.tryPromise({
           try: (signal) => promptForPassword(file.name, isRetry, signal),
           catch: (cause) => cause,
         });
-        if (password === null || disposed) return false;
+        if (password === null || disposed) return { kind: "locked", name: file.name } as const;
         setStatusMessage("Unlocking PDF…");
-        return yield* service.loadPDFWithPassword(file, password).pipe(
-          Effect.as(true),
-          Effect.catchTag("PDFPasswordRequiredError", () => unlock(true))
-        );
+        return yield* service
+          .loadPDFWithPassword(file, password)
+          .pipe(Effect.catchTag("PDFPasswordRequiredError", () => unlock(true)));
       });
 
     return service.loadPDF(file).pipe(
-      Effect.as(true),
       Effect.catchTag("PDFPasswordRequiredError", (error) =>
         unlock(error.reason === "wrong-password")
-      ),
-      Effect.flatMap(
-        (loaded): Effect.Effect<number | SkippedFile, unknown> =>
-          loaded ? service.getPageCount : Effect.succeed({ kind: "locked", name: file.name })
       ),
       Effect.catch((error) => Effect.succeed(getSkippedFile(file, error)))
     );
