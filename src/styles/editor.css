@@ -1,8 +1,8 @@
 @reference "./global.css";
 
-/* The editor uses the Cards tokens from global.css: white surfaces on the
-   grey canvas, near-black primary, and danger red only for destructive
-   actions. Controls are 36px (Cards medium) and grow to 44px on phones and
+/* The editor uses the Folio tokens from global.css: paper surfaces on the
+   warm canvas, white only for PDF pages, an ink primary, and danger red only
+   for destructive actions. Controls are 36px and grow to 44px on phones and
    touch screens. Icon-only controls always keep a 44px box around a smaller
    visual. */
 
@@ -72,7 +72,7 @@ body:has([data-page="editor"]) {
   gap: 0.25rem;
   padding: 0 1rem;
   border: 0;
-  border-radius: var(--radius-button);
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--color-fg);
   cursor: pointer;
@@ -193,10 +193,7 @@ body:has([data-page="editor"]) {
     .editor-text-toolbar *
   )
 ) {
-  box-shadow:
-    inset 0 1px 0 0 rgb(255 255 255 / 0.1),
-    0 0 0 1px var(--color-primary),
-    0 0 0 0 transparent;
+  box-shadow: var(--shadow-primary-active);
 }
 
 .editor-button-secondary:active:where(
@@ -209,7 +206,7 @@ body:has([data-page="editor"]) {
   )
 ) {
   box-shadow:
-    0 0 0 1px rgb(17 32 26 / 0.1),
+    0 0 0 1px var(--color-primary-subtle),
     0 0 0 0 transparent;
 }
 
@@ -223,7 +220,7 @@ body:has([data-page="editor"]) {
   min-height: 2.75rem;
   padding: 0;
   border: var(--editor-hit-inset) solid transparent;
-  border-radius: calc(var(--radius-button) + var(--editor-hit-inset));
+  border-radius: calc(var(--radius-control) + var(--editor-hit-inset));
   background-clip: padding-box;
 }
 
@@ -258,7 +255,7 @@ body:has([data-page="editor"]) {
 
 .editor-toast {
   padding: 0.75rem 1rem;
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-card);
   background: var(--color-floating);
   box-shadow: var(--shadow-menu);
   color: var(--color-fg);
@@ -345,7 +342,7 @@ body:has([data-page="editor"]) {
   height: 2.25rem;
   align-items: center;
   gap: 0.5rem;
-  border-radius: var(--radius-button);
+  border-radius: var(--radius-control);
   color: var(--color-fg-muted);
   text-decoration: none;
   touch-action: manipulation;
@@ -580,7 +577,7 @@ body:has([data-page="editor"]) {
     display: grid;
     gap: 0.25rem;
     padding: 0.5rem;
-    border-radius: var(--radius-2xl);
+    border-radius: var(--radius-card);
     background: var(--color-floating);
     box-shadow: var(--shadow-menu);
     transform-origin: top right;
@@ -606,7 +603,7 @@ body:has([data-page="editor"]) {
     gap: 0.5rem;
     padding: 0 0.5rem;
     border: 0;
-    border-radius: calc(var(--radius-2xl) - 0.5rem);
+    border-radius: var(--radius-control);
   }
 
   .editor-overflow.is-open .editor-overflow-panel .editor-toolbar-label {
@@ -637,7 +634,7 @@ body:has([data-page="editor"]) {
   margin: 0;
   padding: 0.25rem;
   border: 0;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-control);
   background: var(--color-tray);
 }
 
@@ -690,7 +687,7 @@ body:has([data-page="editor"]) {
   left: 0;
   z-index: 0;
   width: var(--segment-w);
-  border-radius: calc(var(--radius-lg) - 0.25rem);
+  border-radius: calc(var(--radius-control) - 0.25rem);
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
   pointer-events: none;
@@ -755,7 +752,7 @@ body:has([data-page="editor"]) {
   margin: 0;
   color: var(--color-fg);
   text-wrap: balance;
-  @apply text-heading-2;
+  @apply font-display text-display-2;
 }
 
 /* The drop zone: a Cards card with a dashed edge. */
@@ -769,7 +766,7 @@ body:has([data-page="editor"]) {
   gap: 1rem;
   padding: 2rem;
   border: 1px dashed var(--color-line-strong);
-  border-radius: var(--radius-2xl);
+  border-radius: var(--radius-card);
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
   color: var(--color-fg);
@@ -812,7 +809,7 @@ body:has([data-page="editor"]) {
   width: 2.5rem;
   height: 2.5rem;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   box-shadow: inset 0 0 0 1px var(--color-line);
 }
@@ -871,7 +868,7 @@ body:has([data-page="editor"]) {
   min-height: 3.5rem;
   padding: 0.5rem;
   border: 0;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--color-fg);
   cursor: pointer;
@@ -896,7 +893,7 @@ body:has([data-page="editor"]) {
   height: 2.5rem;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   box-shadow: inset 0 0 0 1px var(--color-line);
   color: var(--color-fg-muted);
 }
@@ -991,7 +988,7 @@ body:has([data-page="editor"]) {
 .editor-files-dialog-header h2 {
   margin: 0;
   color: var(--color-fg);
-  @apply text-ui-md;
+  @apply font-display text-display-3;
 }
 
 .editor-files-dialog-body {
@@ -1054,7 +1051,7 @@ body:has([data-page="editor"]) {
 /* Fillable fields: Cards' neutral badge. */
 .editor-field-count {
   padding: 0 0.5rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: var(--color-tray);
   color: var(--color-fg);
   font-variant-numeric: tabular-nums;
@@ -1074,7 +1071,7 @@ body:has([data-page="editor"]) {
   height: 2.75rem;
   padding: 0;
   border: var(--editor-hit-inset) solid transparent;
-  border-radius: calc(var(--radius-button) + var(--editor-hit-inset));
+  border-radius: calc(var(--radius-control) + var(--editor-hit-inset));
   background-clip: padding-box;
   color: var(--color-fg-muted);
 }
@@ -1159,7 +1156,7 @@ body:has([data-page="editor"]) {
   min-height: 2.75rem;
   padding: 0 0.5rem;
   border: var(--editor-hit-inset) solid transparent;
-  border-radius: calc(var(--radius-button) + var(--editor-hit-inset));
+  border-radius: calc(var(--radius-control) + var(--editor-hit-inset));
   background: transparent;
   background-clip: padding-box;
   box-shadow: none;
@@ -1192,7 +1189,7 @@ body:has([data-page="editor"]) {
   width: auto;
   height: auto;
   background: var(--color-white);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-page);
 }
 
 .editor-review-state {
@@ -1260,7 +1257,7 @@ body:has([data-page="editor"]) {
   gap: 0.25rem;
   padding: 0.25rem;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
   background: var(--color-surface);
   box-shadow: inset 0 0 0 1px var(--color-line);
   color: var(--color-fg-muted);
@@ -1278,7 +1275,7 @@ body:has([data-page="editor"]) {
 .editor-filmstrip-fields {
   justify-self: center;
   padding: 0 0.125rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: var(--color-tray);
   color: var(--color-fg);
   white-space: nowrap;
@@ -1318,7 +1315,7 @@ body:has([data-page="editor"]) {
   list-style: none;
 }
 
-/* Page tiles: Cards cards. */
+/* Page tiles: paper cards with a second sheet behind. */
 .editor-page {
   position: relative;
   display: flex;
@@ -1326,9 +1323,9 @@ body:has([data-page="editor"]) {
   flex-direction: column;
   align-items: center;
   padding: 0.5rem 0.5rem 0.25rem;
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-card);
   background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-sheet);
   -webkit-user-select: none;
   user-select: none;
   transition-property: box-shadow, background-color, opacity;
@@ -1340,7 +1337,7 @@ body:has([data-page="editor"]) {
   .editor-page:hover {
     box-shadow:
       0 0 0 1px var(--color-line-strong),
-      var(--shadow-sm);
+      var(--shadow-sheet);
   }
 }
 
@@ -1353,7 +1350,7 @@ body:has([data-page="editor"]) {
   height: 100%;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-card);
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -1373,7 +1370,7 @@ body:has([data-page="editor"]) {
 .editor-page.selected:hover {
   box-shadow:
     0 0 0 2px var(--color-accent),
-    var(--shadow-sm);
+    var(--shadow-sheet);
 }
 
 /* Marked for deletion: a dimmed page and Cards' soft danger badge. */
@@ -1386,7 +1383,7 @@ body:has([data-page="editor"]) {
   height: 1.25rem;
   align-items: center;
   padding-inline: 0.5rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--color-danger-subtle);
   box-shadow: var(--shadow-badge);
   color: var(--color-danger-fg);
@@ -1402,13 +1399,13 @@ body:has([data-page="editor"]) {
 .editor-page.drag-insert-before {
   box-shadow:
     inset 3px 0 0 var(--color-accent),
-    var(--shadow-sm);
+    var(--shadow-sheet);
 }
 
 .editor-page.drag-insert-after {
   box-shadow:
     inset -3px 0 0 var(--color-accent),
-    var(--shadow-sm);
+    var(--shadow-sheet);
 }
 
 .editor-page-preview {
@@ -1423,7 +1420,7 @@ body:has([data-page="editor"]) {
   /* One inspection window keeps mixed page orientations aligned in the grid. */
   aspect-ratio: var(--frame-ratio, 3 / 4);
   overflow: hidden;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-page);
   background: var(--color-subtle);
   box-shadow: inset 0 0 0 1px var(--color-line);
   transition:
@@ -1460,7 +1457,7 @@ body:has([data-page="editor"]) {
   justify-content: center;
   padding: 0 0.75rem;
   border: 0;
-  border-radius: var(--radius-button);
+  border-radius: var(--radius-control);
   background: var(--color-control);
   box-shadow: var(--shadow-button);
   color: var(--color-fg);
@@ -1479,7 +1476,7 @@ body:has([data-page="editor"]) {
 
 .editor-review-pane .editor-review-filmstrip-item .canvas-container {
   aspect-ratio: 3 / 4;
-  border-radius: 2px;
+  border-radius: var(--radius-page);
   box-shadow: none;
   pointer-events: none;
 }
@@ -1532,7 +1529,7 @@ body:has([data-page="editor"]) {
   align-items: center;
   justify-content: center;
   padding: 0 0.375rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--color-fg-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1560,7 +1557,7 @@ body:has([data-page="editor"]) {
 /* Tile actions: 32px ghost icons in 44px boxes. */
 .page-action-buttons .editor-button-icon {
   --editor-hit-inset: 0.375rem;
-  border-radius: calc(var(--radius-button-sm) + var(--editor-hit-inset));
+  border-radius: calc(var(--radius-control) + var(--editor-hit-inset));
 }
 
 .btn-page-delete.is-marked {
@@ -1639,7 +1636,7 @@ body:has([data-page="editor"]) {
     height: 2.75rem;
     padding: 0;
     border: var(--editor-hit-inset) solid transparent;
-    border-radius: calc(var(--radius-button) + var(--editor-hit-inset));
+    border-radius: calc(var(--radius-control) + var(--editor-hit-inset));
     background-clip: padding-box;
   }
 
@@ -1674,7 +1671,7 @@ body:has([data-page="editor"]) {
     display: grid;
     gap: 0.25rem;
     padding: 0.5rem;
-    border-radius: var(--radius-2xl);
+    border-radius: var(--radius-card);
     background: var(--color-floating);
     box-shadow: var(--shadow-menu);
     transform-origin: top right;
@@ -1714,7 +1711,7 @@ body:has([data-page="editor"]) {
   min-height: var(--editor-control);
   justify-content: flex-start;
   padding: 0.5rem;
-  border-radius: calc(var(--radius-2xl) - 0.5rem);
+  border-radius: var(--radius-control);
   color: var(--color-fg-muted);
   text-align: left;
   white-space: normal;
@@ -1809,7 +1806,7 @@ body:has([data-page="editor"]) {
   }
 
   .editor-uploader-intro h2 {
-    @apply text-heading-4;
+    @apply text-display-2;
   }
 
   .editor-uploader {
@@ -1854,7 +1851,7 @@ body:has([data-page="editor"]) {
   .editor-files-dialog {
     width: 100%;
     max-height: min(75dvh, 32rem);
-    border-radius: var(--radius-3xl) var(--radius-3xl) 0 0;
+    border-radius: var(--radius-dialog) var(--radius-dialog) 0 0;
   }
 
   .editor-files-dialog-header {
@@ -1872,7 +1869,7 @@ body:has([data-page="editor"]) {
   }
 
   .editor-workspace-main .editor-uploader-intro h2 {
-    @apply text-heading-5;
+    @apply text-display-3;
   }
 
   .editor-workspace-main .editor-dropzone {
@@ -2029,7 +2026,7 @@ body:has([data-page="editor"]) {
   margin: 0;
   padding: 0.25rem;
   border: 0;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-control);
   background: var(--color-tray);
 }
 
@@ -2132,14 +2129,14 @@ body:has([data-page="editor"]) {
   box-sizing: border-box;
   padding: 0 0.75rem;
   border: 0;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-control);
   background: var(--color-field);
   box-shadow:
     inset 0 0 0 1px var(--color-field-line),
     var(--shadow-field);
   color: var(--color-fg);
   font-size: 1rem;
-  transition: box-shadow 200ms ease-out;
+  transition: box-shadow var(--duration-fast) var(--ease-tactile);
 }
 
 .editor-text-settings input {
@@ -2157,10 +2154,9 @@ body:has([data-page="editor"]) {
 
 .editor-text-settings input:focus-visible,
 .password-modal .password-modal-input:focus-visible {
-  outline: none;
   box-shadow:
     inset 0 0 0 1px var(--color-line-focus),
-    var(--shadow-focus);
+    var(--shadow-field);
 }
 
 /* Invalid inputs: Cards' danger ring. */
@@ -2175,7 +2171,7 @@ body:has([data-page="editor"]) {
 .password-modal .password-modal-input[aria-invalid="true"]:focus-visible {
   box-shadow:
     inset 0 0 0 1px var(--color-danger-fg),
-    var(--shadow-focus-danger);
+    var(--shadow-field);
 }
 
 .editor-text-settings .editor-text-value {
@@ -2215,7 +2211,7 @@ body:has([data-page="editor"]) {
   z-index: 5;
   max-width: min(32rem, calc(100% - 2 * var(--editor-gutter)));
   padding: 0.5rem 0.75rem;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-control);
   background: var(--color-danger-subtle);
   box-shadow:
     inset 0 0 0 1px var(--color-danger-line),
@@ -2344,7 +2340,7 @@ body:has([data-page="editor"]) {
     overscroll-behavior: contain;
     padding: 0.25rem max(0.25rem, env(safe-area-inset-right))
       max(0.5rem, env(safe-area-inset-bottom)) max(0.25rem, env(safe-area-inset-left));
-    border-radius: var(--radius-3xl) var(--radius-3xl) 0 0;
+    border-radius: var(--radius-dialog) var(--radius-dialog) 0 0;
     background: var(--color-floating);
     box-shadow: var(--shadow-menu);
     animation: editor-sheet-in 200ms var(--ease-tactile);
@@ -2433,7 +2429,7 @@ body:has([data-page="editor"]) {
     display: block;
     width: min(20rem, calc(100% - 1rem));
     padding: 0.5rem;
-    border-radius: var(--radius-2xl);
+    border-radius: var(--radius-card);
     background: var(--color-floating);
     box-shadow: var(--shadow-menu);
     animation: editor-menu-in 150ms var(--ease-tactile);
@@ -2454,7 +2450,7 @@ body:has([data-page="editor"]) {
     margin: 0;
     padding: 0.5rem;
     border: 0;
-    border-radius: calc(var(--radius-2xl) - 0.5rem);
+    border-radius: var(--radius-control);
     background: transparent;
     box-shadow: none;
     color: var(--color-fg-muted);
@@ -2513,7 +2509,7 @@ body:has([data-page="editor"]) {
   padding: 0;
   background: transparent;
   border: 1px dashed var(--color-fg);
-  border-radius: 2px;
+  border-radius: var(--radius-page);
   pointer-events: auto;
   cursor: text;
 }
@@ -2622,7 +2618,7 @@ body:has([data-page="editor"]) {
   max-height: calc(100dvh - 2rem);
   flex-direction: column;
   overflow-y: auto;
-  border-radius: var(--radius-3xl);
+  border-radius: var(--radius-dialog);
   background: var(--color-floating);
   box-shadow: var(--shadow-lg);
   color: var(--color-fg);
@@ -2640,7 +2636,7 @@ body:has([data-page="editor"]) {
   margin: 0;
   padding: 1.25rem 1.25rem 0;
   color: var(--color-fg);
-  @apply text-ui-md;
+  @apply font-display text-display-3;
 }
 
 .password-modal-file {
@@ -2688,7 +2684,7 @@ body:has([data-page="editor"]) {
   height: 2.75rem;
   padding: 0 1rem;
   border: 0;
-  border-radius: var(--radius-button);
+  border-radius: var(--radius-control);
   cursor: pointer;
   font: inherit;
   touch-action: manipulation;

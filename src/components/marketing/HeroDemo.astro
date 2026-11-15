@@ -15,7 +15,7 @@
     <div class="demo-head">
       <span class="demo-brand">
         <svg viewBox="0 0 24 24"><path d="m12 5-7 7 7 7M5 12h14"></path></svg>
-        <svg class="demo-leaf" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0a0a0a"></rect><rect x="12" y="16" width="6" height="12" rx="1.5" fill="#fafafa"></rect><path d="M10.5 14A9 9 0 0 1 20.5 5A9 9 0 0 1 10.5 14z" fill="#4cc38a"></path></svg>
+        <svg class="demo-leaf" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#191b17"></rect><rect x="12" y="16" width="6" height="12" rx="1.5" fill="#fcfbf8"></rect><path d="M10.5 14A9 9 0 0 1 20.5 5A9 9 0 0 1 10.5 14z" fill="#4cc38a"></path></svg>
         interleaf
       </span>
       <span class="demo-views"><b>Pages</b><span>Document</span></span>
@@ -284,12 +284,12 @@
   .demo-frame {
     position: relative;
     overflow: hidden;
-    border-radius: 0.8125em;
+    border-radius: var(--radius-dialog);
     background: var(--color-workspace);
     box-shadow:
-      0 0 0 1px rgb(17 32 26 / 0.06),
-      0 1px 2px 0 rgb(17 32 26 / 0.06),
-      0 24px 48px -24px rgb(17 32 26 / 0.24);
+      0 0 0 1px var(--color-line-strong),
+      6px 6px 0 -1px var(--color-surface),
+      6px 6px 0 0 var(--color-line-strong);
     color: var(--color-fg);
     font-size: calc(100cqi / 36);
     line-height: 1.25;
@@ -343,15 +343,15 @@
   .demo-views {
     gap: 0.25em;
     padding: 0.25em;
-    border-radius: 0.5em;
-    background: var(--color-control);
+    border-radius: 0.35em;
+    background: var(--color-tray);
     font-size: 0.6em;
   }
   .demo-views > * {
     padding: 0.4em 0.55em;
   }
   .demo-views b {
-    border-radius: 0.3em;
+    border-radius: 0.15em;
     background: var(--color-surface);
     box-shadow: var(--shadow-button);
     font-weight: 500;
@@ -448,7 +448,7 @@
     align-items: center;
     gap: 0.75em;
     padding: 1em;
-    border-radius: 0.625em;
+    border-radius: 0.45em;
     background: var(--color-surface);
     box-shadow: var(--shadow-button);
     color: var(--color-fg-muted);
@@ -508,7 +508,7 @@
     translate: 0 2.75em;
   }
 
-  /* A page tile, drawn like the editor's: a Cards card with the page, its
+  /* A page tile, drawn like the editor's: a paper card with the page, its
        number badge, and duplicate, delete, and rotate actions. */
   .demo-tile {
     --slot: 0;
@@ -519,9 +519,9 @@
     width: 10.5em;
     flex-direction: column;
     padding: 0.5em 0.5em 0.25em;
-    border-radius: 0.625em;
+    border-radius: 0.45em;
     background: var(--color-surface);
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-sheet);
     translate: calc(var(--slot) * 11.5em) 0;
     transition-property: translate, scale, opacity, box-shadow;
     transition-duration: 700ms, 250ms, 450ms, 200ms;
@@ -572,14 +572,14 @@
   .is-playing[data-cursor="front-page"]:not(.is-selected) [data-page="form"] {
     box-shadow:
       0 0 0 1px var(--color-line-strong),
-      var(--shadow-sm);
+      var(--shadow-sheet);
   }
 
   /* Selected: the accent ring and a solid page-number badge. */
   .is-selected [data-page="form"] {
     box-shadow:
       0 0 0 2px var(--color-accent),
-      var(--shadow-sm);
+      var(--shadow-sheet);
   }
 
   .demo-preview {
@@ -590,13 +590,13 @@
     position: relative;
     height: 12.6667em;
     overflow: hidden;
-    border-radius: 3px;
+    border-radius: var(--radius-page);
     background: var(--color-subtle);
     box-shadow: inset 0 0 0 1px var(--color-line);
     transition: opacity 200ms var(--ease-tactile);
   }
 
-  /* Marked for deletion: a dimmed page under Cards' soft danger badge. */
+  /* Marked for deletion: a dimmed page under the soft danger badge. */
   .is-marked [data-page="invoice-2"] .demo-canvas {
     opacity: 0.45;
   }
@@ -893,7 +893,7 @@
     height: 2.4em;
     gap: 0.4em;
     padding-inline: 0.65em;
-    border-radius: 0.5em;
+    border-radius: 0.35em;
     background: var(--color-primary);
     box-shadow: var(--shadow-primary);
     color: var(--color-primary-foreground);
@@ -917,7 +917,7 @@
     gap: 0.3em;
     width: 12em;
     padding: 0.65em;
-    border-radius: 0.65em;
+    border-radius: 0.45em;
     background: var(--color-surface);
     box-shadow: var(--shadow-menu);
     font-size: 0.7em;
@@ -960,7 +960,7 @@
     z-index: 3;
     opacity: 0;
     translate: var(--x) var(--y);
-    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.25));
+    filter: drop-shadow(0 1px 1px rgb(25 27 23 / 0.25));
     transition-property: translate, opacity, scale;
     transition-duration: 700ms, 250ms, 120ms;
     transition-timing-function: cubic-bezier(0.65, 0, 0.35, 1), ease, ease;

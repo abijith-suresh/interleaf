@@ -17,6 +17,14 @@ const { title, description, currentPage, closingCta = true } = Astro.props;
 ---
 
 <Layout title={title} description={description}>
+  <link
+    slot="head"
+    rel="preload"
+    href={`${import.meta.env.BASE_URL}fonts/source-serif-4-latin-opsz-normal.woff2`}
+    as="font"
+    type="font/woff2"
+    crossorigin
+  />
   <div class="marketing-page">
     <Nav currentPage={currentPage} />
 

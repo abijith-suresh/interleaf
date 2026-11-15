@@ -66,7 +66,7 @@ const groups = [
             ))
           }
         </nav>
-        <div class="faq-contact">
+        <div class="faq-contact marketing-card">
           <p>Still have a question?</p>
           <a
             href="https://github.com/abijith-suresh/interleaf/issues"
@@ -79,8 +79,8 @@ const groups = [
         {
           groups.map((group) => (
             <section id={group.id} aria-labelledby={`${group.id}-title`} class="faq-group">
-              <h2 id={`${group.id}-title`}>{group.title}</h2>
-              <div class="faq-list">
+              <h2 id={`${group.id}-title`} class="marketing-subhead">{group.title}</h2>
+              <div class="faq-list marketing-card">
                 {group.questions.map((questionIndex) => (
                   <details class="faq-item" open={questionIndex === 0}>
                     <summary>
@@ -105,7 +105,7 @@ const groups = [
             </section>
           ))
         }
-        <div class="faq-contact faq-contact-mobile">
+        <div class="faq-contact faq-contact-mobile marketing-card">
           <p>Still have a question?</p>
           <a
             href="https://github.com/abijith-suresh/interleaf/issues"
@@ -131,14 +131,6 @@ const groups = [
     scroll-margin-top: 1.5rem;
   }
 
-  .faq-group h2 {
-    @apply text-ui-xs;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--color-fg-muted);
-    margin: 0 0 0.75rem;
-  }
-
   nav {
     margin-bottom: 1.5rem;
   }
@@ -152,9 +144,6 @@ const groups = [
 
   .faq-contact {
     padding: 1rem;
-    border-radius: var(--radius-2xl);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-sm);
     color: var(--color-fg);
     @apply text-ui-sm;
   }
@@ -180,13 +169,10 @@ const groups = [
     }
   }
 
-  /* Cards' accordion inside one card: a line between items, a chevron that
+  /* An accordion inside one card: a line between items, a chevron that
      turns over while open. */
   .faq-list {
     padding-inline: 1.5rem;
-    border-radius: var(--radius-2xl);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-sm);
   }
 
   .faq-item + .faq-item {
@@ -205,9 +191,9 @@ const groups = [
     opacity: 0;
     content-visibility: hidden;
     transition:
-      grid-template-rows 160ms ease-out,
-      opacity 160ms ease-out,
-      content-visibility 0s allow-discrete 160ms;
+      grid-template-rows var(--duration-fast) var(--ease-tactile),
+      opacity var(--duration-fast) var(--ease-tactile),
+      content-visibility 0s allow-discrete var(--duration-fast);
   }
 
   .faq-item[open]::details-content {
@@ -215,8 +201,8 @@ const groups = [
     opacity: 1;
     content-visibility: visible;
     transition:
-      grid-template-rows 200ms var(--ease-out-expo),
-      opacity 200ms var(--ease-out-expo),
+      grid-template-rows var(--duration-base) var(--ease-out-expo),
+      opacity var(--duration-base) var(--ease-out-expo),
       content-visibility 0s allow-discrete;
   }
 
@@ -227,7 +213,7 @@ const groups = [
     gap: 0.5rem;
     margin-inline: -0.5rem;
     padding: 1rem 0.5rem;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-control);
     color: var(--color-fg);
     cursor: pointer;
     list-style: none;
@@ -251,8 +237,8 @@ const groups = [
     flex: 0 0 auto;
     color: var(--color-fg-subtle);
     transition:
-      color 150ms var(--ease-tactile),
-      rotate 200ms var(--ease-tactile);
+      color var(--duration-fast) var(--ease-tactile),
+      rotate var(--duration-base) var(--ease-tactile);
   }
 
   summary:hover .faq-chevron {

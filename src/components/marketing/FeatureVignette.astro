@@ -1,24 +1,30 @@
 ---
 /* A cropped page from Document view, drawn the way the editor shows it:
-   saved text with its dashed outline, or filled form fields with the
-   selected one outlined. Decorative; the row's copy says the same. */
+   saved text and checkmarks with their black dashed outline, or form fields
+   with dashed edges and the selected one outlined. Decorative; the card's
+   copy says the same. */
 interface Props {
-  kind: "text" | "field";
+  kind: "text" | "field" | "check";
 }
 
 const { kind } = Astro.props;
+// The editor's checkmark polyline, in a unit box with y pointing down.
+const checkPoints = "0.12,0.5 0.38,0.78 0.88,0.15";
 ---
 
 <div class="vignette" aria-hidden="true">
   {
-    kind === "text" ? (
+    kind === "text" && (
       <div class="vignette-page">
         <i style="--w: 82%" />
         <i style="--w: 64%" />
         <span class="vignette-text">Approved for payment</span>
         <i style="--w: 74%" />
       </div>
-    ) : (
+    )
+  }
+  {
+    kind === "field" && (
       <div class="vignette-page vignette-fields">
         <span class="vignette-label">Department</span>
         <span class="vignette-field is-selected">Facilities</span>
@@ -27,26 +33,45 @@ const { kind } = Astro.props;
       </div>
     )
   }
+  {
+    kind === "check" && (
+      <div class="vignette-page vignette-checks">
+        {[true, false, true].map((checked, index) => (
+          <span class="vignette-check-row">
+            <span class="vignette-box">
+              {checked && (
+                <svg class="vignette-check" viewBox="0 0 1 1">
+                  <polyline points={checkPoints} />
+                </svg>
+              )}
+            </span>
+            <i style={`--w: ${[70, 54, 62][index]}%`} />
+          </span>
+        ))}
+      </div>
+    )
+  }
 </div>
 
 <style>
   .vignette {
-    max-width: 18rem;
-    margin-top: 1rem;
-    padding: 0.5rem;
-    border-radius: var(--radius-xl);
-    background: var(--color-subtle);
-    box-shadow: inset 0 0 0 1px var(--color-line);
+    padding: 0.75rem 0.75rem 0;
+    overflow: hidden;
+    border-radius: var(--radius-control);
+    background: var(--color-workspace);
   }
 
+  /* A white PDF page, cut off at the bottom of the frame. */
   .vignette-page {
     display: grid;
+    min-height: 8rem;
+    align-content: center;
     justify-items: start;
     gap: 0.625rem;
     padding: 1rem 0.875rem;
-    border-radius: var(--radius-xs);
+    border-radius: var(--radius-page) var(--radius-page) 0 0;
     background: var(--color-white);
-    box-shadow: var(--shadow-xs);
+    box-shadow: var(--shadow-page);
     color: #000;
     font-family: Helvetica, Arial, sans-serif;
   }
@@ -55,17 +80,17 @@ const { kind } = Astro.props;
     display: block;
     width: var(--w);
     height: 0.25rem;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     background: var(--color-line-strong);
   }
 
-  /* Saved text: the editor's dashed outline around a Helvetica line. */
+  /* Saved text: the editor's black dashed outline around a Helvetica line. */
   .vignette-text {
     margin-block: 0.25rem;
     font-size: 0.875rem;
     line-height: 1;
     white-space: nowrap;
-    outline: 1px dashed var(--color-line-focus);
+    outline: 1px dashed var(--color-fg);
     outline-offset: 3px;
   }
 
@@ -90,13 +115,46 @@ const { kind } = Astro.props;
     height: 1.75rem;
     align-items: center;
     padding-inline: 0.375rem;
-    border: 1px dashed var(--color-line-focus);
-    border-radius: 2px;
+    border: 1px dashed var(--color-fg);
+    border-radius: var(--radius-page);
     font-size: 0.875rem;
   }
 
   .vignette-field.is-selected {
     outline: 2px solid var(--color-line-focus);
     outline-offset: 2px;
+  }
+
+  /* A flat form: printed boxes, two with saved checkmarks on top. */
+  .vignette-checks {
+    gap: 0.75rem;
+  }
+
+  .vignette-check-row {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.625rem;
+  }
+
+  .vignette-box {
+    position: relative;
+    width: 0.875rem;
+    height: 0.875rem;
+    flex: 0 0 auto;
+    border: 1px solid #000;
+  }
+
+  .vignette-check {
+    position: absolute;
+    inset: -0.125rem;
+    overflow: visible;
+    fill: none;
+    stroke: #000;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 0.1;
+    outline: 1px dashed var(--color-fg);
+    outline-offset: 3px;
   }
 </style>

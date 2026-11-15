@@ -24,73 +24,78 @@
   line-gap-override: 0%;
 }
 
-/* Cards structure (from https://github.com/oliur/cards, MIT) with Interleaf's
-   Evergreen palette; the marketing pages and the editor share these tokens. */
+/* Source Serif 4 sets headings only. It is hosted and loaded like Inter, and
+   pages that show a serif heading preload it. */
+@font-face {
+  font-family: "Source Serif 4 Variable";
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: optional;
+  src: url("/fonts/source-serif-4-latin-opsz-normal.woff2") format("woff2");
+}
+
+/* Folio: paper on a desk, ink, and one green. The marketing pages and the
+   editor share these tokens. Pure white is kept for PDF pages, so they read
+   as sheets on the paper canvas. */
 @theme {
   --font-ui: "Inter Variable", "Inter Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Source Serif 4 Variable", Georgia, ui-serif, serif;
 
+  /* PDF pages only. */
   --color-white: #fff;
-  --color-canvas: #f1f3f1;
-  --color-subtle: #f7f8f7;
-  --color-surface: #fff;
-  --color-floating: #fff;
-  --color-control: #fff;
-  --color-control-hover: #f7f8f7;
-  --color-field: #fff;
-  --color-field-line: #dde3df;
-  --color-tray: #e2e7e4;
-  --color-track: #e2e7e4;
-  --color-inverse: #11201a;
-  --color-fg: #11201a;
-  --color-fg-muted: #4e5a54;
-  --color-fg-subtle: #9aa59f;
-  --color-fg-inverse: #fff;
-  --color-line: #dde3df;
-  --color-line-strong: #c9d1cc;
+  --color-canvas: #f3f0e8;
+  --color-subtle: #f8f6f0;
+  --color-surface: #fcfbf8;
+  --color-floating: var(--color-surface);
+  --color-control: var(--color-surface);
+  --color-control-hover: var(--color-subtle);
+  --color-field: var(--color-surface);
+  --color-field-line: var(--color-line-strong);
+  --color-tray: var(--color-workspace);
+  --color-track: var(--color-workspace);
+  --color-inverse: var(--color-fg);
+  --color-fg: #191b17;
+  --color-fg-muted: #55584f;
+  --color-fg-subtle: #807e73;
+  --color-fg-inverse: var(--color-surface);
+  --color-line: #e0dacd;
+  --color-line-strong: #cbc3b2;
   --color-line-focus: var(--color-accent);
-  --color-hover: rgb(17 32 26 / 0.05);
-  --color-selected: rgb(17 32 26 / 0.08);
-  --color-overlay: rgb(17 32 26 / 0.28);
-  --color-primary: #14271f;
-  --color-primary-hover: #1b3329;
-  --color-primary-active: #0f1f18;
-  --color-primary-foreground: #fff;
-  --color-primary-subtle: rgb(20 39 31 / 0.1);
-  --color-primary-subtle-stronger: rgb(20 39 31 / 0.24);
-  /* Interleaf's one accent. It marks what you point at: the leaf in the
-     mark, focus, and selection. It never decorates, fills buttons, or colours
-     text. */
-  --color-accent: #17804f;
-  --color-accent-subtle: rgb(23 128 79 / 0.1);
-  --color-accent-selection: rgb(23 128 79 / 0.2);
-  /* The bright leaf from the mark, for small brand moments on dark ink; never for text on light surfaces. */
-  --color-leaf: #4cc38a;
+  --color-hover: rgb(25 27 23 / 0.05);
+  --color-selected: rgb(25 27 23 / 0.08);
+  --color-overlay: rgb(25 27 23 / 0.32);
+  /* Ink is the primary. */
+  --color-primary: var(--color-fg);
+  --color-primary-hover: #2e312b;
+  --color-primary-active: #0e0f0c;
+  --color-primary-foreground: var(--color-surface);
+  --color-primary-subtle: rgb(25 27 23 / 0.1);
+  --color-primary-subtle-stronger: rgb(25 27 23 / 0.24);
+  /* Interleaf's one accent. It marks what you point at: focus, selection,
+     and the leaf in the mark. It never decorates or fills buttons. It keeps
+     4.5:1 on the canvas and the workspace. */
+  --color-accent: #147548;
+  --color-accent-subtle: rgb(20 117 72 / 0.1);
+  --color-accent-selection: rgb(20 117 72 / 0.2);
   /* The editor surface PDF pages sit on, a step deeper than the canvas so white pages keep their edges. */
-  --color-workspace: #e7ebe8;
+  --color-workspace: #e8e4d9;
   --color-danger-fg: #82181a;
   --color-danger-line: #ffc9c9;
   --color-danger-subtle: #fef2f2;
 
-  --text-heading-1: 3.5rem;
-  --text-heading-1--line-height: 4rem;
-  --text-heading-1--letter-spacing: -0.035em;
-  --text-heading-1--font-weight: 600;
-  --text-heading-2: 3rem;
-  --text-heading-2--line-height: 3.5rem;
-  --text-heading-2--letter-spacing: -0.03em;
-  --text-heading-2--font-weight: 600;
-  --text-heading-3: 2.5rem;
-  --text-heading-3--line-height: 3rem;
-  --text-heading-3--letter-spacing: -0.025em;
-  --text-heading-3--font-weight: 600;
-  --text-heading-4: 2rem;
-  --text-heading-4--line-height: 2.5rem;
-  --text-heading-4--letter-spacing: -0.02em;
-  --text-heading-4--font-weight: 600;
-  --text-heading-5: 1.5rem;
-  --text-heading-5--line-height: 2rem;
-  --text-heading-5--letter-spacing: -0.015em;
-  --text-heading-5--font-weight: 600;
+  /* Display sizes, set in the serif. */
+  --text-display-1: 3.5rem;
+  --text-display-1--line-height: 3.875rem;
+  --text-display-1--letter-spacing: -0.02em;
+  --text-display-1--font-weight: 560;
+  --text-display-2: 2.25rem;
+  --text-display-2--line-height: 2.75rem;
+  --text-display-2--letter-spacing: -0.015em;
+  --text-display-2--font-weight: 560;
+  --text-display-3: 1.5rem;
+  --text-display-3--line-height: 2rem;
+  --text-display-3--letter-spacing: -0.01em;
+  --text-display-3--font-weight: 560;
   --text-ui-lg: 1.125rem;
   --text-ui-lg--line-height: 1.5rem;
   --text-ui-lg--letter-spacing: -0.015em;
@@ -108,7 +113,7 @@
   --text-ui-xs--letter-spacing: 0em;
   --text-ui-xs--font-weight: 500;
   --text-body-lg: 1.125rem;
-  --text-body-lg--line-height: 1.5rem;
+  --text-body-lg--line-height: 1.625rem;
   --text-body-lg--letter-spacing: -0.015em;
   --text-body-lg--font-weight: 400;
   --text-body-md: 1rem;
@@ -124,37 +129,40 @@
   --text-body-xs--letter-spacing: 0em;
   --text-body-xs--font-weight: 400;
 
-  --radius-xs: 3px;
-  --radius-sm: 5px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
-  --radius-2xl: 13px;
-  --radius-3xl: 19px;
-  --radius-button: 8px;
-  --radius-button-sm: 6px;
+  /* One radius scale. */
+  --radius-page: 2px;
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --radius-dialog: 12px;
+  --radius-pill: 999px;
 
-  --shadow-xs: 0 0.5px 1px 0 rgb(0 0 0 / 0.088);
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.1);
-  --shadow-md: 0 4px 8px 0 rgb(0 0 0 / 0.175);
-  --shadow-lg: 0 8px 16px 0 rgb(0 0 0 / 0.275), 0 0 0 1px rgb(14 18 27 / 0.04);
-  --shadow-field: 0 0.5px 1px 0 rgb(0 0 0 / 0.088);
-  --shadow-button: 0 0 0 1px rgb(17 32 26 / 0.08), 0 1px 2px 0 rgb(17 32 26 / 0.12);
-  --shadow-primary:
-    inset 0 1px 0 0 rgb(255 255 255 / 0.16), 0 0 0 1px #14271f, 0 1px 2px 0 rgb(17 32 26 / 0.24),
-    0 3px 6px -2px rgb(17 32 26 / 0.2);
-  --shadow-inverse:
-    inset 0 1px 0 0 rgb(255 255 255 / 0.16), 0 0 0 1px #11201a, 0 1px 2px 0 rgb(17 32 26 / 0.24),
-    0 3px 6px -2px rgb(17 32 26 / 0.2);
+  /* Every shadow is tinted from the ink. */
+  --shadow-sm: 0 1px 2px 0 rgb(25 27 23 / 0.08);
+  --shadow-lg: 0 0 0 1px rgb(25 27 23 / 0.06), 0 12px 32px -8px rgb(25 27 23 / 0.24);
+  --shadow-card: 0 0 0 1px var(--color-line);
+  /* A white PDF page lying on the desk. */
+  --shadow-page: 0 0 0 1px rgb(25 27 23 / 0.08), 0 2px 6px -2px rgb(25 27 23 / 0.16);
+  /* The interleaved sheet: a second sheet's edge behind the surface. Kept
+     for pages and the frames that hold them. */
+  --shadow-sheet:
+    0 0 0 1px var(--color-line), 3px 3px 0 -1px var(--color-surface),
+    3px 3px 0 0 var(--color-line-strong);
+  --shadow-field: 0 1px 1px 0 rgb(25 27 23 / 0.04);
+  --shadow-button: 0 0 0 1px var(--color-line-strong), 0 1px 1px 0 rgb(25 27 23 / 0.06);
+  --shadow-primary: 0 0 0 1px var(--color-primary), 0 1px 2px 0 rgb(25 27 23 / 0.2);
+  --shadow-primary-active: 0 0 0 1px var(--color-primary);
+  --shadow-inverse: 0 0 0 1px var(--color-inverse), 0 1px 2px 0 rgb(25 27 23 / 0.2);
   --shadow-badge:
     0 0 0 1px color-mix(in srgb, currentColor 14%, transparent),
     0 1px 2px 0 color-mix(in srgb, currentColor 16%, transparent);
-  --shadow-focus: 0 0 0 2px #fff, 0 0 0 4px rgb(161 161 161 / 0.24);
-  --shadow-focus-danger: 0 0 0 2px #fff, 0 0 0 4px rgb(251 44 54 / 0.24);
   --shadow-menu:
-    0 0 0 1px rgb(17 32 26 / 0.08), 0 1px 2px 0 rgb(17 32 26 / 0.12),
-    0 4px 8px -4px rgb(17 32 26 / 0.16);
+    0 0 0 1px var(--color-line), 0 1px 2px 0 rgb(25 27 23 / 0.08),
+    0 8px 16px -8px rgb(25 27 23 / 0.2);
 
+  --duration-press: 60ms;
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-spring: 240ms;
   --ease-tactile: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -165,7 +173,7 @@
   color-scheme: light;
 }
 
-/* Every page: Cards surfaces on a grey canvas, set in Inter. */
+/* Every page: paper surfaces on a warm canvas, set in Inter. */
 html {
   background: var(--color-canvas);
 }
@@ -185,6 +193,17 @@ body {
 ::selection {
   background: var(--color-accent-selection);
   color: inherit;
+}
+
+/* One focus ring everywhere. Components that draw it differently say so. */
+:where(:focus-visible) {
+  outline: 2px solid var(--color-line-focus);
+  outline-offset: 2px;
+}
+
+/* Page numbers and counts keep their width as they change. */
+[data-page="editor"] {
+  font-variant-numeric: tabular-nums;
 }
 
 .marketing-page {
@@ -254,11 +273,7 @@ body {
   margin: 0;
   color: var(--color-fg);
   text-wrap: balance;
-  @apply text-heading-1;
-}
-
-.marketing-hero-page .marketing-hero-title {
-  @apply text-heading-2;
+  @apply font-display text-display-1;
 }
 
 .marketing-lede {
@@ -281,8 +296,8 @@ body {
   content: "";
 }
 
-/* The one primary action: Cards' solid primary button. It is the editor
-   link in the header, the home hero, and the closing card. */
+/* The one primary action: the ink button, as in the editor. It is the
+   editor link in the header, the home hero, and the closing section. */
 .marketing-button {
   position: relative;
   display: inline-flex;
@@ -291,14 +306,15 @@ body {
   align-items: center;
   justify-content: center;
   padding-inline: 1rem;
-  border-radius: var(--radius-button);
+  border-radius: var(--radius-control);
   background: var(--color-primary);
   box-shadow: var(--shadow-primary);
   color: var(--color-primary-foreground);
   text-decoration: none;
   white-space: nowrap;
   transition-property: color, background-color, box-shadow, scale;
-  transition-duration: 150ms, 150ms, 150ms, 240ms;
+  transition-duration:
+    var(--duration-fast), var(--duration-fast), var(--duration-fast), var(--duration-spring);
   transition-timing-function:
     var(--ease-tactile), var(--ease-tactile), var(--ease-tactile), var(--ease-spring);
   @apply text-ui-sm;
@@ -311,33 +327,13 @@ body {
 .marketing-button:active {
   background: var(--color-primary-active);
   scale: 0.97;
-  transition-duration: 60ms;
+  transition-duration: var(--duration-press);
   transition-timing-function: var(--ease-tactile);
-  box-shadow:
-    inset 0 1px 0 0 rgb(255 255 255 / 0.1),
-    0 0 0 1px var(--color-primary);
-}
-
-.marketing-button-leaf {
-  background: var(--color-leaf);
-  box-shadow:
-    inset 0 1px 0 0 rgb(255 255 255 / 0.3),
-    0 1px 2px 0 rgb(0 0 0 / 0.24);
-  color: var(--color-fg);
-}
-
-.marketing-button-leaf:hover {
-  background: color-mix(in srgb, var(--color-leaf) 88%, white);
-}
-
-.marketing-button-leaf:active {
-  box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.2);
-  background: color-mix(in srgb, var(--color-leaf) 88%, black);
+  box-shadow: var(--shadow-primary-active);
 }
 
 .marketing-button-compact {
   height: 2rem;
-  border-radius: var(--radius-button-sm);
 }
 
 .marketing-section {
@@ -353,7 +349,22 @@ body {
   margin: 0;
   color: var(--color-fg);
   text-wrap: balance;
-  @apply text-heading-4;
+  @apply font-display text-display-2;
+}
+
+/* A heading over a group of cards or questions. */
+.marketing-subhead {
+  margin: 0 0 1rem;
+  color: var(--color-fg);
+  @apply font-display text-display-3;
+}
+
+/* Cards and row lists: paper on the canvas, edged with one hairline. */
+.marketing-card,
+.marketing-rows {
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
 }
 
 /* Rows: one card, with a marker, a title, and a body in each row and a
@@ -361,9 +372,6 @@ body {
 .marketing-rows {
   margin: 0;
   padding: 0;
-  border-radius: var(--radius-2xl);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
   list-style: none;
 }
 
@@ -380,22 +388,12 @@ body {
   border-top: 1px solid var(--color-line);
 }
 
-/* Cards' icon-in-ring: a number or an icon. */
+/* A folio number, set like a page number. */
 .marketing-row-marker {
-  display: grid;
-  width: 2.5rem;
-  height: 2.5rem;
-  place-items: center;
-  border-radius: 999px;
-  box-shadow: inset 0 0 0 1px var(--color-line);
+  padding-top: 0.25rem;
   color: var(--color-fg-muted);
   font-variant-numeric: tabular-nums;
-  @apply text-ui-sm;
-}
-
-.marketing-row-marker svg {
-  width: 1.25rem;
-  height: 1.25rem;
+  @apply font-display text-display-3;
 }
 
 .marketing-row-title {
@@ -426,7 +424,7 @@ body {
   text-decoration-color: currentColor;
 }
 
-/* The closing band above the footer. */
+/* The closing section above the footer, under a rule. */
 .marketing-cta {
   padding-bottom: var(--section-gap);
 }
@@ -434,23 +432,17 @@ body {
 .marketing-cta-inner {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 1.5rem 3rem;
-  padding: 2rem;
-  border-radius: var(--radius-2xl);
-  background: var(--color-inverse);
-}
-
-.marketing-cta .marketing-section-title {
-  color: var(--color-fg-inverse);
-  @apply text-heading-5;
+  padding-top: 2.5rem;
+  border-top: 1px solid var(--color-line-strong);
 }
 
 .marketing-cta-copy {
-  margin: 0.25rem 0 0;
-  color: rgb(255 255 255 / 0.72);
-  @apply text-body-md;
+  margin: 0.5rem 0 0;
+  color: var(--color-fg-muted);
+  @apply text-body-lg;
 }
 
 @media (max-width: 47.99rem) {
@@ -468,29 +460,25 @@ body {
   }
 
   .marketing-hero-title {
-    @apply text-heading-3;
-  }
-
-  .marketing-hero-page .marketing-hero-title {
-    @apply text-heading-4;
+    @apply text-display-2;
   }
 
   .marketing-lede {
     @apply text-body-md;
   }
 
-  /* Cards' buttons grow to 44px on phones. */
+  /* Buttons grow to 44px on phones. */
   .marketing-button,
   .marketing-button-compact {
     height: 2.75rem;
   }
 
   .marketing-section-title {
-    @apply text-heading-5;
+    @apply text-display-3;
   }
 
   .marketing-row {
-    grid-template-columns: 2.5rem minmax(0, 1fr);
+    grid-template-columns: 2rem minmax(0, 1fr);
     column-gap: 1rem;
     padding: 1rem 1.25rem;
   }
@@ -501,7 +489,7 @@ body {
   }
 
   .marketing-cta-inner {
-    padding: 1.5rem;
+    padding-top: 2rem;
   }
 }
 
@@ -513,7 +501,7 @@ body {
 }
 
 .marketing-content[data-entering] main {
-  animation: marketing-enter 200ms var(--ease-out-expo);
+  animation: marketing-enter var(--duration-base) var(--ease-out-expo);
 }
 
 /* Page swaps are instant: no default view-transition crossfade. Any
@@ -530,19 +518,17 @@ body {
   left: 0.5rem;
   z-index: 100;
   padding: 0.75rem 1rem;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-control);
   background: var(--color-inverse);
   color: var(--color-fg-inverse);
   text-decoration: none;
   transform: translateY(calc(-100% - 0.5rem));
-  transition: transform 150ms var(--ease-tactile);
+  transition: transform var(--duration-fast) var(--ease-tactile);
   @apply text-ui-sm;
 }
 
 .skip-link:focus-visible {
   transform: translateY(0);
-  outline: 2px solid var(--color-line-focus);
-  outline-offset: 2px;
 }
 
 .marketing-page a,
@@ -551,23 +537,13 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-.marketing-page a:focus-visible,
-.marketing-page summary:focus-visible {
-  outline: 2px solid var(--color-line-focus);
-  outline-offset: 2px;
-}
-
-.marketing-cta a:focus-visible {
-  outline-color: var(--color-leaf);
-}
-
-/* Header: a surface bar over the canvas. */
+/* Header: the canvas under a hairline. */
 
 .site-nav {
   position: relative;
   z-index: 30;
   border-bottom: 1px solid var(--color-line);
-  background: var(--color-surface);
+  background: var(--color-canvas);
 }
 
 .site-nav-inner {
@@ -583,7 +559,7 @@ body {
   display: inline-flex;
   min-height: 2.75rem;
   align-items: center;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
   color: var(--color-fg);
   text-decoration: none;
   white-space: nowrap;
@@ -620,18 +596,18 @@ body {
   margin-left: 0.5rem;
 }
 
-/* Cards' neutral ghost button: header and footer links. */
+/* The neutral ghost button: header and footer links. */
 .marketing-link {
   position: relative;
   display: inline-flex;
   height: 2.25rem;
   align-items: center;
   padding-inline: 0.75rem;
-  border-radius: var(--radius-button);
+  border-radius: var(--radius-control);
   color: var(--color-fg-muted);
   text-decoration: none;
   transition-property: color, background-color;
-  transition-duration: 150ms;
+  transition-duration: var(--duration-fast);
   transition-timing-function: var(--ease-tactile);
   @apply text-ui-sm;
 }
@@ -644,7 +620,7 @@ body {
 .marketing-link:active {
   background: var(--color-selected);
   color: var(--color-fg);
-  transition-duration: 60ms;
+  transition-duration: var(--duration-press);
 }
 
 .marketing-link.is-current {
@@ -652,8 +628,7 @@ body {
   color: var(--color-fg);
 }
 
-/* Cards' white icon button. It stays white and only its icon changes when
-   the menu is open, like Cards' select trigger. */
+/* The raised icon button. Only its icon changes while the menu is open. */
 .mobile-nav {
   display: none;
 }
@@ -665,14 +640,14 @@ body {
   height: 2.75rem;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-button);
-  background: var(--color-surface);
+  border-radius: var(--radius-control);
+  background: var(--color-control);
   box-shadow: var(--shadow-button);
   color: var(--color-fg-muted);
   cursor: pointer;
   list-style: none;
   transition-property: color, background-color, scale;
-  transition-duration: 150ms, 150ms, 240ms;
+  transition-duration: var(--duration-fast), var(--duration-fast), var(--duration-spring);
   transition-timing-function: var(--ease-tactile), var(--ease-tactile), var(--ease-spring);
 }
 
@@ -684,7 +659,7 @@ body {
 
 .mobile-nav-trigger:active {
   scale: 0.94;
-  transition-duration: 60ms;
+  transition-duration: var(--duration-press);
   transition-timing-function: var(--ease-tactile);
 }
 
@@ -702,7 +677,7 @@ body {
   display: none;
 }
 
-/* Cards' dropdown menu: it opens from the trigger's right edge, spans the
+/* The dropdown menu: it opens from the trigger's right edge, spans the
    header actions, and floats over the page, so opening it never shifts the
    layout. */
 .mobile-nav-panel {
@@ -715,11 +690,11 @@ body {
   width: max(100%, 10rem);
   gap: 0.25rem;
   padding: var(--menu-padding);
-  border-radius: var(--radius-2xl);
-  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  background: var(--color-floating);
   box-shadow: var(--shadow-menu);
   transform-origin: top right;
-  animation: marketing-menu-in 150ms var(--ease-tactile);
+  animation: marketing-menu-in var(--duration-fast) var(--ease-tactile);
 }
 
 @keyframes marketing-menu-in {
@@ -741,18 +716,18 @@ body {
   height: 2.75rem;
 }
 
-/* Cards' menu item, grown to a 44px touch target. The current page takes
+/* A menu item, grown to a 44px touch target. The current page takes
    the chosen fill; hover and focus stay a step lighter. */
 .mobile-nav-link {
   display: flex;
   min-height: 2.75rem;
   align-items: center;
   padding-inline: 0.5rem;
-  border-radius: calc(var(--radius-2xl) - var(--menu-padding));
+  border-radius: var(--radius-control);
   color: var(--color-fg-muted);
   text-decoration: none;
   transition-property: color, background-color;
-  transition-duration: 150ms;
+  transition-duration: var(--duration-fast);
   transition-timing-function: var(--ease-tactile);
   @apply text-body-sm;
 }
@@ -786,10 +761,10 @@ body {
   }
 }
 
-/* Footer: a surface bar under the canvas. */
+/* Footer: the canvas under a hairline. */
 .marketing-footer {
   border-top: 1px solid var(--color-line);
-  background: var(--color-surface);
+  background: var(--color-canvas);
 }
 
 .site-footer-inner {
