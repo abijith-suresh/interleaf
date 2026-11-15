@@ -25,8 +25,14 @@ body:has([data-page="editor"]) {
   color: var(--color-fg);
 }
 
+/* The password dialog lives outside .editor-app and shares its buttons. */
+.password-modal-backdrop {
+  --editor-control: 2.25rem;
+}
+
 @media (max-width: 47.99rem), (pointer: coarse) {
-  .editor-app {
+  .editor-app,
+  .password-modal-backdrop {
     --editor-control: 2.75rem;
   }
 }
@@ -54,10 +60,7 @@ body:has([data-page="editor"]) {
 
 .editor-icon {
   display: block;
-  width: 1rem;
-  height: 1rem;
   flex-shrink: 0;
-  stroke-width: 2.25;
 }
 
 /* Buttons: Cards' button variants. secondary is the white raised button,
@@ -306,7 +309,7 @@ body:has([data-page="editor"]) {
 /* Upload header: the marketing nav bar. */
 .editor-header {
   display: flex;
-  min-height: calc(4rem + env(safe-area-inset-top));
+  min-height: calc(3.5rem + env(safe-area-inset-top));
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
@@ -332,43 +335,6 @@ body:has([data-page="editor"]) {
   text-decoration: none;
   white-space: nowrap;
   @apply text-ui-lg;
-}
-
-/* Cards' neutral ghost button, with a 44px hit area. */
-.editor-back,
-.editor-exit {
-  position: relative;
-  display: inline-flex;
-  height: 2.25rem;
-  align-items: center;
-  gap: 0.5rem;
-  border-radius: var(--radius-control);
-  color: var(--color-fg-muted);
-  text-decoration: none;
-  touch-action: manipulation;
-  transition-property: color, background-color;
-  transition-duration: 150ms;
-  transition-timing-function: var(--ease-tactile);
-  @apply text-ui-sm;
-}
-
-.editor-back {
-  padding: 0 0.75rem;
-}
-
-.editor-back::before,
-.editor-exit::before {
-  position: absolute;
-  inset: -0.25rem 0;
-  content: "";
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .editor-back:hover,
-  .editor-exit:hover {
-    background: var(--color-hover);
-    color: var(--color-fg);
-  }
 }
 
 .editor-back-compact {
@@ -1275,12 +1241,16 @@ body:has([data-page="editor"]) {
 
 .editor-filmstrip-fields {
   justify-self: center;
-  padding: 0 0.125rem;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0;
   border-radius: var(--radius-control);
   background: var(--color-tray);
   color: var(--color-fg);
+  text-overflow: ellipsis;
   white-space: nowrap;
   @apply text-ui-xs;
+  font-size: 0.6875rem;
   pointer-events: none;
 }
 
@@ -1461,31 +1431,6 @@ body:has([data-page="editor"]) {
   color: var(--color-fg-muted);
   text-align: center;
   @apply text-body-xs;
-}
-
-/* A Cards white button. */
-.editor-page-canvas-retry {
-  display: inline-flex;
-  min-height: 2.75rem;
-  align-items: center;
-  justify-content: center;
-  padding: 0 0.75rem;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: var(--color-control);
-  box-shadow: var(--shadow-button);
-  color: var(--color-fg);
-  cursor: pointer;
-  font: inherit;
-  touch-action: manipulation;
-  transition: background-color 150ms var(--ease-tactile);
-  @apply text-ui-xs;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .editor-page-canvas-retry:hover {
-    background: var(--color-control-hover);
-  }
 }
 
 .editor-review-pane .editor-review-filmstrip-item .canvas-container {
@@ -1801,10 +1746,6 @@ body:has([data-page="editor"]) {
 }
 
 @media (max-width: 767px) {
-  .editor-header {
-    min-height: calc(3.5rem + env(safe-area-inset-top));
-  }
-
   .editor-back-wide {
     display: none;
   }
@@ -1919,6 +1860,7 @@ body:has([data-page="editor"]) {
     padding: calc(24px + 0.5rem) 0.5rem 0.5rem;
   }
 
+  .editor-header,
   .editor-toolbar {
     min-height: calc(2.75rem + env(safe-area-inset-top));
   }
@@ -2141,8 +2083,13 @@ body:has([data-page="editor"]) {
   @apply text-ui-sm;
 }
 
-.editor-text-settings > .editor-button {
+.editor-text-settings > .editor-button,
+.editor-text-actions > .editor-button {
   flex: 0 0 auto;
+}
+
+.editor-text-actions {
+  display: contents;
 }
 
 /* Cards' text input. */
@@ -2383,6 +2330,12 @@ body:has([data-page="editor"]) {
     flex-basis: 100%;
   }
 
+  .editor-draft-panel .editor-text-settings .editor-text-actions {
+    display: flex;
+    flex-basis: 100%;
+    gap: 0.5rem;
+  }
+
   .editor-document-tools .editor-draft-panel .editor-text-error {
     position: static;
     flex-basis: 100%;
@@ -2402,6 +2355,10 @@ body:has([data-page="editor"]) {
 
   .editor-draft-panel .editor-text-settings .editor-text-value {
     flex-basis: 10rem;
+  }
+
+  .editor-draft-panel .editor-text-settings .editor-text-actions {
+    display: contents;
   }
 
   .editor-draft-panel .editor-text-settings .editor-text-font {
@@ -2572,6 +2529,12 @@ body:has([data-page="editor"]) {
   @apply text-body-sm;
 }
 
+.editor-field-draft,
+.editor-field-draft > div,
+.editor-field-panel {
+  height: 100%;
+}
+
 .editor-field-settings .editor-text-value {
   flex: 1 1 18rem;
   min-width: 0;
@@ -2702,51 +2665,9 @@ body:has([data-page="editor"]) {
   border-top: 1px solid var(--color-line);
 }
 
-.password-modal-button {
-  height: 2.75rem;
-  padding: 0 1rem;
-  border: 0;
-  border-radius: var(--radius-control);
-  cursor: pointer;
-  font: inherit;
-  touch-action: manipulation;
-  transition-property: background-color, scale;
-  transition-duration: 150ms;
-  transition-timing-function: var(--ease-tactile);
-  @apply text-ui-sm;
-}
-
-.password-modal-button:active {
-  scale: 0.97;
-}
-
-.password-modal-button-secondary {
-  background: var(--color-control);
-  box-shadow: var(--shadow-button);
-  color: var(--color-fg);
-}
-
-.password-modal-button-primary {
-  background: var(--color-primary);
-  box-shadow: var(--shadow-primary);
-  color: var(--color-primary-foreground);
-}
-
 @media (hover: hover) and (pointer: fine) {
-  .password-modal-button {
-    height: 2.25rem;
-  }
-
   .password-modal-input {
     min-height: 2.25rem;
-  }
-
-  .password-modal-button-primary:hover {
-    background: var(--color-primary-hover);
-  }
-
-  .password-modal-button-secondary:hover {
-    background: var(--color-control-hover);
   }
 }
 
@@ -2819,8 +2740,8 @@ body:has([data-page="editor"]) {
 @media (max-width: 400px) {
   .editor-toolbar {
     gap: 0;
-    padding-inline: calc(0.25rem + env(safe-area-inset-left))
-      calc(0.25rem + env(safe-area-inset-right));
+    padding-inline: calc(var(--editor-gutter) + env(safe-area-inset-left))
+      calc(var(--editor-gutter) + env(safe-area-inset-right));
   }
 
   .editor-view-nav {

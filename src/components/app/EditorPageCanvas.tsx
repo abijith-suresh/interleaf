@@ -8,6 +8,7 @@ import {
 import { copyOrganizationPages } from "../../controllers/editor-history";
 import { PDFProcessing, type PDFRuntime } from "../../services/pdf-runtime";
 import type { PageState } from "../../types/interfaces";
+import EditorButton from "./ui/EditorButton";
 
 const PAGE_FRAME_RATIO = 3 / 4;
 const OFFSCREEN_RELEASE_DELAY = 1000;
@@ -255,15 +256,13 @@ export default function EditorPageCanvas(props: Props) {
         >
           <span>Preview unavailable.</span>
           {props.showRetry !== false && (
-            <button
-              type="button"
+            <EditorButton
               data-testid="editor-page-canvas-retry"
-              class="editor-page-canvas-retry"
               aria-label="Retry page preview"
               onClick={retryRender}
             >
               Retry
-            </button>
+            </EditorButton>
           )}
         </span>
       )}

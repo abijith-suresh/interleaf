@@ -66,7 +66,7 @@ export default function EditorToolbar(props: Props) {
       <div class="editor-toolbar-start">
         <a
           href={props.base}
-          class="editor-exit editor-exit-row"
+          class="editor-button editor-button-plain editor-exit editor-exit-row"
           aria-label="Exit editor"
           title="Exit editor"
           data-testid="editor-exit-link"
@@ -139,7 +139,11 @@ export default function EditorToolbar(props: Props) {
           >
             <span class="editor-toolbar-label">Files</span>
           </EditorButton>
-          <a href={props.base} class="editor-exit editor-exit-overflow" aria-label="Exit editor">
+          <a
+            href={props.base}
+            class="editor-button editor-button-plain editor-exit editor-exit-overflow"
+            aria-label="Exit editor"
+          >
             <EditorIcon name="back" />
             <span>Exit editor</span>
           </a>

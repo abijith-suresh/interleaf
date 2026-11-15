@@ -1,3 +1,4 @@
+import ArchiveArrowUp from "lucide-solid/icons/archive-arrow-up";
 import ArrowLeft from "lucide-solid/icons/arrow-left";
 import Check from "lucide-solid/icons/check";
 import ChevronDown from "lucide-solid/icons/chevron-down";
@@ -18,9 +19,11 @@ import Redo2 from "lucide-solid/icons/redo-2";
 import RotateCcw from "lucide-solid/icons/rotate-ccw";
 import RotateCw from "lucide-solid/icons/rotate-cw";
 import SquarePen from "lucide-solid/icons/square-pen";
+import TextCursorInput from "lucide-solid/icons/text-cursor-input";
 import Trash from "lucide-solid/icons/trash";
 import Type from "lucide-solid/icons/type";
 import Undo2 from "lucide-solid/icons/undo-2";
+import Upload from "lucide-solid/icons/upload";
 import X from "lucide-solid/icons/x";
 import { Dynamic } from "solid-js/web";
 
@@ -36,6 +39,7 @@ const editorIcons = {
   next: ChevronRight,
   copy: Copy,
   open: Download,
+  upload: Upload,
   more: Ellipsis,
   extract: FileOutput,
   image: ImageIcon,
@@ -45,9 +49,10 @@ const editorIcons = {
   pages: LayoutGrid,
   plus: Plus,
   minus: Minus,
-  restore: RotateCcw,
+  restore: ArchiveArrowUp,
   rotate: RotateCw,
   "page-actions": SquarePen,
+  fields: TextCursorInput,
   delete: Trash,
   close: X,
 };
@@ -58,8 +63,8 @@ export default function EditorIcon(props: { name: EditorIconName }) {
     <Dynamic
       component={editorIcons[props.name]}
       class="editor-icon"
-      size={18}
-      strokeWidth={1.75}
+      size={16}
+      strokeWidth={2.25}
       aria-hidden="true"
     />
   );
