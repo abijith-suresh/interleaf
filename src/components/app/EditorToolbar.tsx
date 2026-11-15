@@ -45,15 +45,12 @@ export default function EditorToolbar(props: Props) {
   createRovingToolbar(() => toolbar);
 
   const noPages = () => props.exportableCount === 0;
-  const downloadLabel = () =>
-    noPages() ? "No exportable pages to download" : "Download a PDF with all exportable pages";
+  const downloadLabel = () => (noPages() ? "Download PDF. No pages to export." : "Download PDF");
   const imagesLabel = () =>
-    noPages()
-      ? "No exportable pages to export as images"
-      : "Export all exportable pages as PNG images in a ZIP archive";
+    noPages() ? "Export PNG. No pages to export." : "Export PNG as a ZIP archive";
   const compressionDisabled = () => noPages() || !props.compressionAvailable;
   const compressionLabel = () =>
-    compressionDisabled() ? props.compressionDisabledReason : "Compress the original PDF";
+    compressionDisabled() ? `Compress PDF. ${props.compressionDisabledReason}.` : "Compress PDF";
 
   return (
     <div
@@ -67,8 +64,8 @@ export default function EditorToolbar(props: Props) {
         <a
           href={props.base}
           class="editor-exit editor-exit-row"
-          aria-label="Exit editor"
-          title="Exit editor"
+          aria-label="Back to Interleaf"
+          title="Back to Interleaf"
           data-testid="editor-exit-link"
         >
           <EditorIcon name="back" />
@@ -76,7 +73,7 @@ export default function EditorToolbar(props: Props) {
             <Wordmark />
           </span>
         </a>
-        <fieldset ref={viewNav} class="editor-view-nav" aria-label="Workspace views">
+        <fieldset ref={viewNav} class="editor-view-nav" aria-label="Views">
           <span ref={viewIndicator} class="editor-segment-indicator" aria-hidden="true" />
           <EditorButton
             data-testid="editor-pages-view-button"
@@ -114,8 +111,8 @@ export default function EditorToolbar(props: Props) {
         >
           <EditorButton
             data-testid="editor-add-pdf-button"
-            aria-label="Add PDFs or images"
-            title="Add PDFs or images"
+            aria-label="Add files"
+            title="Add files"
             class="editor-toolbar-action"
             variant="plain"
             onClick={props.onAddFiles}
@@ -139,9 +136,9 @@ export default function EditorToolbar(props: Props) {
           >
             <span class="editor-toolbar-label">Files</span>
           </EditorButton>
-          <a href={props.base} class="editor-exit editor-exit-overflow" aria-label="Exit editor">
+          <a href={props.base} class="editor-exit editor-exit-overflow">
             <EditorIcon name="back" />
-            <span>Exit editor</span>
+            <span>Back</span>
           </a>
         </EditorOverflow>
         <span class="editor-toolbar-divider" aria-hidden="true" />
@@ -177,21 +174,21 @@ export default function EditorToolbar(props: Props) {
             testId="editor-download-button"
             label="Download PDF"
             ariaLabel={downloadLabel()}
-            hint={noPages() ? "No exportable pages" : undefined}
+            hint={noPages() ? "No pages to export" : undefined}
             disabled={noPages()}
             onSelect={props.onDownload}
           />
           <EditorMenuItem
             testId="editor-export-images-button"
-            label="Export PNG images"
+            label="Export PNG"
             ariaLabel={imagesLabel()}
-            hint={noPages() ? "No exportable pages" : "ZIP archive"}
+            hint={noPages() ? "No pages to export" : "ZIP archive"}
             disabled={noPages()}
             onSelect={props.onExportImages}
           />
           <EditorMenuItem
             testId="editor-compress-button"
-            label="Compress original PDF"
+            label="Compress PDF"
             ariaLabel={compressionLabel()}
             hint={compressionDisabled() ? props.compressionDisabledReason : undefined}
             disabled={compressionDisabled()}

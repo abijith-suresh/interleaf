@@ -30,7 +30,7 @@ async function open(page: Page) {
 }
 async function arm(page: Page) {
   await revealDocumentTools(page);
-  await page.getByRole("button", { name: "Checkmark", exact: true }).press("Enter");
+  await page.getByRole("button", { name: "Add checkmark", exact: true }).press("Enter");
   await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
 }
 async function place(page: Page) {
@@ -39,11 +39,9 @@ async function place(page: Page) {
   if (!box) throw new Error("Missing page");
   await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.55);
   await expect(page.getByLabel("Checkmark size in points")).toBeFocused();
-  await expect(page.getByRole("status").filter({ hasText: "Draft checkmark" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "New checkmark" })).toBeVisible();
   await page.getByRole("button", { name: "Save checkmark", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Edit added checkmark", exact: true })
-  ).toBeFocused();
+  await expect(page.getByRole("button", { name: "Edit checkmark", exact: true })).toBeFocused();
   await expectDocumentReady(page);
 }
 
@@ -119,21 +117,19 @@ for (const [width, height] of [
     await expect(size).toBeFocused();
     await size.fill("24");
     await page.getByRole("button", { name: "Save checkmark", exact: true }).press("Enter");
-    const hit = page.getByRole("button", { name: "Edit added checkmark", exact: true });
+    const hit = page.getByRole("button", { name: "Edit checkmark", exact: true });
     await expect(hit).toBeFocused();
     await expectDocumentReady(page);
     for (const action of ["Cancel", "Escape", "Save checkmark"]) {
       await hit.press("Enter");
       await expect(size).toBeFocused();
-      await expect(
-        page.getByRole("status").filter({ hasText: "Editing saved checkmark" })
-      ).toBeVisible();
+      await expect(page.getByRole("status").filter({ hasText: "Editing checkmark" })).toBeVisible();
       if (action === "Escape") await size.press("Escape");
       else await page.getByRole("button", { name: action, exact: true }).press("Enter");
       await expect(hit).toBeFocused();
     }
     await hit.press("Enter");
-    await page.getByRole("button", { name: "Delete added checkmark" }).press("Enter");
+    await page.getByRole("button", { name: "Delete checkmark" }).press("Enter");
     await expect(
       width === 1280
         ? page.getByRole("button", { name: "Add text", exact: true })
@@ -153,7 +149,7 @@ test("point placement, drag, cancel, independent text and checkmark history, dup
 }) => {
   await open(page);
   await place(page);
-  const hit = page.getByRole("button", { name: "Edit added checkmark", exact: true });
+  const hit = page.getByRole("button", { name: "Edit checkmark", exact: true });
   const savedPosition = await hit.evaluate((element) => [element.style.left, element.style.top]);
   await hit.click();
   const draft = page.getByRole("button", { name: "Drag checkmark to move it" });
@@ -195,37 +191,33 @@ test("point placement, drag, cancel, independent text and checkmark history, dup
   await page.getByTestId("editor-redo-button").click();
   await page.getByRole("button", { name: "Add text", exact: true }).click();
   await page.locator(".editor-review-stage").press("Enter");
-  await page.getByLabel("Added text", { exact: true }).fill("Answer");
+  await page.getByLabel("Text", { exact: true }).fill("Answer");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
   await page.getByTestId("editor-pages-view-button").click();
   await page.getByRole("button", { name: "Duplicate page 1", exact: true }).click();
   await page.getByTestId("editor-document-view-button").click();
-  await page.getByRole("button", { name: "Select additions" }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   await hit.click();
   await page.getByLabel("Checkmark size in points").fill("30");
   await page.getByRole("button", { name: "Save checkmark", exact: true }).click();
-  await page.getByRole("button", { name: "Edit added text: Answer", exact: true }).click();
-  await page.getByLabel("Added text", { exact: true }).fill("Copy");
+  await page.getByRole("button", { name: "Edit text: Answer", exact: true }).click();
+  await page.getByLabel("Text", { exact: true }).fill("Copy");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
   await page.getByRole("button", { name: "Previous page", exact: true }).click();
-  await page.getByRole("button", { name: "Select additions" }).click();
-  await expect(
-    page.getByRole("button", { name: "Edit added text: Answer", exact: true })
-  ).toBeVisible();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Edit text: Answer", exact: true })).toBeVisible();
   await hit.click();
   await expect(page.getByLabel("Checkmark size in points")).toHaveValue("16");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.getByRole("button", { name: "View 1 file" }).click();
+  await page.getByRole("button", { name: "Files (1)" }).click();
   await page
     .getByRole("button", { name: "Remove form.pdf and its 2 pages from the workspace" })
     .click();
   await page.getByTestId("editor-undo-button").click();
   await page.getByTestId("editor-document-view-button").click();
-  await page.getByRole("button", { name: "Select additions" }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(hit).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Edit added text: Answer", exact: true })
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit text: Answer", exact: true })).toBeVisible();
 });
 
 test.describe("touch checkmark gestures", () => {
@@ -273,11 +265,9 @@ test.describe("touch checkmark gestures", () => {
     await page.touchscreen.tap(x, y);
     await expect(page.getByLabel("Checkmark size in points")).toBeVisible();
     await page.getByRole("button", { name: "Save checkmark", exact: true }).tap();
-    await expect(
-      page.getByRole("button", { name: "Edit added checkmark", exact: true })
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Edit checkmark", exact: true })).toBeVisible();
     await revealDocumentTools(page);
-    await page.getByRole("button", { name: "Read", exact: true }).tap();
+    await page.getByRole("button", { name: "View", exact: true }).tap();
     await revealPageZoom(page);
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
     await expectDocumentReady(page);
@@ -304,7 +294,10 @@ for (const kind of ["checkmark", "text"] as const) {
     await place(page);
     await revealDocumentTools(page);
     await page
-      .getByRole("button", { name: kind === "checkmark" ? "Checkmark" : "Add text", exact: true })
+      .getByRole("button", {
+        name: kind === "checkmark" ? "Add checkmark" : "Add text",
+        exact: true,
+      })
       .press("Enter");
     const stage = page.locator(".editor-review-stage");
     await expect(stage).toBeFocused();
@@ -315,17 +308,14 @@ for (const kind of ["checkmark", "text"] as const) {
       });
     const before = await scrollPosition();
     await stage.press("Enter");
-    const field = page.getByLabel(
-      kind === "checkmark" ? "Checkmark size in points" : "Added text",
-      { exact: true }
-    );
+    const field = page.getByLabel(kind === "checkmark" ? "Checkmark size in points" : "Text", {
+      exact: true,
+    });
     if (kind === "text") {
       await field.fill("Saved text");
       await page.getByRole("button", { name: "Save text", exact: true }).click();
       await expectDocumentReady(page);
-      await page
-        .getByRole("button", { name: "Edit added text: Saved text", exact: true })
-        .press("Enter");
+      await page.getByRole("button", { name: "Edit text: Saved text", exact: true }).press("Enter");
     }
     const unobscured = () =>
       field.evaluate((element) => {
@@ -395,7 +385,7 @@ for (const kind of ["checkmark", "text"] as const) {
     await cancel.click();
     await expect(
       page.getByRole("button", {
-        name: kind === "text" ? "Edit added text: Saved text" : /^Page tool:/,
+        name: kind === "text" ? "Edit text: Saved text" : /^Page tool:/,
         exact: true,
       })
     ).toBeFocused();

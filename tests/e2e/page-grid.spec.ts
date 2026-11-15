@@ -197,13 +197,13 @@ test("undo and redo work inside the open Files dialog and keep its list in sync"
   await expect(tiles).toHaveCount(5);
   await expect(items).toHaveCount(2);
   await expect(dialog).toBeVisible();
-  await expect(page.getByTestId("editor-files-notice")).toHaveText("Undid source removal.");
+  await expect(page.getByTestId("editor-files-notice")).toHaveText("Undid remove file.");
   await expect(dialog.locator(":focus")).toHaveCount(1);
 
   await page.keyboard.press("Control+Shift+z");
   await expect(tiles).toHaveCount(3);
   await expect(items).toHaveCount(1);
-  await expect(page.getByTestId("editor-files-notice")).toHaveText("Redid source removal.");
+  await expect(page.getByTestId("editor-files-notice")).toHaveText("Redid remove file.");
   await expect(dialog.locator(":focus")).toHaveCount(1);
 
   await page.keyboard.press("Escape");

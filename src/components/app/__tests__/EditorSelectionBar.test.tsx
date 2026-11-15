@@ -10,7 +10,7 @@ function makeProps(overrides: Partial<Parameters<typeof EditorSelectionBar>[0]> 
     selectedActiveCount: 2,
     allPagesSelected: false,
     deletionLabel: "Mark for deletion",
-    deletionAriaLabel: "Mark selected pages for deletion",
+    deletionAriaLabel: "Mark for deletion",
     onClearSelection: vi.fn(),
     onSelectAll: vi.fn(),
     onRotateLeft: vi.fn(),
@@ -35,10 +35,10 @@ describe("EditorSelectionBar", () => {
       ["Rotate selected pages right 90 degrees", props.onRotateRight],
       ["Select all pages", props.onSelectAll],
       ["Duplicate selected pages", props.onDuplicate],
-      ["Mark selected pages for deletion", props.onDelete],
-      ["Extract 2 selected pages to a new PDF", props.onExtract],
-      ["Export selected pages as PNG images in a ZIP archive", props.onExportImages],
-      ["Clear page selection", props.onClearSelection],
+      ["Mark for deletion", props.onDelete],
+      ["Extract to PDF", props.onExtract],
+      ["Export PNG as a ZIP archive", props.onExportImages],
+      ["Clear selection", props.onClearSelection],
     ] as const) {
       fireEvent.click(screen.getByRole("button", { name }));
       expect(handler).toHaveBeenCalledTimes(1);
@@ -49,21 +49,19 @@ describe("EditorSelectionBar", () => {
     const props = makeProps({
       selectedActiveCount: 0,
       deletionLabel: "Restore",
-      deletionAriaLabel: "Restore selected pages",
+      deletionAriaLabel: "Restore",
     });
     render(() => <EditorSelectionBar {...props} />);
-    expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(
-      "2 selected · 0 exportable"
-    );
+    expect(screen.getByTestId("editor-selection-title")).toHaveTextContent("2 selected · 2 marked");
     const extract = screen.getByRole("button", { name: "Restore marked pages to extract them" });
-    const images = screen.getByRole("button", { name: "Restore marked pages to export images" });
+    const images = screen.getByRole("button", { name: "Restore marked pages to export them" });
     for (const button of [extract, images]) {
       expect(button).toHaveAttribute("aria-disabled", "true");
       fireEvent.click(button);
     }
     expect(props.onExtract).not.toHaveBeenCalled();
     expect(props.onExportImages).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Restore selected pages" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restore" }));
     expect(props.onDelete).toHaveBeenCalledTimes(1);
   });
 
@@ -73,7 +71,7 @@ describe("EditorSelectionBar", () => {
     const buttons = screen.getAllByRole("button", { name: "Exporting PDF… 1/2" });
     expect(buttons.length).toBeGreaterThan(5);
     for (const button of buttons) fireEvent.click(button);
-    fireEvent.click(screen.getByRole("button", { name: "Clear page selection" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
     for (const handler of [
       props.onRotateLeft,
       props.onRotateRight,
@@ -102,11 +100,11 @@ describe("EditorSelectionBar", () => {
     expect(items[1].tabIndex).toBe(0);
     expect(items[0].tabIndex).toBe(-1);
     fireEvent.keyDown(items[1], { key: "End" });
-    expect(screen.getByRole("button", { name: "Clear page selection" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Clear selection" })).toHaveFocus();
     fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowRight" });
     expect(items[0]).toHaveFocus();
     fireEvent.keyDown(items[0], { key: "ArrowLeft" });
-    expect(screen.getByRole("button", { name: "Clear page selection" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Clear selection" })).toHaveFocus();
     fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Home" });
     expect(items[0]).toHaveFocus();
   });

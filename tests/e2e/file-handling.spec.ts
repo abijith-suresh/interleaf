@@ -65,7 +65,7 @@ test("opening a batch unlocks the protected file, skips the broken one, and open
 
   await page.getByTestId("editor-download-menu-button").click();
   await expect(page.getByTestId("editor-compress-button")).toHaveAccessibleName(
-    "Compress works on one untouched PDF"
+    "Compress PDF. Works on one PDF at a time."
   );
   await page.keyboard.press("Escape");
 

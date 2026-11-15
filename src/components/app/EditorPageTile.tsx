@@ -215,7 +215,7 @@ export default function EditorPageTile(props: Props) {
           <EditorButton
             data-testid="editor-page-duplicate-button"
             class="btn-page-duplicate"
-            title="Duplicate page"
+            title="Duplicate"
             aria-label={`Duplicate page ${props.index + 1}`}
             tabIndex={props.tabStop ? 0 : -1}
             disabled={props.busy}
@@ -227,7 +227,7 @@ export default function EditorPageTile(props: Props) {
             data-testid="editor-page-delete-button"
             class="btn-page-delete"
             classList={{ "is-marked": props.page.markedForDeletion }}
-            title={props.page.markedForDeletion ? "Restore page" : "Mark page for deletion"}
+            title={props.page.markedForDeletion ? "Restore" : "Mark for deletion"}
             aria-label={
               props.page.markedForDeletion
                 ? `Restore page ${props.index + 1}`
@@ -242,7 +242,7 @@ export default function EditorPageTile(props: Props) {
           <EditorButton
             data-testid="editor-page-rotate-button"
             class="btn-page-rotate"
-            title="Rotate 90°"
+            title="Rotate"
             aria-label={`Rotate page ${props.index + 1} 90 degrees`}
             tabIndex={props.tabStop ? 0 : -1}
             disabled={props.busy}

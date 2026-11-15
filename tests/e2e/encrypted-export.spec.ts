@@ -66,10 +66,10 @@ test("an unlocked AES-256 PDF exports every page as vectors with added text", as
   await page.getByRole("button", { name: "Add text", exact: true }).click();
   await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
   await page.locator(".editor-review-stage").press("Enter");
-  await page.getByLabel("Added text", { exact: true }).fill("Protected note");
+  await page.getByLabel("Text", { exact: true }).fill("Protected note");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
   await expectDocumentReady(page);
-  await expect(page.getByRole("button", { name: "Edit added text: Protected note" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit text: Protected note" })).toBeVisible();
 
   const pdf = await download(page, "protected-edited.pdf");
   expectVectorPages(pdf);

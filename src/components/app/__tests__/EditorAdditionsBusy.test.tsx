@@ -159,11 +159,11 @@ it.each([
     setPages(0, "addedText", [
       { id: "saved", text: "Before", x: 100, y: 100, fontSize: 16, rotation: 0 },
     ]);
-    fireEvent.click(screen.getByRole("button", { name: "Select additions" }));
-    const hit = await screen.findByRole("button", { name: "Edit added text: Before" });
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const hit = await screen.findByRole("button", { name: "Edit text: Before" });
     hit.focus();
     fireEvent.click(hit);
-    const input = screen.getByLabelText("Added text", { exact: true });
+    const input = screen.getByLabelText("Text", { exact: true });
     await waitFor(() => expect(input).toHaveFocus());
     fireEvent.input(input, { target: { value: "After" } });
     fireEvent.input(screen.getByLabelText("Text size in points"), { target: { value: "18" } });
@@ -201,7 +201,9 @@ it.each([
       expect(screen.getByRole("button", { name: "Drag text to move it" })).toHaveStyle({
         transform: "rotate(-270deg) translateY(-78%)",
       });
-      expect(screen.getByRole("alert")).toHaveTextContent("Save your text when it finishes");
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Another task is running. Save when it finishes."
+      );
       resume.resolve();
       const result = await completion;
       if (!("value" in result)) throw result.error;
@@ -216,7 +218,7 @@ it.each([
         input.focus();
         fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
         await waitFor(() =>
-          expect(screen.getByRole("button", { name: "Edit added text: Before" })).toHaveFocus()
+          expect(screen.getByRole("button", { name: "Edit text: Before" })).toHaveFocus()
         );
         expect(onChange).not.toHaveBeenCalled();
         expect(history().undo).toHaveLength(0);

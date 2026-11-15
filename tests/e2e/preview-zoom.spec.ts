@@ -429,7 +429,7 @@ test("zoom limits retain Fit focus and workspace navigation for keyboard and poi
         await page.keyboard.press("Tab");
         await expect(
           action === "Zoom in"
-            ? page.getByRole("region", { name: "Page preview, use arrow keys to pan" })
+            ? page.getByRole("region", { name: "Page preview. Use arrow keys to pan." })
             : zoomIn
         ).toBeFocused();
         await page.keyboard.press("Shift+Tab");

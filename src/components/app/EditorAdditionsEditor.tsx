@@ -148,11 +148,11 @@ export default function EditorAdditionsEditor(props: Props) {
   });
   const activeToolName = () =>
     ({
-      read: "Read",
+      read: "View",
       text: "Add text",
-      checkmark: "Checkmark",
+      checkmark: "Add checkmark",
       fields: "Fill fields",
-      edit: "Edit additions",
+      edit: "Edit",
     })[activeTool()];
   const invalidSize = () => {
     const current = draft();
@@ -410,7 +410,7 @@ export default function EditorAdditionsEditor(props: Props) {
         showFailure(
           text,
           props.disabled
-            ? `An operation is in progress. Save your ${noun()} when it finishes.`
+            ? "Another task is running. Save when it finishes."
             : "Could not read page geometry. Try again."
         );
       return Promise.resolve(false);
@@ -451,7 +451,7 @@ export default function EditorAdditionsEditor(props: Props) {
       } else measureAddedCheckmark(text, g);
       if (disposed || version !== generation) return false;
       if (props.disabled) {
-        const message = `An operation is in progress. Save your ${noun()} when it finishes.`;
+        const message = "Another task is running. Save when it finishes.";
         if (leaving) showFailure(text, message);
         else setError(message);
         return false;
@@ -461,7 +461,7 @@ export default function EditorAdditionsEditor(props: Props) {
       const next = existed
         ? items.map((item) => (item.id === text.id ? { ...text } : { ...item }))
         : [...items, { ...text }];
-      const label = `${existed ? "Edit" : "Add"} ${isText(text) ? "text" : "checkmark"}`;
+      const label = `${existed ? "edit" : "add"} ${isText(text) ? "text" : "checkmark"}`;
       if (isText(text)) props.onChange(props.page.id, next as AddedText[], label);
       else props.onCheckmarksChange?.(props.page.id, next as AddedCheckmark[], label);
       cancel();
@@ -673,7 +673,7 @@ export default function EditorAdditionsEditor(props: Props) {
                     setToolsOpen(false);
                   }}
                 >
-                  Read
+                  View
                 </EditorButton>
                 <EditorButton
                   ref={addButton}
@@ -704,7 +704,7 @@ export default function EditorAdditionsEditor(props: Props) {
                     focusLater(() => props.stage, ticket);
                   }}
                 >
-                  Checkmark
+                  Add checkmark
                 </EditorButton>
                 <EditorButton
                   icon="page-actions"
@@ -720,11 +720,10 @@ export default function EditorAdditionsEditor(props: Props) {
                 </EditorButton>
                 <EditorButton
                   icon="page-actions"
-                  aria-label="Select additions"
                   aria-pressed={activeTool() === "edit"}
                   title={
                     additions().length > 0
-                      ? "Select an addition to edit it"
+                      ? "Select text or a checkmark to edit it"
                       : "Add text or a checkmark first"
                   }
                   disabled={saving() || additions().length === 0}
@@ -734,7 +733,7 @@ export default function EditorAdditionsEditor(props: Props) {
                     setToolsOpen(false);
                   }}
                 >
-                  Edit additions
+                  Edit
                 </EditorButton>
               </div>
             </div>
@@ -774,15 +773,13 @@ export default function EditorAdditionsEditor(props: Props) {
                 }}
               >
                 <span class="editor-text-font editor-draft-status" role="status">
-                  {additions().some((item) => item.id === draft()?.id) ? "Editing saved" : "Draft"}{" "}
-                  {noun()}
+                  {additions().some((item) => item.id === draft()?.id) ? "Editing" : "New"} {noun()}
                 </span>
                 <Show when={!checkmark()}>
                   <label class="editor-text-value">
                     Text{" "}
                     <input
                       ref={input}
-                      aria-label="Added text"
                       aria-invalid={Boolean(error()) && !invalidSize()}
                       aria-describedby={error() && !invalidSize() ? "editor-text-error" : undefined}
                       onPaste={(event) => {
@@ -846,7 +843,7 @@ export default function EditorAdditionsEditor(props: Props) {
                 <Show when={additions().some((text) => text.id === draft()?.id)}>
                   <EditorButton
                     icon="delete"
-                    aria-label={`Delete added ${noun()}`}
+                    aria-label={`Delete ${noun()}`}
                     variant="danger"
                     disabled={saving()}
                     onClick={() => {
@@ -856,13 +853,13 @@ export default function EditorAdditionsEditor(props: Props) {
                         props.onCheckmarksChange?.(
                           props.page.id,
                           marks().filter((mark) => mark.id !== id),
-                          "Delete checkmark"
+                          "delete checkmark"
                         );
                       else
                         props.onChange(
                           props.page.id,
                           texts().filter((text) => text.id !== id),
-                          "Delete text"
+                          "delete text"
                         );
                       cancel();
                       setToolsOpen(false);
@@ -896,10 +893,10 @@ export default function EditorAdditionsEditor(props: Props) {
         <p id="editor-text-placement-help" class="sr-only">
           {mode() === "place"
             ? `Press Enter or Space to place ${tool() === "text" ? "text" : "a checkmark"} at the visible page center. Escape cancels placement.`
-            : "Use arrow keys to pan. Choose an addition to edit."}
+            : "Use arrow keys to pan. Select text or a checkmark to edit it."}
         </p>
         <p id="editor-text-move-help" class="sr-only">
-          Arrow keys move the draft by 1 point. Shift moves 10 points. Enter opens settings. Escape
+          Arrow keys move it by 1 point. Shift moves 10 points. Enter opens settings. Escape
           cancels.
         </p>
         <Show when={mode() === "edit" && geometry()}>
@@ -911,7 +908,7 @@ export default function EditorAdditionsEditor(props: Props) {
                 classList={{ "editor-checkmark": !isText(text) }}
                 data-text-id={text.id}
                 style={style(text)}
-                aria-label={isText(text) ? `Edit added text: ${text.text}` : "Edit added checkmark"}
+                aria-label={isText(text) ? `Edit text: ${text.text}` : "Edit checkmark"}
                 onClick={(event) => {
                   event.stopPropagation();
                   startEdit(text);

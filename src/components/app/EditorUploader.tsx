@@ -33,20 +33,20 @@ export default function EditorUploader(props: Props) {
   return (
     <section
       class="editor-uploader"
-      aria-label="Open files"
+      aria-label="Add files"
       onDragOver={preventBusyDrop}
       onDrop={preventBusyDrop}
     >
       <div class="editor-uploader-inner">
         <div class="editor-uploader-intro">
-          <h2>Open or create a PDF.</h2>
+          <h2>Add PDFs and images.</h2>
         </div>
         <EditorButton
           data-testid="editor-upload-dropzone"
           disabled={props.busy}
           aria-busy={props.busy}
           aria-describedby="editor-upload-status"
-          aria-label="Choose PDF or image files, or drop them here"
+          aria-label="Add files or drop them here"
           class={`editor-dropzone ${props.busy ? "is-busy" : ""} ${isDragOver() ? "is-drag-over" : ""}`}
           onClick={pickFile}
           onKeyDown={(e) => {
@@ -73,7 +73,7 @@ export default function EditorUploader(props: Props) {
             <EditorIcon name="open" />
           </span>
           <span class="editor-dropzone-copy">
-            <strong>{props.busy ? "Preparing PDF…" : "Choose PDFs and images"}</strong>
+            <strong>{props.busy ? "Preparing PDF…" : "Add files"}</strong>
             <span>{props.busy ? props.statusMessage : "or drop them here"}</span>
           </span>
         </EditorButton>
@@ -84,7 +84,7 @@ export default function EditorUploader(props: Props) {
           accept="application/pdf,image/png,image/jpeg,.pdf,.png,.jpg,.jpeg"
           multiple
           name="pdf"
-          aria-label="Choose PDF or image files"
+          aria-label="Add files"
           class="hidden"
           disabled={props.busy}
           onCancel={() => props.onPickerChange?.(false)}

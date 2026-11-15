@@ -1,6 +1,6 @@
 import type { TransitionBeforePreparationEvent } from "astro:transitions/client";
 
-export const LEAVE_EDITOR_MESSAGE = "Leave the editor? Your pages aren't saved anywhere.";
+export const LEAVE_EDITOR_MESSAGE = "Leave the editor? Your changes will be lost.";
 
 /**
  * Leaves an Astro router navigation pending until the router supersedes it.

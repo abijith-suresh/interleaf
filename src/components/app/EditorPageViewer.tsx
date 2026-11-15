@@ -689,8 +689,8 @@ export default function EditorPageViewer(props: Props) {
                   icon="image"
                   aria-label={
                     page().markedForDeletion
-                      ? `Restore page ${number()} to export it as a PNG image`
-                      : `Export page ${number()} as a PNG image`
+                      ? `Restore page ${number()} to export it as PNG`
+                      : `Export PNG of page ${number()}`
                   }
                   title="Export PNG"
                   disabled={props.disabled}
@@ -741,7 +741,7 @@ export default function EditorPageViewer(props: Props) {
         class="editor-review-stage"
         classList={{ "is-panning": panning(), "is-zoomed": zoom() > 1 }}
         data-zoom={zoom()}
-        aria-label="Page preview, use arrow keys to pan"
+        aria-label="Page preview. Use arrow keys to pan."
         aria-describedby={props.onTextChange ? "editor-text-placement-help" : undefined}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: The scroll region supports keyboard panning.
         tabIndex={0}

@@ -199,7 +199,7 @@ describe("EditorPageViewer", () => {
       />
     ));
 
-    const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+    const stage = screen.getByRole("region", { name: "Page preview. Use arrow keys to pan." });
     await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     await waitFor(() => expect(pdfServiceMocks.renderPage).toHaveBeenCalledTimes(2));
@@ -497,7 +497,7 @@ describe("EditorPageViewer", () => {
     ));
     const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
     const stage = screen.getByRole<HTMLElement>("region", {
-      name: "Page preview, use arrow keys to pan",
+      name: "Page preview. Use arrow keys to pan.",
     });
     await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
     const bitmap = [canvas.width, canvas.height];
@@ -567,7 +567,7 @@ describe("EditorPageViewer", () => {
       />
     ));
     const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
-    const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+    const stage = screen.getByRole("region", { name: "Page preview. Use arrow keys to pan." });
     await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
     expect(canvas.width * canvas.height).toBeLessThanOrEqual(4_000_000);
     const release = Deferred.makeUnsafe<void>();
@@ -607,7 +607,7 @@ describe("EditorPageViewer", () => {
       />
     ));
     const canvas = screen.getByRole<HTMLCanvasElement>("img", { name: "Preview of page 1" });
-    const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+    const stage = screen.getByRole("region", { name: "Page preview. Use arrow keys to pan." });
     await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
     const release = Deferred.makeUnsafe<void>();
     const cancelled = vi.fn(() => Deferred.await(release));
@@ -665,7 +665,7 @@ describe("EditorPageViewer", () => {
         onActivePageChange={vi.fn()}
       />
     ));
-    const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+    const stage = screen.getByRole("region", { name: "Page preview. Use arrow keys to pan." });
     await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     notify([], {} as ResizeObserver);
@@ -736,7 +736,7 @@ describe("EditorPageViewer", () => {
           onActivePageChange={vi.fn()}
         />
       ));
-      const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+      const stage = screen.getByRole("region", { name: "Page preview. Use arrow keys to pan." });
       await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
       const zoomIn = screen.getByRole("button", { name: "Zoom in" });
       if (action === "Zoom out") fireEvent.click(zoomIn);
@@ -767,7 +767,7 @@ describe("EditorPageViewer", () => {
         onActivePageChange={vi.fn()}
       />
     ));
-    const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+    const stage = screen.getByRole("region", { name: "Page preview. Use arrow keys to pan." });
     await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
     stage.focus();
     for (let i = 0; i < 5; i++) fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
@@ -791,7 +791,7 @@ describe("EditorPageViewer", () => {
           onActivePageChange={setActive}
         />
       ));
-      const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+      const stage = screen.getByRole("region", { name: "Page preview. Use arrow keys to pan." });
       await waitFor(() => expect(stage).toHaveAttribute("data-render-state", "ready"));
       const pointer = (type: string, x = 100, y = 100) => {
         const event = new Event(type, { bubbles: true, cancelable: true });

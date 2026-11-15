@@ -30,18 +30,10 @@ export default function EditorSelectionBar(props: Props) {
   const noExportable = () => props.selectedActiveCount === 0;
   const unavailable = (label: string) => (props.busy ? props.busyLabel : label);
   const extractLabel = () =>
-    unavailable(
-      noExportable()
-        ? "Restore marked pages to extract them"
-        : `Extract ${props.selectedActiveCount} selected page${
-            props.selectedActiveCount === 1 ? "" : "s"
-          } to a new PDF`
-    );
+    unavailable(noExportable() ? "Restore marked pages to extract them" : "Extract to PDF");
   const imagesLabel = () =>
     unavailable(
-      noExportable()
-        ? "Restore marked pages to export images"
-        : "Export selected pages as PNG images in a ZIP archive"
+      noExportable() ? "Restore marked pages to export them" : "Export PNG as a ZIP archive"
     );
 
   return (
@@ -57,7 +49,7 @@ export default function EditorSelectionBar(props: Props) {
         <Show when={props.selectedActiveCount !== props.selectedCount}>
           <span class="editor-selection-exportable">
             <span class="editor-selection-separator"> · </span>
-            {props.selectedActiveCount} exportable
+            {props.selectedCount - props.selectedActiveCount} marked
           </span>
         </Show>
       </strong>
@@ -154,7 +146,7 @@ export default function EditorSelectionBar(props: Props) {
         class="editor-selection-clear"
         variant="plain"
         icon="close"
-        aria-label="Clear page selection"
+        aria-label="Clear selection"
         aria-keyshortcuts="Escape"
         title="Clear selection (Esc)"
         aria-disabled={props.busy}

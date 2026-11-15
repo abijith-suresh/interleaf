@@ -140,8 +140,7 @@ export default function EditorFieldsEditor(props: Props) {
     if (pendingSave) return pendingSave;
     const widget = selected();
     if (!widget || props.disabled) {
-      if (leaving && widget)
-        showFailure("An operation is in progress. Save your answer when it finishes.");
+      if (leaving && widget) showFailure("Another task is running. Save when it finishes.");
       return Promise.resolve(false);
     }
     const request = persist(widget, leaving, offset);
@@ -176,7 +175,7 @@ export default function EditorFieldsEditor(props: Props) {
       if (disposed || generation !== version) return false;
       if (props.disabled) {
         setSaving(false);
-        const message = "An operation is in progress. Save your answer when it finishes.";
+        const message = "Another task is running. Save when it finishes.";
         if (leaving) showFailure(message);
         else setError(message);
         return false;
@@ -215,7 +214,8 @@ export default function EditorFieldsEditor(props: Props) {
     } catch (cause) {
       if (disposed || generation !== version) return false;
       setSaving(false);
-      const message = cause instanceof Error ? cause.message : "Could not save the answer.";
+      const message =
+        cause instanceof Error ? cause.message : "Could not save the answer. Use Add text instead.";
       if (leaving) {
         showFailure(message);
         return false;
@@ -242,8 +242,7 @@ export default function EditorFieldsEditor(props: Props) {
         if (live) setFields(result);
       },
       () => {
-        if (live)
-          setFields({ widgets: [], reason: "Could not read embedded fields. Use Add text." });
+        if (live) setFields({ widgets: [], reason: "Could not read the fields. Use Add text." });
       }
     );
     onCleanup(() => {
@@ -315,8 +314,8 @@ export default function EditorFieldsEditor(props: Props) {
               fields()?.reason ||
               (fields()
                 ? widgets().length
-                  ? "Select an embedded field on the page."
-                  : "No embedded fields on this page. Use Add text."
+                  ? "Select a field on the page."
+                  : "No fields on this page. Use Add text."
                 : "Reading fields…")}
           </p>
         </Portal>
@@ -381,7 +380,7 @@ export default function EditorFieldsEditor(props: Props) {
                   </span>
                 </label>
                 <span id="editor-field-input-help" class="editor-text-font">
-                  Embedded field · Helvetica 12 pt
+                  Helvetica · 12 pt
                 </span>
                 <EditorButton type="submit" variant="primary" disabled={saving() || props.disabled}>
                   {saving() ? "Saving…" : "Save answer"}

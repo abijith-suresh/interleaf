@@ -74,8 +74,8 @@ export default function EditorPageGrid(props: Props) {
       <p id="editor-page-grid-help" class="sr-only">
         Use the arrow keys to move between pages, or Home and End to jump to the first or last page.
         Press Space to select a page, R to rotate it, or Delete to mark it for deletion. Press Tab
-        to reach its duplicate, delete, and rotate buttons. Hold Alt and press the left or right
-        arrow key to move it.
+        to reach its duplicate, mark for deletion, and rotate buttons. Hold Alt and press the left
+        or right arrow key to move it.
       </p>
       <ul
         ref={grid}

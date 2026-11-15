@@ -38,9 +38,9 @@ async function place(page: Page, text = "Added text") {
   await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
   const p = await point(page);
   await page.mouse.click(p.x, p.y);
-  await page.getByLabel("Added text", { exact: true }).fill(text);
+  await page.getByLabel("Text", { exact: true }).fill(text);
   await page.getByRole("button", { name: "Save text", exact: true }).click();
-  await expect(page.getByLabel("Added text", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Text", { exact: true })).toHaveCount(0);
   await expectDocumentReady(page);
 }
 
@@ -61,7 +61,7 @@ for (const [width, height] of [
     await expect(disclosure).toHaveAttribute("aria-expanded", "false");
     await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
     await page.keyboard.press("Enter");
-    const input = page.getByLabel("Added text", { exact: true });
+    const input = page.getByLabel("Text", { exact: true });
     await expect(input).toBeFocused();
     await input.fill("Landscape move");
     // The settings dock as a bottom sheet; the Tools menu stays closed.
@@ -107,13 +107,13 @@ for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 844 });
     await open(page);
     await place(page, "Focus");
-    const hit = page.getByRole("button", { name: "Edit added text: Focus", exact: true });
+    const hit = page.getByRole("button", { name: "Edit text: Focus", exact: true });
     await expect(hit).toBeFocused();
     if (width === 1280) {
       await page.keyboard.press("Tab");
-      await expect(page.getByRole("button", { name: "Read", exact: true })).toBeFocused();
+      await expect(page.getByRole("button", { name: "View", exact: true })).toBeFocused();
     }
-    const input = page.getByLabel("Added text", { exact: true });
+    const input = page.getByLabel("Text", { exact: true });
     for (const action of ["Cancel", "Escape", "Save text"]) {
       await hit.press("Enter");
       await expect(input).toBeFocused();
@@ -127,7 +127,7 @@ for (const width of [1280, 390]) {
     await expect(page.getByRole("alert")).toContainText("basic Latin");
     await expect(input).toBeFocused();
     await input.fill("Focus");
-    await page.getByRole("button", { name: "Delete added text" }).press("Enter");
+    await page.getByRole("button", { name: "Delete text" }).press("Enter");
     const fallback =
       width === 390
         ? page.getByRole("button", { name: /^Page tool:/ })
@@ -160,7 +160,7 @@ for (const width of [1280, 390]) {
       return [parseFloat(style.left), parseFloat(style.top)];
     });
     await stage.press(width === 390 ? "Enter" : "Space");
-    const input = page.getByLabel("Added text", { exact: true });
+    const input = page.getByLabel("Text", { exact: true });
     await expect(input).toBeFocused();
     await input.fill("Keyboard");
     const draft = page.getByRole("button", { name: "Drag text to move it" });
@@ -181,7 +181,7 @@ for (const width of [1280, 390]) {
     await draft.press("Enter");
     await expect(input).toBeFocused();
     await input.press("Enter");
-    const hit = page.getByRole("button", { name: "Edit added text: Keyboard", exact: true });
+    const hit = page.getByRole("button", { name: "Edit text: Keyboard", exact: true });
     await expect(hit).toBeFocused();
     await hit.press("Enter");
     await input.fill("Cancelled");
@@ -199,7 +199,7 @@ test("point placement, validation, editing, movement, rotation and history retai
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await open(page);
-  const read = page.getByRole("button", { name: "Read", exact: true });
+  const read = page.getByRole("button", { name: "View", exact: true });
   const selectionColor = await read.evaluate(
     (element) => getComputedStyle(element).backgroundColor
   );
@@ -232,14 +232,14 @@ test("point placement, validation, editing, movement, rotation and history retai
         })
     )
     .toBe(true);
-  const hit = page.getByRole("button", { name: "Edit added text: Added 123", exact: true });
+  const hit = page.getByRole("button", { name: "Edit text: Added 123", exact: true });
   await expect(hit).toBeVisible();
   await expect(page.getByTestId("editor-undo-button")).toHaveAttribute(
     "aria-label",
-    "Undo Add text"
+    "Undo add text"
   );
   await hit.click();
-  const input = page.getByLabel("Added text", { exact: true });
+  const input = page.getByLabel("Text", { exact: true });
   const paste = await input.evaluate((element) => {
     if (!(element instanceof HTMLInputElement)) throw new Error("Missing text input");
     const event = new Event("paste", { bubbles: true, cancelable: true });
@@ -281,28 +281,22 @@ test("point placement, validation, editing, movement, rotation and history retai
   await page.mouse.up();
   await expectDocumentReady(page);
   await page.getByRole("button", { name: "Save text", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Edit added text: Changed", exact: true })
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit text: Changed", exact: true })).toBeVisible();
   await page.getByTestId("editor-undo-button").click();
   await expect(hit).toBeVisible();
   await page.getByTestId("editor-redo-button").click();
-  await expect(
-    page.getByRole("button", { name: "Edit added text: Changed", exact: true })
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit text: Changed", exact: true })).toBeVisible();
   await page.getByTestId("editor-pages-view-button").click();
   await page.getByRole("button", { name: "Duplicate page 1", exact: true }).click();
   await page.getByTestId("editor-document-view-button").click();
-  await page.getByRole("button", { name: "Select additions" }).click();
-  await page.getByRole("button", { name: "Edit added text: Changed", exact: true }).click();
-  await page.getByLabel("Added text", { exact: true }).fill("Copy");
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.getByRole("button", { name: "Edit text: Changed", exact: true }).click();
+  await page.getByLabel("Text", { exact: true }).fill("Copy");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
   await page.getByRole("button", { name: "Previous page", exact: true }).click();
   await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 1");
-  await page.getByRole("button", { name: "Select additions" }).click();
-  await expect(
-    page.getByRole("button", { name: "Edit added text: Changed", exact: true })
-  ).toBeVisible();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Edit text: Changed", exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -311,17 +305,17 @@ test("cancel, deletion, compression after undo, source restoration, and input sh
 }) => {
   await open(page);
   await place(page);
-  await page.getByRole("button", { name: "Edit added text: Added text", exact: true }).click();
-  const input = page.getByLabel("Added text", { exact: true });
+  await page.getByRole("button", { name: "Edit text: Added text", exact: true }).click();
+  const input = page.getByLabel("Text", { exact: true });
   await input.fill("Unsaved");
   await input.press("Control+z");
   await expect(page.getByTestId("editor-undo-button")).toHaveAttribute(
     "aria-label",
-    "Undo Add text"
+    "Undo add text"
   );
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Edit added text: Added text", exact: true })
+    page.getByRole("button", { name: "Edit text: Added text", exact: true })
   ).toBeVisible();
   await page.getByTestId("editor-download-menu-button").click();
   await expect(page.getByRole("menuitem", { name: /Compress/ })).toBeDisabled();
@@ -331,24 +325,24 @@ test("cancel, deletion, compression after undo, source restoration, and input sh
   await expect(page.getByRole("menuitem", { name: /Compress/ })).toBeEnabled();
   await page.keyboard.press("Escape");
   await page.getByTestId("editor-redo-button").click();
-  await page.getByRole("button", { name: "Select additions" }).click();
-  await page.getByRole("button", { name: "Edit added text: Added text", exact: true }).click();
-  await page.getByRole("button", { name: "Delete added text" }).click();
-  await expect(page.getByRole("button", { name: /Edit added text:/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.getByRole("button", { name: "Edit text: Added text", exact: true }).click();
+  await page.getByRole("button", { name: "Delete text" }).click();
+  await expect(page.getByRole("button", { name: /Edit text:/ })).toHaveCount(0);
   await page.getByTestId("editor-undo-button").click();
-  await page.getByRole("button", { name: "Select additions" }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Edit added text: Added text", exact: true })
+    page.getByRole("button", { name: "Edit text: Added text", exact: true })
   ).toBeVisible();
-  await page.getByRole("button", { name: "View 1 file" }).click();
+  await page.getByRole("button", { name: "Files (1)" }).click();
   await page
     .getByRole("button", { name: "Remove text.pdf and its 2 pages from the workspace" })
     .click();
   await page.getByTestId("editor-undo-button").click();
   await page.getByTestId("editor-document-view-button").click();
-  await page.getByRole("button", { name: "Select additions" }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Edit added text: Added text", exact: true })
+    page.getByRole("button", { name: "Edit text: Added text", exact: true })
   ).toBeVisible();
 });
 
@@ -366,7 +360,7 @@ for (const [width, height] of [
       .locator(".editor-text-hit")
       .evaluateAll((nodes) => nodes.map((el) => el.getAttribute("style")));
     await revealDocumentTools(page);
-    await page.getByRole("button", { name: "Read", exact: true }).click();
+    await page.getByRole("button", { name: "View", exact: true }).click();
     await revealPageZoom(page);
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
     await page.keyboard.press("Escape");
@@ -385,15 +379,15 @@ for (const [width, height] of [
     );
     await page.mouse.up();
     expect(await stage.evaluate((el) => [el.scrollLeft, el.scrollTop])).not.toEqual(beforePan);
-    await expect(page.getByLabel("Added text", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("Text", { exact: true })).toHaveCount(0);
     await revealDocumentTools(page);
-    await page.getByRole("button", { name: "Select additions", exact: true }).click();
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
     expect(
       await page
         .locator(".editor-text-hit")
         .evaluateAll((nodes) => nodes.map((el) => el.getAttribute("style")))
     ).toEqual(saved);
-    await expect(page.getByLabel("Added text", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("Text", { exact: true })).toHaveCount(0);
     const measurements = await page.evaluate(() => ({
       overflow: document.documentElement.scrollWidth > innerWidth,
       stageHeight: document.querySelector(".editor-review-stage")?.clientHeight ?? 0,
@@ -470,15 +464,15 @@ test.describe("touch text placement", () => {
     }
     await expect.poll(() => stage.getAttribute("data-zoom").then(Number)).toBeGreaterThan(1.5);
     await expectDocumentReady(page);
-    await expect(page.getByLabel("Added text", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("Text", { exact: true })).toHaveCount(0);
     const box = await stage.boundingBox();
     if (!box) throw new Error("Missing stage");
     await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
-    await page.getByLabel("Added text", { exact: true }).fill("Tapped");
+    await page.getByLabel("Text", { exact: true }).fill("Tapped");
     await page.getByRole("button", { name: "Save text", exact: true }).tap();
-    await expect(page.getByLabel("Added text", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("Text", { exact: true })).toHaveCount(0);
     await expect(
-      page.getByRole("button", { name: "Edit added text: Tapped", exact: true })
+      page.getByRole("button", { name: "Edit text: Tapped", exact: true })
     ).toBeVisible();
   });
 });
@@ -490,14 +484,14 @@ test("undo and redo wait for open text and field drafts instead of discarding th
   await open(page);
   await place(page, "Saved A");
   const undo = page.getByTestId("editor-undo-button");
-  await expect(undo).toHaveAttribute("aria-label", "Undo Add text");
+  await expect(undo).toHaveAttribute("aria-label", "Undo add text");
   await expect(undo).toHaveAttribute("aria-disabled", "false");
 
   await page.getByRole("button", { name: "Add text", exact: true }).click();
   await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
   const start = await point(page, 0.6, 0.3);
   await page.mouse.click(start.x, start.y);
-  const input = page.getByLabel("Added text", { exact: true });
+  const input = page.getByLabel("Text", { exact: true });
   await input.fill("Hello");
   await expect(undo).toHaveAttribute("aria-disabled", "true");
   await expect(undo).toHaveAccessibleDescription(
@@ -519,8 +513,8 @@ test("undo and redo wait for open text and field drafts instead of discarding th
   await undo.click({ force: true });
   await expect(input).toHaveValue("Hello");
   await expect(draft).toBeVisible();
-  await expect(page.getByRole("button", { name: "Edit added text: Saved A" })).toBeVisible();
-  await expect(undo).toHaveAttribute("aria-label", "Undo Add text");
+  await expect(page.getByRole("button", { name: "Edit text: Saved A" })).toBeVisible();
+  await expect(undo).toHaveAttribute("aria-label", "Undo add text");
   await expect(page.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
 
   await page.getByRole("button", { name: "Save text", exact: true }).click();
@@ -528,8 +522,8 @@ test("undo and redo wait for open text and field drafts instead of discarding th
   await expectDocumentReady(page);
   await expect(undo).toHaveAttribute("aria-disabled", "false");
   await page.keyboard.press("ControlOrMeta+z");
-  await expect(page.getByRole("button", { name: "Edit added text: Hello" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Edit added text: Saved A" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit text: Hello" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Edit text: Saved A" })).toBeVisible();
 
   await page.getByRole("button", { name: "Fill fields", exact: true }).click();
   await page.getByRole("button", { name: "Fill field: Original field" }).click();
