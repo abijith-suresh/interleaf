@@ -15,8 +15,8 @@ const pages: Record<string, { title: string; description: string }> = {
     description: "PDFs and images. Your files never leave your device.",
   },
   app: {
-    title: "Your PDF\nworkspace.",
-    description: "Open, shape, and export in your browser.",
+    title: "Editor",
+    description: "Open, arrange, and export PDFs and images.",
   },
   features: {
     title: "Features",
@@ -24,7 +24,7 @@ const pages: Record<string, { title: string; description: string }> = {
   },
   privacy: {
     title: "Privacy",
-    description: "Your files never leave your device. Nothing is uploaded.",
+    description: "Interleaf never uploads your files.",
   },
   terms: {
     title: "Terms of service",
@@ -32,7 +32,7 @@ const pages: Record<string, { title: string; description: string }> = {
   },
   faq: {
     title: "Questions,\nanswered.",
-    description: "Short answers about using Interleaf.",
+    description: "Short answers about Interleaf.",
   },
 };
 

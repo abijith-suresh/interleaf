@@ -12,15 +12,13 @@ const groups: {
     capabilities: [
       {
         icon: '<path d="M15 2h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8" /><path d="M16.706 2.706A2.4 2.4 0 0 0 15 2v5a1 1 0 0 0 1 1h5a2.4 2.4 0 0 0-.706-1.706z" /><path d="M5 7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 1.732-1" />',
-        title: "Bring a document together",
-        description:
-          "Open PDFs and PNG or JPEG images in the same workspace. Images become PDF pages. Add more files later, or remove a source file and its pages.",
+        title: "Combine files",
+        description: "Open PDFs and images together, then add or remove files later.",
       },
       {
         icon: '<circle cx="12" cy="16" r="1" /><rect x="3" y="10" width="18" height="12" rx="2" /><path d="M7 10V7a5 5 0 0 1 10 0v3" />',
-        title: "Open protected files",
-        description:
-          "An in-browser prompt asks for the password. Enter it to unlock a protected PDF and keep working.",
+        title: "Unlock protected PDFs",
+        description: "Enter the password to open a protected PDF and keep working.",
       },
     ],
   },
@@ -29,21 +27,18 @@ const groups: {
     capabilities: [
       {
         icon: '<path d="m3 16 4 4 4-4" /><path d="M7 20V4" /><path d="m21 8-4-4-4 4" /><path d="M17 4v16" />',
-        title: "Shape the pages",
-        description:
-          "Reorder pages with drag and drop, rotate them in 90-degree steps, and mark the ones you no longer need. Duplicate a page to rotate, mark, or move each copy on its own.",
+        title: "Arrange pages",
+        description: "Drag to reorder, rotate, duplicate, or mark pages for deletion.",
       },
       {
         icon: '<path d="M12 5v16" /><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" />',
-        title: "Review every page",
-        description:
-          "Switch between Pages to organize and Document to read. Move through pages with previous and next controls, or use the filmstrip. Zoom up to 4 times the fitted size.",
+        title: "Review pages",
+        description: "Organize in Pages view, then read page by page in Document view.",
       },
       {
         icon: '<path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />',
         title: "Undo and redo",
-        description:
-          "Undo or redo up to 32 changes in the current session, including page, source, text, checkmark, and field changes. History keeps up to 48 MiB of inactive source files.",
+        description: "Step back through your last 32 changes, and forward again.",
       },
     ],
   },
@@ -53,22 +48,19 @@ const groups: {
       {
         icon: '<path d="M12 4v16" /><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2" /><path d="M9 20h6" />',
         title: "Add text",
-        description:
-          "Add one line of printable basic Latin text in Document view, using Helvetica. Drag, rotate, edit, or delete it.",
+        description: "Type a line of text on any page, then drag or rotate it.",
         vignette: "text",
       },
       {
         icon: '<path d="M12 20h-1a2 2 0 0 1-2-2 2 2 0 0 1-2 2H6" /><path d="M13 8h7a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-7" /><path d="M5 16H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h1" /><path d="M6 4h1a2 2 0 0 1 2 2 2 2 0 0 1 2-2h1" /><path d="M9 6v12" />',
-        title: "Fill supported form fields",
-        description:
-          "Fill embedded, unencrypted, single-line PDF text fields with basic Latin answers, using Helvetica. Other field types stay read-only.",
+        title: "Fill form fields",
+        description: "Type answers into the single-line text fields of a PDF form.",
         vignette: "field",
       },
       {
         icon: '<rect width="18" height="18" x="3" y="3" rx="2" /><path d="m16 9-5.5 5.5L8 12" />',
-        title: "Mark flat forms",
-        description:
-          "Add checkmarks to flat or scanned forms in Document view. Move, resize, rotate, or delete each one.",
+        title: "Add checkmarks",
+        description: "Tick boxes on flat or scanned forms, then move or resize them.",
       },
     ],
   },
@@ -77,15 +69,13 @@ const groups: {
     capabilities: [
       {
         icon: '<path d="M12 15V3" /><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" />',
-        title: "Take pages with you",
-        description:
-          "Extract selected pages into a new PDF. You can also export selected pages, or every exportable page, as PNG images in a ZIP archive. Saved text, checkmarks, and answers appear in both.",
+        title: "Export pages",
+        description: "Download a PDF, extract selected pages, or export PNG images.",
       },
       {
         icon: '<path d="m14 10 7-7" /><path d="M20 10h-6V4" /><path d="m3 21 7-7" /><path d="M4 14h6v6" />',
-        title: "Reduce a PDF",
-        description:
-          "Losslessly compress one untouched PDF in your browser. Compression is available before page edits.",
+        title: "Compress",
+        description: "Shrink a single PDF without losing quality, before you edit it.",
       },
     ],
   },
@@ -93,14 +83,14 @@ const groups: {
 ---
 
 <MarketingLayout
-  title="Features — Interleaf"
-  description="What Interleaf does in your browser: bring PDFs and PNG or JPEG images together, shape their pages, and export the result."
+  title="Features | Interleaf"
+  description="Combine PDFs and images, arrange pages, add text and checkmarks, fill form fields, and export a PDF or PNG images."
   currentPage="features"
 >
   <MarketingHero
     titleId="features-title"
     title="Everything before the export."
-    lede="A local workspace for PDFs and images. Everything here runs in your browser."
+    lede="Open PDFs and images, shape the pages, and export what you need."
   />
 
   <div class="marketing-section">
