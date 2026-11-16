@@ -22,6 +22,7 @@ export class PDFProcessingError extends Data.TaggedError("PDFProcessingError")<{
   readonly cause: unknown;
   readonly message: string;
 }> {
+  // Effect hashes each failure when it combines causes. Skip walking `cause`.
   [Hash.symbol](): number {
     return Hash.string(`${this._tag}:${this.operation}:${this.file?.name ?? ""}:${this.message}`);
   }
@@ -91,6 +92,16 @@ export interface PageState {
   fieldAnswers?: readonly FieldAnswer[];
   addedText?: readonly AddedText[];
   addedCheckmarks?: readonly AddedCheckmark[];
+}
+
+// The selected pages in selection order, or every page, minus pages marked for deletion.
+export function activePages(
+  pages: readonly PageState[],
+  selectedIndices?: readonly number[]
+): PageState[] {
+  return (selectedIndices?.map((index) => pages[index]) ?? pages).filter(
+    (page): page is PageState => page !== undefined && !page.markedForDeletion
+  );
 }
 
 export interface PDFOperationResult {

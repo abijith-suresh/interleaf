@@ -9,7 +9,7 @@ import type {
   PDFFields,
   PDFOperationResult,
 } from "../types/interfaces";
-import { PDFNoPagesError, PDFProcessingError } from "../types/interfaces";
+import { activePages, PDFNoPagesError, PDFProcessingError } from "../types/interfaces";
 import { fileStem } from "../utils/file-names";
 import { getSupportedFileKind } from "../utils/file-types";
 import { type DocumentKey, type DocumentStore, makeDocumentStore } from "./document-store";
@@ -104,7 +104,6 @@ const sourceDocumentKey = (file: File): DocumentKey => ({
 });
 
 interface ExportSource {
-  readonly doc: PDFDocument;
   // The source File itself, or its decrypted copy when the source is encrypted.
   readonly file: File;
   readonly decrypted: boolean;
@@ -130,7 +129,7 @@ export class PDFOperationsService {
               PDFDocument.load(await key.file.arrayBuffer(), { ignoreEncryption: true }),
             catch: (cause) => processingError("load-source", key.file, cause),
           });
-          if (!original.isEncrypted) return { doc: original, file: key.file, decrypted: false };
+          if (!original.isEncrypted) return { file: key.file, decrypted: false };
           if (!this.pdfService.getExportSource)
             return yield* Effect.fail(
               processingError(
@@ -140,11 +139,7 @@ export class PDFOperationsService {
               )
             );
           const file = yield* this.pdfService.getExportSource(key.file);
-          const doc = yield* Effect.tryPromise({
-            try: async () => PDFDocument.load(await file.arrayBuffer()),
-            catch: (cause) => processingError("load-source", key.file, cause),
-          });
-          return { doc, file, decrypted: true };
+          return { file, decrypted: true };
         }),
       cleanup: () => Effect.void,
       releaseError: (file) =>
@@ -155,13 +150,6 @@ export class PDFOperationsService {
           message: "The source PDF was released before loading completed.",
         }),
     });
-  }
-
-  clearCache(): Effect.Effect<void> {
-    return Effect.sync(() => this.fields.clear()).pipe(
-      Effect.andThen(this.store.clear),
-      Effect.catch((error) => Effect.logWarning(error))
-    );
   }
 
   releaseFile(file: File): Effect.Effect<void> {
@@ -307,10 +295,10 @@ export class PDFOperationsService {
                   height: drawHeight,
                 });
             }
-            options.onProgress?.({ completed: index + 1, total: files.length });
           },
           catch: (cause) => processingError("add-image-page", file, cause),
         });
+        options.onProgress?.({ completed: index + 1, total: files.length });
       }
 
       const data = yield* Effect.tryPromise({
@@ -365,11 +353,7 @@ export class PDFOperationsService {
     pages: readonly PageState[],
     options: PDFBuildOptions = {}
   ): Effect.Effect<PDFOperationResult, PDFError> {
-    const pagesToBuild = options.selectedIndices
-      ? options.selectedIndices
-          .map((index) => pages[index])
-          .filter((page): page is PageState => Boolean(page) && !page.markedForDeletion)
-      : pages.filter((page) => !page.markedForDeletion);
+    const pagesToBuild = activePages(pages, options.selectedIndices);
 
     if (pagesToBuild.length === 0) {
       return Effect.fail(new PDFNoPagesError({ message: "No pages to include in the PDF" }));
@@ -389,14 +373,6 @@ export class PDFOperationsService {
         let source = sourceDocuments.get(sourceFile);
         if (!source) {
           source = yield* this.store.acquire(sourceDocumentKey(sourceFile));
-          const validatedSource = source.doc;
-          yield* Effect.try({
-            try: () => validatePDFSourcePages(validatedSource, sourceFile),
-            catch: (cause) =>
-              cause instanceof PDFProcessingError
-                ? cause
-                : processingError("inspect-source", sourceFile, cause),
-          });
           sourceDocuments.set(sourceFile, source);
         }
         if (source.decrypted && page.fieldAnswers?.length)
@@ -417,6 +393,7 @@ export class PDFOperationsService {
         const doc = yield* Effect.tryPromise({
           try: async () => {
             const doc = await PDFDocument.load(await exportFile.arrayBuffer());
+            validatePDFSourcePages(doc, sourceFile);
             const group = pages.filter(
               (candidate) =>
                 candidate.sourceFile === sourceFile && candidate.fieldGroupId === page.fieldGroupId
@@ -437,7 +414,10 @@ export class PDFOperationsService {
             await doc.flush();
             return doc;
           },
-          catch: (cause) => processingError("prepare-export", sourceFile, cause),
+          catch: (cause) =>
+            cause instanceof PDFProcessingError
+              ? cause
+              : processingError("prepare-export", sourceFile, cause),
         });
         privateSources.push({ file: sourceFile, doc, scope });
       }
@@ -507,12 +487,7 @@ export class PDFOperationsService {
           catch: (cause) => processingError("add-page", page.sourceFile, cause),
         });
 
-        yield* Effect.try({
-          try: () => {
-            options.onProgress?.({ completed: index + 1, total: pagesToBuild.length });
-          },
-          catch: (cause) => processingError("report-progress", page.sourceFile, cause),
-        });
+        options.onProgress?.({ completed: index + 1, total: pagesToBuild.length });
       }
 
       yield* Effect.tryPromise({
