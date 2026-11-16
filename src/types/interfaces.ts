@@ -1,6 +1,6 @@
 import { Data, Hash } from "effect";
 
-export type EncryptionReason = "needs-password" | "wrong-password";
+type EncryptionReason = "needs-password" | "wrong-password";
 
 export class PDFPasswordRequiredError extends Data.TaggedError("PDFPasswordRequiredError")<{
   readonly file: File;

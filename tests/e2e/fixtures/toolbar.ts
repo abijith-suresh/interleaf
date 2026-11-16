@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 
 /** Narrow layouts list Add files and Files under the toolbar's More menu. */
-export async function revealSourceActions(page: Page) {
+async function revealSourceActions(page: Page) {
   const more = page.getByTestId("editor-more-button");
   if ((await more.isVisible()) && (await more.getAttribute("aria-expanded")) !== "true")
     await more.click();
