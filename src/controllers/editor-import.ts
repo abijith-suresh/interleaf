@@ -1,7 +1,7 @@
 import { IMAGES_TO_PDF_FILENAME } from "../constants";
 import { getSupportedFileKind } from "../utils/file-types";
 
-export type UploadGroup =
+type UploadGroup =
   | {
       readonly kind: "pdf";
       readonly files: File[];

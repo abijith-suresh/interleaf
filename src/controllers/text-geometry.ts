@@ -7,7 +7,7 @@ export function normalizeQuarterTurn(rotation: number): number {
   return ((rotation % 360) + 360) % 360;
 }
 
-export function pageTransform(geometry: PageGeometry, rotation: number) {
+function pageTransform(geometry: PageGeometry, rotation: number) {
   const [a, b, c, d, e, f] = geometry.transform;
   switch (normalizeQuarterTurn(rotation)) {
     case 90:

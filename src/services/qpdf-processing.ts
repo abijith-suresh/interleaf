@@ -1,14 +1,14 @@
 import { Context, Data, Effect, Layer } from "effect";
 import { errorMessage } from "./pdf-errors";
 
-export interface QpdfWorkerOptimizeRequest {
+interface QpdfWorkerOptimizeRequest {
   readonly type: "optimize";
   readonly id: string;
   readonly input: ArrayBuffer;
   readonly password?: string;
 }
 
-export interface QpdfWorkerDecryptRequest {
+interface QpdfWorkerDecryptRequest {
   readonly type: "decrypt";
   readonly id: string;
   readonly input: ArrayBuffer;
@@ -17,7 +17,7 @@ export interface QpdfWorkerDecryptRequest {
 
 export type QpdfWorkerRequest = QpdfWorkerOptimizeRequest | QpdfWorkerDecryptRequest;
 
-export interface QpdfWorkerResultResponse {
+interface QpdfWorkerResultResponse {
   readonly type: "result";
   readonly id: string;
   readonly output: ArrayBuffer;
@@ -26,13 +26,13 @@ export interface QpdfWorkerResultResponse {
   readonly reduced: boolean;
 }
 
-export interface QpdfWorkerDecryptedResponse {
+interface QpdfWorkerDecryptedResponse {
   readonly type: "decrypted";
   readonly id: string;
   readonly output: ArrayBuffer;
 }
 
-export interface QpdfWorkerErrorResponse {
+interface QpdfWorkerErrorResponse {
   readonly type: "error";
   readonly id: string;
   readonly code: string;
@@ -59,9 +59,9 @@ export interface QpdfWorkerPort {
   terminate(): void;
 }
 
-export type QpdfWorkerFactory = (workerUrl: string | URL) => QpdfWorkerPort;
+type QpdfWorkerFactory = (workerUrl: string | URL) => QpdfWorkerPort;
 
-export interface QpdfOptimizationResult {
+interface QpdfOptimizationResult {
   readonly data: Uint8Array;
   readonly inputBytes: number;
   readonly candidateBytes: number;

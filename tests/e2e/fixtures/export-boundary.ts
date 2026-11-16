@@ -71,7 +71,7 @@ function encodedImages(images: ImageData[]) {
     return png;
   });
 }
-export async function reopenWithPDFjs(bytes: Uint8Array, evidence?: RenderEvidence) {
+async function reopenWithPDFjs(bytes: Uint8Array, evidence?: RenderEvidence) {
   const task = getDocument({ data: bytes.slice() });
   try {
     const doc = await task.promise;
