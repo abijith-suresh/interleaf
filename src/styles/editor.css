@@ -2753,3 +2753,11 @@ body:has([data-page="editor"]) {
     padding-inline: 0.25rem;
   }
 }
+
+/* At 320px there is no room for the wider gutter without shrinking controls. */
+@media (max-width: 359px) {
+  .editor-toolbar {
+    padding-inline: calc(0.25rem + env(safe-area-inset-left))
+      calc(0.25rem + env(safe-area-inset-right));
+  }
+}
