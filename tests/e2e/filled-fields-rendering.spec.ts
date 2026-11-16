@@ -1,29 +1,11 @@
 import { writeFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
-import { createServer, type ViteDevServer } from "vite";
+import { type DevServer, startDevServer } from "./fixtures/dev-server";
 import type { checkFilledFields } from "./fixtures/filled-fields";
 
-let server: ViteDevServer, url: string;
+let server: DevServer;
 test.beforeAll(async () => {
-  server = await createServer({
-    configFile: false,
-    cacheDir: `node_modules/.vite-filled-fields/${test.info().project.name}`,
-    plugins: [
-      {
-        name: "fields-test",
-        configureServer(s) {
-          s.middlewares.use("/fields-test", (_req, res) => {
-            res.setHeader("Content-Type", "text/html");
-            res.end("<!doctype html><title>Field test</title>");
-          });
-        },
-      },
-    ],
-    server: { host: "127.0.0.1", port: 0 },
-    optimizeDeps: { include: ["effect", "pdfjs-dist", "pdf-lib", "fflate"] },
-  });
-  await server.listen();
-  url = server.resolvedUrls!.local[0];
+  server = await startDevServer("filled-fields", test.info());
 });
 test.afterAll(async () => {
   await server?.close();
@@ -32,7 +14,7 @@ test.afterAll(async () => {
 test("the actual PDF service retains checkbox ink across a pre-widget execution yield", async ({
   page,
 }) => {
-  await page.goto(`${url}fields-test`);
+  await page.goto(server.url);
   const result = await page.evaluate(async () => {
     const path = "/tests/e2e/fixtures/field-raster-yield.ts";
     return (await import(path)).checkRasterYield() as ReturnType<
@@ -74,7 +56,7 @@ for (const source of [0, 90, 180, 270])
     test(`saved fields, separate scopes and exact generated pixels at unit ${unit}, intrinsic ${source}, workspace ${turn}`, async ({
       page,
     }, info) => {
-      await page.goto(`${url}fields-test`);
+      await page.goto(server.url);
       const result: Awaited<ReturnType<typeof checkFilledFields>> = await page.evaluate(
         async (args) => {
           const path = "/tests/e2e/fixtures/filled-fields.ts";
