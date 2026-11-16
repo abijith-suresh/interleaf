@@ -94,10 +94,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .node-version
+      - name: Install tools from mise.toml
+        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
 
       - name: Download browser smoke assets
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -105,8 +103,8 @@ jobs:
           name: qpdf-wasm-smoke-assets
           path: /tmp/interleaf-qpdf
 
-      - name: Install Chromium runner
-        run: npm install --no-save --no-package-lock --omit=dev playwright@1.55.0 pdfjs-dist@6.3.289
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
       - name: Install Chromium
         run: ./node_modules/.bin/playwright install --with-deps chromium
