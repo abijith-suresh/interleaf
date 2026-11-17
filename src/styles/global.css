@@ -201,11 +201,14 @@
 }
 
 :root {
-  --section-gap: clamp(3rem, 6vw, 5rem);
+  /* Spacing follows the mat's 12px cell: 72px between sections on phones,
+     108px on wide screens. */
+  --section-gap: clamp(4.5rem, 8vw, 6.75rem);
+  --nav-height: 4.5rem;
   color-scheme: light;
 }
 
-/* Every page: paper surfaces on a warm canvas, set in Inter. */
+/* Every page: paper and ink, set in Inter. */
 html {
   background: var(--color-canvas);
 }
@@ -233,16 +236,21 @@ body {
   outline-offset: 2px;
 }
 
+/* On the mat the ring is paper-coloured. */
+.mat :focus-visible {
+  outline-color: var(--color-mat-fg);
+}
+
 /* Page numbers and counts keep their width as they change. */
 [data-page="editor"] {
   font-variant-numeric: tabular-nums;
 }
 
 .marketing-page {
-  --nav-height: 4rem;
   display: flex;
   min-height: 100svh;
   flex-direction: column;
+  overflow-x: clip;
 }
 
 .marketing-content {
@@ -256,25 +264,26 @@ body {
 .marketing-container,
 .site-nav-inner,
 .site-footer-inner {
-  width: min(calc(100% - 2rem), 72rem);
+  --gutter: clamp(1.5rem, 4vw, 3rem);
+  width: min(calc(100% - 2 * var(--gutter)), 72rem);
   margin-inline: auto;
 }
 
-/* Hero: "home" is the two-column landing hero; "page" stacks a title over
-   one lede for every inner page. */
+/* Hero: "home" puts the copy beside the editor on the mat; "page" stacks a
+   title over one lede for every inner page. */
 .marketing-hero-home {
-  padding-block: 4rem 3rem;
+  padding-block: 4.5rem var(--section-gap);
 }
 
 .marketing-hero-page {
-  padding-block: 3.5rem 2rem;
+  padding-block: 4.5rem 3rem;
 }
 
 .marketing-hero-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(16rem, 0.8fr);
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
   align-items: center;
-  gap: 4rem;
+  gap: 4.5rem;
 }
 
 .marketing-hero-primary,
@@ -282,11 +291,9 @@ body {
   min-width: 0;
 }
 
-/* Home leads with the editor at work, so the picture gets the wider column
-   and stacks under the copy until there is room for both. */
-.marketing-hero-home .marketing-hero-grid {
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-  gap: 3.5rem;
+/* The editor on the mat runs off the right edge of the page. */
+.marketing-hero-home .marketing-hero-grid > .marketing-hero-secondary {
+  margin-right: calc(-1 * (100vw - min(100vw - 2 * var(--gutter), 72rem)) / 2);
 }
 
 @media (max-width: 63.99rem) {
@@ -295,13 +302,13 @@ body {
     gap: 3rem;
   }
 
-  .marketing-hero-home .marketing-hero-secondary {
-    max-width: 36rem;
+  .marketing-hero-home .marketing-hero-grid > .marketing-hero-secondary {
+    margin-inline: calc(-1 * var(--gutter));
   }
 }
 
 .marketing-hero-title {
-  max-width: 40rem;
+  max-width: 48rem;
   margin: 0;
   color: var(--color-fg);
   text-wrap: balance;
@@ -309,11 +316,13 @@ body {
 }
 
 .marketing-lede {
-  max-width: 34rem;
-  margin: 1rem 0 0;
+  max-width: 32rem;
+  margin: 1.5rem 0 0;
   color: var(--color-fg-muted);
   text-wrap: pretty;
   @apply text-body-lg;
+  font-size: 1.25rem;
+  line-height: 1.875rem;
 }
 
 /* Every link and summary is a 44px touch target. Controls drawn smaller
@@ -333,11 +342,11 @@ body {
 .marketing-button {
   position: relative;
   display: inline-flex;
-  height: 2.25rem;
+  height: 3rem;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  padding-inline: 1rem;
+  padding-inline: 1.5rem;
   border-radius: var(--radius-control);
   background: var(--color-primary);
   box-shadow: var(--shadow-primary);
@@ -349,7 +358,8 @@ body {
     var(--duration-fast), var(--duration-fast), var(--duration-fast), var(--duration-spring);
   transition-timing-function:
     var(--ease-tactile), var(--ease-tactile), var(--ease-tactile), var(--ease-spring);
-  @apply text-ui-sm;
+  @apply text-ui-md;
+  font-weight: 600;
 }
 
 .marketing-button:hover {
@@ -365,7 +375,10 @@ body {
 }
 
 .marketing-button-compact {
-  height: 2rem;
+  height: 2.75rem;
+  padding-inline: 1.125rem;
+  @apply text-ui-sm;
+  font-weight: 600;
 }
 
 .marketing-section {
@@ -373,7 +386,7 @@ body {
 }
 
 .marketing-section-head {
-  margin-bottom: 1.5rem;
+  margin-bottom: 3rem;
 }
 
 .marketing-section-title {
@@ -386,12 +399,12 @@ body {
 
 /* A heading over a group of cards or questions. */
 .marketing-subhead {
-  margin: 0 0 1rem;
+  margin: 0 0 1.5rem;
   color: var(--color-fg);
   @apply text-display-3;
 }
 
-/* Cards and row lists: paper on the canvas, edged with one hairline. */
+/* Cards and row lists: sheets on the paper, edged with one hairline. */
 .marketing-card,
 .marketing-rows {
   border-radius: var(--radius-card);
@@ -409,10 +422,10 @@ body {
 
 .marketing-row {
   display: grid;
-  grid-template-columns: 2.5rem minmax(10rem, 16rem) minmax(0, 1fr);
+  grid-template-columns: 3rem minmax(10rem, 16rem) minmax(0, 1fr);
   align-items: start;
   gap: 0.25rem 1.5rem;
-  padding: 1.25rem 1.5rem;
+  padding: 1.5rem;
   scroll-margin-top: 1.5rem;
 }
 
@@ -420,29 +433,32 @@ body {
   border-top: 1px solid var(--color-line);
 }
 
-/* A folio number, set like a page number. */
+/* A measured number, in the mat's green. */
 .marketing-row-marker {
-  padding-top: 0.25rem;
-  color: var(--color-fg-muted);
+  padding-top: 0.125rem;
+  color: var(--color-accent);
   font-variant-numeric: tabular-nums;
-  @apply text-display-3;
+  @apply text-ui-sm;
+  font-weight: 650;
+  letter-spacing: 0.02em;
 }
 
 .marketing-row-title {
   margin: 0;
-  padding-top: 0.5rem;
   color: var(--color-fg);
   text-wrap: balance;
-  @apply text-ui-md;
+  @apply text-ui-lg;
+  font-weight: 650;
+  letter-spacing: -0.02em;
 }
 
 .marketing-row-body {
   max-width: 40rem;
   margin: 0;
-  padding-top: 0.625rem;
   color: var(--color-fg-muted);
   text-wrap: pretty;
-  @apply text-body-sm;
+  @apply text-body-md;
+  line-height: 1.625rem;
 }
 
 .marketing-row-body a {
@@ -456,72 +472,114 @@ body {
   text-decoration-color: currentColor;
 }
 
-/* The closing section above the footer, under a rule. */
+/* The closing section: a sheet lying on the mat, beside a small stack. */
 .marketing-cta {
-  padding-bottom: var(--section-gap);
+  @apply mat;
+  --mat-x: 0px;
 }
 
 .marketing-cta-inner {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1.5rem 3rem;
-  padding-top: 2.5rem;
-  border-top: 1px solid var(--color-line-strong);
+  align-items: center;
+  gap: 4.5rem;
+  padding-block: calc(24px + 4.5rem) 4.5rem;
+}
+
+.marketing-cta-card {
+  flex: 0 1 36rem;
+  padding: 3rem;
+  border-radius: var(--radius-page);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-page);
+  color: var(--color-fg);
+}
+
+.marketing-cta-card .marketing-button {
+  margin-top: 2rem;
 }
 
 .marketing-cta-copy {
-  margin: 0.5rem 0 0;
+  margin: 1rem 0 0;
   color: var(--color-fg-muted);
   @apply text-body-lg;
 }
 
+.marketing-cta-stack {
+  position: relative;
+  width: 12rem;
+  height: 15rem;
+  flex: none;
+}
+
+.marketing-cta-stack span {
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-page);
+}
+
+.marketing-cta-stack span:nth-child(1) {
+  rotate: -6deg;
+  translate: -1.5rem 0.75rem;
+}
+
+.marketing-cta-stack span:nth-child(2) {
+  rotate: 3deg;
+  translate: 0.75rem -0.5rem;
+}
+
+@media (max-width: 63.99rem) {
+  .marketing-cta-stack {
+    display: none;
+  }
+}
+
 @media (max-width: 47.99rem) {
   .marketing-hero-home {
-    padding-block: 2.5rem 2rem;
+    padding-top: 3rem;
   }
 
   .marketing-hero-page {
-    padding-block: 2.5rem 1.5rem;
-  }
-
-  .marketing-hero-grid {
-    grid-template-columns: 1fr;
-    gap: 3rem;
+    padding-block: 3rem 2rem;
   }
 
   .marketing-hero-title {
-    @apply text-display-2;
+    font-size: 2.875rem;
   }
 
   .marketing-lede {
-    @apply text-body-md;
-  }
-
-  /* Buttons grow to 44px on phones. */
-  .marketing-button,
-  .marketing-button-compact {
-    height: 2.75rem;
+    font-size: 1.125rem;
+    line-height: 1.75rem;
   }
 
   .marketing-section-title {
-    @apply text-display-3;
+    font-size: 2.125rem;
+  }
+
+  /* On phones the main actions span the column, so they line up. */
+  .marketing-hero-primary .marketing-button,
+  .marketing-cta-card .marketing-button {
+    width: 100%;
   }
 
   .marketing-row {
-    grid-template-columns: 2rem minmax(0, 1fr);
-    column-gap: 1rem;
-    padding: 1rem 1.25rem;
+    grid-template-columns: 2.25rem minmax(0, 1fr);
+    column-gap: 0.75rem;
+    padding: 1.25rem;
   }
 
   .marketing-row-body {
     grid-column: 2;
-    padding-top: 0;
+    padding-top: 0.5rem;
   }
 
   .marketing-cta-inner {
-    padding-top: 2rem;
+    padding-block: calc(24px + 3rem) 3rem;
+  }
+
+  .marketing-cta-card {
+    padding: 1.75rem 1.5rem;
   }
 }
 
@@ -569,13 +627,13 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Header: the canvas under a hairline. */
+/* Header: a paper bar over the page. */
 
 .site-nav {
   position: relative;
   z-index: 30;
   border-bottom: 1px solid var(--color-line);
-  background: var(--color-canvas);
+  background: var(--color-surface);
 }
 
 .site-nav-inner {
@@ -596,6 +654,7 @@ body {
   text-decoration: none;
   white-space: nowrap;
   @apply text-ui-lg;
+  font-size: 1.25rem;
 }
 
 /* The leaf-i, then "interleaf". The glyph is narrow inside its square, so

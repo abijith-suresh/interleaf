@@ -272,6 +272,8 @@
 </script>
 
 <style>
+  @reference "../../styles/global.css";
+
   .hero-demo {
     width: 100%;
     margin: 0;
@@ -284,18 +286,22 @@
   .demo-frame {
     position: relative;
     overflow: hidden;
-    border-radius: var(--radius-dialog);
+    border-radius: var(--radius-dialog) 0 0 var(--radius-dialog);
     background: var(--color-workspace);
-    box-shadow:
-      0 0 0 1px var(--color-line-strong),
-      6px 6px 0 -1px var(--color-surface),
-      6px 6px 0 0 var(--color-line-strong);
+    box-shadow: 0 0 0 1px var(--color-line-strong);
     color: var(--color-fg);
     font-size: calc(100cqi / 36);
     line-height: 1.25;
     letter-spacing: -0.006em;
     -webkit-user-select: none;
     user-select: none;
+  }
+
+  /* Below the two-column hero the frame runs edge to edge. */
+  @media (max-width: 63.99rem) {
+    .demo-frame {
+      border-radius: 0;
+    }
   }
 
   .demo-frame svg {
@@ -427,8 +433,13 @@
     translate: 0 0;
   }
 
+  /* The editor's workspace: the mat's grid, without rulers. */
   .demo-body {
+    --mat-x: 0px;
+    --mat-y: 0px;
+    @apply mat;
     position: relative;
+    color: var(--color-fg);
     height: 20.6667em;
     padding: 0.75em 1.25em 0;
     transition: opacity 320ms var(--ease-tactile);
@@ -519,7 +530,7 @@
     width: 10.5em;
     flex-direction: column;
     padding: 0.5em 0.5em 0.25em;
-    border-radius: 0.45em;
+    border-radius: var(--radius-page);
     background: var(--color-surface);
     box-shadow: var(--shadow-sheet);
     translate: calc(var(--slot) * 11.5em) 0;
@@ -571,14 +582,14 @@
   .is-playing[data-cursor="form"] [data-page="form"],
   .is-playing[data-cursor="front-page"]:not(.is-selected) [data-page="form"] {
     box-shadow:
-      0 0 0 1px var(--color-line-strong),
+      0 0 0 1px rgb(255 255 255 / 0.7),
       var(--shadow-sheet);
   }
 
   /* Selected: the accent ring and a solid page-number badge. */
   .is-selected [data-page="form"] {
     box-shadow:
-      0 0 0 2px var(--color-accent),
+      0 0 0 3px var(--color-mark),
       var(--shadow-sheet);
   }
 
@@ -597,6 +608,11 @@
   }
 
   /* Marked for deletion: a dimmed page under the soft danger badge. */
+  .is-marked [data-page="invoice-2"] {
+    outline: 2px dashed var(--color-cut);
+    outline-offset: 0.3em;
+  }
+
   .is-marked [data-page="invoice-2"] .demo-canvas {
     opacity: 0.45;
   }
@@ -660,8 +676,8 @@
   }
 
   .is-selected [data-page="form"] .demo-label {
-    background: var(--color-accent);
-    color: var(--color-white);
+    background: var(--color-mark);
+    color: var(--color-fg);
   }
 
   .demo-actions {

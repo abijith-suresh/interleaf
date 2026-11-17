@@ -45,7 +45,7 @@ const steps = [
       </h2>
     </div>
 
-    <ol class="marketing-rows">
+    <ol class="marketing-rows landing-steps">
       {
         steps.map((step, index) => (
           <li class="marketing-row">
@@ -71,6 +71,63 @@ const steps = [
     flex-wrap: wrap;
     align-items: center;
     gap: 0.75rem 1rem;
-    margin-top: 2rem;
+    margin-top: 2.5rem;
+  }
+
+  /* The steps sit under an ink ruler, measured like the mat. */
+  .landing-steps {
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .landing-steps::before {
+    display: block;
+    height: 1.5rem;
+    border-bottom: 1px solid var(--color-fg);
+    background-image:
+      linear-gradient(to right, var(--color-fg) 1px, transparent 1px),
+      linear-gradient(to right, color-mix(in srgb, var(--color-fg) 50%, transparent) 1px, transparent 1px),
+      linear-gradient(to right, color-mix(in srgb, var(--color-fg) 30%, transparent) 1px, transparent 1px);
+    background-position: 0 100%;
+    background-repeat: repeat-x;
+    background-size:
+      60px 12px,
+      12px 7px,
+      6px 4px;
+    content: "";
+  }
+
+  .landing-steps .marketing-row {
+    padding-inline: 0;
+  }
+
+  @media (min-width: 64rem) {
+    .landing-steps {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      column-gap: 3rem;
+    }
+
+    .landing-steps::before {
+      grid-column: 1 / -1;
+    }
+
+    .landing-steps .marketing-row {
+      display: block;
+      padding-block: 1.5rem 0;
+    }
+
+    .landing-steps .marketing-row + .marketing-row {
+      border-top: 0;
+    }
+
+    .landing-steps .marketing-row-title {
+      margin-top: 1.25rem;
+    }
+
+    .landing-steps .marketing-row-body {
+      margin-top: 0.75rem;
+    }
   }
 </style>
