@@ -24,91 +24,74 @@
   line-gap-override: 0%;
 }
 
-/* Source Serif 4 sets headings only. It is hosted and loaded like Inter, and
-   pages that show a serif heading preload it. */
-@font-face {
-  font-family: "Source Serif 4 Variable";
-  font-style: normal;
-  font-weight: 200 900;
-  font-display: optional;
-  src: url("/fonts/source-serif-4-latin-opsz-normal.woff2") format("woff2");
-}
-
-/* A Georgia fallback sized to Source Serif 4. It covers every weight, so a
-   missed font paints regular Georgia instead of a synthetic bold. */
-@font-face {
-  font-family: "Source Serif Fallback";
-  font-style: normal;
-  font-weight: 200 900;
-  src: local("Georgia");
-  size-adjust: 94.8%;
-  ascent-override: 109.3%;
-  descent-override: 35.3%;
-  line-gap-override: 0%;
-}
-
-/* Folio: paper on a desk, ink, and one green. The marketing pages and the
-   editor share these tokens. Pure white is kept for PDF pages, so they read
-   as sheets on the paper canvas. */
+/* The cutting mat: Interleaf is a workbench. White PDF pages lie on a green
+   self-healing mat wherever work happens; the chrome around it is paper and
+   ink. The marketing pages and the editor share these tokens. */
 @theme {
   --font-ui: "Inter Variable", "Inter Fallback", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Source Serif 4 Variable", "Source Serif Fallback", ui-serif, serif;
 
   /* PDF pages only. */
   --color-white: #fff;
-  --color-canvas: #f3f0e8;
-  --color-subtle: #f8f6f0;
+  --color-canvas: #f5f3ee;
+  --color-subtle: #f0ede6;
   --color-surface: #fcfbf8;
   --color-floating: var(--color-surface);
   --color-control: var(--color-surface);
   --color-control-hover: var(--color-subtle);
   --color-field: var(--color-surface);
   --color-field-line: var(--color-line-strong);
-  --color-tray: var(--color-workspace);
-  --color-track: var(--color-workspace);
+  --color-tray: #ebe8df;
+  --color-track: #e2ded3;
   --color-inverse: var(--color-fg);
-  --color-fg: #191b17;
-  --color-fg-muted: #55584f;
-  --color-fg-subtle: #807e73;
+  --color-fg: #1b1e1b;
+  --color-fg-muted: #50554e;
+  --color-fg-subtle: #7f8279;
   --color-fg-inverse: var(--color-surface);
-  --color-line: #e0dacd;
-  --color-line-strong: #cbc3b2;
+  --color-line: #e2ded3;
+  --color-line-strong: #cbc5b6;
   --color-line-focus: var(--color-accent);
-  --color-hover: rgb(25 27 23 / 0.05);
-  --color-selected: rgb(25 27 23 / 0.08);
-  --color-overlay: rgb(25 27 23 / 0.32);
+  --color-hover: rgb(27 30 27 / 0.05);
+  --color-selected: rgb(27 30 27 / 0.08);
+  --color-overlay: rgb(27 30 27 / 0.36);
   /* Ink is the primary. */
   --color-primary: var(--color-fg);
-  --color-primary-hover: #2e312b;
-  --color-primary-active: #0e0f0c;
+  --color-primary-hover: #2e322d;
+  --color-primary-active: #0f110f;
   --color-primary-foreground: var(--color-surface);
-  --color-primary-subtle: rgb(25 27 23 / 0.1);
-  --color-primary-subtle-stronger: rgb(25 27 23 / 0.24);
-  /* Interleaf's one accent. It marks what you point at: focus, selection,
-     and the leaf in the mark. It never decorates or fills buttons. It keeps
-     4.5:1 on the canvas and the workspace. */
-  --color-accent: #147548;
-  --color-accent-subtle: rgb(20 117 72 / 0.1);
-  --color-accent-selection: rgb(20 117 72 / 0.2);
-  /* The editor surface PDF pages sit on, a step deeper than the canvas so white pages keep their edges. */
-  --color-workspace: #e8e4d9;
+  --color-primary-subtle: rgb(27 30 27 / 0.1);
+  --color-primary-subtle-stronger: rgb(27 30 27 / 0.24);
+  /* The mat's green is the one accent on paper: focus, selection and the
+     leaf in the mark (7.1:1 on the canvas). It never fills buttons. */
+  --color-accent: var(--color-mat);
+  --color-accent-subtle: rgb(43 90 70 / 0.1);
+  --color-accent-selection: rgb(43 90 70 / 0.2);
+  /* The cutting mat, where PDF pages lie in the editor and on the site. */
+  --color-mat: #2b5a46;
+  --color-workspace: var(--color-mat);
+  /* Text and ruler numerals on the mat (6.9:1 and 5.8:1). */
+  --color-mat-fg: #e9f1ea;
+  --color-mat-ruler: #cfe2d5;
+  /* The mat's printed lines: yellow marks a selected page on the mat, and a
+     pink dashed cut line marks a page for deletion. */
+  --color-mark: #f3cf5e;
+  --color-cut: #ffb0a3;
   --color-danger-fg: #82181a;
   --color-danger-line: #ffc9c9;
   --color-danger-subtle: #fef2f2;
 
-  /* Display sizes, set in the serif. */
-  --text-display-1: 3.5rem;
-  --text-display-1--line-height: 3.875rem;
-  --text-display-1--letter-spacing: -0.02em;
-  --text-display-1--font-weight: 560;
-  --text-display-2: 2.25rem;
-  --text-display-2--line-height: 2.75rem;
-  --text-display-2--letter-spacing: -0.015em;
-  --text-display-2--font-weight: 560;
+  /* Display sizes: Inter, bold and tightly set. */
+  --text-display-1: 4.5rem;
+  --text-display-1--line-height: 1;
+  --text-display-1--letter-spacing: -0.045em;
+  --text-display-1--font-weight: 700;
+  --text-display-2: 3rem;
+  --text-display-2--line-height: 1.06;
+  --text-display-2--letter-spacing: -0.04em;
+  --text-display-2--font-weight: 700;
   --text-display-3: 1.5rem;
-  --text-display-3--line-height: 2rem;
-  --text-display-3--letter-spacing: -0.01em;
-  --text-display-3--font-weight: 560;
+  --text-display-3--line-height: 1.25;
+  --text-display-3--letter-spacing: -0.025em;
+  --text-display-3--font-weight: 650;
   --text-ui-lg: 1.125rem;
   --text-ui-lg--line-height: 1.5rem;
   --text-ui-lg--letter-spacing: -0.015em;
@@ -143,34 +126,33 @@
   --text-body-xs--font-weight: 400;
 
   /* One radius scale. */
-  --radius-page: 2px;
+  --radius-page: 3px;
   --radius-control: 6px;
   --radius-card: 8px;
   --radius-dialog: 12px;
   --radius-pill: 999px;
 
-  /* Every shadow is tinted from the ink. */
-  --shadow-sm: 0 1px 2px 0 rgb(25 27 23 / 0.08);
-  --shadow-lg: 0 0 0 1px rgb(25 27 23 / 0.06), 0 12px 32px -8px rgb(25 27 23 / 0.24);
+  /* Shadows on paper are tinted from the ink; shadows on the mat from the
+     mat's deep green. */
+  --shadow-sm: 0 1px 2px 0 rgb(27 30 27 / 0.08);
+  --shadow-lg: 0 0 0 1px rgb(27 30 27 / 0.06), 0 12px 32px -8px rgb(27 30 27 / 0.24);
   --shadow-card: 0 0 0 1px var(--color-line);
-  /* A white PDF page lying on the desk. */
-  --shadow-page: 0 0 0 1px rgb(25 27 23 / 0.08), 0 2px 6px -2px rgb(25 27 23 / 0.16);
-  /* The interleaved sheet: a second sheet's edge behind the surface. Kept
-     for pages and the frames that hold them. */
+  /* A sheet lying on the mat, with the edge of a second sheet behind it. */
   --shadow-sheet:
-    0 0 0 1px var(--color-line), 3px 3px 0 -1px var(--color-surface),
-    3px 3px 0 0 var(--color-line-strong);
-  --shadow-field: 0 1px 1px 0 rgb(25 27 23 / 0.04);
-  --shadow-button: 0 0 0 1px var(--color-line-strong), 0 1px 1px 0 rgb(25 27 23 / 0.06);
-  --shadow-primary: 0 0 0 1px var(--color-primary), 0 1px 2px 0 rgb(25 27 23 / 0.2);
+    3px 3px 0 -1px #e3dfd3, 0 1px 1px rgb(0 0 0 / 0.22), 0 14px 22px -14px rgb(0 18 10 / 0.7);
+  /* A PDF page lying on the mat. */
+  --shadow-page: 0 1px 1px rgb(0 0 0 / 0.25), 0 18px 30px -16px rgb(0 18 10 / 0.75);
+  --shadow-field: 0 1px 1px 0 rgb(27 30 27 / 0.04);
+  --shadow-button: 0 0 0 1px var(--color-line-strong), 0 1px 1px 0 rgb(27 30 27 / 0.06);
+  --shadow-primary: 0 0 0 1px var(--color-primary), 0 1px 0 0 rgb(0 0 0 / 0.2);
   --shadow-primary-active: 0 0 0 1px var(--color-primary);
-  --shadow-inverse: 0 0 0 1px var(--color-inverse), 0 1px 2px 0 rgb(25 27 23 / 0.2);
+  --shadow-inverse: 0 0 0 1px var(--color-inverse), 0 1px 0 0 rgb(0 0 0 / 0.2);
   --shadow-badge:
     0 0 0 1px color-mix(in srgb, currentColor 14%, transparent),
     0 1px 2px 0 color-mix(in srgb, currentColor 16%, transparent);
   --shadow-menu:
-    0 0 0 1px var(--color-line), 0 1px 2px 0 rgb(25 27 23 / 0.08),
-    0 8px 16px -8px rgb(25 27 23 / 0.2);
+    0 0 0 1px var(--color-line), 0 1px 2px 0 rgb(27 30 27 / 0.08),
+    0 8px 16px -8px rgb(27 30 27 / 0.2);
 
   --duration-press: 60ms;
   --duration-fast: 150ms;
@@ -179,6 +161,43 @@
   --ease-tactile: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* The cutting mat: a 12px grid with a heavier line every 5 cells, and rulers
+   along the top and left edges. --mat-x and --mat-y move the grid's origin
+   to make room for the rulers; at 0 the ruler on that side is hidden. */
+@utility mat {
+  --mat-minor: rgb(214 236 222 / 0.09);
+  --mat-major: rgb(214 236 222 / 0.2);
+  background-color: var(--color-mat);
+  background-image:
+    url("/mat/ruler-x.svg"), url("/mat/ruler-y.svg"),
+    linear-gradient(var(--color-mat), var(--color-mat)),
+    linear-gradient(var(--color-mat), var(--color-mat)),
+    linear-gradient(to right, var(--mat-major) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--mat-major) 1px, transparent 1px),
+    linear-gradient(to right, var(--mat-minor) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--mat-minor) 1px, transparent 1px);
+  background-position:
+    var(--mat-x, 24px) calc(var(--mat-y, 24px) - 24px),
+    calc(var(--mat-x, 24px) - 24px) var(--mat-y, 24px),
+    0 0,
+    0 0,
+    var(--mat-x, 24px) var(--mat-y, 24px),
+    var(--mat-x, 24px) var(--mat-y, 24px),
+    var(--mat-x, 24px) var(--mat-y, 24px),
+    var(--mat-x, 24px) var(--mat-y, 24px);
+  background-size:
+    auto,
+    auto,
+    100% var(--mat-y, 24px),
+    var(--mat-x, 24px) 100%,
+    60px 60px,
+    60px 60px,
+    12px 12px,
+    12px 12px;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat, repeat, repeat, repeat;
+  color: var(--color-mat-fg);
 }
 
 :root {
@@ -286,7 +305,7 @@ body {
   margin: 0;
   color: var(--color-fg);
   text-wrap: balance;
-  @apply font-display text-display-1;
+  @apply text-display-1;
 }
 
 .marketing-lede {
@@ -362,14 +381,14 @@ body {
   margin: 0;
   color: var(--color-fg);
   text-wrap: balance;
-  @apply font-display text-display-2;
+  @apply text-display-2;
 }
 
 /* A heading over a group of cards or questions. */
 .marketing-subhead {
   margin: 0 0 1rem;
   color: var(--color-fg);
-  @apply font-display text-display-3;
+  @apply text-display-3;
 }
 
 /* Cards and row lists: paper on the canvas, edged with one hairline. */
@@ -406,7 +425,7 @@ body {
   padding-top: 0.25rem;
   color: var(--color-fg-muted);
   font-variant-numeric: tabular-nums;
-  @apply font-display text-display-3;
+  @apply text-display-3;
 }
 
 .marketing-row-title {
@@ -579,16 +598,24 @@ body {
   @apply text-ui-lg;
 }
 
+/* The leaf-i, then "interleaf". The glyph is narrow inside its square, so
+   it pulls into the left margin to keep the wordmark on the text edge. */
 .brand-wordmark {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.125rem;
+}
+
+.brand-wordmark > span {
+  font-weight: 650;
+  letter-spacing: -0.035em;
 }
 
 .brand-tile {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
+  margin-left: -8px;
 }
 
 .nav-actions {
