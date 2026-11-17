@@ -286,22 +286,15 @@
   .demo-frame {
     position: relative;
     overflow: hidden;
-    border-radius: var(--radius-dialog) 0 0 var(--radius-dialog);
+    border-radius: var(--radius-dialog);
     background: var(--color-workspace);
-    box-shadow: 0 0 0 1px var(--color-line-strong);
+    box-shadow: var(--shadow-lg);
     color: var(--color-fg);
     font-size: calc(100cqi / 36);
     line-height: 1.25;
     letter-spacing: -0.006em;
     -webkit-user-select: none;
     user-select: none;
-  }
-
-  /* Below the two-column hero the frame runs edge to edge. */
-  @media (max-width: 63.99rem) {
-    .demo-frame {
-      border-radius: 0;
-    }
   }
 
   .demo-frame svg {
@@ -377,6 +370,7 @@
   .demo-count {
     color: var(--color-fg-muted);
     font-size: 0.55em;
+    transition: opacity 320ms var(--ease-tactile);
   }
   .demo-count > span {
     display: none;
@@ -445,8 +439,8 @@
     transition: opacity 320ms var(--ease-tactile);
   }
 
-  .is-resetting .demo-body,
-  .is-resetting .demo-cursor {
+  /* The reset fades everything that changes, so nothing snaps back. */
+  .demo-frame.is-resetting :is(.demo-body, .demo-cursor, .demo-count, .demo-download-menu) {
     opacity: 0;
   }
 

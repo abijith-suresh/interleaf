@@ -137,11 +137,14 @@
   --shadow-sm: 0 1px 2px 0 rgb(27 30 27 / 0.08);
   --shadow-lg: 0 0 0 1px rgb(27 30 27 / 0.06), 0 12px 32px -8px rgb(27 30 27 / 0.24);
   --shadow-card: 0 0 0 1px var(--color-line);
-  /* A sheet lying on the mat, with the edge of a second sheet behind it. */
+  /* A sheet lying on the mat: a soft, layered drop tinted from the mat. */
   --shadow-sheet:
-    3px 3px 0 -1px #e3dfd3, 0 1px 1px rgb(0 0 0 / 0.22), 0 14px 22px -14px rgb(0 18 10 / 0.7);
-  /* A PDF page lying on the mat. */
-  --shadow-page: 0 1px 1px rgb(0 0 0 / 0.25), 0 18px 30px -16px rgb(0 18 10 / 0.75);
+    0 1px 1px rgb(0 18 10 / 0.16), 0 4px 10px -2px rgb(0 18 10 / 0.22),
+    0 16px 32px -12px rgb(0 18 10 / 0.4);
+  /* A PDF page lying on the mat, lifted a little higher. */
+  --shadow-page:
+    0 1px 2px rgb(0 18 10 / 0.18), 0 8px 18px -4px rgb(0 18 10 / 0.28),
+    0 28px 56px -20px rgb(0 18 10 / 0.5);
   --shadow-field: 0 1px 1px 0 rgb(27 30 27 / 0.04);
   --shadow-button: 0 0 0 1px var(--color-line-strong), 0 1px 1px 0 rgb(27 30 27 / 0.06);
   --shadow-primary: 0 0 0 1px var(--color-primary), 0 1px 0 0 rgb(0 0 0 / 0.2);
@@ -291,19 +294,10 @@ body {
   min-width: 0;
 }
 
-/* The editor on the mat runs off the right edge of the page. */
-.marketing-hero-home .marketing-hero-grid > .marketing-hero-secondary {
-  margin-right: calc(-1 * (100vw - min(100vw - 2 * var(--gutter), 72rem)) / 2);
-}
-
 @media (max-width: 63.99rem) {
   .marketing-hero-home .marketing-hero-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 3rem;
-  }
-
-  .marketing-hero-home .marketing-hero-grid > .marketing-hero-secondary {
-    margin-inline: calc(-1 * var(--gutter));
   }
 }
 
@@ -472,21 +466,21 @@ body {
   text-decoration-color: currentColor;
 }
 
-/* The closing section: a sheet lying on the mat, beside a small stack. */
+/* The closing section: one wide sheet lying on the mat. */
 .marketing-cta {
   @apply mat;
   --mat-x: 0px;
 }
 
 .marketing-cta-inner {
-  display: flex;
-  align-items: center;
-  gap: 4.5rem;
-  padding-block: calc(24px + 4.5rem) 4.5rem;
+  padding-block: calc(24px + 3.5rem) 3.5rem;
 }
 
 .marketing-cta-card {
-  flex: 0 1 36rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem 3rem;
   padding: 3rem;
   border-radius: var(--radius-page);
   background: var(--color-surface);
@@ -494,45 +488,14 @@ body {
   color: var(--color-fg);
 }
 
-.marketing-cta-card .marketing-button {
-  margin-top: 2rem;
+.marketing-cta .marketing-section-title {
+  max-width: none;
 }
 
 .marketing-cta-copy {
   margin: 1rem 0 0;
   color: var(--color-fg-muted);
   @apply text-body-lg;
-}
-
-.marketing-cta-stack {
-  position: relative;
-  width: 12rem;
-  height: 15rem;
-  flex: none;
-}
-
-.marketing-cta-stack span {
-  position: absolute;
-  inset: 0;
-  border-radius: 2px;
-  background: var(--color-surface);
-  box-shadow: var(--shadow-page);
-}
-
-.marketing-cta-stack span:nth-child(1) {
-  rotate: -6deg;
-  translate: -1.5rem 0.75rem;
-}
-
-.marketing-cta-stack span:nth-child(2) {
-  rotate: 3deg;
-  translate: 0.75rem -0.5rem;
-}
-
-@media (max-width: 63.99rem) {
-  .marketing-cta-stack {
-    display: none;
-  }
 }
 
 @media (max-width: 47.99rem) {
@@ -575,10 +538,12 @@ body {
   }
 
   .marketing-cta-inner {
-    padding-block: calc(24px + 3rem) 3rem;
+    padding-block: calc(24px + 2.25rem) 2.25rem;
   }
 
   .marketing-cta-card {
+    flex-direction: column;
+    align-items: stretch;
     padding: 1.75rem 1.5rem;
   }
 }
@@ -627,13 +592,12 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Header: a paper bar over the page. */
+/* Header: the page itself, with no bar of its own. */
 
 .site-nav {
   position: relative;
   z-index: 30;
-  border-bottom: 1px solid var(--color-line);
-  background: var(--color-surface);
+  background: var(--color-canvas);
 }
 
 .site-nav-inner {
