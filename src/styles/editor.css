@@ -2383,6 +2383,7 @@ body:has([data-page="editor"]) {
   .editor-draft-panel .editor-text-settings .editor-text-actions {
     display: flex;
     flex-basis: 100%;
+    flex-wrap: wrap;
     gap: 0.5rem;
   }
 
