@@ -1,5 +1,16 @@
 {
   "name": "interleaf",
+  "private": true,
+  "description": "Merge, reorder, fill and export PDFs in your browser. Files never leave your device.",
+  "license": "MIT",
+  "homepage": "https://www.interleaf.cc",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abijith-suresh/interleaf.git"
+  },
+  "bugs": {
+    "url": "https://github.com/abijith-suresh/interleaf/issues"
+  },
   "type": "module",
   "packageManager": "bun@1.4.1",
   "version": "0.0.15",

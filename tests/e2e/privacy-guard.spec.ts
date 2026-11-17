@@ -126,7 +126,7 @@ test("finalizer rejects a synthetic lifecycle beacon before closing the context"
   expect(guard.violations()).toEqual([`POST ${new URL("/app", baseURL).href}`]);
 });
 
-test("coverage limit: dedicated-worker WebSockets reach an owned loopback listener unseen by the guard", async ({
+test("guard limit: WebSockets opened in dedicated workers connect without the guard seeing them", async ({
   page,
   context,
   baseURL,

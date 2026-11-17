@@ -26,7 +26,6 @@ export interface DocumentStore<A> {
   readonly isCurrent: (file: File, version: DocumentVersion) => boolean;
   readonly releaseFile: (file: File) => Effect.Effect<void, PDFProcessingError>;
   readonly reset: Effect.Effect<void, PDFProcessingError>;
-  readonly clear: Effect.Effect<void, PDFProcessingError>;
   readonly track: (
     file: File,
     operation: string
@@ -44,8 +43,7 @@ export interface DocumentStore<A> {
 
 interface InFlightLoad<A> {
   readonly key: DocumentKey;
-  readonly sessionVersion: number;
-  readonly fileVersion: number;
+  readonly version: DocumentVersion;
   readonly deferred: Deferred.Deferred<A, PDFError>;
   readonly fiberReady: Deferred.Deferred<Fiber.Fiber<A, PDFError>>;
 }
@@ -135,11 +133,7 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
   ): Effect.Effect<void, PDFProcessingError> =>
     Effect.suspend(() => {
       let placement: LoadPlacement<A> = { _tag: "stale" };
-      if (
-        Exit.isSuccess(exit) &&
-        state.sessionVersion === load.sessionVersion &&
-        (fileVersions.get(load.key.file) ?? 0) === load.fileVersion
-      ) {
+      if (Exit.isSuccess(exit) && isCurrent(load.key.file, load.version)) {
         const resident = state.resident.get(load.key.file);
         if (resident !== undefined) {
           placement = { _tag: "duplicate", record: resident };
@@ -272,27 +266,6 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
     })
   );
 
-  const clear: Effect.Effect<void, PDFProcessingError> = Effect.uninterruptible(
-    Effect.suspend(() => {
-      const loads = state.loads;
-      const operations = Array.from(state.operationFibers.values()).flat();
-      const records = Array.from(state.resident.values());
-      state = {
-        ...state,
-        sessionVersion: state.sessionVersion + 1,
-        resident: new Map(),
-        loads: [],
-        operationFibers: new Map(),
-      };
-
-      return collectFirstError([
-        interruptOperationFibers(operations),
-        cancelLoads(loads),
-        ...records.map((record) => hooks.cleanup(record)),
-      ]);
-    })
-  );
-
   const acquire = (key: DocumentKey): Effect.Effect<A, PDFError> =>
     Effect.uninterruptibleMask((restore) =>
       Effect.suspend(() => {
@@ -331,8 +304,7 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
 
         const load: InFlightLoad<A> = {
           key,
-          sessionVersion: state.sessionVersion,
-          fileVersion: fileVersions.get(key.file) ?? 0,
+          version: version(key.file),
           deferred: Deferred.makeUnsafe<A, PDFError>(),
           fiberReady: Deferred.makeUnsafe<Fiber.Fiber<A, PDFError>>(),
         };
@@ -343,39 +315,28 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
 
   const peek = (file: File): Option.Option<A> => Option.fromUndefinedOr(state.resident.get(file));
 
-  const version = (file: File): DocumentVersion => {
-    return {
-      session: state.sessionVersion,
-      file: fileVersions.get(file) ?? 0,
-    };
-  };
+  const version = (file: File): DocumentVersion => ({
+    session: state.sessionVersion,
+    file: fileVersions.get(file) ?? 0,
+  });
 
-  const isCurrentVersion = (file: File, documentVersion: DocumentVersion): boolean => {
-    return (
-      state.sessionVersion === documentVersion.session &&
-      (fileVersions.get(file) ?? 0) === documentVersion.file
-    );
-  };
+  const isCurrent = (file: File, documentVersion: DocumentVersion): boolean =>
+    state.sessionVersion === documentVersion.session &&
+    (fileVersions.get(file) ?? 0) === documentVersion.file;
 
-  const isCurrent = (file: File, sessionVersion: number, fileVersion: number): boolean => {
-    return state.sessionVersion === sessionVersion && (fileVersions.get(file) ?? 0) === fileVersion;
-  };
-
-  const barrierFor = (file: File): Deferred.Deferred<void, PDFProcessingError> | undefined => {
-    return state.resetBarrier ?? state.releaseBarriers.get(file);
-  };
-
-  const trackWith = <R, E extends PDFError>(
+  // Fails if the file changed since documentVersion, else waits out a pending
+  // release or reset. A tracked fiber is interrupted by the next one.
+  const guard = <R, E extends PDFError>(
     file: File,
     operation: string,
-    sessionVersion: number,
-    fileVersion: number,
-    effect: Effect.Effect<R, E>
+    documentVersion: DocumentVersion,
+    effect: Effect.Effect<R, E>,
+    tracked: boolean
   ): Effect.Effect<R, E | PDFProcessingError> =>
     Effect.withFiber((fiber) =>
       Effect.uninterruptibleMask((restore) =>
         Effect.suspend(() => {
-          if (!isCurrent(file, sessionVersion, fileVersion)) {
+          if (!isCurrent(file, documentVersion)) {
             return Effect.fail(
               processingError(
                 operation,
@@ -385,14 +346,15 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
             );
           }
 
-          const barrier = barrierFor(file);
+          const barrier = state.resetBarrier ?? state.releaseBarriers.get(file);
           if (barrier) {
             return restore(
               Deferred.await(barrier).pipe(
-                Effect.andThen(trackWith(file, operation, sessionVersion, fileVersion, effect))
+                Effect.andThen(guard(file, operation, documentVersion, effect, tracked))
               )
             );
           }
+          if (!tracked) return restore(effect);
 
           state.operationFibers.set(file, [...(state.operationFibers.get(file) ?? []), fiber]);
 
@@ -410,49 +372,15 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
       )
     );
 
-  const gateWith = <R, E extends PDFError>(
-    file: File,
-    operation: string,
-    sessionVersion: number,
-    fileVersion: number,
-    effect: Effect.Effect<R, E>
-  ): Effect.Effect<R, E | PDFProcessingError> =>
-    Effect.suspend(() => {
-      if (!isCurrent(file, sessionVersion, fileVersion)) {
-        return Effect.fail(
-          processingError(
-            operation,
-            file,
-            new Error("The PDF changed before the operation started.")
-          )
-        );
-      }
-
-      const barrier = barrierFor(file);
-      if (barrier) {
-        return Deferred.await(barrier).pipe(
-          Effect.andThen(gateWith(file, operation, sessionVersion, fileVersion, effect))
-        );
-      }
-
-      return effect;
-    });
-
   const track =
     (file: File, operation: string) =>
-    <R, E extends PDFError>(
-      effect: Effect.Effect<R, E>
-    ): Effect.Effect<R, E | PDFProcessingError> => {
-      return trackWith(file, operation, state.sessionVersion, fileVersions.get(file) ?? 0, effect);
-    };
+    <R, E extends PDFError>(effect: Effect.Effect<R, E>) =>
+      guard(file, operation, version(file), effect, true);
 
   const gate =
     (file: File, operation: string) =>
-    <R, E extends PDFError>(
-      effect: Effect.Effect<R, E>
-    ): Effect.Effect<R, E | PDFProcessingError> => {
-      return gateWith(file, operation, state.sessionVersion, fileVersions.get(file) ?? 0, effect);
-    };
+    <R, E extends PDFError>(effect: Effect.Effect<R, E>) =>
+      guard(file, operation, version(file), effect, false);
 
   const dispose = (): Effect.Effect<void> =>
     Effect.uninterruptible(
@@ -469,10 +397,9 @@ export function makeDocumentStore<A>(hooks: DocumentStoreHooks<A>): DocumentStor
     acquire,
     peek,
     version,
-    isCurrent: isCurrentVersion,
+    isCurrent,
     releaseFile,
     reset,
-    clear,
     track,
     gate,
     dispose,
