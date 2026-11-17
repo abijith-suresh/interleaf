@@ -110,7 +110,6 @@ it.each([
         await resume.promise;
         return 0;
       }),
-    renderPage: (_file, _number, canvas) => raster({}, canvas),
     renderPageState: (page, canvas) => raster(page, canvas),
   });
   vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(function (

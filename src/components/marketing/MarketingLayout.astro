@@ -1,6 +1,5 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { contentSlide } from "../../utils/transitions";
 import Footer from "../shared/Footer.astro";
 import Nav from "../shared/Nav.astro";
 import MarketingCta from "./MarketingCta.astro";
@@ -28,7 +27,7 @@ const { title, description, currentPage, closingCta = true } = Astro.props;
   <div class="marketing-page">
     <Nav currentPage={currentPage} />
 
-    <div class="marketing-content" transition:animate={contentSlide}>
+    <div class="marketing-content" transition:animate="none">
       <main id="main-content">
         <slot />
         {closingCta && <MarketingCta />}

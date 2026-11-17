@@ -24,7 +24,7 @@ test("mixed history restores real PDF order, rotations, text, selected PNG pixel
   const undo = page.getByTestId("editor-undo-button");
   const redo = page.getByTestId("editor-redo-button");
   const reader = await context.newPage();
-  await reader.goto(`${url}duplicate-test`);
+  await reader.goto(url);
   const pdf = () => download(page, () => downloadDocument(page));
   const original = await inspect(reader, await pdf());
   await page.getByRole("button", { name: "Rotate page 1 90 degrees", exact: true }).click();
@@ -325,7 +325,7 @@ test("source and page history restores real mixed PDF, PNG and EXIF JPEG output 
   await page.getByTestId("editor-upload-input").setInputFiles(await source(true));
   const tiles = page.getByTestId("editor-page-tile");
   const reader = await context.newPage();
-  await reader.goto(`${url}duplicate-test`);
+  await reader.goto(url);
   const pdf = async () => inspect(reader, await download(page, () => downloadDocument(page)));
   const png = async () => {
     await page.getByTestId("editor-download-menu-button").click();
@@ -466,7 +466,7 @@ test("restoring an encrypted source re-prompts, cancels transactionally, and sup
   await page.getByRole("button", { name: "Unlock", exact: true }).click();
   await idle(page);
   const reader = await context.newPage();
-  await reader.goto(`${url}duplicate-test`);
+  await reader.goto(url);
   const pdf = async () => inspect(reader, await download(page, () => downloadDocument(page)));
   const original = await pdf();
   await openFiles(page);

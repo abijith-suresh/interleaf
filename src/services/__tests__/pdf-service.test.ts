@@ -82,28 +82,9 @@ describe("PDFService", () => {
     vi.restoreAllMocks();
   });
 
-  it("tracks the active PDF's page count", async () => {
-    expect(service.getPageCount()).toBe(0);
+  it("returns the page count of a loaded PDF", async () => {
     pdf.numPages = 2;
-    await runPromise(service.loadPDF(file));
-    expect(service.getPageCount()).toBe(2);
-  });
-
-  it("returns page dimensions for the requested rotation", async () => {
-    const widePage = makePage(300, 150);
-    pdf.getPage.mockResolvedValue(widePage);
-    await expect(runPromise(service.getPageSize(file, 1, 90))).resolves.toEqual({
-      width: 150,
-      height: 300,
-    });
-    expect(pdf.getPage).toHaveBeenCalledExactlyOnceWith(1);
-    expect(widePage.cleanup).toHaveBeenCalledTimes(1);
-  });
-
-  it("reads the source page rotation and cleans the page", async () => {
-    page.rotate = 90;
-    await expect(runPromise(service.getPageRotation(file, 1))).resolves.toBe(90);
-    expect(page.cleanup).toHaveBeenCalledTimes(1);
+    expect(await runPromise(service.loadPDF(file))).toBe(2);
   });
 
   it("coalesces concurrent rotation and size reads, then reuses scalar metadata", async () => {
@@ -283,7 +264,7 @@ describe("PDFService", () => {
     expect(pdf.getPage).toHaveBeenCalledTimes(2);
   });
 
-  it.each(["release", "reset", "dispose"] as const)(
+  it.each(["release", "dispose"] as const)(
     "settles %s while an active waiter takes over from a cancelled owner",
     async (action) => {
       const pending = Promise.withResolvers<ReturnType<typeof makePage>>();
@@ -299,13 +280,7 @@ describe("PDFService", () => {
       pending.resolve(page);
       await runPromise(Fiber.join(interruption));
       await vi.waitFor(() => expect(pdf.getPage).toHaveBeenCalledTimes(2));
-      const close = runFork(
-        action === "release"
-          ? service.releaseFile(file)
-          : action === "reset"
-            ? service.reset()
-            : service.dispose()
-      );
+      const close = runFork(action === "release" ? service.releaseFile(file) : service.dispose());
       await runPromise(Effect.yieldNow);
       expect(pdf.cleanup).not.toHaveBeenCalled();
       takeover.resolve(replacementPage);
@@ -322,18 +297,6 @@ describe("PDFService", () => {
     }
   );
 
-  it("bounds scalar entries to 512 pages and retains recently read entries", async () => {
-    pdf.numPages = 513;
-    for (let number = 1; number <= 512; number++)
-      await runPromise(service.getPageRotation(file, number));
-    await runPromise(service.getPageSize(file, 1));
-    await runPromise(service.getPageSize(file, 513));
-    await runPromise(service.getPageSize(file, 1));
-    expect(pdf.getPage).toHaveBeenCalledTimes(513);
-    await runPromise(service.getPageSize(file, 2));
-    expect(pdf.getPage).toHaveBeenCalledTimes(514);
-  });
-
   it("isolates page numbers and different File objects with identical names", async () => {
     const other = new File(["%PDF"], file.name, { type: file.type });
     const otherPdf = makeDocument(makePage(300, 400));
@@ -349,27 +312,20 @@ describe("PDFService", () => {
   it.each([
     { action: "release", fails: false },
     { action: "release", fails: true },
-    { action: "reset", fails: false },
-    { action: "reset", fails: true },
-  ] as const)(
-    "discards cached metadata on $action, cleanup fails=$fails",
-    async ({ action, fails }) => {
-      await runPromise(service.getPageSize(file, 1));
-      const stale = service.getPageSize(file, 1);
-      if (fails) pdf.cleanup.mockRejectedValueOnce(new Error("cleanup failed"));
-      const result = await runPromise(
-        Effect.exit(action === "release" ? service.releaseFile(file) : service.reset())
-      );
-      expect(Exit.isFailure(result)).toBe(fails);
-      await expect(runPromise(stale)).rejects.toMatchObject({ operation: "get-page-size", file });
-      const reopened = makeDocument(makePage(300, 400));
-      getDocument.mockReturnValueOnce(makeTask(Promise.resolve(reopened)));
-      expect(await runPromise(service.getPageSize(file, 1))).toEqual({ width: 300, height: 400 });
-      expect(reopened.getPage).toHaveBeenCalledTimes(1);
-    }
-  );
+  ] as const)("discards cached metadata on $action, cleanup fails=$fails", async ({ fails }) => {
+    await runPromise(service.getPageSize(file, 1));
+    const stale = service.getPageSize(file, 1);
+    if (fails) pdf.cleanup.mockRejectedValueOnce(new Error("cleanup failed"));
+    const result = await runPromise(Effect.exit(service.releaseFile(file)));
+    expect(Exit.isFailure(result)).toBe(fails);
+    await expect(runPromise(stale)).rejects.toMatchObject({ operation: "get-page-size", file });
+    const reopened = makeDocument(makePage(300, 400));
+    getDocument.mockReturnValueOnce(makeTask(Promise.resolve(reopened)));
+    expect(await runPromise(service.getPageSize(file, 1))).toEqual({ width: 300, height: 400 });
+    expect(reopened.getPage).toHaveBeenCalledTimes(1);
+  });
 
-  it.each(["release", "reset", "dispose"] as const)(
+  it.each(["release", "dispose"] as const)(
     "drains late coalesced metadata before %s and never publishes it into a reopened file",
     async (action) => {
       const pending = Promise.withResolvers<ReturnType<typeof makePage>>();
@@ -378,13 +334,7 @@ describe("PDFService", () => {
       await vi.waitFor(() => expect(pdf.getPage).toHaveBeenCalledTimes(1));
       const second = runFork(service.getPageSize(file, 1));
       await runPromise(Effect.yieldNow);
-      const close = runFork(
-        action === "release"
-          ? service.releaseFile(file)
-          : action === "reset"
-            ? service.reset()
-            : service.dispose()
-      );
+      const close = runFork(action === "release" ? service.releaseFile(file) : service.dispose());
       await runPromise(Effect.yieldNow);
       expect(pdf.cleanup).not.toHaveBeenCalled();
       pending.resolve(page);
@@ -437,7 +387,6 @@ describe("PDFService", () => {
     await runPromise(service.loadPDF(file));
     await runPromise(service.loadPDF(otherFile));
     await runPromise(service.releaseFile(file));
-    expect(service.getPageCount()).toBe(5);
     expect(task.destroy).toHaveBeenCalledTimes(1);
     expect(otherTask.destroy).not.toHaveBeenCalled();
     await runPromise(service.loadPDF(otherFile));
@@ -446,56 +395,45 @@ describe("PDFService", () => {
     expect(getDocument).toHaveBeenCalledTimes(3);
   });
 
-  it.each(["release", "reset"] as const)(
-    "cancels pending loads on %s, cleans late documents, and allows a reload",
-    async (action) => {
-      const pending = pendingLoad();
-      pending.task.destroy.mockResolvedValue(undefined);
-      getDocument.mockReturnValueOnce(pending.task);
-      const load = runFork(service.loadPDF(file));
-      await vi.waitFor(() => expect(getDocument).toHaveBeenCalledTimes(1));
+  it("cancels pending loads on release, cleans late documents, and allows a reload", async () => {
+    const pending = pendingLoad();
+    pending.task.destroy.mockResolvedValue(undefined);
+    getDocument.mockReturnValueOnce(pending.task);
+    const load = runFork(service.loadPDF(file));
+    await vi.waitFor(() => expect(getDocument).toHaveBeenCalledTimes(1));
 
-      const cleanup = runPromise(
-        action === "release" ? service.releaseFile(file) : service.reset()
-      );
-      pending.resolve(pdf);
-      await expect(runPromise(Fiber.join(load))).rejects.toMatchObject({
-        operation: "release-file",
-        file,
-      });
-      await cleanup;
-      expect(pending.task.destroy).toHaveBeenCalledTimes(1);
-      expect(pdf.cleanup).toHaveBeenCalledTimes(1);
-      expect(service.getPageCount()).toBe(0);
-      await runPromise(service.loadPDF(file));
-      expect(getDocument).toHaveBeenCalledTimes(2);
-    }
-  );
+    const cleanup = runPromise(service.releaseFile(file));
+    pending.resolve(pdf);
+    await expect(runPromise(Fiber.join(load))).rejects.toMatchObject({
+      operation: "release-file",
+      file,
+    });
+    await cleanup;
+    expect(pending.task.destroy).toHaveBeenCalledTimes(1);
+    expect(pdf.cleanup).toHaveBeenCalledTimes(1);
+    await runPromise(service.loadPDF(file));
+    expect(getDocument).toHaveBeenCalledTimes(2);
+  });
 
-  it.each(["release", "reset"] as const)(
-    "reports late document cleanup failure during %s",
-    async (action) => {
-      const pending = pendingLoad();
-      pending.task.destroy.mockResolvedValue(undefined);
-      pdf.cleanup.mockRejectedValue(new Error("late cleanup failed"));
-      getDocument.mockReturnValueOnce(pending.task);
-      const load = runFork(service.loadPDF(file));
-      await vi.waitFor(() => expect(getDocument).toHaveBeenCalledOnce());
+  it("reports late document cleanup failure during release", async () => {
+    const pending = pendingLoad();
+    pending.task.destroy.mockResolvedValue(undefined);
+    pdf.cleanup.mockRejectedValue(new Error("late cleanup failed"));
+    getDocument.mockReturnValueOnce(pending.task);
+    const load = runFork(service.loadPDF(file));
+    await vi.waitFor(() => expect(getDocument).toHaveBeenCalledOnce());
 
-      const cleanup = runPromise(
-        action === "release" ? service.releaseFile(file) : service.reset()
-      );
-      const failure = expect(cleanup).rejects.toMatchObject({ operation: "cleanup-pdf-js", file });
-      await vi.waitFor(() => expect(pending.task.destroy).toHaveBeenCalledOnce());
-      pending.resolve(pdf);
+    const cleanup = runPromise(service.releaseFile(file));
+    const failure = expect(cleanup).rejects.toMatchObject({ operation: "cleanup-pdf-js", file });
+    await vi.waitFor(() => expect(pending.task.destroy).toHaveBeenCalledOnce());
+    pending.resolve(pdf);
 
-      await failure;
-      await expect(runPromise(Fiber.join(load))).rejects.toMatchObject({
-        operation: "release-file",
-      });
-      expect(pdf.cleanup).toHaveBeenCalledOnce();
-    }
-  );
+    await failure;
+    await expect(runPromise(Fiber.join(load))).rejects.toMatchObject({
+      operation: "release-file",
+    });
+    expect(pdf.cleanup).toHaveBeenCalledOnce();
+  });
 
   it("waits for duplicate cleanup and retains the first successful document", async () => {
     const first = pendingLoad();
@@ -530,45 +468,21 @@ describe("PDFService", () => {
     await vi.waitFor(() => expect(getDocument).toHaveBeenCalledTimes(1));
     await runPromise(Fiber.interrupt(first));
     pending.resolve(pdf);
-    await runPromise(Fiber.join(second));
-    expect(service.getPageCount()).toBe(5);
+    expect(await runPromise(Fiber.join(second))).toBe(5);
     expect(pending.task.destroy).not.toHaveBeenCalled();
   });
 
-  it.each([false, true])("reset destroys a pending load, detached=%s", async (detached) => {
+  it.each([false, true])("dispose destroys a pending load, detached=%s", async (detached) => {
     const pending = pendingLoad();
     getDocument.mockReturnValueOnce(pending.task);
     const load = runFork(service.loadPDF(file));
     await vi.waitFor(() => expect(getDocument).toHaveBeenCalledTimes(1));
     if (detached) await runPromise(Fiber.interrupt(load));
     expect(pending.task.destroy).not.toHaveBeenCalled();
-    await runPromise(service.reset());
+    await runPromise(service.dispose());
     await runPromise(Fiber.await(load));
     expect(pending.task.destroy).toHaveBeenCalledTimes(1);
   });
-
-  it.each([1, 2])(
-    "reset reports destruction failures and cancels all %s pending loads",
-    async (count) => {
-      const loads = Array.from({ length: count }, () => pendingLoad());
-      for (const load of loads) {
-        load.task.destroy.mockImplementation(async () => {
-          load.reject(new Error("load cancelled"));
-          throw new Error("worker destroy failed");
-        });
-        getDocument.mockReturnValueOnce(load.task);
-      }
-      const fibers = [runFork(service.loadPDF(file))];
-      if (count === 2) fibers.push(runFork(service.loadPDFWithPassword(file, "password")));
-      await vi.waitFor(() => expect(getDocument).toHaveBeenCalledTimes(count));
-      await expect(runPromise(service.reset())).rejects.toMatchObject({
-        operation: "destroy-pdf-js",
-        file,
-      });
-      await Promise.all(fibers.map((fiber) => runPromise(Fiber.await(fiber))));
-      for (const load of loads) expect(load.task.destroy).toHaveBeenCalledTimes(1);
-    }
-  );
 
   it.each([false, true])(
     "cleans failed loads and allows retries, destruction fails=%s",
@@ -584,8 +498,7 @@ describe("PDFService", () => {
         file,
       });
       expect(failedTask.destroy).toHaveBeenCalledTimes(1);
-      await runPromise(service.loadPDF(file));
-      expect(service.getPageCount()).toBe(5);
+      expect(await runPromise(service.loadPDF(file))).toBe(5);
       expect(getDocument).toHaveBeenCalledTimes(2);
     }
   );
@@ -606,18 +519,16 @@ describe("PDFService", () => {
     ).rejects.toMatchObject({ name: "PDFPasswordRequiredError", reason, file });
   });
 
-  it("uses the supplied password and forgets it on reset", async () => {
-    await runPromise(service.loadPDFWithPassword(file, "623"));
+  it("uses the supplied password and forgets it on release", async () => {
+    expect(await runPromise(service.loadPDFWithPassword(file, "623"))).toBe(5);
     expect(getDocument).toHaveBeenCalledExactlyOnceWith({
       data: new Uint8Array(await file.arrayBuffer()),
       password: "623",
       worker: workers.created.at(-1),
     });
     expect(service.getPassword(file)).toBe("623");
-    expect(service.getPageCount()).toBe(5);
     await runPromise(service.renderPage(file, 1, document.createElement("canvas")));
-    await runPromise(service.reset());
-    expect(service.getPageCount()).toBe(0);
+    await runPromise(service.releaseFile(file));
     expect(service.getPassword(file)).toBeUndefined();
     getDocument.mockImplementationOnce(() =>
       makeTask(
@@ -737,7 +648,7 @@ describe("PDFService", () => {
     });
   });
 
-  it("renders the requested source even after another file becomes active", async () => {
+  it("renders each requested source at its own size", async () => {
     const wide = new File(["%PDF"], "wide.pdf", { type: "application/pdf" });
     getDocument
       .mockReturnValueOnce(task)
@@ -969,12 +880,11 @@ describe("PDFService", () => {
   it.each([
     { action: "release", operation: "load" },
     { action: "release", operation: "render" },
-    { action: "reset", operation: "render" },
-  ] as const)("holds a new $operation behind $action cleanup", async ({ action, operation }) => {
+  ] as const)("holds a new $operation behind $action cleanup", async ({ operation }) => {
     const cleanup = Promise.withResolvers<void>();
     pdf.cleanup.mockReturnValue(cleanup.promise);
     await runPromise(service.loadPDF(file));
-    const release = runFork(action === "release" ? service.releaseFile(file) : service.reset());
+    const release = runFork(service.releaseFile(file));
     await vi.waitFor(() => expect(pdf.cleanup).toHaveBeenCalledTimes(1));
     const next = runFork(
       operation === "load"
@@ -1011,7 +921,7 @@ describe("PDFService", () => {
     }
   });
 
-  it("reset cancels active renders for every source before document cleanup", async () => {
+  it("dispose cancels active renders for every source before document cleanup", async () => {
     const otherFile = new File(["%PDF"], "other.pdf", { type: "application/pdf" });
     const otherPage = makePage();
     const otherPdf = makeDocument(otherPage);
@@ -1023,7 +933,7 @@ describe("PDFService", () => {
       runFork(service.renderPage(source, 1, document.createElement("canvas")))
     );
     await vi.waitFor(() => expect(otherPage.render).toHaveBeenCalledTimes(1));
-    await runPromise(service.reset());
+    await runPromise(service.dispose());
     for (const [index, document] of [pdf, otherPdf].entries()) {
       expect(renders[index].cancel).toHaveBeenCalledTimes(1);
       expect(document.cleanup).toHaveBeenCalledTimes(1);

@@ -2,8 +2,8 @@ import { Context, Effect, Exit, type Fiber, Layer, ManagedRuntime } from "effect
 import type { PageState, PDFCompressionResult, PDFError } from "../types/interfaces";
 import { PDFProcessingError } from "../types/interfaces";
 import { PDFCompressionService } from "./pdf-compression-service";
-import { collectFirstError } from "./pdf-errors";
-import type { PDFImageExportOptions, PDFImageExportService } from "./pdf-image-export-service";
+import { collectFirstError, errorMessage } from "./pdf-errors";
+import type { PDFImageExportService } from "./pdf-image-export-service";
 import type {
   PDFBuildOptions,
   PDFImagesToPDFOptions,
@@ -22,7 +22,6 @@ export interface PDFProcessingShape
         PDFService,
         | "loadPDF"
         | "loadPDFWithPassword"
-        | "renderPage"
         | "renderPageState"
         | "getPageGeometry"
         | "getPageRotation"
@@ -33,13 +32,10 @@ export interface PDFProcessingShape
       Pick<PDFOperationsService, "getFields" | "validateFieldAnswer" | "buildPDF" | "imagesToPDF">
     >,
     Readonly<Pick<PDFImageExportService, "exportImages">> {
-  readonly getPageCount: Effect.Effect<number>;
   readonly compressPDF: (
     file: File
   ) => Effect.Effect<PDFCompressionResult, PDFError | QpdfProcessingError>;
   readonly releaseFile: (file: File) => Effect.Effect<void, PDFProcessingError>;
-  readonly reset: Effect.Effect<void, PDFProcessingError>;
-  readonly clearCache: Effect.Effect<void>;
 }
 
 export class PDFProcessing extends Context.Service<PDFProcessing, PDFProcessingShape>()(
@@ -63,7 +59,7 @@ export function makePDFRuntime(): PDFRuntime {
       Effect.gen(function* () {
         const qpdfProcessing = yield* QpdfProcessing;
         // Edited-page renders share the runtime's editing support and its
-        // parsed sources, which releaseFile and clearCache already manage.
+        // export sources, which releaseFile and dispose already manage.
         const pdfService = new PDFService({
           decrypt: qpdfProcessing.decrypt,
           operations: Effect.suspend(() => getOperationsService),
@@ -81,10 +77,7 @@ export function makePDFRuntime(): PDFRuntime {
               new PDFProcessingError({
                 operation: "load-pdf-operations",
                 cause,
-                message:
-                  cause instanceof Error && cause.message
-                    ? cause.message
-                    : "Could not load PDF editing support.",
+                message: errorMessage(cause, "Could not load PDF editing support."),
               }),
           }),
           (exit) => (Exit.isSuccess(exit) ? Infinity : 0)
@@ -93,17 +86,13 @@ export function makePDFRuntime(): PDFRuntime {
           Effect.tryPromise({
             try: async () => {
               const { PDFImageExportService } = await import("./pdf-image-export-service");
-              const service = new PDFImageExportService(pdfService);
-              return service;
+              return new PDFImageExportService(pdfService);
             },
             catch: (cause) =>
               new PDFProcessingError({
                 operation: "load-pdf-image-export",
                 cause,
-                message:
-                  cause instanceof Error && cause.message
-                    ? cause.message
-                    : "Could not load PDF image export support.",
+                message: errorMessage(cause, "Could not load PDF image export support."),
               }),
           }),
           (exit) => (Exit.isSuccess(exit) ? Infinity : 0)
@@ -122,15 +111,6 @@ export function makePDFRuntime(): PDFRuntime {
           loadPDF: (file: File) => pdfService.loadPDF(file),
           loadPDFWithPassword: (file: File, password: string) =>
             pdfService.loadPDFWithPassword(file, password),
-          getPageCount: Effect.sync(() => pdfService.getPageCount()),
-          renderPage: (
-            file: File,
-            pageNumber: number,
-            canvas: HTMLCanvasElement,
-            scale?: number,
-            rotation?: number,
-            maxPixels?: number
-          ) => pdfService.renderPage(file, pageNumber, canvas, scale, rotation, maxPixels),
           renderPageState: (page, canvas, scale, rotation, maxCanvasPixels) =>
             pdfService.renderPageState(page, canvas, scale, rotation, maxCanvasPixels),
           getPageGeometry: (file, pageNumber) => pdfService.getPageGeometry(file, pageNumber),
@@ -142,7 +122,7 @@ export function makePDFRuntime(): PDFRuntime {
             Effect.flatMap(getOperationsService, (service) => service.buildPDF(pages, options)),
           imagesToPDF: (files: readonly File[], options?: PDFImagesToPDFOptions) =>
             Effect.flatMap(getOperationsService, (service) => service.imagesToPDF(files, options)),
-          exportImages: (pages: readonly PageState[], options?: PDFImageExportOptions) =>
+          exportImages: (pages: readonly PageState[], options?: PDFBuildOptions) =>
             Effect.flatMap(getImageExportService, (service) =>
               service.exportImages(pages, options)
             ),
@@ -155,18 +135,13 @@ export function makePDFRuntime(): PDFRuntime {
                 operationsService?.releaseFile(file) ?? Effect.void,
               ])
             ),
-          reset: Effect.suspend(() => pdfService.reset()),
-          clearCache: Effect.suspend(() => operationsService?.clearCache() ?? Effect.void),
           dispose: () =>
             collectFirstError([pdfService.dispose(), operationsService?.dispose() ?? Effect.void]),
         };
 
         return service;
       }),
-      (service) =>
-        collectFirstError([service.reset, service.clearCache, service.dispose()]).pipe(
-          Effect.catch((error) => Effect.logError(error))
-        )
+      (service) => service.dispose().pipe(Effect.catch((error) => Effect.logError(error)))
     )
   ).pipe(Layer.provide(qpdfLayer));
 

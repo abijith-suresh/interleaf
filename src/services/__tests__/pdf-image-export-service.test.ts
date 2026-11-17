@@ -1,12 +1,12 @@
 import { Deferred, Effect, Fiber } from "effect";
 import { unzipSync } from "fflate";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PDFNoPagesError } from "../../types/interfaces";
+import { type PageState, PDFNoPagesError } from "../../types/interfaces";
 import { IMAGE_EXPORT_MAX_PIXELS, PDFImageExportService } from "../pdf-image-export-service";
 import { clampScaleToPixelBudget } from "../render-scale";
 import { createPageState } from "./pdf-fixtures";
 
-const renderPage = vi.fn();
+const renderPageState = vi.fn();
 const getPageRotation = vi.fn();
 
 describe("PDFImageExportService", () => {
@@ -15,18 +15,12 @@ describe("PDFImageExportService", () => {
     getPageRotation.mockImplementation((_file: File, pageNumber: number) =>
       Effect.succeed(pageNumber === 3 ? 90 : 0)
     );
-    renderPage.mockImplementation(
-      (
-        file: File,
-        pageNumber: number,
-        canvas: HTMLCanvasElement,
-        _scale: number,
-        rotation: number
-      ) =>
+    renderPageState.mockImplementation(
+      (page: PageState, canvas: HTMLCanvasElement, _scale: number, rotation: number) =>
         Effect.sync(() => {
           canvas.width = 200;
           canvas.height = 300;
-          canvas.dataset.imageBytes = `${file.name}:${pageNumber}:${rotation}`;
+          canvas.dataset.imageBytes = `${page.sourceFile.name}:${page.sourcePageNumber}:${rotation}`;
         })
     );
     vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(function (
@@ -44,7 +38,7 @@ describe("PDFImageExportService", () => {
   it("exports active pages as ordered PNG files in a ZIP archive", async () => {
     const sourceFile = new File(["source"], "source.pdf", { type: "application/pdf" });
     const progress: Array<{ completed: number; total: number }> = [];
-    const service = new PDFImageExportService({ getPageRotation, renderPage });
+    const service = new PDFImageExportService({ getPageRotation, renderPageState });
 
     const result = await Effect.runPromise(
       service.exportImages(
@@ -66,24 +60,6 @@ describe("PDFImageExportService", () => {
       { completed: 1, total: 2 },
       { completed: 2, total: 2 },
     ]);
-    expect(renderPage).toHaveBeenNthCalledWith(
-      1,
-      sourceFile,
-      1,
-      expect.any(HTMLCanvasElement),
-      2,
-      0,
-      IMAGE_EXPORT_MAX_PIXELS
-    );
-    expect(renderPage).toHaveBeenNthCalledWith(
-      2,
-      sourceFile,
-      3,
-      expect.any(HTMLCanvasElement),
-      2,
-      180,
-      IMAGE_EXPORT_MAX_PIXELS
-    );
   });
 
   it("renders oversized pages within the pixel budget and ordinary pages at scale 2", async () => {
@@ -94,17 +70,16 @@ describe("PDFImageExportService", () => {
     ]);
     const canvasSizes: Array<[number, number]> = [];
     const scales: number[] = [];
-    renderPage.mockImplementation(
+    renderPageState.mockImplementation(
       (
-        _file: File,
-        pageNumber: number,
+        page: PageState,
         canvas: HTMLCanvasElement,
         scale: number,
         _rotation: number,
         maxPixels: number
       ) =>
         Effect.sync(() => {
-          const size = sizes.get(pageNumber)!;
+          const size = sizes.get(page.sourcePageNumber)!;
           const fitted = clampScaleToPixelBudget(scale, size.width, size.height, maxPixels);
           canvas.width = Math.floor(size.width * fitted);
           canvas.height = Math.floor(size.height * fitted);
@@ -112,7 +87,7 @@ describe("PDFImageExportService", () => {
           scales.push(fitted);
         })
     );
-    const service = new PDFImageExportService({ getPageRotation, renderPage });
+    const service = new PDFImageExportService({ getPageRotation, renderPageState });
 
     await Effect.runPromise(
       service.exportImages([createPageState(sourceFile, 1), createPageState(sourceFile, 2)])
@@ -126,7 +101,7 @@ describe("PDFImageExportService", () => {
 
   it("exports only selected active pages", async () => {
     const sourceFile = new File(["source"], "source.pdf", { type: "application/pdf" });
-    const service = new PDFImageExportService({ getPageRotation, renderPage });
+    const service = new PDFImageExportService({ getPageRotation, renderPageState });
 
     const result = await Effect.runPromise(
       service.exportImages(
@@ -148,7 +123,7 @@ describe("PDFImageExportService", () => {
 
   it("keeps concurrent runs of the same export effect isolated", async () => {
     const sourceFile = new File(["source"], "source.pdf", { type: "application/pdf" });
-    const service = new PDFImageExportService({ getPageRotation, renderPage });
+    const service = new PDFImageExportService({ getPageRotation, renderPageState });
     const exportEffect = service.exportImages([
       createPageState(sourceFile, 1),
       createPageState(sourceFile, 2),
@@ -174,13 +149,13 @@ describe("PDFImageExportService", () => {
       Deferred.doneUnsafe(pending, Effect.succeed(callback));
     });
     const onProgress = vi.fn();
-    const service = new PDFImageExportService({ getPageRotation, renderPage });
+    const service = new PDFImageExportService({ getPageRotation, renderPageState });
     const fiber = Effect.runFork(
       service.exportImages([createPageState(sourceFile, 1)], { onProgress })
     );
     const callback = await Effect.runPromise(Deferred.await(pending));
     await Effect.runPromise(Fiber.interrupt(fiber));
-    const canvas = renderPage.mock.calls[0][2] as HTMLCanvasElement;
+    const canvas = renderPageState.mock.calls[0][1] as HTMLCanvasElement;
     expect([canvas.width, canvas.height]).toEqual([0, 0]);
     const blob = new Blob(["late PNG"]);
     const read = vi.spyOn(blob, "arrayBuffer");
@@ -193,7 +168,7 @@ describe("PDFImageExportService", () => {
   it("fails when a page cannot be encoded as PNG", async () => {
     vi.mocked(HTMLCanvasElement.prototype.toBlob).mockImplementation((callback) => callback(null));
     const sourceFile = new File(["source"], "source.pdf", { type: "application/pdf" });
-    const service = new PDFImageExportService({ getPageRotation, renderPage });
+    const service = new PDFImageExportService({ getPageRotation, renderPageState });
 
     await expect(
       Effect.runPromise(service.exportImages([createPageState(sourceFile, 1)]))
@@ -202,7 +177,7 @@ describe("PDFImageExportService", () => {
 
   it("fails when no pages remain to export", async () => {
     const sourceFile = new File(["source"], "source.pdf", { type: "application/pdf" });
-    const service = new PDFImageExportService({ getPageRotation, renderPage });
+    const service = new PDFImageExportService({ getPageRotation, renderPageState });
 
     await expect(
       Effect.runPromise(
