@@ -150,7 +150,7 @@ export async function exportCrossPageButtonFixture() {
 }
 
 export const INDIRECT_OMITTED_ANSWER = "INDEPENDENT_OMITTED_ANSWER_83ec532";
-export const INDIRECT_OMITTED_CONTENT = "INDEPENDENT_OMITTED_PAGE_7cd6532";
+const INDIRECT_OMITTED_CONTENT = "INDEPENDENT_OMITTED_PAGE_7cd6532";
 export async function exportIndirectWidgetFixture(indirect: boolean) {
   const doc = await PDFDocument.create(),
     p1 = doc.addPage(),

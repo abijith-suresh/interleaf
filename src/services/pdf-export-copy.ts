@@ -279,11 +279,9 @@ export class PDFExportCopy {
       return this.name(dict, N("Type"), true) === N("Page");
     // A resource/state lookup map may itself have a key named Type. Only a
     // resolved Page name identifies an otherwise unknown dictionary as a Page.
-    // A missing reference target is null (ISO 32000-1 7.3.10), never a Page.
     return resolvedValue(dict, N("Type"), false, true) === N("Page");
   }
-  // Optional action slots treat resolved null, including a missing reference
-  // target (ISO 32000-1 7.3.10), as absent. Keep this separate
+  // Optional action slots treat resolved null as absent. Keep this separate
   // from required role/count resolution and field inheritance.
   private actionValue(raw: PDFObject | undefined): PDFObject | undefined {
     let value = raw;
@@ -333,7 +331,6 @@ export class PDFExportCopy {
     const names = new Set<string>();
     for (;;) {
       const value = context.lookup(next);
-      // A missing reference target is null: the link has no destination.
       if (!value && next instanceof PDFRef) return undefined;
       if (!value) this.reject(source.file, "Missing internal destination");
       if (seen.has(value)) this.reject(source.file, "Cyclic internal destination");
@@ -363,7 +360,6 @@ export class PDFExportCopy {
         this.reject(source.file, "Unrecognized internal destination Page");
       const page = this.first.get(id);
       if (!page) return undefined;
-      // A missing operand target is null, which destinations accept.
       const tail = value
         .asArray()
         .slice(1)
@@ -383,7 +379,6 @@ export class PDFExportCopy {
     const fields = new Set<PDFDict>();
     const annotationOwners = new Map<PDFDict, PDFPage>();
     for (const page of actualPages) {
-      // A null or missing annotation target is null: drop it instead of reconciling it.
       const annots = page.node.Annots();
       for (let i = (annots?.size() ?? 0) - 1; i >= 0; i--) {
         const annot = this.output.context.lookup(annots?.get(i));
@@ -416,8 +411,7 @@ export class PDFExportCopy {
     }
     for (const field of fields) {
       const kids = field.lookup(N("Kids"), PDFArray);
-      // A missing kid is null, not an omitted widget: keep it in place so
-      // positional entries such as button /Opt stay aligned.
+      // Keep a missing kid in place so positional entries such as button /Opt stay aligned.
       const missing = (kid: PDFObject) =>
         kid instanceof PDFRef && this.output.context.lookup(kid) === undefined;
       const retained = kids

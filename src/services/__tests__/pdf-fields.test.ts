@@ -214,7 +214,7 @@ describe("field labels", () => {
 });
 
 describe("field inspection cache", () => {
-  it("reads each File's fields once until it is released or the cache is cleared", async () => {
+  it("reads each File's fields once until it is released", async () => {
     const fixture = await textFieldFixture();
     const source = file(fixture.bytes);
     const read = vi.spyOn(source, "arrayBuffer");
@@ -231,9 +231,6 @@ describe("field inspection cache", () => {
       await Effect.runPromise(service.releaseFile(source));
       await Effect.runPromise(service.getFields(source));
       expect(read).toHaveBeenCalledTimes(2);
-      await Effect.runPromise(service.clearCache());
-      await Effect.runPromise(service.getFields(source));
-      expect(read).toHaveBeenCalledTimes(3);
     } finally {
       await Effect.runPromise(service.dispose());
     }

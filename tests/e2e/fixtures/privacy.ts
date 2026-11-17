@@ -20,7 +20,7 @@ async function staticPaths(directory = "dist", prefix = ""): Promise<string[]> {
 
 // Install before navigation. Context routing observes HTTP requests from pages, subframes and
 // dedicated workers, plus page WebSockets. Worker WebSockets bypass Playwright's routing and are
-// NOT observed or blocked here; the loopback capability control documents that gap.
+// NOT observed or blocked here; the "guard limit" test in privacy-guard.spec.ts proves that gap.
 // Fresh contexts block service workers because they can bypass routes. These tests do not audit
 // production service workers, browser background traffic, every input, or third-party internals.
 export async function observePrivacy(context: BrowserContext, baseURL: string) {

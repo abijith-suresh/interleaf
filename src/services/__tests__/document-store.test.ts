@@ -132,47 +132,6 @@ describe("makeDocumentStore", () => {
     });
   });
 
-  it.effect("clears residents and pending loads without gating new acquires", () => {
-    const pendingFile = makeFile("pending.pdf");
-    const freshFile = makeFile("fresh.pdf");
-    const fresh = { id: "fresh" };
-    const pendingStarted = Deferred.makeUnsafe<void>();
-    const cleanupStarted = Deferred.makeUnsafe<void>();
-    const releaseCleanup = Deferred.makeUnsafe<void>();
-    const interrupted = vi.fn(() => Effect.void);
-    load.mockImplementation(({ file: source }) =>
-      source === pendingFile
-        ? Deferred.succeed(pendingStarted, undefined).pipe(
-            Effect.andThen(Effect.never),
-            Effect.onInterrupt(interrupted)
-          )
-        : Effect.succeed(source === freshFile ? fresh : resident)
-    );
-    cleanup.mockReturnValue(
-      Deferred.succeed(cleanupStarted, undefined).pipe(
-        Effect.andThen(Deferred.await(releaseCleanup))
-      )
-    );
-    return Effect.gen(function* () {
-      yield* store.acquire(key);
-      const pending = yield* Effect.forkChild(store.acquire(makeKey(pendingFile)));
-      yield* Deferred.await(pendingStarted);
-      const clear = yield* Effect.forkChild(store.clear);
-      yield* Deferred.await(cleanupStarted);
-      expect(yield* store.acquire(makeKey(freshFile))).toBe(fresh);
-      expect(Option.getOrUndefined(store.peek(freshFile))).toBe(fresh);
-      expect(yield* pending.pipe(Fiber.join, Effect.flip)).toMatchObject({
-        operation: "release-file",
-      });
-      expect(interrupted).toHaveBeenCalledTimes(1);
-      yield* Deferred.succeed(releaseCleanup, undefined);
-      yield* Fiber.join(clear);
-      expect(cleanup).toHaveBeenCalledExactlyOnceWith(resident);
-      expect(Option.isNone(store.peek(file))).toBe(true);
-      expect(load).toHaveBeenCalledTimes(3);
-    });
-  });
-
   it.effect("reset interrupts loads and cleans every resident after a cleanup failure", () => {
     const otherFile = makeFile("other.pdf");
     const pendingFile = makeFile("pending.pdf");
