@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <title>Interleaf</title>
-  <rect width="32" height="32" rx="7" fill="#191b17"/>
-  <rect x="12" y="16" width="6" height="12" rx="1.5" fill="#fcfbf8"/>
-  <path d="M10.5 14A9 9 0 0 1 20.5 5A9 9 0 0 1 10.5 14z" fill="#4cc38a"/>
+  <rect width="32" height="32" rx="7" fill="#2b5a46"/>
+  <rect x="12" y="15" width="6" height="13" rx="1" fill="#fcfbf8"/>
+  <path d="M10.5 13A9 9 0 0 1 20.5 4A9 9 0 0 1 10.5 13z" fill="#9fd6ae"/>
 </svg>
