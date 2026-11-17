@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { guardLeave, LEAVE_EDITOR_MESSAGE } from "../leave-guard";
+import { guardLeave } from "../leave-guard";
 
 type Preparation = Event & {
   from: URL;
