@@ -1,0 +1,28 @@
+---
+import MarketingHero from "../components/marketing/MarketingHero.astro";
+import MarketingLayout from "../components/marketing/MarketingLayout.astro";
+
+const base = import.meta.env.BASE_URL;
+---
+
+<MarketingLayout title="Page not found — Interleaf" closingCta={false}>
+  <MarketingHero
+    titleId="not-found-title"
+    title="Page not found"
+    lede="This page does not exist or has moved."
+  />
+
+  <div class="marketing-container not-found-actions">
+    <a class="marketing-button" href={`${base}app`}>Open editor</a>
+    <a class="marketing-link" href={base}>Home</a>
+  </div>
+</MarketingLayout>
+
+<style>
+  .not-found-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: var(--section-gap);
+  }
+</style>

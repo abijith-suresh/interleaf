@@ -8,14 +8,12 @@ import { PDFPasswordRequiredError, PDFProcessingError } from "@/types/interfaces
 const pdfServiceMocks = vi.hoisted(() => ({
   loadPDF: vi.fn(),
   loadPDFWithPassword: vi.fn(),
-  getPageCount: vi.fn(),
   getPassword: vi.fn(),
   getPageRotation: vi.fn(),
   getPageSize: vi.fn(),
   getPageGeometry: vi.fn(),
   renderPage: vi.fn(),
   releaseFile: vi.fn(),
-  reset: vi.fn(),
   dispose: vi.fn(),
 }));
 
@@ -43,7 +41,6 @@ vi.mock("@/services/pdf-service", () => ({
   PDFService: class {
     loadPDF = pdfServiceMocks.loadPDF;
     loadPDFWithPassword = pdfServiceMocks.loadPDFWithPassword;
-    getPageCount = pdfServiceMocks.getPageCount;
     getPassword = pdfServiceMocks.getPassword;
     getPageRotation = pdfServiceMocks.getPageRotation;
     getPageSize = pdfServiceMocks.getPageSize;
@@ -67,7 +64,6 @@ vi.mock("@/services/pdf-service", () => ({
             maxPixels
           );
     releaseFile = pdfServiceMocks.releaseFile;
-    reset = pdfServiceMocks.reset;
     dispose = pdfServiceMocks.dispose;
   },
 }));
@@ -145,7 +141,6 @@ describe("Editor", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     promptForPassword.mockResolvedValue(null);
-    pdfServiceMocks.getPageCount.mockReturnValue(3);
     pdfServiceMocks.getPageRotation.mockReturnValue(Effect.succeed(0));
     pdfServiceMocks.getPageSize.mockReturnValue(Effect.succeed({ width: 100, height: 200 }));
     pdfServiceMocks.getPageGeometry.mockReturnValue(
@@ -157,11 +152,10 @@ describe("Editor", () => {
         transform: [1, 0, 0, -1, 0, 200],
       })
     );
-    pdfServiceMocks.loadPDF.mockReturnValue(Effect.succeed(undefined));
-    pdfServiceMocks.loadPDFWithPassword.mockReturnValue(Effect.succeed(undefined));
+    pdfServiceMocks.loadPDF.mockReturnValue(Effect.succeed(3));
+    pdfServiceMocks.loadPDFWithPassword.mockReturnValue(Effect.succeed(3));
     pdfServiceMocks.renderPage.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.releaseFile.mockReturnValue(Effect.succeed(undefined));
-    pdfServiceMocks.reset.mockReturnValue(Effect.succeed(undefined));
     pdfServiceMocks.dispose.mockReturnValue(Effect.void);
     pdfOperationsMocks.releaseFile.mockReturnValue(Effect.void);
     pdfOperationsMocks.dispose.mockReturnValue(Effect.void);
@@ -198,8 +192,8 @@ describe("Editor", () => {
 
   function failThirdLoad(file: File, cause: Error) {
     pdfServiceMocks.loadPDF
-      .mockReturnValueOnce(Effect.succeed(undefined))
-      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(Effect.succeed(3))
+      .mockReturnValueOnce(Effect.succeed(3))
       .mockReturnValueOnce(
         Effect.fail(
           new PDFProcessingError({ operation: "load-pdf-js", file, cause, message: cause.message })
@@ -290,7 +284,7 @@ describe("Editor", () => {
     const cleanup = Deferred.makeUnsafe<void>();
     pdfServiceMocks.releaseFile.mockReturnValueOnce(Deferred.await(cleanup));
     pdfServiceMocks.loadPDF
-      .mockReturnValueOnce(Effect.void)
+      .mockReturnValueOnce(Effect.succeed(3))
       .mockReturnValueOnce(Effect.fail(new Error("second source details")));
     const undoLabel = screen.getByTestId("editor-undo-button").getAttribute("aria-label");
     const redoLabel = screen.getByTestId("editor-redo-button").getAttribute("aria-label");
@@ -478,7 +472,7 @@ describe("Editor", () => {
     await waitFor(() => expect(getPages()).toHaveLength(6));
     await step("undo");
     pdfServiceMocks.releaseFile.mockClear();
-    const native = Deferred.makeUnsafe<void>();
+    const native = Deferred.makeUnsafe<number>();
     const cleanup = Deferred.makeUnsafe<void>();
     const started = vi.fn();
     pdfServiceMocks.loadPDF.mockReturnValueOnce(
@@ -488,13 +482,13 @@ describe("Editor", () => {
     fireEvent.click(screen.getByTestId("editor-redo-button"));
     await waitFor(() => expect(started).toHaveBeenCalledOnce());
     view.unmount();
-    expect(pdfServiceMocks.reset).not.toHaveBeenCalled();
+    expect(pdfServiceMocks.dispose).not.toHaveBeenCalled();
     expect(pdfServiceMocks.releaseFile).not.toHaveBeenCalled();
-    await Effect.runPromise(Deferred.succeed(native, undefined));
+    await Effect.runPromise(Deferred.succeed(native, 3));
     await waitFor(() => expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(added));
-    expect(pdfServiceMocks.reset).not.toHaveBeenCalled();
+    expect(pdfServiceMocks.dispose).not.toHaveBeenCalled();
     await Effect.runPromise(Deferred.succeed(cleanup, undefined));
-    await waitFor(() => expect(pdfServiceMocks.reset).toHaveBeenCalledOnce());
+    await waitFor(() => expect(pdfServiceMocks.dispose).toHaveBeenCalledOnce());
   });
 
   it("undoes and redoes mixed organization with exact logical identity, selection, and File references", async () => {
@@ -748,7 +742,7 @@ describe("Editor", () => {
   it("ignores history shortcuts during an active operation and resumes after it completes", async () => {
     await openPDF();
     fireEvent.click(screen.getByRole("button", { name: "Rotate page 1 90 degrees" }));
-    const pending = Deferred.makeUnsafe<void>();
+    const pending = Deferred.makeUnsafe<number>();
     pdfServiceMocks.loadPDF.mockReturnValueOnce(Deferred.await(pending));
     selectFiles("add", [makeFile("busy.pdf")]);
     await waitFor(() =>
@@ -763,7 +757,7 @@ describe("Editor", () => {
     screen.getByTestId("editor-undo-button").dispatchEvent(event);
     expect(event.defaultPrevented).toBe(false);
     expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "true");
-    await Effect.runPromise(Deferred.succeed(pending, undefined));
+    await Effect.runPromise(Deferred.succeed(pending, 3));
     await waitFor(() => expect(getPages()).toHaveLength(6));
     expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "false");
   });
@@ -892,7 +886,7 @@ describe("Editor", () => {
   });
 
   it("undoes and redoes exactly the latest 32 duplications after 33 copies", async () => {
-    pdfServiceMocks.getPageCount.mockReturnValue(1);
+    pdfServiceMocks.loadPDF.mockReturnValue(Effect.succeed(1));
     await openPDF();
     const pageTiles = () => screen.getAllByTestId("editor-page-tile");
     const undo = screen.getByTestId("editor-undo-button");
@@ -1216,7 +1210,7 @@ describe("Editor", () => {
     pdfServiceMocks.loadPDF
       .mockReturnValueOnce(Effect.fail(new PDFPasswordRequiredError(locked, "needs-password")))
       .mockReturnValueOnce(Effect.fail(new Error("bad xref")))
-      .mockReturnValueOnce(Effect.succeed(undefined));
+      .mockReturnValueOnce(Effect.succeed(3));
     promptForPassword.mockResolvedValue("623");
     render(() => <Editor />);
 
@@ -1472,8 +1466,8 @@ describe("Editor", () => {
   it("adds the other files when a password prompt in the batch is canceled", async () => {
     const lockedFile = makeFile("protected-add.pdf");
     pdfServiceMocks.loadPDF
-      .mockReturnValueOnce(Effect.succeed(undefined))
-      .mockReturnValueOnce(Effect.succeed(undefined))
+      .mockReturnValueOnce(Effect.succeed(3))
+      .mockReturnValueOnce(Effect.succeed(3))
       .mockReturnValueOnce(Effect.fail(new PDFPasswordRequiredError(lockedFile, "needs-password")));
     promptForPassword.mockResolvedValue(null);
 
@@ -1508,9 +1502,9 @@ describe("Editor", () => {
 
     await waitFor(() => expect(interrupted).toHaveBeenCalledOnce());
     expect(pdfServiceMocks.releaseFile).toHaveBeenCalledWith(stagedFile);
-    expect(pdfServiceMocks.reset).not.toHaveBeenCalled();
+    expect(pdfServiceMocks.dispose).not.toHaveBeenCalled();
     await Effect.runPromise(Deferred.succeed(release, undefined));
-    await waitFor(() => expect(pdfServiceMocks.reset).toHaveBeenCalledOnce());
+    await waitFor(() => expect(pdfServiceMocks.dispose).toHaveBeenCalledOnce());
   });
 
   it("shows selection actions only while pages are selected and keeps compression for the whole file", async () => {
@@ -2084,7 +2078,7 @@ describe("Editor", () => {
   it("names the blocked source as escaped text, explains recovery and exports a subsequent safe selection", async () => {
     const safe = makeFile("source.pdf"),
       blocked = makeFile("<img src=x>.pdf");
-    pdfServiceMocks.getPageCount.mockReturnValue(2);
+    pdfServiceMocks.loadPDF.mockReturnValue(Effect.succeed(2));
     pdfOperationsMocks.buildPDF.mockReturnValueOnce(
       Effect.fail(
         new PDFProcessingError({

@@ -4,10 +4,8 @@ import { PDFProcessingError } from "../../types/interfaces";
 
 const pdfServiceMock = vi.hoisted(() => ({
   loadPDF: vi.fn(),
-  getPageCount: vi.fn(),
   getPassword: vi.fn(),
   releaseFile: vi.fn(),
-  reset: vi.fn(),
   dispose: vi.fn(),
 }));
 
@@ -15,7 +13,6 @@ const operationsServiceMock = vi.hoisted(() => ({
   buildPDF: vi.fn(),
   imagesToPDF: vi.fn(),
   releaseFile: vi.fn(),
-  clearCache: vi.fn(),
   dispose: vi.fn(),
 }));
 
@@ -80,11 +77,9 @@ let runtime: PDFRuntime;
 
 beforeEach(() => {
   vi.resetAllMocks();
-  pdfServiceMock.loadPDF.mockReturnValue(Effect.succeed(undefined));
-  pdfServiceMock.getPageCount.mockReturnValue(0);
+  pdfServiceMock.loadPDF.mockReturnValue(Effect.succeed(0));
   pdfServiceMock.getPassword.mockReturnValue(undefined);
   pdfServiceMock.releaseFile.mockReturnValue(Effect.succeed(undefined));
-  pdfServiceMock.reset.mockReturnValue(Effect.succeed(undefined));
   pdfServiceMock.dispose.mockReturnValue(Effect.void);
   operationsServiceMock.buildPDF.mockReturnValue(
     Effect.succeed({ data: new Uint8Array(), suggestedFileName: "document.pdf" })
@@ -93,7 +88,6 @@ beforeEach(() => {
     Effect.succeed({ data: new Uint8Array(), suggestedFileName: "interleaf-images.pdf" })
   );
   operationsServiceMock.releaseFile.mockReturnValue(Effect.succeed(undefined));
-  operationsServiceMock.clearCache.mockReturnValue(Effect.succeed(undefined));
   operationsServiceMock.dispose.mockReturnValue(Effect.void);
   imageExportServiceMock.exportImages.mockReturnValue(
     Effect.succeed({ data: new Blob(), suggestedFileName: "document-images.zip" })
@@ -104,18 +98,6 @@ beforeEach(() => {
 afterEach(async () => {
   await runtime.dispose();
   vi.restoreAllMocks();
-});
-
-it("returns the active page count after loading a PDF", async () => {
-  pdfServiceMock.getPageCount.mockReturnValue(7);
-  const file = new File(["plain"], "document.pdf", { type: "application/pdf" });
-
-  await runtime.runPromise(PDFProcessing.use((service) => service.loadPDF(file)));
-  const count = await runtime.runPromise(PDFProcessing.use((service) => service.getPageCount));
-
-  expect(count).toBe(7);
-  expect(pdfServiceMock.loadPDF).toHaveBeenCalledExactlyOnceWith(file);
-  expect(pdfServiceMock.reset).not.toHaveBeenCalled();
 });
 
 it("interrupts runtime-owned work before disposing services", async () => {
@@ -159,28 +141,7 @@ it("shares lazy PDF editing support for the lifetime of the runtime", async () =
   expect(operationsServiceMock.imagesToPDF).toHaveBeenCalledExactlyOnceWith(files, undefined);
 
   await runtime.dispose();
-  expect(operationsServiceMock.clearCache).toHaveBeenCalledTimes(1);
-});
-
-it("releases a file from each initialized service even when PDF.js cleanup fails", async () => {
-  const file = new File(["plain"], "document.pdf", { type: "application/pdf" });
-  await runtime.runPromise(PDFProcessing.use((service) => service.buildPDF([])));
-  pdfServiceMock.releaseFile.mockReturnValueOnce(
-    Effect.fail(
-      new PDFProcessingError({
-        operation: "cleanup-pdf-js",
-        file,
-        cause: new Error("cleanup failed"),
-        message: "cleanup failed",
-      })
-    )
-  );
-
-  await expect(
-    runtime.runPromise(PDFProcessing.use((service) => service.releaseFile(file)))
-  ).rejects.toMatchObject({ operation: "cleanup-pdf-js", file });
-  expect(pdfServiceMock.releaseFile).toHaveBeenCalledExactlyOnceWith(file);
-  expect(operationsServiceMock.releaseFile).toHaveBeenCalledExactlyOnceWith(file);
+  expect(operationsServiceMock.dispose).toHaveBeenCalledTimes(1);
 });
 
 it.each(["pdf", "operations", "both"] as const)(
@@ -269,8 +230,7 @@ it("cleans loaded PDFs without initializing PDF editing support", async () => {
   await runtime.dispose();
 
   expect(PDFOperationsService).not.toHaveBeenCalled();
-  expect(operationsServiceMock.clearCache).not.toHaveBeenCalled();
-  expect(pdfServiceMock.reset).toHaveBeenCalledTimes(1);
+  expect(pdfServiceMock.dispose).toHaveBeenCalledTimes(1);
 });
 
 it("passes the unlocked source PDF to compression and closes qpdf on disposal", async () => {

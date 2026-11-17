@@ -52,7 +52,6 @@ interface PageMetadata extends PageGeometry {
   readonly height: number;
 }
 
-// Adapt the prototype's entry cap per loaded document, retaining only scalars.
 const PAGE_METADATA_LIMIT = 512;
 
 interface LoadedPDFRecord {
@@ -111,7 +110,6 @@ const AUTO_VARIANT = "auto";
 const PASSWORD_VARIANT_PREFIX = "password:";
 
 export class PDFService {
-  private activeFile: File | null = null;
   private passwordRegistry = new Map<File, string>();
   private readonly documents = makeDocumentStore<LoadedPDFRecord>({
     load: (key) => this.loadDocumentRecord(key),
@@ -143,27 +141,19 @@ export class PDFService {
     this.worker = options.worker ?? new SharedPDFWorker();
   }
 
-  loadPDF(file: File): Effect.Effect<void, PDFError> {
-    const version = this.documents.version(file);
-
+  // Both loads return the page count.
+  loadPDF(file: File): Effect.Effect<number, PDFError> {
     return this.documents.gate(
       file,
       "load-pdf"
     )(
-      this.documents.acquire({ file, variant: AUTO_VARIANT }).pipe(
-        Effect.tap(() =>
-          Effect.sync(() => {
-            if (this.documents.isCurrent(file, version)) {
-              this.activeFile = file;
-            }
-          })
-        ),
-        Effect.asVoid
-      )
+      this.documents
+        .acquire({ file, variant: AUTO_VARIANT })
+        .pipe(Effect.map((record) => record.pdfjsDocument.numPages))
     );
   }
 
-  loadPDFWithPassword(file: File, password: string): Effect.Effect<void, PDFError> {
+  loadPDFWithPassword(file: File, password: string): Effect.Effect<number, PDFError> {
     const version = this.documents.version(file);
 
     return this.documents.gate(
@@ -181,23 +171,14 @@ export class PDFService {
           .pipe(
             Effect.tap(() =>
               Effect.sync(() => {
-                if (!this.documents.isCurrent(file, version)) return;
-                this.passwordRegistry.set(file, password);
-                this.activeFile = file;
+                if (this.documents.isCurrent(file, version))
+                  this.passwordRegistry.set(file, password);
               })
             ),
-            Effect.asVoid
+            Effect.map((record) => record.pdfjsDocument.numPages)
           );
       })
     );
-  }
-
-  getPageCount(): number {
-    if (!this.activeFile) return 0;
-    return Option.match(this.documents.peek(this.activeFile), {
-      onNone: () => 0,
-      onSome: (record) => record.pdfjsDocument.numPages,
-    });
   }
 
   getPassword(file: File): string | undefined {
@@ -229,26 +210,18 @@ export class PDFService {
       Effect.gen({ self: this }, function* () {
         const record = yield* this.documents.acquire({ file, variant: AUTO_VARIANT });
         const metadata = yield* this.getPageMetadata(record, pageNumber, "get-page-size");
-        return yield* Effect.try({
-          try: () => {
-            // PDF.js normalizes requested rotations before accepting quarter-turns.
-            let normalized = rotation % 360;
-            if (normalized < 0) normalized += 360;
-            switch (normalized) {
-              case 0:
-              case 180:
-                return { width: metadata.width, height: metadata.height };
-              case 90:
-              case 270:
-                return { width: metadata.height, height: metadata.width };
-              default:
-                throw new Error(
-                  "PageViewport: Invalid rotation, must be a multiple of 90 degrees."
-                );
-            }
-          },
-          catch: (cause) => processingError("get-page-size", file, cause),
-        });
+        // PDF.js rejects the same rotations with the same message.
+        if (rotation % 90 !== 0)
+          return yield* Effect.fail(
+            processingError(
+              "get-page-size",
+              file,
+              new Error("PageViewport: Invalid rotation, must be a multiple of 90 degrees.")
+            )
+          );
+        return (rotation / 90) % 2 === 0
+          ? { width: metadata.width, height: metadata.height }
+          : { width: metadata.height, height: metadata.width };
       })
     );
   }
@@ -690,27 +663,12 @@ export class PDFService {
   releaseFile(file: File): Effect.Effect<void, PDFProcessingError> {
     return Effect.uninterruptible(
       Effect.suspend(() => {
-        if (this.activeFile === file) this.activeFile = null;
         this.passwordRegistry.delete(file);
         // Releasing the source first settles its edited renders.
         return collectFirstError([
           this.documents.releaseFile(file),
           this.retireDerivedPages((entry) => entry.source === file),
           this.withOwnedOperations((operations) => operations.releaseFile(file)),
-        ]);
-      })
-    );
-  }
-
-  reset(): Effect.Effect<void, PDFProcessingError> {
-    return Effect.uninterruptible(
-      Effect.suspend(() => {
-        this.activeFile = null;
-        this.passwordRegistry.clear();
-        return collectFirstError([
-          this.documents.reset,
-          this.retireDerivedPages(() => true),
-          this.withOwnedOperations((operations) => operations.clearCache()),
         ]);
       })
     );

@@ -4,7 +4,7 @@ import { copyFieldAnswers, equalFieldAnswers } from "./editor-field-state";
 import { copyAddedTexts, equalAddedTexts } from "./editor-text-state";
 
 export const PAGE_HISTORY_LIMIT = 32;
-export const INACTIVE_SOURCE_SIZE_LIMIT = 48 * 1024 * 1024;
+const INACTIVE_SOURCE_SIZE_LIMIT = 48 * 1024 * 1024;
 
 export interface PageOrganizationSnapshot {
   readonly pages: readonly PageState[];

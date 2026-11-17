@@ -1,4 +1,4 @@
-export type SupportedFileKind = "pdf" | "png" | "jpeg";
+type SupportedFileKind = "pdf" | "png" | "jpeg";
 
 export function getSupportedFileKind(file: Pick<File, "name" | "type">): SupportedFileKind | null {
   if (file.type === "application/pdf") return "pdf";

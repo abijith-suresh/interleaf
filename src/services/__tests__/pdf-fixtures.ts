@@ -102,7 +102,6 @@ export function createJpegFile(name = "image.jpg", rotated = false): File {
     : new File([JPEG_BYTES], name, { type: "image/jpeg" });
 }
 
-/** The 2x3 JPEG with an EXIF orientation tag. */
 export function createOrientedJpegFile(orientation: number, name = "oriented.jpg"): File {
   const bytes = new Uint8Array([
     ...JPEG_BYTES.subarray(0, 2),

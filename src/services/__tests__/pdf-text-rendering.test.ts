@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
   build: vi.fn(),
   getFields: vi.fn(),
   releaseFile: vi.fn(),
-  clearCache: vi.fn(),
   dispose: vi.fn(),
 }));
 vi.mock("pdfjs-dist", () => ({
@@ -24,7 +23,6 @@ vi.mock("../pdf-operations-service", () => ({
     buildPDF = mocks.build;
     getFields = mocks.getFields;
     releaseFile = mocks.releaseFile;
-    clearCache = mocks.clearCache;
     dispose = mocks.dispose;
   },
 }));
@@ -87,7 +85,6 @@ function documentTask(events: string[] = []) {
 beforeEach(() => {
   mocks.getFields.mockReturnValue(Effect.succeed(fieldsOn(1)));
   mocks.releaseFile.mockReturnValue(Effect.void);
-  mocks.clearCache.mockReturnValue(Effect.void);
   mocks.dispose.mockReturnValue(Effect.void);
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
     {} as CanvasRenderingContext2D
@@ -110,7 +107,7 @@ describe.each(["text", "checkmark", "field"])("edited-page rendering with %s", (
             addedText: undefined,
             addedCheckmarks: [{ id: "tick", x: 10, y: 40, size: 16, rotation: 0 }],
           };
-  it.each(["interrupt", "release", "reset", "dispose"] as const)(
+  it.each(["interrupt", "release", "dispose"] as const)(
     "settles cancellation and cleanup before document destruction on %s",
     async (operation) => {
       const service = new PDFService();
@@ -157,11 +154,7 @@ describe.each(["text", "checkmark", "field"])("edited-page rendering with %s", (
         operation === "interrupt"
           ? Effect.runPromise(Fiber.interrupt(fiber))
           : Effect.runPromise(
-              operation === "release"
-                ? service.releaseFile(page.sourceFile)
-                : operation === "reset"
-                  ? service.reset()
-                  : service.dispose()
+              operation === "release" ? service.releaseFile(page.sourceFile) : service.dispose()
             );
       await vi.waitFor(() => expect(cancel).toHaveBeenCalledOnce());
       expect(destroy).not.toHaveBeenCalled();
@@ -179,7 +172,6 @@ describe.each(["text", "checkmark", "field"])("edited-page rendering with %s", (
       );
       if (operation === "release")
         expect(mocks.releaseFile).toHaveBeenCalledExactlyOnceWith(page.sourceFile);
-      if (operation === "reset") expect(mocks.clearCache).toHaveBeenCalledOnce();
       expect(mocks.build.mock.calls.at(-1)?.[0][0]).toMatchObject({
         sourceFile: page.sourceFile,
         rotation: 0,
@@ -224,7 +216,7 @@ describe.each(["text", "checkmark", "field"])("edited-page rendering with %s", (
     );
     try {
       await started.promise;
-      await Effect.runPromise(service.reset());
+      await Effect.runPromise(service.releaseFile(page.sourceFile));
       expect(cancel).toHaveBeenCalledOnce();
       expect(generatedDestroyed).toHaveBeenCalledOnce();
       expect(sourceDestroyed).toHaveBeenCalledOnce();
@@ -374,12 +366,10 @@ describe("edited-page rendering cache", () => {
       service.renderPageState(textPage, document.createElement("canvas"), 1, 0)
     );
     await Effect.runPromise(service.releaseFile(textPage.sourceFile));
-    await Effect.runPromise(service.reset());
     await Effect.runPromise(service.dispose());
 
     expect(mocks.build).toHaveBeenCalledOnce();
     expect(mocks.releaseFile).not.toHaveBeenCalled();
-    expect(mocks.clearCache).not.toHaveBeenCalled();
     expect(mocks.dispose).not.toHaveBeenCalled();
   });
 

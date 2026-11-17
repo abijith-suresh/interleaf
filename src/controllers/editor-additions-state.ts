@@ -8,8 +8,8 @@ export function hasPageAdditions(
   );
 }
 
-export type PageToolMode = "read" | "place" | "edit" | "fields";
-export type PageTool = "read" | "text" | "checkmark" | "fields" | "edit";
+type PageToolMode = "read" | "place" | "edit" | "fields";
+type PageTool = "read" | "text" | "checkmark" | "fields" | "edit";
 
 /**
  * The one tool that page-tool buttons show as pressed. An open new draft keeps its
