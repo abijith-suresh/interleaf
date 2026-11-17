@@ -459,69 +459,54 @@ describe("PDFOperationsService", () => {
     });
   });
 
-  it.each(["clearCache", "releaseFile"] as const)(
-    "reloads a cached source after %s",
-    async (operation) => {
-      const file = await createPdfFile("source.pdf", [{ width: 200, height: 300 }]);
-      const otherFile = await createPdfFile("other.pdf", [{ width: 400, height: 500 }]);
-      const pages = [createPageState(file, 1), createPageState(otherFile, 1)];
-      const load = vi.spyOn(PDFDocument, "load");
+  it("reloads a cached source after releaseFile", async () => {
+    const file = await createPdfFile("source.pdf", [{ width: 200, height: 300 }]);
+    const otherFile = await createPdfFile("other.pdf", [{ width: 400, height: 500 }]);
+    const pages = [createPageState(file, 1), createPageState(otherFile, 1)];
+    const load = vi.spyOn(PDFDocument, "load");
 
-      await Effect.runPromise(service.buildPDF(pages));
-      await Effect.runPromise(service.buildPDF(pages));
-      // Two cached originals, plus a fresh private document per File per export.
-      expect(load).toHaveBeenCalledTimes(6);
+    await Effect.runPromise(service.buildPDF(pages));
+    await Effect.runPromise(service.buildPDF(pages));
+    // Two cached originals, plus a fresh private document per File per export.
+    expect(load).toHaveBeenCalledTimes(6);
 
-      await Effect.runPromise(
-        operation === "clearCache" ? service.clearCache() : service.releaseFile(file)
-      );
-      await Effect.runPromise(service.buildPDF(pages));
+    await Effect.runPromise(service.releaseFile(file));
+    await Effect.runPromise(service.buildPDF(pages));
 
-      expect(load).toHaveBeenCalledTimes(operation === "clearCache" ? 10 : 9);
-    }
-  );
+    expect(load).toHaveBeenCalledTimes(9);
+  });
 
-  it.each(["clearCache", "releaseFile"] as const)(
-    "cancels a pending load during %s and allows a retry",
-    async (operation) => {
-      const file = await createPdfFile("source.pdf", [{ width: 200, height: 300 }]);
-      const pages = [createPageState(file, 1)];
-      const load = vi
-        .spyOn(PDFDocument, "load")
-        .mockImplementationOnce(() => new Promise(() => undefined));
-      const build = Effect.runPromise(Effect.flip(service.buildPDF(pages)));
+  it("cancels a pending load during releaseFile and allows a retry", async () => {
+    const file = await createPdfFile("source.pdf", [{ width: 200, height: 300 }]);
+    const pages = [createPageState(file, 1)];
+    const load = vi
+      .spyOn(PDFDocument, "load")
+      .mockImplementationOnce(() => new Promise(() => undefined));
+    const build = Effect.runPromise(Effect.flip(service.buildPDF(pages)));
 
-      await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(1));
-      await Effect.runPromise(
-        operation === "clearCache" ? service.clearCache() : service.releaseFile(file)
-      );
-      expect(await build).toMatchObject({ operation: "release-source", file });
+    await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    await Effect.runPromise(service.releaseFile(file));
+    expect(await build).toMatchObject({ operation: "release-source", file });
 
-      const result = await Effect.runPromise(service.buildPDF(pages));
-      expect(load).toHaveBeenCalledTimes(3);
-      expect((await PDFDocument.load(result.data)).getPageCount()).toBe(1);
-    }
-  );
+    const result = await Effect.runPromise(service.buildPDF(pages));
+    expect(load).toHaveBeenCalledTimes(3);
+    expect((await PDFDocument.load(result.data)).getPageCount()).toBe(1);
+  });
 
-  it.each(["clearCache", "releaseFile"] as const)(
-    "discards a source load that finishes after %s",
-    async (operation) => {
-      const file = await createPdfFile("source.pdf", [{ width: 200, height: 300 }]);
-      const source = await PDFDocument.load(await file.arrayBuffer());
-      const pending = Promise.withResolvers<PDFDocument>();
-      const load = vi.spyOn(PDFDocument, "load").mockReturnValueOnce(pending.promise);
-      const pages = [createPageState(file, 1)];
-      const build = Effect.runPromise(Effect.flip(service.buildPDF(pages)));
+  it("discards a source load that finishes after releaseFile", async () => {
+    const file = await createPdfFile("source.pdf", [{ width: 200, height: 300 }]);
+    const source = await PDFDocument.load(await file.arrayBuffer());
+    const pending = Promise.withResolvers<PDFDocument>();
+    const load = vi.spyOn(PDFDocument, "load").mockReturnValueOnce(pending.promise);
+    const pages = [createPageState(file, 1)];
+    const build = Effect.runPromise(Effect.flip(service.buildPDF(pages)));
 
-      await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(1));
-      await Effect.runPromise(
-        operation === "clearCache" ? service.clearCache() : service.releaseFile(file)
-      );
-      pending.resolve(source);
-      expect(await build).toMatchObject({ operation: "release-source", file });
+    await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    await Effect.runPromise(service.releaseFile(file));
+    pending.resolve(source);
+    expect(await build).toMatchObject({ operation: "release-source", file });
 
-      await Effect.runPromise(service.buildPDF(pages));
-      expect(load).toHaveBeenCalledTimes(3);
-    }
-  );
+    await Effect.runPromise(service.buildPDF(pages));
+    expect(load).toHaveBeenCalledTimes(3);
+  });
 });

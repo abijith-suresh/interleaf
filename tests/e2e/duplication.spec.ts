@@ -53,7 +53,7 @@ test("copies retain independent organization, real PDF/PNG content and source re
   await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 2");
   await expect(page.getByTestId("editor-page-grid")).toHaveCount(0);
   const reader = await context.newPage();
-  await reader.goto(`${url}duplicate-test`);
+  await reader.goto(url);
   const selected = await inspect(
     reader,
     await download(page, () => page.getByTestId("editor-extract-button").click())
@@ -146,7 +146,7 @@ test("repeated form source pages keep the existing separate copyPages export bas
   await page.getByTestId("editor-page-tile").nth(1).click();
   await page.getByTestId("editor-page-tile").nth(2).click();
   const reader = await context.newPage();
-  await reader.goto(`${url}duplicate-test`);
+  await reader.goto(url);
   const exported = await inspect(
     reader,
     await download(page, () => page.getByTestId("editor-extract-button").click())

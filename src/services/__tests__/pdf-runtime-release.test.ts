@@ -37,7 +37,7 @@ it("a captured release uses the current real operations cache on every execution
   const build = PDFProcessing.use((service) => service.buildPDF([createPageState(file, 1)]));
 
   try {
-    await runtime.runPromise(PDFProcessing.use((service) => service.loadPDF(file)));
+    expect(await runtime.runPromise(PDFProcessing.use((service) => service.loadPDF(file)))).toBe(1);
     const release = await runtime.runPromise(
       Effect.map(PDFProcessing, (service) => service.releaseFile(file))
     );
@@ -46,7 +46,6 @@ it("a captured release uses the current real operations cache on every execution
     expect(pdfjs.cleanup).toHaveBeenCalledTimes(1);
     expect(pdfjs.destroy).toHaveBeenCalledTimes(1);
     expect(pdfjs.operationsImported).not.toHaveBeenCalled();
-    expect(await runtime.runPromise(PDFProcessing.use((service) => service.getPageCount))).toBe(0);
 
     await runtime.runPromise(build);
     expect(pdfjs.operationsImported).toHaveBeenCalledTimes(1);
@@ -63,10 +62,6 @@ it("a captured release uses the current real operations cache on every execution
     await runtime.runPromise(build);
     expect(read).toHaveBeenCalledTimes(cachedReads + 5);
     expect(pdfjs.operationsImported).toHaveBeenCalledTimes(1);
-
-    await runtime.runPromise(PDFProcessing.use((service) => service.clearCache));
-    await runtime.runPromise(build);
-    expect(read).toHaveBeenCalledTimes(cachedReads + 7);
   } finally {
     await runtime.dispose();
   }
@@ -90,7 +85,6 @@ it("evicts the real operations cache even when PDF.js cleanup fails", async () =
     const error = await runtime.runPromise(Effect.flip(release));
     expect(error).toMatchObject({ operation: "cleanup-pdf-js", file, message: "cleanup failed" });
     expect(pdfjs.destroy).toHaveBeenCalledTimes(1);
-    expect(await runtime.runPromise(PDFProcessing.use((service) => service.getPageCount))).toBe(0);
     await runtime.runPromise(build);
     expect(read).toHaveBeenCalledTimes(cachedReads + 2);
   } finally {

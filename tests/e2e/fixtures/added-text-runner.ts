@@ -1,34 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { createServer, type ViteDevServer } from "vite";
 import type { checkAddedText } from "./added-text";
+import { type DevServer, startDevServer } from "./dev-server";
 
 export function addedTextMatrix(checkmarks: boolean) {
-  let server: ViteDevServer;
-  let url: string;
-
+  let server: DevServer;
   test.beforeAll(async () => {
-    // Serve the service fixture only in tests, with real PDF.js and its worker.
-    server = await createServer({
-      configFile: false,
-      cacheDir: `node_modules/.vite-${checkmarks ? "checkmarks" : "added-text"}/${test.info().project.name}`,
-      plugins: [
-        {
-          name: "text-fixture",
-          configureServer(server) {
-            server.middlewares.use("/text-test", (_request, response) => {
-              response.setHeader("Content-Type", "text/html");
-              response.end("<!doctype html><title>Added text test</title>");
-            });
-          },
-        },
-      ],
-      server: { host: "127.0.0.1", port: 0 },
-      optimizeDeps: { include: ["effect", "pdfjs-dist", "pdf-lib", "fflate"] },
-    });
-    await server.listen();
-    url = server.resolvedUrls?.local[0] ?? "";
+    server = await startDevServer(checkmarks ? "checkmarks" : "added-text", test.info());
   });
-
   test.afterAll(async () => {
     await server?.close();
   });
@@ -41,7 +19,7 @@ export function addedTextMatrix(checkmarks: boolean) {
         }) => {
           const errors: string[] = [];
           page.on("pageerror", (error) => errors.push(error.message));
-          await page.goto(`${url}text-test`);
+          await page.goto(server.url);
           const result: Awaited<ReturnType<typeof checkAddedText>> = await page.evaluate(
             async ({ encrypted, unitIndex, intrinsicIndex, checkmarks }) => {
               const path = "/tests/e2e/fixtures/added-text.ts";
@@ -77,7 +55,7 @@ export function addedTextMatrix(checkmarks: boolean) {
 
   if (!checkmarks)
     test("protected PNG exports retain full source resolution", async ({ page }) => {
-      await page.goto(`${url}text-test`);
+      await page.goto(server.url);
       const result = await page.evaluate(async () => {
         const path = "/tests/e2e/fixtures/added-text.ts";
         return (await import(path)).checkLargeProtectedPNG();

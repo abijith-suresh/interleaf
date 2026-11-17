@@ -1,28 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { createServer, type ViteDevServer } from "vite";
 import type { checkClearedFields } from "./fixtures/cleared-fields";
+import { type DevServer, startDevServer } from "./fixtures/dev-server";
 
-let server: ViteDevServer, url: string;
+let server: DevServer;
 test.beforeAll(async () => {
-  server = await createServer({
-    configFile: false,
-    cacheDir: `node_modules/.vite-cleared-fields/${test.info().project.name}`,
-    plugins: [
-      {
-        name: "clear-fields-test",
-        configureServer(s) {
-          s.middlewares.use("/clear-test", (_req, res) => {
-            res.setHeader("Content-Type", "text/html");
-            res.end("<!doctype html><title>Clear field test</title>");
-          });
-        },
-      },
-    ],
-    server: { host: "127.0.0.1", port: 0 },
-    optimizeDeps: { include: ["effect", "pdfjs-dist", "pdf-lib", "fflate"] },
-  });
-  await server.listen();
-  url = server.resolvedUrls!.local[0];
+  server = await startDevServer("cleared-fields", test.info());
 });
 test.afterAll(async () => {
   await server?.close();
@@ -30,7 +12,7 @@ test.afterAll(async () => {
 test("explicit clear shadows inherited values in saved bytes; undo restores absence and original source", async ({
   page,
 }, info) => {
-  await page.goto(`${url}clear-test`);
+  await page.goto(server.url);
   const result: Awaited<ReturnType<typeof checkClearedFields>> = await page.evaluate(async () => {
     const path = "/tests/e2e/fixtures/cleared-fields.ts";
     return (await import(path)).checkClearedFields();
