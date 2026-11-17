@@ -403,6 +403,24 @@ body:has([data-page="editor"]) {
   display: none;
 }
 
+/* From 375px phones show Add files beside More. Narrower ones keep it in More. */
+.editor-toolbar-add-quick {
+  display: none;
+}
+
+@media (min-width: 375px) and (max-width: 47.99rem) {
+  .editor-toolbar-add-quick {
+    display: inline-flex;
+    width: 2.75rem;
+    min-width: 2.75rem;
+    padding: 0;
+  }
+
+  [data-testid="editor-add-pdf-button"] {
+    display: none;
+  }
+}
+
 .editor-toolbar-action .editor-icon {
   color: currentColor;
 }
@@ -1712,6 +1730,38 @@ body:has([data-page="editor"]) {
 
 .editor-menu-item[aria-disabled="true"]:focus-visible .editor-menu-item-copy {
   opacity: 0.6;
+}
+
+/* Two columns cannot fit three 44px actions, so tiles become one row each. */
+@media (max-width: 349px) {
+  .editor-page-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  .editor-page {
+    flex-direction: row;
+    gap: 0.75rem;
+    padding: 0.5rem;
+  }
+
+  .editor-page-preview {
+    width: 5.5rem;
+    flex: 0 0 auto;
+  }
+
+  .page-controls {
+    width: auto;
+    flex: 1;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.125rem;
+    margin-top: 0;
+  }
+
+  .page-action-buttons {
+    justify-content: flex-start;
+  }
 }
 
 @media (min-width: 480px) {

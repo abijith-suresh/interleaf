@@ -127,8 +127,8 @@ for (const viewport of [
     const thumbnail = await tile.locator(".editor-page-preview").boundingBox();
     if (!label || !thumbnail) throw new Error("Missing page content");
     for (const [index, box] of boxes.entries()) {
-      expect(box.y).toBeGreaterThanOrEqual(thumbnail.y + thumbnail.height);
-      for (const other of [label, ...boxes.slice(index + 1)]) {
+      // Actions sit below the thumbnail, or beside it on single-row tiles.
+      for (const other of [thumbnail, label, ...boxes.slice(index + 1)]) {
         const overlapX =
           Math.min(box.x + box.width, other.x + other.width) - Math.max(box.x, other.x);
         const overlapY =

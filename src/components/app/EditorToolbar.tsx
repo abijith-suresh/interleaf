@@ -105,6 +105,16 @@ export default function EditorToolbar(props: Props) {
       </div>
 
       <div class="editor-toolbar-middle">
+        <EditorButton
+          data-testid="editor-add-pdf-quick-button"
+          aria-label="Add PDFs or images"
+          title="Add PDFs or images"
+          class="editor-toolbar-add-quick"
+          variant="plain"
+          onClick={props.onAddFiles}
+          disabled={props.busy}
+          icon="plus"
+        />
         <EditorOverflow
           id="editor-more-actions"
           label="More actions"

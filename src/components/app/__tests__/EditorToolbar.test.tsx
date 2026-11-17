@@ -54,11 +54,12 @@ describe("EditorToolbar", () => {
     expect(screen.getAllByText("3 pages")).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Pages" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add PDFs or images" }));
+    fireEvent.click(screen.getByTestId("editor-add-pdf-button"));
+    fireEvent.click(screen.getByTestId("editor-add-pdf-quick-button"));
     fireEvent.click(screen.getByRole("button", { name: "View 1 file" }));
     fireEvent.click(screen.getByRole("button", { name: "Undo page rotation" }));
     expect(props.onViewChange).toHaveBeenCalledWith("pages");
-    expect(props.onAddFiles).toHaveBeenCalledOnce();
+    expect(props.onAddFiles).toHaveBeenCalledTimes(2);
     expect(props.onOpenFiles).toHaveBeenCalledOnce();
     expect(props.onUndo).toHaveBeenCalledOnce();
   });
@@ -186,8 +187,11 @@ describe("EditorToolbar", () => {
     fireEvent.click(more);
     expect(more).toHaveAttribute("aria-expanded", "true");
     expect(
-      screen.getByRole("button", { name: "Add PDFs or images" }).closest("#editor-more-actions")
+      screen.getByTestId("editor-add-pdf-button").closest("#editor-more-actions")
     ).not.toBeNull();
+    expect(
+      screen.getByTestId("editor-add-pdf-quick-button").closest("#editor-more-actions")
+    ).toBeNull();
     expect(
       screen.getByRole("button", { name: "View 1 file" }).closest("#editor-more-actions")
     ).not.toBeNull();
