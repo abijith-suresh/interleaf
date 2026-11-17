@@ -54,6 +54,16 @@ release-please creates releases from the commits on `main`.
 - No accounts, analytics, tracking or cookies.
 - Do not add or advertise features outside the scope in [AGENTS.md](AGENTS.md). Change its Product truth section first.
 
+## PDF libraries
+
+| Library | Used for |
+| --- | --- |
+| pdfjs-dist | Opening and reading files, the password prompt, previews, thumbnails and PNG export |
+| pdf-lib | Writing every output: merge, extract, rotate, added text, checkmarks and field answers |
+| qpdf (WebAssembly) | Decrypting encrypted files so pdf-lib can read them, and lossless compression |
+
+Open an issue before adding another PDF engine. PDFium is on hold because copying pages with it loses inherited form-field data. Reconsider it only with an upstream fix, complete license notices for its bundled libraries, and a stable release.
+
 ## Code style
 
 - Follow the existing Astro, Solid, TypeScript and Tailwind patterns. Biome enforces formatting and lint rules.
