@@ -1977,7 +1977,7 @@ body:has([data-page="editor"]) {
   }
 
   .editor-app .editor-button:active,
-  .password-modal .password-modal-button:active {
+  .password-modal .editor-button:active {
     scale: none;
   }
 
@@ -2681,6 +2681,10 @@ body:has([data-page="editor"]) {
   text-overflow: ellipsis;
   white-space: nowrap;
   @apply text-body-sm;
+}
+
+.password-modal-file + .password-modal-actions {
+  margin-top: 1rem;
 }
 
 .password-modal-error {

@@ -4,8 +4,6 @@ import { captureDownload } from "./fixtures/download";
 import { expectDocumentReady } from "./fixtures/editor";
 import { downloadDocument } from "./fixtures/toolbar";
 
-const LEAVE_MESSAGE = "Leave the editor? Your pages aren't saved anywhere.";
-
 async function source() {
   const document = await PDFDocument.create();
   const font = await document.embedFont(StandardFonts.Helvetica);
@@ -162,40 +160,52 @@ test("leaving the editor asks first only when the workspace has pages", async ({
   await page.goto("/");
   await page.getByRole("link", { name: "Open editor" }).first().click();
   await expect(page).toHaveURL(/\/app$/);
-  const dialogs: string[] = [];
+  // Router navigation must never raise a browser alert.
+  const alerts: string[] = [];
   page.on("dialog", (dialog) => {
-    dialogs.push(dialog.message());
+    alerts.push(dialog.message());
     void dialog.dismiss();
   });
+  const confirm = page.getByRole("dialog", { name: "Leave the editor?" });
 
   // An empty workspace has nothing to lose.
   await page.getByRole("link", { name: "Return to Interleaf home" }).click();
   await expect(page).toHaveURL(/\/$/);
   await page.goBack();
   await expect(page).toHaveURL(/\/app$/);
-  expect(dialogs).toEqual([]);
+  await expect(confirm).toHaveCount(0);
 
   await load(page);
   // The toolbar's Exit link carries the wordmark, so it is the one way out.
-  for (const link of [page.getByTestId("editor-exit-link")]) {
-    await link.click();
-    await expect.poll(() => dialogs.length).toBeGreaterThan(0);
-    expect(dialogs.pop()).toBe(LEAVE_MESSAGE);
-    await expect(page).toHaveURL(/\/app$/);
-    await expect(page.getByTestId("editor-page-grid")).toBeVisible();
-  }
-
-  // Back has already moved the address bar. Declining returns it to the editor.
-  await page.goBack();
-  await expect.poll(() => dialogs.length).toBeGreaterThan(0);
-  expect(dialogs.pop()).toBe(LEAVE_MESSAGE);
+  const exit = page.getByTestId("editor-exit-link");
+  await exit.click();
+  await expect(confirm).toBeVisible();
+  await expect(confirm).toHaveAccessibleDescription("Your pages aren't saved anywhere.");
+  await expect(confirm.getByRole("button", { name: "Cancel" })).toBeFocused();
+  // Escape stays and returns focus to the control that asked.
+  await page.keyboard.press("Escape");
+  await expect(confirm).toHaveCount(0);
+  await expect(exit).toBeFocused();
   await expect(page).toHaveURL(/\/app$/);
   await expect(page.getByTestId("editor-page-grid")).toBeVisible();
 
-  page.removeAllListeners("dialog");
-  page.once("dialog", (dialog) => void dialog.accept());
-  await page.getByTestId("editor-exit-link").click();
+  await exit.click();
+  await confirm.getByRole("button", { name: "Cancel" }).click();
+  await expect(confirm).toHaveCount(0);
+  await expect(page).toHaveURL(/\/app$/);
+
+  // Back has already moved the address bar. Staying returns it to the editor.
+  await page.goBack();
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "Cancel" }).click();
+  await expect(confirm).toHaveCount(0);
+  await expect(page).toHaveURL(/\/app$/);
+  await expect(page.getByTestId("editor-page-grid")).toBeVisible();
+
+  await exit.click();
+  await confirm.getByRole("button", { name: "Leave" }).click();
   await expect(page).toHaveURL(/\/$/);
+  expect(alerts).toEqual([]);
 });
 
 test("reloading a workspace with pages asks first", async ({ page }) => {
