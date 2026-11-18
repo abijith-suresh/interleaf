@@ -70,7 +70,7 @@ Open an issue before adding another PDF engine. PDFium is on hold because copyin
 - Put unit tests in `__tests__` folders next to the code they test. They use Vitest with jsdom. Browser tests go in `tests/e2e`.
 - Test behaviour, not internals. Compare an element with its resting state or another element instead of literal colour values.
 - Design tokens live in `src/styles/global.css` and editor styles in `src/styles/editor.css`.
-- Follow the [Cards](https://github.com/oliur/cards) structure with Interleaf's Evergreen palette: white surfaces on a green-tinted neutral canvas, evergreen ink, and the leaf green only for selection, focus, and Interleaf's own additions to a page.
+- Follow the cutting-mat system in `global.css`: paper and ink around a green mat where white PDF pages lie. The mat green marks focus and selection on paper; on the mat, yellow marks a selected page and a dashed pink line a page marked for deletion.
 - Document behaviour in code and tests, not in prose.
 
 ## Writing copy

@@ -1,7 +1,6 @@
 ---
 import MarketingHero from "../components/marketing/MarketingHero.astro";
 import MarketingLayout from "../components/marketing/MarketingLayout.astro";
-import MarketingSplit from "../components/marketing/MarketingSplit.astro";
 
 const questions = [
   {
@@ -56,31 +55,14 @@ const groups = [
     lede="Short answers about using Interleaf in your browser."
   />
 
-  <section class="marketing-section" aria-label="Frequently asked questions">
-    <MarketingSplit asideOnMobile={false}>
-      <div slot="aside">
-        <nav aria-label="FAQ sections">
-          {
-            groups.map((group) => (
-              <a class="marketing-link" href={`#${group.id}`}>{group.title}</a>
-            ))
-          }
-        </nav>
-        <div class="faq-contact marketing-card">
-          <p>Still have a question?</p>
-          <a
-            href="https://github.com/abijith-suresh/interleaf/issues"
-            target="_blank"
-            rel="noopener noreferrer"
-          >Ask on GitHub</a>
-        </div>
-      </div>
-      <div class="faq-groups">
+  <div class="reading-mat">
+    <div class="marketing-container">
+      <article class="reading-sheet" aria-label="Frequently asked questions">
         {
           groups.map((group) => (
-            <section id={group.id} aria-labelledby={`${group.id}-title`} class="faq-group">
-              <h2 id={`${group.id}-title`} class="marketing-subhead">{group.title}</h2>
-              <div class="faq-list marketing-card">
+            <section id={group.id} aria-labelledby={`${group.id}-title`} class="reading-section">
+              <h2 id={`${group.id}-title`}>{group.title}</h2>
+              <div class="faq-list">
                 {group.questions.map((questionIndex) => (
                   <details class="faq-item">
                     <summary>
@@ -105,74 +87,34 @@ const groups = [
             </section>
           ))
         }
-        <div class="faq-contact faq-contact-mobile marketing-card">
-          <p>Still have a question?</p>
-          <a
-            href="https://github.com/abijith-suresh/interleaf/issues"
-            target="_blank"
-            rel="noopener noreferrer"
-          >Ask on GitHub</a>
-        </div>
-      </div>
-    </MarketingSplit>
-  </section>
+        <section class="reading-section" aria-labelledby="faq-contact-title">
+          <h2 id="faq-contact-title">Still have a question?</h2>
+          <p>
+            <a
+              href="https://github.com/abijith-suresh/interleaf/issues"
+              target="_blank"
+              rel="noopener noreferrer">Ask on GitHub</a
+            >
+          </p>
+        </section>
+      </article>
+    </div>
+  </div>
 </MarketingLayout>
 
 <style>
   @reference "../styles/global.css";
 
-  .faq-groups {
-    display: grid;
-    gap: 2rem;
-    min-width: 0;
-  }
-
-  .faq-group {
-    scroll-margin-top: 1.5rem;
-  }
-
-  nav {
-    margin-bottom: 1.5rem;
-  }
-
-  nav .marketing-link {
-    width: 100%;
-    justify-content: flex-start;
-    text-align: left;
-    transition: none;
-  }
-
-  .faq-contact {
-    padding: 1rem;
-    color: var(--color-fg);
-    @apply text-ui-sm;
-  }
-
-  .faq-contact p {
-    margin: 0 0 0.5rem;
-  }
-
-  .faq-contact a {
-    color: var(--color-fg);
-    text-decoration-line: underline;
-    text-decoration-color: var(--color-line-strong);
-    text-underline-offset: 4px;
-  }
-
-  .faq-contact a:hover {
-    text-decoration-color: currentColor;
+  /* An accordion with a line between items and a chevron that turns over
+     while open. On phones it sits under its heading. */
+  .faq-list {
+    margin-top: 0.5rem;
   }
 
   @media (min-width: 64rem) {
-    .faq-contact-mobile {
-      display: none;
+    .faq-list {
+      margin-top: 0;
     }
-  }
-
-  /* An accordion inside one card: a line between items, a chevron that
-     turns over while open. */
-  .faq-list {
-    padding-inline: 1.5rem;
   }
 
   .faq-item + .faq-item {
@@ -261,12 +203,6 @@ const groups = [
     color: var(--color-fg-muted);
     text-wrap: pretty;
     @apply text-body-sm;
-  }
-
-  @media (max-width: 47.99rem) {
-    .faq-list {
-      padding-inline: 1.25rem;
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {
