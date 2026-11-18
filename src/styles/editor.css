@@ -1915,8 +1915,10 @@ body:has([data-page="editor"]) {
     display: none;
   }
 
+  /* Short screens keep the mat's grid but drop its ruler. */
   .editor-review-stage {
-    padding: calc(24px + 0.5rem) 0.5rem 0.5rem;
+    --mat-y: 0px;
+    padding: 0.5rem;
   }
 
   .editor-toolbar {
@@ -2011,13 +2013,18 @@ body:has([data-page="editor"]) {
   position: relative;
   z-index: 6;
   order: 1;
+  display: flex;
   flex: 0 0 auto;
+  flex-direction: column;
+  justify-content: safe center;
   height: calc(var(--editor-control) + 1rem + 1px);
   border-bottom: 1px solid var(--color-line);
   background: var(--color-surface);
 }
 
-/* Solid's Portal wraps the tools in a div. */
+/* Solid's Portal wraps the tools in a div. Where the bar's height comes from
+   a grid row, WebKit leaves this percentage unresolved, so the bar also
+   centres its content. */
 .editor-document-tools > div {
   height: 100%;
 }
