@@ -82,7 +82,7 @@ const groups = [
               <h2 id={`${group.id}-title`} class="marketing-subhead">{group.title}</h2>
               <div class="faq-list marketing-card">
                 {group.questions.map((questionIndex) => (
-                  <details class="faq-item" open={questionIndex === 0}>
+                  <details class="faq-item">
                     <summary>
                       <span class="faq-question">{questions[questionIndex].q}</span>
                       <svg class="faq-chevron" viewBox="0 0 24 24" aria-hidden="true">
@@ -191,8 +191,8 @@ const groups = [
     opacity: 0;
     content-visibility: hidden;
     transition:
-      grid-template-rows var(--duration-fast) var(--ease-tactile),
-      opacity var(--duration-fast) var(--ease-tactile),
+      grid-template-rows var(--duration-fast) ease-out,
+      opacity var(--duration-fast) ease-out,
       content-visibility 0s allow-discrete var(--duration-fast);
   }
 
@@ -201,8 +201,8 @@ const groups = [
     opacity: 1;
     content-visibility: visible;
     transition:
-      grid-template-rows var(--duration-base) var(--ease-out-expo),
-      opacity var(--duration-base) var(--ease-out-expo),
+      grid-template-rows var(--duration-fast) ease-out,
+      opacity var(--duration-fast) ease-out,
       content-visibility 0s allow-discrete;
   }
 
@@ -238,7 +238,7 @@ const groups = [
     color: var(--color-fg-subtle);
     transition:
       color var(--duration-fast) var(--ease-tactile),
-      rotate var(--duration-base) var(--ease-tactile);
+      rotate var(--duration-fast) ease-out;
   }
 
   summary:hover .faq-chevron {
