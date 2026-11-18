@@ -1,7 +1,6 @@
 ---
 import MarketingHero from "./MarketingHero.astro";
 import MarketingLayout from "./MarketingLayout.astro";
-import MarketingSplit from "./MarketingSplit.astro";
 
 interface LinkPart {
   href: string;
@@ -11,7 +10,6 @@ interface LinkPart {
 
 interface Section {
   id: string;
-  num: string;
   title: string;
   body: string;
   link?: LinkPart;
@@ -32,45 +30,105 @@ const { title, description, heading, headingId, intro, sections } = Astro.props;
 <MarketingLayout title={title} description={description}>
   <MarketingHero titleId={headingId} title={heading} lede={intro} />
 
-  <section class="marketing-section" aria-label={`${heading} contents`}>
-    <MarketingSplit asideOnMobile={false}>
-      <nav slot="aside" aria-label="On this page">
-        {
-          sections.map((section) => (
-            <a class="marketing-link" href={`#${section.id}`}>{section.title}</a>
-          ))
-        }
-      </nav>
-      <div class="marketing-rows">
-        {
-          sections.map((section) => (
-            <section id={section.id} class="marketing-row">
-              <span class="marketing-row-marker">{section.num}</span>
-              <h2 class="marketing-row-title">{section.title}</h2>
-              <p class="marketing-row-body">
-                {section.body}
-                {section.link && (
-                  <>
-                    <a href={section.link.href} target="_blank" rel="noopener noreferrer">
-                      {section.link.label}
-                    </a>
-                    {section.link.suffix}
-                  </>
-                )}
-              </p>
-            </section>
-          ))
-        }
-      </div>
-    </MarketingSplit>
-  </section>
+  {/* One readable column on a sheet lying on the mat. The closing band
+      continues the same mat below it. */}
+  <div class="legal-mat">
+    <div class="marketing-container">
+      <article class="legal-sheet" aria-label={`${heading} contents`}>
+      {
+        sections.map((section) => (
+          <section id={section.id} class="legal-section">
+            <h2>{section.title}</h2>
+            <p>
+              {section.body}
+              {section.link && (
+                <>
+                  <a href={section.link.href} target="_blank" rel="noopener noreferrer">
+                    {section.link.label}
+                  </a>
+                  {section.link.suffix}
+                </>
+              )}
+            </p>
+          </section>
+        ))
+      }
+      </article>
+    </div>
+  </div>
 </MarketingLayout>
 
 <style>
-  nav .marketing-link {
-    width: 100%;
-    justify-content: flex-start;
-    text-align: left;
-    transition: none;
+  @reference "../../styles/global.css";
+
+  .legal-mat {
+    --mat-x: 0px;
+    @apply mat;
+    padding-block: calc(24px + 3.5rem) 3.5rem;
+  }
+
+  /* The closing band carries on the same mat, without a second ruler. */
+  .legal-mat + :global(.marketing-cta) {
+    --mat-y: 0px;
+  }
+
+  :global(.legal-mat + .marketing-cta .marketing-cta-inner) {
+    padding-top: 0;
+  }
+
+  /* Left-aligned with the title above and the closing sheet below. */
+  .legal-sheet {
+    max-width: 46rem;
+    padding: 3rem;
+    border-radius: var(--radius-page);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-page);
+    color: var(--color-fg);
+  }
+
+  .legal-section + .legal-section {
+    margin-top: 2.25rem;
+  }
+
+  /* A linked heading lands clear of the top of the window. */
+  .legal-section {
+    scroll-margin-top: 1.5rem;
+  }
+
+  .legal-section h2 {
+    margin: 0;
+    color: var(--color-fg);
+    @apply text-ui-lg;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+
+  .legal-section p {
+    margin: 0.5rem 0 0;
+    color: var(--color-fg-muted);
+    text-wrap: pretty;
+    @apply text-body-md;
+    line-height: 1.625rem;
+  }
+
+  .legal-section a {
+    color: var(--color-fg);
+    text-decoration-line: underline;
+    text-decoration-color: var(--color-line-strong);
+    text-underline-offset: 4px;
+  }
+
+  .legal-section a:hover {
+    text-decoration-color: currentColor;
+  }
+
+  @media (max-width: 47.99rem) {
+    .legal-mat {
+      padding-block: calc(24px + 1.5rem) 1.5rem;
+    }
+
+    .legal-sheet {
+      padding: 1.75rem 1.5rem;
+    }
   }
 </style>

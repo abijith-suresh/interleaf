@@ -455,17 +455,6 @@ body {
   line-height: 1.625rem;
 }
 
-.marketing-row-body a {
-  color: var(--color-fg);
-  text-decoration-line: underline;
-  text-decoration-color: var(--color-line-strong);
-  text-underline-offset: 4px;
-}
-
-.marketing-row-body a:hover {
-  text-decoration-color: currentColor;
-}
-
 /* The closing section: one wide sheet lying on the mat. */
 .marketing-cta {
   @apply mat;
