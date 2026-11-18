@@ -4,9 +4,9 @@ export default function Wordmark() {
     <span class="brand-wordmark" aria-hidden="true" translate="no">
       <img
         class="brand-tile"
-        src={`${import.meta.env.BASE_URL}favicon.svg`}
-        width="22"
-        height="22"
+        src={`${import.meta.env.BASE_URL}mark.svg`}
+        width="28"
+        height="28"
         alt=""
         aria-hidden="true"
       />

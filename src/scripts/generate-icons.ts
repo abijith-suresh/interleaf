@@ -7,7 +7,9 @@ const svgContent = readFileSync(join(process.cwd(), "public/favicon.svg"), "utf-
 const appleTouchIconSize = 180;
 const faviconSizes = [16, 32, 48, 96];
 
-const appleTouchIconResvg = new Resvg(svgContent, {
+// iOS rounds the icon itself and fills transparent corners with black, so
+// the touch icon is the tile drawn square.
+const appleTouchIconResvg = new Resvg(svgContent.replace('rx="7"', 'rx="0"'), {
   fitTo: {
     mode: "width",
     value: appleTouchIconSize,

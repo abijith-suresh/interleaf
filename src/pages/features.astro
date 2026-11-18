@@ -5,7 +5,12 @@ import MarketingHero from "../components/marketing/MarketingHero.astro";
 
 const groups: {
   label: string;
-  capabilities: { title: string; description: string; icon: string; vignette?: "text" | "field" }[];
+  capabilities: {
+    title: string;
+    description: string;
+    icon: string;
+    vignette?: "text" | "field" | "check";
+  }[];
 }[] = [
   {
     label: "Assemble",
@@ -69,6 +74,7 @@ const groups: {
         title: "Mark flat forms",
         description:
           "Add checkmarks to flat or scanned forms in Document view. Move, resize, rotate, or delete each one.",
+        vignette: "check",
       },
     ],
   },
@@ -108,10 +114,12 @@ const groups: {
       {
         groups.map((group) => (
           <section class="feature-group" aria-labelledby={`features-${group.label.toLowerCase()}`}>
-            <h2 id={`features-${group.label.toLowerCase()}`}>{group.label}</h2>
+            <h2 id={`features-${group.label.toLowerCase()}`} class="marketing-subhead">
+              {group.label}
+            </h2>
             <div class:list={["feature-grid", group.capabilities.length === 2 && "is-pair"]}>
               {group.capabilities.map((capability) => (
-                <article class="feature-card">
+                <article class="feature-card marketing-card">
                   <span class="feature-icon">
                     <svg
                       viewBox="0 0 24 24"
@@ -145,15 +153,7 @@ const groups: {
   @reference "../styles/global.css";
 
   .feature-group + .feature-group {
-    margin-top: 2.5rem;
-  }
-
-  .feature-group h2 {
-    @apply text-ui-xs;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--color-fg-muted);
-    margin: 0 0 0.75rem;
+    margin-top: 3rem;
   }
 
   .feature-grid {
@@ -167,19 +167,11 @@ const groups: {
     flex-direction: column;
     gap: 0.75rem;
     padding: 1.5rem;
-    border-radius: var(--radius-2xl);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-sm);
   }
 
   .feature-icon {
     display: grid;
-    width: 2.5rem;
-    height: 2.5rem;
-    place-items: center;
-    border-radius: 999px;
-    box-shadow: inset 0 0 0 1px var(--color-line);
-    color: var(--color-fg-muted);
+    color: var(--color-accent);
   }
 
   .feature-icon svg {
@@ -188,7 +180,9 @@ const groups: {
   }
 
   .feature-card h3 {
-    @apply text-ui-md;
+    @apply text-ui-lg;
+    font-weight: 650;
+    letter-spacing: -0.02em;
     margin: 0;
     color: var(--color-fg);
   }
@@ -201,11 +195,7 @@ const groups: {
 
   .feature-vignette {
     margin-top: auto;
-  }
-
-  .feature-vignette :global(.vignette) {
-    max-width: none;
-    margin-top: 0;
+    padding-top: 0.5rem;
   }
 
   @media (width < 48rem) {

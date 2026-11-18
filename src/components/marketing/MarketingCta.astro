@@ -4,10 +4,12 @@ const base = import.meta.env.BASE_URL;
 
 <section class="marketing-cta" aria-labelledby="closing-title">
   <div class="marketing-container marketing-cta-inner">
-    <div>
-      <h2 id="closing-title" class="marketing-section-title">Your files never leave your device.</h2>
-      <p class="marketing-cta-copy">No uploads, no account, no tracking.</p>
+    <div class="marketing-cta-card">
+      <div>
+        <h2 id="closing-title" class="marketing-section-title">Your files never leave your device.</h2>
+        <p class="marketing-cta-copy">No uploads, no account, no tracking.</p>
+      </div>
+      <a class="marketing-button" href={`${base}app`}>Open editor</a>
     </div>
-    <a class="marketing-button marketing-button-leaf" href={`${base}app`}>Open editor</a>
   </div>
 </section>
