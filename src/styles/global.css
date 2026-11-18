@@ -268,7 +268,7 @@ body {
 .site-nav-inner,
 .site-footer-inner {
   --gutter: clamp(1.5rem, 4vw, 3rem);
-  width: min(calc(100% - 2 * var(--gutter)), 72rem);
+  width: min(calc(100% - 2 * var(--gutter)), 80rem);
   margin-inline: auto;
 }
 
