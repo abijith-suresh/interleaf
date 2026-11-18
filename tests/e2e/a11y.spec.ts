@@ -177,7 +177,7 @@ for (const width of [1440, 375]) {
         const tile = brand.locator(".brand-tile");
         await expect(tile).toHaveAttribute("aria-hidden", "true");
         await expect(tile).toHaveAttribute("alt", "");
-        await expect(tile).toHaveAttribute("src", "/favicon.svg");
+        await expect(tile).toHaveAttribute("src", "/mark.svg");
         await expect
           .poll(() => tile.evaluate((el) => (el as HTMLImageElement).naturalWidth))
           .toBeGreaterThan(0);
@@ -195,7 +195,7 @@ for (const width of [1440, 375]) {
           await page.getByTestId("editor-more-button").click();
           await expect(page.getByRole("link", { name: "Back", exact: true })).toBeVisible();
         }
-        await expect(workspaceBrand.locator(".brand-tile")).toHaveAttribute("src", "/favicon.svg");
+        await expect(workspaceBrand.locator(".brand-tile")).toHaveAttribute("src", "/mark.svg");
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
     }

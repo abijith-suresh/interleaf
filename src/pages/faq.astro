@@ -1,7 +1,6 @@
 ---
 import MarketingHero from "../components/marketing/MarketingHero.astro";
 import MarketingLayout from "../components/marketing/MarketingLayout.astro";
-import MarketingSplit from "../components/marketing/MarketingSplit.astro";
 
 const questions = [
   {
@@ -56,33 +55,16 @@ const groups = [
     lede="Short answers about using Interleaf in your browser."
   />
 
-  <section class="marketing-section" aria-label="Frequently asked questions">
-    <MarketingSplit asideOnMobile={false}>
-      <div slot="aside">
-        <nav aria-label="FAQ sections">
-          {
-            groups.map((group) => (
-              <a class="marketing-link" href={`#${group.id}`}>{group.title}</a>
-            ))
-          }
-        </nav>
-        <div class="faq-contact">
-          <p>Still have a question?</p>
-          <a
-            href="https://github.com/abijith-suresh/interleaf/issues"
-            target="_blank"
-            rel="noopener noreferrer"
-          >Ask on GitHub</a>
-        </div>
-      </div>
-      <div class="faq-groups">
+  <div class="reading-mat">
+    <div class="marketing-container">
+      <article class="reading-sheet" aria-label="Frequently asked questions">
         {
           groups.map((group) => (
-            <section id={group.id} aria-labelledby={`${group.id}-title`} class="faq-group">
+            <section id={group.id} aria-labelledby={`${group.id}-title`} class="reading-section">
               <h2 id={`${group.id}-title`}>{group.title}</h2>
               <div class="faq-list">
                 {group.questions.map((questionIndex) => (
-                  <details class="faq-item" open={questionIndex === 0}>
+                  <details class="faq-item">
                     <summary>
                       <span class="faq-question">{questions[questionIndex].q}</span>
                       <svg class="faq-chevron" viewBox="0 0 24 24" aria-hidden="true">
@@ -105,88 +87,34 @@ const groups = [
             </section>
           ))
         }
-        <div class="faq-contact faq-contact-mobile">
-          <p>Still have a question?</p>
-          <a
-            href="https://github.com/abijith-suresh/interleaf/issues"
-            target="_blank"
-            rel="noopener noreferrer"
-          >Ask on GitHub</a>
-        </div>
-      </div>
-    </MarketingSplit>
-  </section>
+        <section class="reading-section" aria-labelledby="faq-contact-title">
+          <h2 id="faq-contact-title">Still have a question?</h2>
+          <p>
+            <a
+              href="https://github.com/abijith-suresh/interleaf/issues"
+              target="_blank"
+              rel="noopener noreferrer">Ask on GitHub</a
+            >
+          </p>
+        </section>
+      </article>
+    </div>
+  </div>
 </MarketingLayout>
 
 <style>
   @reference "../styles/global.css";
 
-  .faq-groups {
-    display: grid;
-    gap: 2rem;
-    min-width: 0;
-  }
-
-  .faq-group {
-    scroll-margin-top: 1.5rem;
-  }
-
-  .faq-group h2 {
-    @apply text-ui-xs;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--color-fg-muted);
-    margin: 0 0 0.75rem;
-  }
-
-  nav {
-    margin-bottom: 1.5rem;
-  }
-
-  nav .marketing-link {
-    width: 100%;
-    justify-content: flex-start;
-    text-align: left;
-    transition: none;
-  }
-
-  .faq-contact {
-    padding: 1rem;
-    border-radius: var(--radius-2xl);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-sm);
-    color: var(--color-fg);
-    @apply text-ui-sm;
-  }
-
-  .faq-contact p {
-    margin: 0 0 0.5rem;
-  }
-
-  .faq-contact a {
-    color: var(--color-fg);
-    text-decoration-line: underline;
-    text-decoration-color: var(--color-line-strong);
-    text-underline-offset: 4px;
-  }
-
-  .faq-contact a:hover {
-    text-decoration-color: currentColor;
+  /* An accordion with a line between items and a chevron that turns over
+     while open. On phones it sits under its heading. */
+  .faq-list {
+    margin-top: 0.5rem;
   }
 
   @media (min-width: 64rem) {
-    .faq-contact-mobile {
-      display: none;
+    .faq-list {
+      margin-top: 0;
     }
-  }
-
-  /* Cards' accordion inside one card: a line between items, a chevron that
-     turns over while open. */
-  .faq-list {
-    padding-inline: 1.5rem;
-    border-radius: var(--radius-2xl);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-sm);
   }
 
   .faq-item + .faq-item {
@@ -205,9 +133,9 @@ const groups = [
     opacity: 0;
     content-visibility: hidden;
     transition:
-      grid-template-rows 160ms ease-out,
-      opacity 160ms ease-out,
-      content-visibility 0s allow-discrete 160ms;
+      grid-template-rows var(--duration-fast) ease-out,
+      opacity var(--duration-fast) ease-out,
+      content-visibility 0s allow-discrete var(--duration-fast);
   }
 
   .faq-item[open]::details-content {
@@ -215,8 +143,8 @@ const groups = [
     opacity: 1;
     content-visibility: visible;
     transition:
-      grid-template-rows 200ms var(--ease-out-expo),
-      opacity 200ms var(--ease-out-expo),
+      grid-template-rows var(--duration-fast) ease-out,
+      opacity var(--duration-fast) ease-out,
       content-visibility 0s allow-discrete;
   }
 
@@ -227,7 +155,7 @@ const groups = [
     gap: 0.5rem;
     margin-inline: -0.5rem;
     padding: 1rem 0.5rem;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-control);
     color: var(--color-fg);
     cursor: pointer;
     list-style: none;
@@ -251,8 +179,8 @@ const groups = [
     flex: 0 0 auto;
     color: var(--color-fg-subtle);
     transition:
-      color 150ms var(--ease-tactile),
-      rotate 200ms var(--ease-tactile);
+      color var(--duration-fast) var(--ease-tactile),
+      rotate var(--duration-fast) ease-out;
   }
 
   summary:hover .faq-chevron {
@@ -275,12 +203,6 @@ const groups = [
     color: var(--color-fg-muted);
     text-wrap: pretty;
     @apply text-body-sm;
-  }
-
-  @media (max-width: 47.99rem) {
-    .faq-list {
-      padding-inline: 1.25rem;
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {
