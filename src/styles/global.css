@@ -268,7 +268,7 @@ body {
 .site-nav-inner,
 .site-footer-inner {
   --gutter: clamp(1.5rem, 4vw, 3rem);
-  width: min(calc(100% - 2 * var(--gutter)), 72rem);
+  width: min(calc(100% - 2 * var(--gutter)), 80rem);
   margin-inline: auto;
 }
 
@@ -455,15 +455,103 @@ body {
   line-height: 1.625rem;
 }
 
-.marketing-row-body a {
+/* Reading pages (FAQ, Privacy, Terms): one sheet as wide as the page,
+   lying on the mat. On wide screens each section's heading hangs in the
+   left margin beside its content, which keeps a readable measure. The
+   closing band below carries on the same mat. */
+.reading-mat {
+  --mat-x: 0px;
+  @apply mat;
+  padding-block: calc(24px + 3.5rem) 3.5rem;
+}
+
+.reading-mat + .marketing-cta {
+  --mat-y: 0px;
+}
+
+.reading-mat + .marketing-cta .marketing-cta-inner {
+  padding-top: 0;
+}
+
+.reading-sheet {
+  padding: 3rem;
+  border-radius: var(--radius-page);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-page);
+  color: var(--color-fg);
+}
+
+/* A linked section lands clear of the top of the window. */
+.reading-section {
+  scroll-margin-top: 1.5rem;
+}
+
+.reading-section + .reading-section {
+  margin-top: 2.25rem;
+}
+
+.reading-section > h2 {
+  margin: 0;
+  color: var(--color-fg);
+  @apply text-ui-lg;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.reading-section p {
+  margin: 0.5rem 0 0;
+  color: var(--color-fg-muted);
+  text-wrap: pretty;
+  @apply text-body-md;
+  line-height: 1.625rem;
+}
+
+.reading-section a {
   color: var(--color-fg);
   text-decoration-line: underline;
   text-decoration-color: var(--color-line-strong);
   text-underline-offset: 4px;
 }
 
-.marketing-row-body a:hover {
+.reading-section a:hover {
   text-decoration-color: currentColor;
+}
+
+@media (min-width: 64rem) {
+  .reading-sheet {
+    padding: 4rem;
+  }
+
+  .reading-section {
+    display: grid;
+    grid-template-columns: minmax(12rem, 18rem) minmax(0, 42rem);
+    align-items: baseline;
+    gap: 3rem;
+  }
+
+  .reading-section + .reading-section {
+    margin-top: 0;
+    padding-top: 2rem;
+    border-top: 1px solid var(--color-line);
+  }
+
+  .reading-section:not(:last-child) {
+    padding-bottom: 2rem;
+  }
+
+  .reading-section > p {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 47.99rem) {
+  .reading-mat {
+    padding-block: calc(24px + 1.5rem) 1.5rem;
+  }
+
+  .reading-sheet {
+    padding: 1.75rem 1.5rem;
+  }
 }
 
 /* The closing section: one wide sheet lying on the mat. */

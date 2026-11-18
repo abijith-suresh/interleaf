@@ -1,160 +1,82 @@
-# Contributing — Interleaf
+# Contributing
 
-This document describes the development workflow for Interleaf.
-
-Read `AGENTS.md` first for product truth and agent behavior.
-
-Do not expand product scope unless the Product Truth section of `AGENTS.md` is updated first.
+These rules apply to people and coding agents alike. Agents should also read [AGENTS.md](AGENTS.md), which defines the product scope.
 
 ## Setup
 
-- [Bun](https://bun.sh) via [mise](https://mise.jdx.dev) (`mise.toml` pins the exact version)
-- Node.js, pinned in `mise.toml` (Astro needs it)
+You need Bun and Node.js. `mise.toml` pins both versions and `.node-version` pins Node.js. With [mise](https://mise.jdx.dev):
 
 ```sh
-bun install
+mise install
+bun install        # also installs the Git hooks
 bun run dev        # http://localhost:4321
 ```
 
-## Quality Gate
-
-Before pushing, run:
+## Checks
 
 ```sh
 bun run verify
 ```
 
-This runs, in order:
+This runs type-check, lint, format check, unit tests and the production build. `bun run lint:fix` and `bun run format` fix most lint and format errors.
 
-1. `type-check` — `astro sync && astro check && tsc --noEmit`
-2. `lint` — `biome lint .`
-3. `format:check` — `biome format .`
-4. `test` — `vitest run`
-5. `build` — `astro build`
-
-Fix formatting and lint automatically:
-
-```sh
-bun run lint:fix
-bun run format
-```
-
-## Git Workflow
-
-1. Branch from the latest `main`.
-2. Make the smallest correct change.
-3. Keep public copy, product truth, and implementation aligned.
-4. Run `bun run verify` before push — it also runs automatically on `pre-push`.
-5. Commit using [Conventional Commits](https://www.conventionalcommits.org/): `feat`, `fix`, `docs`, `refactor`, `chore`, `test`, `ci`, `build`.
-6. Open a focused pull request against `main` for each coherent change. Independent pull requests may be developed and reviewed in parallel. Stack or delay pull requests that overlap in files or depend on another change.
-
-### Hooks
-
-| Hook         | Action                                           |
-| ------------ | ------------------------------------------------ |
-| `pre-commit` | Runs `lint-staged` on staged files               |
-| `commit-msg` | Validates commit message format via `commitlint` |
-| `pre-push`   | Runs `bun run verify`                            |
-
-### CI
-
-CI runs on every PR to `main`:
-
-- **ci**: type-check, lint, format:check, test, and build, followed by separate Chromium, Firefox, and WebKit browser jobs
-- **gate**: aggregates `ci`, `dependency-review`, and `qpdf`; this is the required branch-protection check
-- **pr-title**: enforces Conventional Commit format on PR titles
-- **dependency-review**: audits dependency changes
-- **qpdf**: builds and smoke-tests the qpdf WASM module when its files change
-
-Other workflows run outside the PR checks:
-
-- **release-please**: opens and updates release PRs from Conventional Commits
-- **dependabot-auto-merge**: merges eligible Dependabot updates
-- **vercel-preview-cleanup**: removes a pull request's Vercel previews when it closes
-
-## Versioning And Releases
-
-Releases are automated by release-please from Conventional Commits. Versioning restarted at `0.0.1` for a fresh development phase.
-
-- While the project is in private development, versions stay in the `0.0.x` range: before 1.0, both `feat:` and `fix:` commits bump the patch version (`bump-patch-for-minor-pre-major` in the release-please config).
-- The first real release (`0.1.0`) is cut deliberately by the maintainer, via a `Release-As: 0.1.0` footer on the release PR; `1.0.0` is earned later.
-- Release PRs and tags are created automatically after conventional commits land on `main`.
-
-## Code Conventions
-
-Follow the existing Astro, SolidJS, TypeScript, and Tailwind patterns. The code and its tests are the source of truth for how the app works; document behavior where it lives, in code, rather than in prose that drifts.
-
-### Testing
-
-- Assert behaviour, not palette values: compare against an element's resting state or another element instead of literal colours.
-
-Tests are co-located with source: `src/**/__tests__/*.test.ts`.
-
-```sh
-bun run test         # Run once
-bun run test:watch   # Watch mode
-```
-
-Cover services, controllers, utilities, and editor components. Use Vitest with the `jsdom` environment.
-
-Browser tests live in `tests/e2e` and use Playwright against a preview build:
+Browser tests use Playwright against a production build:
 
 ```sh
 bunx playwright install --with-deps chromium firefox webkit   # once per machine
-bun run test:e2e:build             # builds, then runs the browser tests
+bun run test:e2e:build   # build, then run the browser tests
+bun run test:e2e         # reuse an existing build
 ```
 
-Run `bun run test:e2e` to reuse an existing build.
+Git hooks run on your machine:
 
-CI runs the suite in Chromium, Firefox, and WebKit.
+- `pre-commit` runs Biome on staged files through lint-staged.
+- `commit-msg` checks the message with commitlint.
+- `pre-push` runs `bun run verify`.
 
-### Styling
+On every pull request, CI runs `verify`, the browser tests in Chromium, Firefox and WebKit, a dependency review, and a PR title check. When qpdf files change, it also rebuilds the qpdf WebAssembly module. The `gate` check must pass before merge.
 
-- Tailwind CSS v4 with CSS-first `@theme` tokens in `global.css`.
-- Editor-specific styles in `editor.css`.
-- Use existing utility classes and CSS custom properties.
-- Follow the [Cards](https://github.com/oliur/cards) structure with Interleaf's Evergreen palette: white surfaces on a green-tinted neutral canvas, evergreen ink, and the leaf green only for selection, focus, and Interleaf's own additions to a page.
+`bun run build:qpdf-wasm` needs Emscripten. You only need it if you change the qpdf build in `tools/qpdf-wasm`.
 
-## Copy And Voice
+## Making a change
 
-All user-facing copy — marketing pages, editor strings, statuses, toasts, social previews — follows one written standard. It adapts rules from ASD-STE100 Simplified Technical English to product copy, with mainstream web UX writing guidance (NN/g, Microsoft, and Mailchimp house styles): short declarative sentences, active voice, present tense, second person, concrete verbs, and exactly one canonical phrasing per concept.
+1. Branch from the latest `main`.
+2. Keep each pull request to one focused change.
+3. Use [Conventional Commits](https://www.conventionalcommits.org/) for commits and the PR title: `feat`, `fix`, `docs`, `refactor`, `chore`, `test`, `ci` or `build`.
+4. Run `bun run verify` before you push.
+5. Open the pull request against `main`. Pull requests are squash merged.
 
-### Mechanics
+release-please creates releases from the commits on `main`.
 
-- Use sentence case for headings, buttons, links, and page titles. Page titles read `<Page> — Interleaf`.
-- Write one idea per sentence. Aim for 15 words; cap at 25.
-- Use active voice, present tense, and "you/your" for anything instructional.
-- Avoid exclamation marks, hype adjectives, and idioms in functional copy.
-- Use digits for counts and degrees: "3 files", "90-degree steps" ("90°" only in compact UI labels).
-- Use "…" only on in-progress statuses. End other sentences with a period.
-- Never use "upload" as a user action. State the privacy claim with "No uploads." or "nothing is uploaded"; file picking is "choose" or "open".
+## Product rules
 
-### Canonical terms
+- Everything runs in the browser. Do not add uploads, server-side processing or requests to other servers.
+- No accounts, analytics, tracking or cookies.
+- Do not add or advertise features outside the scope in [AGENTS.md](AGENTS.md). Change its Product truth section first.
 
-Use the canonical phrasing exact. Do not introduce variants.
+## PDF libraries
 
-| Concept | Canonical | Not |
-| --- | --- | --- |
-| File privacy | "Your files never leave your device." | "stay with you", "stay on your device", "keep the file with you" |
-| Processing mechanism | "Everything runs in your browser. Nothing is uploaded." | "client-side", "browser-local", "server-free" |
-| File types in prose | "PDFs and PNG or JPEG images" | "PNG/JPEG images", "PDFs and images" |
-| File types in tight UI and allowlists | "PDFs and images", "PDF, PNG, or JPEG files" | "PNG/JPEG images" |
-| The application | "the editor" | "the PDF editor", "the tool" |
-| Pages kept for export | "exportable pages" | "active pages" |
-| Removing a page from the export | "mark for deletion" / "restore" | "delete a page" |
-| Output actions | "Download PDF", "Export PNG images", "Export started." | "build", "generate", "download started" |
-| Compression scope | "one untouched PDF" | "untouched PDFs", "compressed PDFs" |
+| Library | Used for |
+| --- | --- |
+| pdfjs-dist | Opening and reading files, the password prompt, previews, thumbnails and PNG export |
+| pdf-lib | Writing every output: merge, extract, rotate, added text, checkmarks and field answers |
+| qpdf (WebAssembly) | Decrypting encrypted files so pdf-lib can read them, and lossless compression |
 
-### Scope honesty
+Open an issue before adding another PDF engine. PDFium is on hold because copying pages with it loses inherited form-field data. Reconsider it only with an upstream fix, complete license notices for its bundled libraries, and a stable release.
 
-Copy may promise only what the Product Truth section of `AGENTS.md` lists as the current product surface. Update that section first, then code, then copy.
+## Code style
 
-If two phrasings exist for one concept, one of them is a defect: add the canonical choice here, then replace the variant everywhere.
+- Follow the existing Astro, Solid, TypeScript and Tailwind patterns. Biome enforces formatting and lint rules.
+- Put unit tests in `__tests__` folders next to the code they test. They use Vitest with jsdom. Browser tests go in `tests/e2e`.
+- Test behaviour, not internals. Compare an element with its resting state or another element instead of literal colour values.
+- Design tokens live in `src/styles/global.css` and editor styles in `src/styles/editor.css`.
+- Follow the cutting-mat system in `global.css`: paper and ink around a green mat where white PDF pages lie. The mat green marks focus and selection on paper; on the mat, yellow marks a selected page and a dashed pink line a page marked for deletion.
+- Document behaviour in code and tests, not in prose.
 
-## Documentation
+## Writing copy
 
-- `README.md` — user-facing current behavior only.
-- `AGENTS.md` — product truth and agent behavior.
-- `CONTRIBUTING.md` — this file.
-
-Update `AGENTS.md` before changing product promises or scope, this file when the workflow changes, and `README.md` when public behavior changes.
+- Use sentence case, short sentences, active voice and "you".
+- Describe only what the product does today.
+- Never call opening a file "upload". Use "open" or "choose".
+- Use one phrasing per idea. For privacy, write "Your files never leave your device." or "Everything runs in your browser. Nothing is uploaded."
+- No exclamation marks or hype words.
