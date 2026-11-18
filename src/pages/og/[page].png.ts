@@ -37,37 +37,49 @@ const pages: Record<string, { title: string; description: string }> = {
 };
 
 // Satori draws text as paths, so resvg never needs these fonts. Satori renders
-// a variable font at its default instance only, so headings use static Inter.
-const interFont = (weight: 400 | 500) =>
+// a variable font at its default instance only, so the image uses static cuts.
+const interFont = (weight: 400 | 600 | 700) =>
   readFileSync(
     join(process.cwd(), `node_modules/@fontsource/inter/files/inter-latin-${weight}-normal.woff`)
   );
-const bodyFontData = interFont(400);
-const headingFontData = interFont(500);
 
-// Cards tokens from the marketing theme in src/styles/global.css.
+// Cutting-mat tokens from src/styles/global.css.
 const colors = {
-  canvas: "#f1f3f1",
-  surface: "#ffffff",
-  fg: "#11201a",
-  fgMuted: "#4e5a54",
-  line: "#dde3df",
-  accent: "#17804f",
+  canvas: "#f5f3ee",
+  surface: "#fcfbf8",
+  fg: "#1b1e1b",
+  fgMuted: "#50554e",
+  line: "#e2ded3",
+  mat: "#2b5a46",
+  matMinor: "rgba(214, 236, 222, 0.09)",
+  matMajor: "rgba(214, 236, 222, 0.2)",
 };
 
 const svgImage = (svg: string) =>
   `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 
-// The app icon, from the favicon, and the leaf that dots the wordmark's first i.
-const markSrc = svgImage(readFileSync(join(process.cwd(), "public/favicon.svg"), "utf-8"));
-const leafSrc = svgImage(
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M1 9A6.9 6.9 0 0 1 9 1A6.9 6.9 0 0 1 1 9z" fill="${colors.accent}"/></svg>`
-);
+// The site's wordmark: the leaf-i, then "interleaf".
+const markSrc = svgImage(readFileSync(join(process.cwd(), "public/mark.svg"), "utf-8"));
 
-const wordmarkSize = 34;
-const markSize = 64;
-
-const cardInset = 40;
+const inset = 72;
+const matLeft = 780;
+// A sheet lying on the mat, with the edge of a second sheet behind it.
+const sheetShadow = "3px 3px 0 -1px #e3dfd3, 0 14px 22px -14px rgba(0, 18, 10, 0.7)";
+const sheet = (left: number, top: number) => ({
+  type: "div",
+  props: {
+    style: {
+      position: "absolute",
+      left,
+      top,
+      width: 200,
+      height: 260,
+      borderRadius: 3,
+      backgroundColor: colors.surface,
+      boxShadow: sheetShadow,
+    },
+  },
+});
 
 export function getStaticPaths() {
   return Object.keys(pages).flatMap((page) =>
@@ -86,130 +98,123 @@ export const GET: APIRoute = async ({ props }) => {
     props: {
       style: {
         display: "flex",
+        position: "relative",
         width: socialPreviewSize.width,
         height: socialPreviewSize.height,
-        alignItems: "center",
-        justifyContent: "center",
         backgroundColor: colors.canvas,
         color: colors.fg,
         fontFamily: "Inter",
         fontWeight: 400,
       },
-      children: {
-        type: "div",
-        props: {
-          style: {
-            display: "flex",
-            width: socialPreviewSize.width - 2 * cardInset,
-            height: socialPreviewSize.height - 2 * cardInset,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: colors.surface,
-            border: `1px solid ${colors.line}`,
-            borderRadius: 12,
-          },
-          children: {
-            type: "div",
-            props: {
-              // Keep every element inside the centered square used by compact cards.
-              style: {
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                width: 600,
-                textAlign: "center",
-              },
-              children: [
-                {
-                  type: "img",
-                  props: { src: markSrc, width: markSize, height: markSize },
-                },
-                {
-                  type: "div",
-                  props: {
-                    style: {
-                      display: "flex",
-                      marginTop: 20,
-                      fontSize: wordmarkSize,
-                      fontWeight: 500,
-                      lineHeight: 1,
-                      letterSpacing: "-0.02em",
-                    },
-                    children: [
-                      {
-                        type: "div",
-                        props: {
-                          style: { display: "flex", position: "relative" },
-                          children: [
-                            "ı",
-                            {
-                              type: "img",
-                              props: {
-                                src: leafSrc,
-                                width: wordmarkSize * 0.3,
-                                height: wordmarkSize * 0.3,
-                                style: {
-                                  position: "absolute",
-                                  top: 0,
-                                  left: "50%",
-                                  transform: "translateX(-40%)",
-                                },
-                              },
-                            },
-                          ],
-                        },
-                      },
-                      "nterleaf",
-                    ],
-                  },
-                },
-                {
-                  type: "div",
-                  props: {
-                    style: {
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      marginTop: 40,
-                      fontSize: 72,
-                      fontWeight: 500,
-                      lineHeight: 1.1,
-                      letterSpacing: "-0.02em",
-                    },
-                    children: title.split("\n").map((line) => ({
-                      type: "span",
-                      props: { children: line },
-                    })),
-                  },
-                },
-                {
-                  type: "div",
-                  props: {
-                    style: {
-                      marginTop: 24,
-                      maxWidth: 520,
-                      color: colors.fgMuted,
-                      fontSize: 26,
-                      lineHeight: 1.4,
-                      letterSpacing: "-0.01em",
-                      textWrap: "balance",
-                    },
-                    children: description,
-                  },
-                },
-              ],
+      children: [
+        {
+          type: "div",
+          props: {
+            style: {
+              position: "absolute",
+              left: matLeft,
+              top: inset,
+              right: 0,
+              bottom: 0,
+              display: "flex",
+              borderTopLeftRadius: 10,
+              backgroundColor: colors.mat,
+              backgroundImage: [
+                `linear-gradient(to right, ${colors.matMajor} 1px, transparent 1px)`,
+                `linear-gradient(to bottom, ${colors.matMajor} 1px, transparent 1px)`,
+                `linear-gradient(to right, ${colors.matMinor} 1px, transparent 1px)`,
+                `linear-gradient(to bottom, ${colors.matMinor} 1px, transparent 1px)`,
+              ].join(", "),
+              backgroundSize: "60px 60px, 60px 60px, 12px 12px, 12px 12px",
             },
+            children: [sheet(60, 60), sheet(184, 120)],
           },
         },
-      },
+        {
+          type: "div",
+          props: {
+            style: {
+              position: "absolute",
+              left: inset,
+              top: inset,
+              bottom: inset,
+              width: matLeft - inset * 2,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+            },
+            children: [
+              {
+                type: "div",
+                props: {
+                  style: {
+                    display: "flex",
+                    alignItems: "center",
+                    fontSize: 34,
+                    fontWeight: 600,
+                    lineHeight: 1,
+                    letterSpacing: "-0.035em",
+                  },
+                  children: [
+                    {
+                      type: "img",
+                      props: { src: markSrc, width: 52, height: 52, style: { marginLeft: -15 } },
+                    },
+                    "interleaf",
+                  ],
+                },
+              },
+              {
+                type: "div",
+                props: {
+                  style: { display: "flex", flexDirection: "column" },
+                  children: [
+                    {
+                      type: "div",
+                      props: {
+                        style: {
+                          display: "flex",
+                          flexDirection: "column",
+                          fontSize: 76,
+                          fontWeight: 700,
+                          lineHeight: 1,
+                          letterSpacing: "-0.045em",
+                        },
+                        children: title.split("\n").map((line) => ({
+                          type: "span",
+                          props: { children: line },
+                        })),
+                      },
+                    },
+                    {
+                      type: "div",
+                      props: {
+                        style: {
+                          marginTop: 28,
+                          color: colors.fgMuted,
+                          fontSize: 28,
+                          lineHeight: 1.35,
+                          letterSpacing: "-0.015em",
+                        },
+                        children: description,
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      ],
     },
   };
 
   const svg = await satori(element, {
     ...socialPreviewSize,
     fonts: [
-      { name: "Inter", data: bodyFontData, weight: 400, style: "normal" },
-      { name: "Inter", data: headingFontData, weight: 500, style: "normal" },
+      { name: "Inter", data: interFont(400), weight: 400, style: "normal" },
+      { name: "Inter", data: interFont(600), weight: 600, style: "normal" },
+      { name: "Inter", data: interFont(700), weight: 700, style: "normal" },
     ],
   });
 

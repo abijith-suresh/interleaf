@@ -1,7 +1,6 @@
 ---
 import MarketingHero from "./MarketingHero.astro";
 import MarketingLayout from "./MarketingLayout.astro";
-import MarketingSplit from "./MarketingSplit.astro";
 
 interface LinkPart {
   href: string;
@@ -11,7 +10,6 @@ interface LinkPart {
 
 interface Section {
   id: string;
-  num: string;
   title: string;
   body: string;
   link?: LinkPart;
@@ -32,22 +30,14 @@ const { title, description, heading, headingId, intro, sections } = Astro.props;
 <MarketingLayout title={title} description={description}>
   <MarketingHero titleId={headingId} title={heading} lede={intro} />
 
-  <section class="marketing-section" aria-label={`${heading} contents`}>
-    <MarketingSplit asideOnMobile={false}>
-      <nav slot="aside" aria-label="On this page">
+  <div class="reading-mat">
+    <div class="marketing-container">
+      <article class="reading-sheet" aria-label={`${heading} contents`}>
         {
           sections.map((section) => (
-            <a class="marketing-link" href={`#${section.id}`}>{section.title}</a>
-          ))
-        }
-      </nav>
-      <div class="marketing-rows">
-        {
-          sections.map((section) => (
-            <section id={section.id} class="marketing-row">
-              <span class="marketing-row-marker">{section.num}</span>
-              <h2 class="marketing-row-title">{section.title}</h2>
-              <p class="marketing-row-body">
+            <section id={section.id} class="reading-section">
+              <h2>{section.title}</h2>
+              <p>
                 {section.body}
                 {section.link && (
                   <>
@@ -61,16 +51,7 @@ const { title, description, heading, headingId, intro, sections } = Astro.props;
             </section>
           ))
         }
-      </div>
-    </MarketingSplit>
-  </section>
+      </article>
+    </div>
+  </div>
 </MarketingLayout>
-
-<style>
-  nav .marketing-link {
-    width: 100%;
-    justify-content: flex-start;
-    text-align: left;
-    transition: none;
-  }
-</style>
