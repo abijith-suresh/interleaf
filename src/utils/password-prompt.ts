@@ -53,12 +53,13 @@ export function promptForPassword(
     buttonRow.className = "password-modal-actions";
 
     const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
     cancelBtn.textContent = "Cancel";
-    cancelBtn.className = "password-modal-button password-modal-button-secondary";
+    cancelBtn.className = "editor-button editor-button-secondary";
 
     const unlockBtn = document.createElement("button");
     unlockBtn.textContent = "Unlock";
-    unlockBtn.className = "password-modal-button password-modal-button-primary";
+    unlockBtn.className = "editor-button editor-button-primary";
 
     buttonRow.appendChild(cancelBtn);
     buttonRow.appendChild(unlockBtn);

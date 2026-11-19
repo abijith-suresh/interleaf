@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-/** Narrow layouts list Add files and Files under the toolbar's More menu. */
+/** Narrow layouts list Files, and Add files below 375px, under the toolbar's More menu. */
 async function revealSourceActions(page: Page) {
   const more = page.getByTestId("editor-more-button");
   if ((await more.isVisible()) && (await more.getAttribute("aria-expanded")) !== "true")
@@ -13,6 +13,11 @@ export async function openFiles(page: Page) {
 }
 
 export async function clickAddFiles(page: Page) {
+  const quick = page.getByTestId("editor-add-pdf-quick-button");
+  if (await quick.isVisible()) {
+    await quick.click();
+    return;
+  }
   await revealSourceActions(page);
   await page.getByTestId("editor-add-pdf-button").click();
 }

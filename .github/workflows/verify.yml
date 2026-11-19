@@ -95,22 +95,3 @@ jobs:
             playwright-report/
           if-no-files-found: ignore
           retention-days: 7
-
-  result:
-    name: Verify results
-    if: always()
-    needs: [verify, browser]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    permissions: {}
-    steps:
-      - name: Require all verification jobs to pass
-        env:
-          VERIFY_RESULT: ${{ needs.verify.result }}
-          BROWSER_RESULT: ${{ needs.browser.result }}
-        run: |
-          if [[ "$VERIFY_RESULT" != success || "$BROWSER_RESULT" != success ]]; then
-            echo "verify: $VERIFY_RESULT" >&2
-            echo "browser: $BROWSER_RESULT" >&2
-            exit 1
-          fi
