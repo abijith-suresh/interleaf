@@ -1636,7 +1636,11 @@ export default function Editor() {
             </div>
             <h1 class="sr-only">Interleaf PDF editor</h1>
             <div class="editor-header-right">
-              <a href={base} class="editor-back" aria-label="Return to Interleaf home">
+              <a
+                href={base}
+                class="editor-button editor-button-plain"
+                aria-label="Return to Interleaf home"
+              >
                 <EditorIcon name="back" />
                 <span class="editor-back-wide">Back</span>
                 <span class="editor-back-compact">Exit</span>

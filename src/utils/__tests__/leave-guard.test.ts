@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { guardLeave, LEAVE_EDITOR_MESSAGE } from "../leave-guard";
+import { guardLeave } from "../leave-guard";
 
 type Preparation = Event & {
   from: URL;
@@ -53,29 +53,48 @@ describe("guardLeave", () => {
     expect(unload().defaultPrevented).toBe(false);
   });
 
-  it("lets router navigation proceed without work or after the user confirms", () => {
-    let work = false;
-    const confirm = vi.fn(() => true);
-    release = guardLeave(() => work, confirm);
+  it("lets router navigation proceed while there is no work to lose", () => {
+    const confirm = vi.fn(async () => true);
+    release = guardLeave(() => false, confirm);
     const idle = preparation();
     expect(confirm).not.toHaveBeenCalled();
     expect(idle.event.loader).toBe(idle.loader);
-    work = true;
-    const confirmed = preparation();
-    expect(confirm).toHaveBeenCalledWith(LEAVE_EDITOR_MESSAGE);
-    expect(confirmed.event.loader).toBe(confirmed.loader);
-    expect(confirmed.event.defaultPrevented).toBe(false);
   });
 
-  it("holds a declined navigation without a full page load until the router supersedes it", async () => {
+  it("holds the navigation while it asks, then loads the page once confirmed", async () => {
+    const assign = vi.fn();
+    vi.spyOn(window, "location", "get").mockReturnValue({
+      assign,
+      href: "http://localhost:3000/",
+    } as unknown as Location);
+    let answer!: (leave: boolean) => void;
+    const confirm = vi.fn(() => new Promise<boolean>((resolve) => (answer = resolve)));
+    release = guardLeave(() => true, confirm);
+    const asked = preparation({ to: "/elsewhere" });
+    expect(confirm).toHaveBeenCalledOnce();
+    // preventDefault() would make the router load the page in full instead.
+    expect(asked.event.defaultPrevented).toBe(false);
+    expect(asked.event.loader).not.toBe(asked.loader);
+    expect(assign).not.toHaveBeenCalled();
+    answer(true);
+    await Promise.resolve();
+    expect(assign).toHaveBeenCalledWith("http://localhost:3000/elsewhere");
+    // The page is leaving, so neither the router nor the unload prompt asks again.
+    expect(unload().defaultPrevented).toBe(false);
+  });
+
+  it("keeps a declined navigation pending until the router supersedes it", async () => {
+    const assign = vi.fn();
+    vi.spyOn(window, "location", "get").mockReturnValue({
+      assign,
+      href: "http://localhost:3000/",
+    } as unknown as Location);
     release = guardLeave(
       () => true,
-      () => false
+      async () => false
     );
     const declined = preparation();
-    // preventDefault() would make the router load the page in full instead.
-    expect(declined.event.defaultPrevented).toBe(false);
-    expect(declined.event.loader).not.toBe(declined.loader);
+    await Promise.resolve();
     let settled = false;
     const loading = declined.event.loader().then(() => {
       settled = true;
@@ -83,14 +102,16 @@ describe("guardLeave", () => {
     await Promise.resolve();
     expect(settled).toBe(false);
     expect(declined.loader).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
     declined.controller.abort();
     await loading;
     expect(declined.event.defaultPrevented).toBe(true);
   });
 
-  it("returns a declined Back to the editor entry and holds that return", () => {
+  it("returns Back to the editor entry, and repeats it once confirmed", async () => {
     const go = vi.spyOn(history, "go").mockImplementation(() => {});
-    const confirm = vi.fn(() => false);
+    let answer!: (leave: boolean) => void;
+    const confirm = vi.fn(() => new Promise<boolean>((resolve) => (answer = resolve)));
     release = guardLeave(() => true, confirm);
     const back = preparation({ navigationType: "traverse", direction: "back" });
     expect(go).toHaveBeenCalledWith(1);
@@ -102,9 +123,10 @@ describe("guardLeave", () => {
     });
     expect(confirm).toHaveBeenCalledOnce();
     expect(restore.event.loader).not.toBe(restore.loader);
-    const forward = preparation({ navigationType: "traverse", direction: "forward" });
-    expect(confirm).toHaveBeenCalledTimes(2);
+    answer(true);
+    await Promise.resolve();
     expect(go).toHaveBeenLastCalledWith(-1);
-    expect(forward.event.loader).not.toBe(forward.loader);
+    const proceed = preparation({ navigationType: "traverse", direction: "back" });
+    expect(proceed.event.loader).toBe(proceed.loader);
   });
 });
