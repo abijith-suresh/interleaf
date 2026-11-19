@@ -36,7 +36,7 @@ async function open(page: Page) {
   await expectDocumentReady(page);
 }
 
-async function draft(page: Page, tool: "Add text" | "Checkmark") {
+async function draft(page: Page, tool: "Add text" | "Add checkmark") {
   await page.getByRole("button", { name: tool, exact: true }).click();
   await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
   const frame = await page.locator(".editor-review-page").boundingBox();
@@ -65,13 +65,13 @@ const hex = (text: string) => Buffer.from(text, "latin1").toString("hex");
 test("download saves an open text edit so the PDF matches the page", async ({ page }) => {
   await open(page);
   await draft(page, "Add text");
-  const input = page.getByLabel("Added text", { exact: true });
+  const input = page.getByLabel("Text", { exact: true });
   await input.fill("Approved 2026-11-07");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
   await expect(input).toHaveCount(0);
   await expectDocumentReady(page);
 
-  await page.getByRole("button", { name: "Edit added text: Approved 2026-11-07" }).click();
+  await page.getByRole("button", { name: "Edit text: Approved 2026-11-07" }).click();
   await input.fill("CHANGED 2");
   const operators = await download(page);
   expect(operators).toContain(hex("CHANGED 2"));
@@ -79,9 +79,9 @@ test("download saves an open text edit so the PDF matches the page", async ({ pa
   await expect(input).toHaveCount(0);
   await expect(page.getByTestId("editor-undo-button")).toHaveAttribute(
     "aria-label",
-    "Undo Edit text"
+    "Undo edit text"
   );
-  await expect(page.getByRole("button", { name: "Edit added text: CHANGED 2" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit text: CHANGED 2" })).toBeVisible();
 });
 
 test("page navigation and view switches save open text, checkmark, and field drafts", async ({
@@ -92,18 +92,18 @@ test("page navigation and view switches save open text, checkmark, and field dra
   const title = page.getByTestId("editor-viewer-title");
 
   await draft(page, "Add text");
-  await page.getByLabel("Added text", { exact: true }).fill("Kept on next");
+  await page.getByLabel("Text", { exact: true }).fill("Kept on next");
   await page.getByTestId("editor-page-viewer-next").click();
   await expect(title).toHaveText("Page 2");
-  await expect(undo).toHaveAttribute("aria-label", "Undo Add text");
+  await expect(undo).toHaveAttribute("aria-label", "Undo add text");
 
   await expectDocumentReady(page);
-  await draft(page, "Checkmark");
+  await draft(page, "Add checkmark");
   await expect(page.getByRole("button", { name: "Drag checkmark to move it" })).toBeVisible();
   await page.getByRole("button", { name: "View page 1" }).click();
   await expect(title).toHaveText("Page 1");
-  await expect(undo).toHaveAttribute("aria-label", "Undo Add checkmark");
-  await expect(page.getByRole("button", { name: "Edit added text: Kept on next" })).toBeVisible();
+  await expect(undo).toHaveAttribute("aria-label", "Undo add checkmark");
+  await expect(page.getByRole("button", { name: "Edit text: Kept on next" })).toBeVisible();
 
   await expectDocumentReady(page);
   await page.getByRole("button", { name: "Fill fields", exact: true }).click();
@@ -111,11 +111,11 @@ test("page navigation and view switches save open text, checkmark, and field dra
   await page.getByRole("textbox", { name: "Answer for name" }).fill("Ada");
   await page.getByTestId("editor-pages-view-button").click();
   await expect(page.getByTestId("editor-page-grid")).toBeVisible();
-  await expect(undo).toHaveAttribute("aria-label", "Undo Fill text field");
+  await expect(undo).toHaveAttribute("aria-label", "Undo fill field");
 
   // Undo removes each saved draft as its own change.
   await undo.click();
-  await expect(undo).toHaveAttribute("aria-label", "Undo Add checkmark");
+  await expect(undo).toHaveAttribute("aria-label", "Undo add checkmark");
 });
 
 test("an invalid draft blocks leaving it and shows why, while Cancel still discards", async ({
@@ -125,7 +125,7 @@ test("an invalid draft blocks leaving it and shows why, while Cancel still disca
   let downloads = 0;
   page.on("download", () => downloads++);
   await draft(page, "Add text");
-  const input = page.getByLabel("Added text", { exact: true });
+  const input = page.getByLabel("Text", { exact: true });
   await input.fill("Café");
 
   for (const leave of [
@@ -169,7 +169,7 @@ test("leaving the editor asks first only when the workspace has pages", async ({
   const confirm = page.getByRole("dialog", { name: "Leave the editor?" });
 
   // An empty workspace has nothing to lose.
-  await page.getByRole("link", { name: "Return to Interleaf home" }).click();
+  await page.getByRole("link", { name: "Back" }).click();
   await expect(page).toHaveURL(/\/$/);
   await page.goBack();
   await expect(page).toHaveURL(/\/app$/);
@@ -228,7 +228,7 @@ test("selection and page actions save drafts and block invalid drafts", async ({
   await page.getByTestId("editor-document-view-button").click();
   await expectDocumentReady(page);
   await draft(page, "Add text");
-  const input = page.getByLabel("Added text", { exact: true });
+  const input = page.getByLabel("Text", { exact: true });
   await input.fill("Café");
   for (const action of [
     page.getByTestId("editor-document-rotate-button"),
@@ -249,13 +249,11 @@ test("selection and page actions save drafts and block invalid drafts", async ({
   await input.fill("Saved before marking");
   await page.getByTestId("editor-delete-button").click();
   await expect(input).toHaveCount(0);
-  await expect(page.getByTestId("editor-page-count")).toHaveText("1 of 2 pages exportable");
+  await expect(page.getByTestId("editor-page-count")).toHaveText("2 pages, 1 marked");
   await page.getByTestId("editor-undo-button").click();
-  await expect(
-    page.getByRole("button", { name: "Edit added text: Saved before marking" })
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit text: Saved before marking" })).toBeVisible();
   await expect(page.getByTestId("editor-undo-button")).toHaveAttribute(
     "aria-label",
-    "Undo Add text"
+    "Undo add text"
   );
 });

@@ -17,7 +17,7 @@ async function blankPages(page: Page) {
     ])
   );
 }
-async function draftAt(page: Page, tool: "Add text" | "Checkmark", x = 0.4, y = 0.5) {
+async function draftAt(page: Page, tool: "Add text" | "Add checkmark", x = 0.4, y = 0.5) {
   await revealDocumentTools(page);
   await page.getByRole("button", { name: tool, exact: true }).click();
   await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
@@ -25,7 +25,7 @@ async function draftAt(page: Page, tool: "Add text" | "Checkmark", x = 0.4, y = 
   if (!box) throw new Error("Missing page");
   await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
 }
-const toolNames = ["Read", "Add text", "Checkmark", "Fill fields", "Select additions"];
+const toolNames = ["View", "Add text", "Add checkmark", "Fill fields", "Edit"];
 // An open draft swaps the page tools out of the bar, so read them even while hidden.
 const hidden = { includeHidden: true } as const;
 async function pressed(page: Page) {
@@ -47,7 +47,7 @@ async function expectPressed(page: Page, name: string) {
   const look = (element: Element) => getComputedStyle(element).color;
   const read = page
     .getByRole("toolbar", { name: "Page tools", ...hidden })
-    .getByRole("button", { name: name === "Read" ? "Add text" : "Read", exact: true, ...hidden });
+    .getByRole("button", { name: name === "View" ? "Add text" : "View", exact: true, ...hidden });
   await expect
     .poll(async () => (await button.evaluate(look)) !== (await read.evaluate(look)))
     .toBe(true);
@@ -59,34 +59,34 @@ test("one tool is pressed while drafting, after cancel, and after a page change"
   test.slow();
   await blankPages(page);
   await revealDocumentTools(page);
-  await expectPressed(page, "Read");
-  for (const tool of ["Add text", "Checkmark"] as const) {
+  await expectPressed(page, "View");
+  for (const tool of ["Add text", "Add checkmark"] as const) {
     await draftAt(page, tool);
     await expectPressed(page, tool);
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     await revealDocumentTools(page);
-    await expectPressed(page, "Read");
+    await expectPressed(page, "View");
   }
   await draftAt(page, "Add text");
-  await page.getByLabel("Added text", { exact: true }).fill("Saved");
+  await page.getByLabel("Text", { exact: true }).fill("Saved");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
   await expectDocumentReady(page);
   await revealDocumentTools(page);
-  await expectPressed(page, "Select additions");
-  await page.getByRole("button", { name: "Edit added text: Saved", exact: true }).click();
-  await expectPressed(page, "Select additions");
+  await expectPressed(page, "Edit");
+  await page.getByRole("button", { name: "Edit text: Saved", exact: true }).click();
+  await expectPressed(page, "Edit");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await revealDocumentTools(page);
-  await expectPressed(page, "Select additions");
-  await draftAt(page, "Checkmark", 0.6, 0.7);
-  await expectPressed(page, "Checkmark");
+  await expectPressed(page, "Edit");
+  await draftAt(page, "Add checkmark", 0.6, 0.7);
+  await expectPressed(page, "Add checkmark");
   await page.getByLabel("Checkmark size in points").press("Escape");
   await revealDocumentTools(page);
-  await expectPressed(page, "Select additions");
+  await expectPressed(page, "Edit");
   await page.getByRole("button", { name: "Next page", exact: true }).click();
   await expectDocumentReady(page);
   await revealDocumentTools(page);
-  await expectPressed(page, "Read");
+  await expectPressed(page, "View");
 });
 
 async function hitCenter(page: Page, name: string) {
@@ -104,19 +104,19 @@ async function hitAt(page: Page, x: number, y: number) {
 async function placeBoth(page: Page) {
   await blankPages(page);
   await draftAt(page, "Add text", 0.3, 0.3);
-  await page.getByLabel("Added text", { exact: true }).fill("Small");
+  await page.getByLabel("Text", { exact: true }).fill("Small");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
   await expectDocumentReady(page);
-  await draftAt(page, "Checkmark", 0.5, 0.7);
+  await draftAt(page, "Add checkmark", 0.5, 0.7);
   await page.getByRole("button", { name: "Save checkmark", exact: true }).click();
   await expectDocumentReady(page);
   await revealDocumentTools(page);
-  await page.getByRole("button", { name: "Select additions" }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
 }
 
 test("placed text and checkmarks have a centred 24px minimum hit area", async ({ page }) => {
   await placeBoth(page);
-  for (const name of ["Edit added text: Small", "Edit added checkmark"]) {
+  for (const name of ["Edit text: Small", "Edit checkmark"]) {
     const { x, y, box } = await hitCenter(page, name);
     expect(box.height).toBeLessThan(20);
     for (const [dx, dy] of [
@@ -130,7 +130,7 @@ test("placed text and checkmarks have a centred 24px minimum hit area", async ({
     expect(await hitAt(page, x, y + 14)).toBeNull();
   }
   // The larger target only selects. Nothing drawn or exported changes size.
-  const mark = await hitCenter(page, "Edit added checkmark");
+  const mark = await hitCenter(page, "Edit checkmark");
   await page.mouse.click(mark.x, mark.y + 11);
   await expect(page.getByLabel("Checkmark size in points")).toHaveValue("16");
 });
@@ -143,7 +143,7 @@ test.describe("coarse pointers", () => {
       !(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)),
       `${browserName} does not emulate a coarse pointer`
     );
-    for (const name of ["Edit added text: Small", "Edit added checkmark"]) {
+    for (const name of ["Edit text: Small", "Edit checkmark"]) {
       const { x, y } = await hitCenter(page, name);
       expect(await hitAt(page, x, y - 21)).toBe(name);
       expect(await hitAt(page, x, y + 21)).toBe(name);
@@ -231,15 +231,15 @@ for (const width of [1440, 375, 320]) {
 test("phone page-tool disclosure names the current tool and lists Read once", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await blankPages(page);
-  const disclosure = page.getByRole("button", { name: "Page tool: Read", exact: true });
+  const disclosure = page.getByRole("button", { name: "Page tool: View", exact: true });
   await disclosure.click();
   const tools = page.getByRole("toolbar", { name: "Page tools" });
-  await expect(tools.getByRole("button", { name: "Read", exact: true })).toHaveCount(1);
+  await expect(tools.getByRole("button", { name: "View", exact: true })).toHaveCount(1);
   await tools.getByRole("button", { name: "Add text", exact: true }).click();
   const current = page.getByRole("button", { name: "Page tool: Add text", exact: true });
   await expect(current).toHaveAttribute("aria-expanded", "false");
   await current.click();
-  await expect(tools.getByRole("button", { name: "Read", exact: true })).toHaveCount(1);
+  await expect(tools.getByRole("button", { name: "View", exact: true })).toHaveCount(1);
   await expect(tools.getByRole("button", { name: "Add text", exact: true })).toHaveAttribute(
     "aria-pressed",
     "true"

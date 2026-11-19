@@ -71,7 +71,7 @@ for (const [width, height] of [
     await expect(hit).toBeFocused();
     await revealDocumentTools(page);
     await page
-      .getByRole("button", { name: "Read", exact: true })
+      .getByRole("button", { name: "View", exact: true })
       .filter({ visible: true })
       .first()
       .click();
@@ -143,12 +143,10 @@ test("protected PDFs keep manual text available while embedded filling is unavai
   await expect(page.locator(".editor-field-hit")).toHaveCount(0);
   await page.getByRole("button", { name: "Add text", exact: true }).click();
   await page.locator(".editor-review-stage").press("Enter");
-  await page.getByRole("textbox", { name: "Added text", exact: true }).fill("Manual");
+  await page.getByRole("textbox", { name: "Text", exact: true }).fill("Manual");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
   await expectDocumentReady(page);
-  await expect(
-    page.getByRole("button", { name: "Edit added text: Manual", exact: true })
-  ).toBeFocused();
+  await expect(page.getByRole("button", { name: "Edit text: Manual", exact: true })).toBeFocused();
   const { bytes: downloadedBytes } = await captureDownload(page, () => downloadDocument(page));
   const exported = await inspectExport(new Uint8Array(downloadedBytes));
   expect(exported.pageObjects).toBe(12);
@@ -209,7 +207,7 @@ test("logical page duplicates and duplicate-of-duplicate keep independent saved 
 test("Read mode shows the field count and opens a field for filling on click", async ({ page }) => {
   const fixture = await open(page);
   // Read is the default mode; fields stay visible as passive targets.
-  await expect(page.getByRole("button", { name: "Read", exact: true })).toHaveAttribute(
+  await expect(page.getByRole("button", { name: "View", exact: true })).toHaveAttribute(
     "aria-pressed",
     "true"
   );

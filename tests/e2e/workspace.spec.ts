@@ -68,7 +68,7 @@ test("Download exports the whole document; Extract and Escape act on the selecti
   await expect(bar).toBeVisible();
   await expect(page.getByTestId("editor-selection-status")).toHaveText("2 pages selected.");
   await page.getByRole("button", { name: "Mark page 3 for deletion", exact: true }).click();
-  await expect(page.getByTestId("editor-page-count")).toHaveText("2 of 3 pages exportable");
+  await expect(page.getByTestId("editor-page-count")).toHaveText("3 pages, 1 marked");
 
   await page.getByTestId("editor-document-view-button").click();
   await expect(page.getByTestId("editor-viewer-title")).toHaveText("Page 3");
@@ -77,7 +77,7 @@ test("Download exports the whole document; Extract and Escape act on the selecti
     page.getByRole("navigation", { name: "Document pages" }).getByRole("button")
   ).toHaveCount(3);
   await expect(page.getByLabel("Document preview")).toContainText("Marked for deletion");
-  await expect(page.getByTestId("editor-selection-title")).toHaveText("2 selected · 1 exportable");
+  await expect(page.getByTestId("editor-selection-title")).toHaveText("2 selected · 1 marked");
   const whole = await downloadPDF(page);
   expect(whole.getPages().map((p) => p.getWidth())).toEqual([400, 420]);
   const extracted = await extractPDF(page);
@@ -95,7 +95,7 @@ test("Download exports the whole document; Extract and Escape act on the selecti
 
   await page.getByTestId("editor-pages-view-button").click();
   await tiles.nth(1).click();
-  await page.getByRole("button", { name: "Clear page selection", exact: true }).click();
+  await page.getByRole("button", { name: "Clear selection", exact: true }).click();
   await expect(bar).toHaveCount(0);
   await expect(tiles.nth(1)).toBeFocused();
   await tiles.nth(1).press("Space");
@@ -105,7 +105,7 @@ test("Download exports the whole document; Extract and Escape act on the selecti
   await expect(bar).toHaveCount(0);
 });
 
-test("source removal while reading remaps selection and replaces only the removed active page", async ({
+test("remove file while reading remaps selection and replaces only the removed active page", async ({
   page,
 }) => {
   await page.goto("/app");
@@ -288,14 +288,12 @@ for (const width of [1280, 375]) {
     await expect(page.getByLabel("Document preview")).toContainText("Marked for deletion");
     if (await actions.isVisible()) await actions.click();
     await expect(
-      page.getByRole("button", { name: "Restore page 3 to export it as a PNG image" })
+      page.getByRole("button", { name: "Restore page 3 to export it as PNG" })
     ).toHaveAttribute("aria-disabled", "true");
     await page.keyboard.press("Escape");
     await action("Mark page 3 for deletion");
     // With nothing selected, the active page is the PNG target.
-    const { bytes: pngBytes } = await captureDownload(page, () =>
-      action("Export page 3 as a PNG image")
-    );
+    const { bytes: pngBytes } = await captureDownload(page, () => action("Export PNG of page 3"));
     const { unzipSync } = await import("fflate");
     expect(Object.keys(unzipSync(pngBytes))).toHaveLength(1);
     const pdf = await downloadPDF(page);

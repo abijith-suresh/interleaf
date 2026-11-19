@@ -140,7 +140,7 @@ for (const viewport of [
     if (viewport.width < 768) {
       await expect(exit).toBeHidden();
       await page.getByTestId("editor-more-button").click();
-      await expect(page.getByRole("link", { name: "Exit editor" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Back", exact: true })).toBeVisible();
       await page.keyboard.press("Escape");
     } else {
       const exitBox = await exit.boundingBox();
@@ -276,7 +276,7 @@ test("text controls, open menus, dialogs and failed imports preserve history; so
   await page.keyboard.press("Escape");
   await openFiles(page);
   await page.keyboard.press("Control+z");
-  await expect(page.getByTestId("editor-files-notice")).toHaveText("Undid page rotation.");
+  await expect(page.getByTestId("editor-files-notice")).toHaveText("Undid rotate page.");
   await expect(undo).toHaveAttribute("aria-disabled", "true");
   await expect(redo).toHaveAttribute("aria-disabled", "false");
   await page.getByTestId("editor-files-close-button").click();
@@ -292,7 +292,7 @@ test("text controls, open menus, dialogs and failed imports preserve history; so
     .setInputFiles({ ...(await source()), name: "second.pdf" });
   await expect(page.getByTestId("editor-page-tile")).toHaveCount(4);
   await expect(redo).toHaveAttribute("aria-disabled", "true");
-  await expect(undo).toHaveAttribute("aria-label", "Undo source addition");
+  await expect(undo).toHaveAttribute("aria-label", "Undo add files");
   await page.getByRole("button", { name: "Duplicate page 1", exact: true }).click();
   await openFiles(page);
   await page.getByTestId("editor-file-remove").nth(0).click();
@@ -304,7 +304,7 @@ test("text controls, open menus, dialogs and failed imports preserve history; so
   await expect(page.getByTestId("editor-upload-input")).toBeAttached();
   await expect(page.getByTestId("editor-root")).toHaveAttribute("aria-busy", "false");
   await page.getByTestId("editor-upload-input").setInputFiles(await source());
-  await expect(undo).toHaveAttribute("aria-label", "Undo source addition");
+  await expect(undo).toHaveAttribute("aria-label", "Undo add files");
   await expect(redo).toHaveAttribute("aria-disabled", "true");
 });
 

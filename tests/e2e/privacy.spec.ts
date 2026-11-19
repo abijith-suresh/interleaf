@@ -100,17 +100,15 @@ test("mixed files, organization, saved text/checkmarks and PDF/PNG downloads sta
   await page.getByRole("button", { name: "Add text", exact: true }).click();
   await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
   await page.locator(".editor-review-stage").press("Enter");
-  await page.getByLabel("Added text", { exact: true }).fill("Private draft");
+  await page.getByLabel("Text", { exact: true }).fill("Private draft");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
   await expectDocumentReady(page);
-  await page.getByRole("button", { name: "Checkmark", exact: true }).click();
+  await page.getByRole("button", { name: "Add checkmark", exact: true }).click();
   await page.locator(".editor-review-stage").press("Enter");
   await page.getByRole("button", { name: "Save checkmark", exact: true }).click();
   await expectDocumentReady(page);
-  await expect(page.getByRole("button", { name: "Edit added text: Private draft" })).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Edit added checkmark", exact: true })
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit text: Private draft" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit checkmark", exact: true })).toBeVisible();
 
   const pdf = await PDFDocument.load(
     await saveDownload(page, "editor-extract-button", "edited.pdf")

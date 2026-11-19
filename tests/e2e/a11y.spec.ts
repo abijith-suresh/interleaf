@@ -186,14 +186,14 @@ for (const width of [1440, 375]) {
       if (path === "/app") {
         await page.getByTestId("editor-upload-input").setInputFiles(await source("brand.pdf"));
         const workspaceBrand = page.locator(".editor-exit-row");
-        await expect(workspaceBrand).toHaveAttribute("aria-label", "Exit editor");
+        await expect(workspaceBrand).toHaveAttribute("aria-label", "Back to Interleaf");
         await expect(workspaceBrand.locator(".editor-exit-brand")).toBeVisible({
           visible: width === 1440,
         });
         await expect(workspaceBrand).toBeVisible({ visible: width === 1440 });
         if (width === 375) {
           await page.getByTestId("editor-more-button").click();
-          await expect(page.getByRole("link", { name: "Exit editor", exact: true })).toBeVisible();
+          await expect(page.getByRole("link", { name: "Back", exact: true })).toBeVisible();
         }
         await expect(workspaceBrand.locator(".brand-tile")).toHaveAttribute("src", "/mark.svg");
       }

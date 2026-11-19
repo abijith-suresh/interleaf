@@ -5,13 +5,13 @@ import { revealDocumentTools } from "./toolbar";
 export async function expectTypedAdditionSize(page: Page, kind: "text" | "checkmark") {
   await revealDocumentTools(page);
   await page
-    .getByRole("button", { name: kind === "text" ? "Add text" : "Checkmark", exact: true })
+    .getByRole("button", { name: kind === "text" ? "Add text" : "Add checkmark", exact: true })
     .click();
   await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
   const box = await page.locator(".editor-review-page").boundingBox();
   if (!box) throw new Error("Missing page");
   await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.55);
-  if (kind === "text") await page.getByLabel("Added text", { exact: true }).fill("Size");
+  if (kind === "text") await page.getByLabel("Text", { exact: true }).fill("Size");
   const size = page.getByLabel(
     kind === "text" ? "Text size in points" : "Checkmark size in points"
   );
@@ -21,7 +21,7 @@ export async function expectTypedAdditionSize(page: Page, kind: "text" | "checkm
   );
   const save = page.getByRole("button", { name: `Save ${kind}`, exact: true });
   const hit = page.getByRole("button", {
-    name: kind === "text" ? "Edit added text: Size" : "Edit added checkmark",
+    name: kind === "text" ? "Edit text: Size" : "Edit checkmark",
     exact: true,
   });
   // Real keystrokes expose intermediate values that fill() skips.
@@ -76,19 +76,19 @@ export async function expectMouseAdditionSize(page: Page, kind: "text" | "checkm
   await page.setViewportSize({ width: 1280, height: 800 });
   await revealDocumentTools(page);
   await page
-    .getByRole("button", { name: kind === "text" ? "Add text" : "Checkmark", exact: true })
+    .getByRole("button", { name: kind === "text" ? "Add text" : "Add checkmark", exact: true })
     .click();
   await expect(page.locator(".editor-text-layer")).toHaveAttribute("data-geometry-ready", "true");
   const box = await page.locator(".editor-review-page").boundingBox();
   if (!box) throw new Error("Missing page");
   const place = () => page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.55);
-  const text = page.getByLabel("Added text", { exact: true });
+  const text = page.getByLabel("Text", { exact: true });
   const sizeInput = page.getByLabel(
     kind === "text" ? "Text size in points" : "Checkmark size in points"
   );
   const save = page.getByRole("button", { name: `Save ${kind}`, exact: true });
   const hit = page.getByRole("button", {
-    name: kind === "text" ? "Edit added text: Size" : "Edit added checkmark",
+    name: kind === "text" ? "Edit text: Size" : "Edit checkmark",
     exact: true,
   });
   await place();
@@ -107,7 +107,7 @@ export async function expectMouseAdditionSize(page: Page, kind: "text" | "checkm
     if (saved) await hit.last().click();
     else {
       await page
-        .getByRole("button", { name: kind === "text" ? "Add text" : "Checkmark", exact: true })
+        .getByRole("button", { name: kind === "text" ? "Add text" : "Add checkmark", exact: true })
         .click();
       await place();
     }

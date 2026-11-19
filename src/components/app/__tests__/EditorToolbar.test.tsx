@@ -9,13 +9,13 @@ function makeProps(overrides: Partial<Parameters<typeof EditorToolbar>[0]> = {})
     pageCount: 3,
     pageCountLabel: "3 pages",
     exportableCount: 3,
-    filesLabel: "View 1 file",
+    filesLabel: "Files (1)",
     filesOpen: false,
     busy: false,
     busyLabel: "Working…",
     historyUnavailable: false,
     compressionAvailable: true,
-    compressionDisabledReason: "Compress only before page edits",
+    compressionDisabledReason: "Works only before page edits",
     filesButtonRef: vi.fn(),
     moreButtonRef: vi.fn(),
     downloadButtonRef: vi.fn(),
@@ -40,7 +40,7 @@ function visibleLayout() {
 
 describe("EditorToolbar", () => {
   it("holds the views, source and history actions, one page count, and the Download menu", () => {
-    const props = makeProps({ view: "document", undoLabel: "page rotation" });
+    const props = makeProps({ view: "document", undoLabel: "rotate page" });
     render(() => <EditorToolbar {...props} />);
     const toolbar = screen.getByRole("toolbar", { name: "Editor" });
     expect(screen.getByRole("button", { name: "Document" })).toHaveAttribute(
@@ -56,8 +56,8 @@ describe("EditorToolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Pages" }));
     fireEvent.click(screen.getByTestId("editor-add-pdf-button"));
     fireEvent.click(screen.getByTestId("editor-add-pdf-quick-button"));
-    fireEvent.click(screen.getByRole("button", { name: "View 1 file" }));
-    fireEvent.click(screen.getByRole("button", { name: "Undo page rotation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Files (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Undo rotate page" }));
     expect(props.onViewChange).toHaveBeenCalledWith("pages");
     expect(props.onAddFiles).toHaveBeenCalledTimes(2);
     expect(props.onOpenFiles).toHaveBeenCalledOnce();
@@ -68,9 +68,9 @@ describe("EditorToolbar", () => {
     const props = makeProps();
     render(() => <EditorToolbar {...props} />);
     for (const [name, handler] of [
-      ["Download a PDF with all exportable pages", props.onDownload],
-      ["Export all exportable pages as PNG images in a ZIP archive", props.onExportImages],
-      ["Compress the original PDF", props.onCompress],
+      ["Download PDF", props.onDownload],
+      ["Export PNG as a ZIP archive", props.onExportImages],
+      ["Compress PDF", props.onCompress],
     ] as const) {
       fireEvent.click(screen.getByRole("button", { name: "Download options" }));
       expect(screen.getByRole("menu", { name: "Download options" })).toHaveTextContent("3 pages");
@@ -81,7 +81,7 @@ describe("EditorToolbar", () => {
   });
 
   it("explains unavailable outputs and ignores clicks on them", async () => {
-    const reason = "Restore marked pages to compress the original PDF";
+    const reason = "No pages to compress";
     const props = makeProps({
       exportableCount: 0,
       compressionAvailable: false,
@@ -89,11 +89,11 @@ describe("EditorToolbar", () => {
     });
     render(() => <EditorToolbar {...props} />);
     fireEvent.click(screen.getByRole("button", { name: "Download options" }));
-    const download = screen.getByRole("menuitem", { name: "No exportable pages to download" });
+    const download = screen.getByRole("menuitem", { name: "Download PDF. No pages to export." });
     const images = screen.getByRole("menuitem", {
-      name: "No exportable pages to export as images",
+      name: "Export PNG. No pages to export.",
     });
-    const compression = screen.getByRole("menuitem", { name: reason });
+    const compression = screen.getByRole("menuitem", { name: `Compress PDF. ${reason}.` });
     for (const item of [download, images, compression]) {
       expect(item).toHaveAttribute("aria-disabled", "true");
       fireEvent.click(item);
@@ -117,12 +117,12 @@ describe("EditorToolbar", () => {
 
     fireEvent.keyDown(trigger, { key: "ArrowDown" });
     const download = screen.getByRole("menuitem", {
-      name: "Download a PDF with all exportable pages",
+      name: "Download PDF",
     });
     const images = screen.getByRole("menuitem", {
-      name: "Export all exportable pages as PNG images in a ZIP archive",
+      name: "Export PNG as a ZIP archive",
     });
-    const compress = screen.getByRole("menuitem", { name: "Compress the original PDF" });
+    const compress = screen.getByRole("menuitem", { name: "Compress PDF" });
     await waitFor(() => expect(download).toHaveFocus());
     fireEvent.keyDown(download, { key: "ArrowDown" });
     expect(images).toHaveFocus();
@@ -138,16 +138,14 @@ describe("EditorToolbar", () => {
 
     fireEvent.keyDown(trigger, { key: "ArrowUp" });
     await waitFor(() =>
-      expect(screen.getByRole("menuitem", { name: "Compress the original PDF" })).toHaveFocus()
+      expect(screen.getByRole("menuitem", { name: "Compress PDF" })).toHaveFocus()
     );
     fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Tab", shiftKey: true });
     await waitFor(() => expect(trigger).toHaveFocus());
 
     fireEvent.click(trigger);
     await waitFor(() =>
-      expect(
-        screen.getByRole("menuitem", { name: "Download a PDF with all exportable pages" })
-      ).toHaveFocus()
+      expect(screen.getByRole("menuitem", { name: "Download PDF" })).toHaveFocus()
     );
     fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Tab" });
     // Tab leaves the toolbar: its other controls are not Tab stops.
@@ -164,8 +162,8 @@ describe("EditorToolbar", () => {
 
   it("is one Tab stop and moves between controls with arrow keys", () => {
     visibleLayout();
-    render(() => <EditorToolbar {...makeProps({ undoLabel: "page rotation" })} />);
-    const exit = screen.getAllByRole("link", { name: "Exit editor" })[0];
+    render(() => <EditorToolbar {...makeProps({ undoLabel: "rotate page" })} />);
+    const exit = screen.getAllByRole("link", { name: "Back to Interleaf" })[0];
     const pages = screen.getByRole("button", { name: "Pages" });
     expect(exit.tabIndex).toBe(0);
     expect(pages.tabIndex).toBe(-1);
@@ -193,7 +191,7 @@ describe("EditorToolbar", () => {
       screen.getByTestId("editor-add-pdf-quick-button").closest("#editor-more-actions")
     ).toBeNull();
     expect(
-      screen.getByRole("button", { name: "View 1 file" }).closest("#editor-more-actions")
+      screen.getByRole("button", { name: "Files (1)" }).closest("#editor-more-actions")
     ).not.toBeNull();
     fireEvent.keyDown(more, { key: "Escape" });
     expect(more).toHaveAttribute("aria-expanded", "false");

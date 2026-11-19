@@ -96,9 +96,8 @@ const makeImageFile = (name = "image.png", type = "image/png") =>
   new File(["image"], name, { type });
 
 function selectFiles(input: "upload" | "add", files: File[]) {
-  const label =
-    input === "upload" ? "Choose PDF or image files" : "Choose additional PDF or image files";
-  fireEvent.change(screen.getByLabelText(label), { target: { files } });
+  const testId = input === "upload" ? "editor-upload-input" : "editor-add-pdf-input";
+  fireEvent.change(screen.getByTestId(testId), { target: { files } });
 }
 
 function selectFile(input: "upload" | "add", file: File) {
@@ -297,7 +296,7 @@ describe("Editor", () => {
     });
     screen.getByTestId("editor-redo-button").dispatchEvent(accepted);
     expect(accepted.defaultPrevented).toBe(true);
-    await waitFor(() => expectLastToast("Failed to load two.pdf: second source details"));
+    await waitFor(() => expectLastToast("Failed to load two.pdf."));
     expect(getPages()).toHaveLength(3);
     expect(screen.getByTestId("editor-root")).toHaveAttribute("aria-busy", "true");
     const repeated = new KeyboardEvent("keydown", {
@@ -363,7 +362,7 @@ describe("Editor", () => {
     expect(screen.getByTestId("editor-upload-input")).toBeInTheDocument();
     expect(screen.getByTestId("editor-undo-button")).toHaveAttribute(
       "aria-label",
-      "Undo source removal"
+      "Undo remove file"
     );
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
     pdfServiceMocks.loadPDF.mockReturnValueOnce(
@@ -414,7 +413,7 @@ describe("Editor", () => {
         expect(getPages()).toHaveLength(3);
         expect(screen.getByTestId("editor-redo-button")).toHaveAttribute(
           "aria-label",
-          "Redo source addition"
+          "Redo add files"
         );
         return Deferred.await(cleanup);
       })
@@ -436,7 +435,9 @@ describe("Editor", () => {
       )
     );
     await step("undo");
-    expectLastToast("Workspace restored, but could not release added.pdf: cleanup detail");
+    expectLastToast(
+      "Workspace updated, but memory for added.pdf was not freed. Reload the page if the editor slows down."
+    );
     expect(getPages()).toHaveLength(3);
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
     await step("redo");
@@ -608,7 +609,7 @@ describe("Editor", () => {
       expect(event.defaultPrevented).toBe(false);
       expect(screen.getByTestId("editor-undo-button")).toHaveAttribute(
         "aria-label",
-        "Undo page rotation"
+        "Undo rotate page"
       );
     };
     for (const tag of ["input", "textarea", "select", "div"]) {
@@ -677,7 +678,7 @@ describe("Editor", () => {
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
     pdfOperationsMocks.buildPDF.mockReturnValueOnce(Effect.fail(new Error("export failed")));
     await downloadWholePDF();
-    await waitFor(() => expectLastToast("Failed to export the PDF."));
+    await waitFor(() => expectLastToast("Could not export the PDF. Try again."));
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "false");
     pdfServiceMocks.loadPDF
       .mockReturnValueOnce(Effect.fail(new Error("invalid PDF")))
@@ -692,7 +693,7 @@ describe("Editor", () => {
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("editor-undo-button")).toHaveAttribute(
       "aria-label",
-      "Undo source addition"
+      "Undo add files"
     );
     fireEvent.click(screen.getByRole("button", { name: "Duplicate page 1" }));
     fireEvent.click(screen.getByTestId("editor-files-button"));
@@ -702,7 +703,7 @@ describe("Editor", () => {
     expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-disabled", "false");
     expect(screen.getByTestId("editor-undo-button")).toHaveAttribute(
       "aria-label",
-      "Undo source removal"
+      "Undo remove file"
     );
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getAllByTestId("editor-file-remove")[0]);
@@ -713,7 +714,7 @@ describe("Editor", () => {
     await findPages();
     expect(screen.getByTestId("editor-undo-button")).toHaveAttribute(
       "aria-label",
-      "Undo source addition"
+      "Undo add files"
     );
   });
 
@@ -812,7 +813,7 @@ describe("Editor", () => {
     const addText = await screen.findByRole("button", { name: "Add text" });
     await waitFor(() => expect(addText).toBeEnabled());
     fireEvent.click(addText);
-    const stage = screen.getByRole("region", { name: "Page preview, use arrow keys to pan" });
+    const stage = screen.getByRole("region", { name: "Page preview. Use arrow keys to pan." });
     await waitFor(() =>
       expect(document.querySelector(".editor-text-layer")).toHaveAttribute(
         "data-geometry-ready",
@@ -820,7 +821,7 @@ describe("Editor", () => {
       )
     );
     fireEvent.keyDown(stage, { key: "Enter" });
-    const input = await screen.findByLabelText("Added text", { exact: true });
+    const input = await screen.findByLabelText("Text", { exact: true });
     fireEvent.input(input, { target: { value: "Hello" } });
     expect(undo).toHaveAttribute("aria-disabled", "true");
     expect(undo).toHaveAccessibleDescription("Save or cancel the open edit to use undo and redo.");
@@ -836,7 +837,7 @@ describe("Editor", () => {
       expect(shortcut.defaultPrevented).toBe(true);
     }
     fireEvent.click(undo);
-    expect(screen.getByLabelText("Added text", { exact: true })).toHaveValue("Hello");
+    expect(screen.getByLabelText("Text", { exact: true })).toHaveValue("Hello");
     expect(undo).toHaveAttribute("aria-label", undoName);
     expect(screen.getByTestId("editor-redo-button")).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -857,9 +858,7 @@ describe("Editor", () => {
     fireEvent.click(screen.getByTestId("editor-undo-button"));
     expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
     expect(screen.getByLabelText("Document preview")).toHaveTextContent("Marked for deletion");
-    expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(
-      "1 selected · 0 exportable"
-    );
+    expect(screen.getByTestId("editor-selection-title")).toHaveTextContent("1 selected · 1 marked");
     expect(screen.getByTestId("editor-extract-button")).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getByTestId("editor-redo-button"));
     expect(screen.getByTestId("editor-extract-button")).toHaveAttribute("aria-disabled", "false");
@@ -941,9 +940,7 @@ describe("Editor", () => {
   it("renders the upload dropzone before any file is loaded", () => {
     render(() => <Editor />);
 
-    expect(
-      screen.getByRole("button", { name: "Choose PDF or image files, or drop them here" })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add files or drop them here" })).toBeInTheDocument();
     expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
   });
 
@@ -1036,7 +1033,7 @@ describe("Editor", () => {
     await openDownloadMenu();
     const compress = screen.getByTestId("editor-compress-button");
     expect(compress).toHaveAttribute("aria-disabled", "true");
-    expect(compress).toHaveAccessibleName("Compress works on one untouched PDF");
+    expect(compress).toHaveAccessibleName("Compress PDF. Works on one PDF at a time.");
   });
 
   it("rejects unsupported files with an error toast", async () => {
@@ -1140,21 +1137,25 @@ describe("Editor", () => {
   });
 
   it("returns to the uploader after image conversion fails", async () => {
+    const image = makeImageFile();
     pdfOperationsMocks.imagesToPDF.mockReturnValueOnce(
       Effect.fail(
         new PDFProcessingError({
-          operation: "images-to-pdf",
-          cause: new Error("Unsupported image"),
-          message: "Unsupported image",
+          operation: "embed-image",
+          file: image,
+          cause: new Error("SOI not found in JPEG"),
+          message: "SOI not found in JPEG",
         })
       )
     );
     render(() => <Editor />);
 
-    selectFile("upload", makeImageFile());
+    selectFile("upload", image);
 
-    expect(await screen.findByTestId("editor-toast")).toHaveTextContent("Unsupported image");
-    await waitFor(() => expect(screen.getByLabelText("Choose PDF or image files")).toBeEnabled());
+    expect(await screen.findByTestId("editor-toast")).toHaveTextContent(
+      "image.png isn't a valid PNG or JPEG image. Re-save it and try again."
+    );
+    await waitFor(() => expect(screen.getByTestId("editor-upload-input")).toBeEnabled());
   });
 
   it("keeps interleaved image groups in the uploaded order", async () => {
@@ -1217,7 +1218,7 @@ describe("Editor", () => {
 
     expect(await findPages()).toHaveLength(6);
     expect(pdfServiceMocks.loadPDFWithPassword).toHaveBeenCalledWith(locked, "623");
-    expectLastToast("Opened 2 of 3 files. Failed to load broken.pdf: bad xref.");
+    expectLastToast("Opened 2 of 3 files. Failed to load broken.pdf.");
   });
 
   it("stays on the uploader with the error when every file in a batch fails", async () => {
@@ -1227,9 +1228,7 @@ describe("Editor", () => {
     selectFiles("upload", [makeFile("one.pdf"), makeFile("two.pdf")]);
 
     await waitFor(() =>
-      expectLastToast(
-        "Could not open 2 files. Failed to load one.pdf: bad xref. Failed to load two.pdf: bad xref."
-      )
+      expectLastToast("Could not open 2 files. Failed to load one.pdf. Failed to load two.pdf.")
     );
     expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument();
     expect(screen.getByTestId("editor-upload-input")).toBeEnabled();
@@ -1260,7 +1259,7 @@ describe("Editor", () => {
   it("opens the file drawer and selects pages from one source file", async () => {
     await openPDF(makeFile("brief.pdf"));
     expect(screen.getByTestId("editor-files-button")).toBeEnabled();
-    expect(screen.getByTestId("editor-files-button")).toHaveAttribute("aria-label", "View 1 file");
+    expect(screen.getByTestId("editor-files-button")).toHaveAttribute("aria-label", "Files (1)");
     fireEvent.click(screen.getByTestId("editor-files-button"));
     await waitFor(() => expect(screen.getByTestId("editor-files-dialog")).toHaveAttribute("open"));
     expect(await screen.findAllByTestId("editor-file-item")).toHaveLength(1);
@@ -1320,7 +1319,7 @@ describe("Editor", () => {
       await waitFor(() => expect(getPages()).toHaveLength(6));
       fireEvent.click(getPages()[selectedIndex]);
 
-      fireEvent.click(screen.getByRole("button", { name: "View 2 files" }));
+      fireEvent.click(screen.getByRole("button", { name: "Files (2)" }));
       fireEvent.click(
         await screen.findByRole("button", {
           name: "Remove brief.pdf and its 3 pages from the workspace",
@@ -1344,7 +1343,7 @@ describe("Editor", () => {
         remaining,
       ]);
       expect(options.selectedIndices).toEqual(selectedIndices);
-      expect(screen.getByRole("button", { name: "View 1 file" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Files (1)" })).toBeEnabled();
     }
   );
 
@@ -1418,9 +1417,7 @@ describe("Editor", () => {
     fireEvent.click(screen.getByTestId("editor-file-remove"));
 
     await waitFor(() => expect(screen.queryByTestId("editor-page-grid")).not.toBeInTheDocument());
-    expect(
-      screen.getByRole("button", { name: "Choose PDF or image files, or drop them here" })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add files or drop them here" })).toBeInTheDocument();
     expect(screen.getByTestId("editor-upload-status")).toHaveTextContent(
       "Removed only.pdf. The workspace is empty."
     );
@@ -1458,11 +1455,11 @@ describe("Editor", () => {
     selectFiles("add", [makeFile("good-add.pdf"), failedFile]);
 
     await waitFor(() => expect(getPages()).toHaveLength(6));
-    expectLastToast("Added 1 of 2 files. Failed to load broken-add.pdf: Invalid PDF.");
+    expectLastToast("Added 1 of 2 files. Failed to load broken-add.pdf.");
     expect(pdfServiceMocks.releaseFile).not.toHaveBeenCalled();
     expect(screen.getByTestId("editor-undo-button")).toHaveAttribute(
       "aria-label",
-      "Undo source addition"
+      "Undo add files"
     );
   });
 
@@ -1514,11 +1511,11 @@ describe("Editor", () => {
     const tiles = await openPDF();
     expect(screen.queryByRole("toolbar", { name: "Selected pages" })).not.toBeInTheDocument();
     await openDownloadMenu();
-    expect(screen.getByRole("menuitem", { name: "Compress the original PDF" })).toHaveAttribute(
+    expect(screen.getByRole("menuitem", { name: "Compress PDF" })).toHaveAttribute(
       "aria-disabled",
       "false"
     );
-    fireEvent.keyDown(screen.getByRole("menuitem", { name: "Compress the original PDF" }), {
+    fireEvent.keyDown(screen.getByRole("menuitem", { name: "Compress PDF" }), {
       key: "Escape",
     });
     fireEvent.click(tiles[0]);
@@ -1526,13 +1523,13 @@ describe("Editor", () => {
     expect(bar).toHaveTextContent("1 selected");
     expect(screen.getByTestId("editor-selection-status")).toHaveTextContent("1 page selected.");
     for (const name of [
-      "Clear page selection",
+      "Clear selection",
       "Rotate selected page left 90 degrees",
       "Rotate selected page right 90 degrees",
       "Duplicate selected page",
-      "Mark selected pages for deletion",
-      "Extract 1 selected page to a new PDF",
-      "Export selected pages as PNG images in a ZIP archive",
+      "Mark for deletion",
+      "Extract to PDF",
+      "Export PNG as a ZIP archive",
     ]) {
       expect(screen.getByRole("button", { name })).toHaveAttribute("aria-disabled", "false");
     }
@@ -1602,9 +1599,7 @@ describe("Editor", () => {
 
     await waitFor(() => expect(promptForPassword).toHaveBeenCalled());
     expect(pdfServiceMocks.loadPDFWithPassword).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole("button", { name: "Choose PDF or image files, or drop them here" })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add files or drop them here" })).toBeInTheDocument();
   });
 
   it("re-prompts when the password is wrong", async () => {
@@ -1664,8 +1659,8 @@ describe("Editor", () => {
     await waitFor(() =>
       expect(screen.getAllByRole("button", { name: /^Restore page [0-9]+$/ })).toHaveLength(3)
     );
-    expect(screen.getByTestId("editor-status-bar")).toHaveTextContent("0 of 3 pages exportable.");
-    expect(screen.getByTestId("editor-page-count")).toHaveTextContent("0 of 3 pages exportable");
+    expect(screen.getByTestId("editor-status-bar")).toHaveTextContent("3 pages, 3 marked.");
+    expect(screen.getByTestId("editor-page-count")).toHaveTextContent("3 pages, 3 marked");
     expect(screen.getByTestId("editor-extract-button")).toHaveAttribute("aria-disabled", "true");
     await openDownloadMenu();
     expect(screen.getByTestId("editor-download-button")).toHaveAttribute("aria-disabled", "true");
@@ -1673,14 +1668,9 @@ describe("Editor", () => {
       "aria-disabled",
       "true"
     );
-    expect(screen.getByTestId("editor-export-images-button")).toHaveTextContent(
-      "Export PNG images"
-    );
+    expect(screen.getByTestId("editor-export-images-button")).toHaveTextContent("Export PNG");
     expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Restore");
-    expect(screen.getByTestId("editor-delete-button")).toHaveAttribute(
-      "aria-label",
-      "Restore selected pages"
-    );
+    expect(screen.getByTestId("editor-delete-button")).toHaveAttribute("aria-label", "Restore");
 
     fireEvent.click(screen.getByTestId("editor-delete-button"));
     await waitFor(() => {
@@ -1862,7 +1852,7 @@ describe("Editor", () => {
         "Moved page 1 to position 3."
       );
       expect(screen.queryByTestId("editor-selection-bar")).not.toBeInTheDocument();
-      expect(screen.getByTestId("editor-undo-button")).toHaveAccessibleName("Undo page reorder");
+      expect(screen.getByTestId("editor-undo-button")).toHaveAccessibleName("Undo move page");
       await downloadWholePDF();
       await waitFor(() => expect(downloadPDF).toHaveBeenCalledTimes(1));
       expect(
@@ -1936,12 +1926,10 @@ describe("Editor", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(
-        "2 selected · 1 exportable"
+        "2 selected · 1 marked"
       );
       expect(screen.getByTestId("editor-extract-button")).toHaveTextContent("Extract to PDF");
-      expect(screen.getByTestId("editor-extract-button")).toHaveAccessibleName(
-        "Extract 1 selected page to a new PDF"
-      );
+      expect(screen.getByTestId("editor-extract-button")).toHaveAccessibleName("Extract to PDF");
     });
     expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Mark for deletion");
     fireEvent.click(screen.getByTestId("editor-delete-button"));
@@ -1949,7 +1937,7 @@ describe("Editor", () => {
       expect(screen.getByRole("button", { name: "Restore page 1" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Restore page 2" })).toBeInTheDocument();
       expect(screen.getByTestId("editor-selection-title")).toHaveTextContent(
-        "2 selected · 0 exportable"
+        "2 selected · 2 marked"
       );
       expect(screen.getByTestId("editor-delete-button")).toHaveTextContent("Restore");
     });
@@ -2004,7 +1992,7 @@ describe("Editor", () => {
     expect(screen.queryByTestId("editor-selection-bar")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("editor-document-view-button"));
     expect(screen.getByTestId("editor-viewer-title")).toHaveTextContent("Page 2");
-    fireEvent.click(screen.getByRole("button", { name: "Export page 2 as a PNG image" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export PNG of page 2" }));
     await waitFor(() => expect(downloadFile).toHaveBeenCalledTimes(3));
     expect(lastImageScope().selectedIndices).toEqual([1]);
   });
@@ -2071,7 +2059,9 @@ describe("Editor", () => {
     await openDownloadMenu();
     fireEvent.click(screen.getByTestId("editor-compress-button"));
 
-    await waitFor(() => expectLastToast("Failed to compress the PDF."));
+    await waitFor(() =>
+      expectLastToast("Could not compress this PDF. Use Download PDF to save it as is.")
+    );
     expect(downloadPDF).not.toHaveBeenCalled();
   });
 
@@ -2082,7 +2072,7 @@ describe("Editor", () => {
 
     await downloadWholePDF();
 
-    await waitFor(() => expectLastToast("Failed to export the PDF."));
+    await waitFor(() => expectLastToast("Could not export the PDF. Try again."));
     expect(downloadPDF).not.toHaveBeenCalled();
   });
   it("names the blocked source as escaped text, explains recovery and exports a subsequent safe selection", async () => {
@@ -2206,10 +2196,7 @@ describe("Editor", () => {
     fireEvent.keyDown(tiles[1], { key: "Backspace" });
     expect(screen.getByRole("button", { name: "Mark page 2 for deletion" })).toBeInTheDocument();
     expect(tiles[1]).toHaveFocus();
-    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute(
-      "aria-label",
-      "Undo page restoration"
-    );
+    expect(screen.getByTestId("editor-undo-button")).toHaveAttribute("aria-label", "Undo restore");
   });
 
   it("undoes a file removal from inside the open Files dialog", async () => {
@@ -2233,6 +2220,6 @@ describe("Editor", () => {
     await waitFor(() => expect(getPages()).toHaveLength(6));
     await waitFor(() => expect(screen.getAllByTestId("editor-file-item")).toHaveLength(2));
     expect(screen.getByTestId("editor-files-dialog")).toHaveAttribute("open");
-    expect(screen.getByTestId("editor-files-notice")).toHaveTextContent("Undid source removal.");
+    expect(screen.getByTestId("editor-files-notice")).toHaveTextContent("Undid remove file.");
   });
 });

@@ -66,11 +66,11 @@ it.each(["failure", "success", "busy", "navigation", "disposal"])(
       />
     ));
     try {
-      fireEvent.click(screen.getByRole("button", { name: "Select additions" }));
-      const hit = await screen.findByRole("button", { name: "Edit added text: Saved" });
+      fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+      const hit = await screen.findByRole("button", { name: "Edit text: Saved" });
       hit.focus();
       fireEvent.click(hit);
-      const input = screen.getByLabelText("Added text", { exact: true });
+      const input = screen.getByLabelText("Text", { exact: true });
       await waitFor(() => expect(input).toHaveFocus());
       fireEvent.submit(input.closest("form")!);
       await waitFor(() => expect(validate).toHaveBeenCalledOnce());
@@ -86,7 +86,9 @@ it.each(["failure", "success", "busy", "navigation", "disposal"])(
           expect(screen.getByRole("alert")).toHaveTextContent("Invalid text");
         else if (outcome === "success") expect(onChange).toHaveBeenCalledOnce();
         else if (outcome === "busy") {
-          expect(screen.getByRole("alert")).toHaveTextContent("Save your text when it finishes");
+          expect(screen.getByRole("alert")).toHaveTextContent(
+            "Another task is running. Save when it finishes."
+          );
           expect(onChange).not.toHaveBeenCalled();
         }
         expect(external).toHaveFocus();
@@ -138,7 +140,7 @@ it.each(["text", "checkmark"] as const)("busy Save cannot commit a new %s draft"
   ));
   try {
     fireEvent.click(
-      screen.getByRole("button", { name: kind === "text" ? "Add text" : "Checkmark" })
+      screen.getByRole("button", { name: kind === "text" ? "Add text" : "Add checkmark" })
     );
     await waitFor(() =>
       expect(document.querySelector(".editor-text-layer")).toHaveAttribute(
@@ -149,7 +151,7 @@ it.each(["text", "checkmark"] as const)("busy Save cannot commit a new %s draft"
     stage.addEventListener("keydown", (event) => gesture?.key(event));
     fireEvent.keyDown(stage, { key: "Enter" });
     if (kind === "text")
-      fireEvent.input(screen.getByLabelText("Added text", { exact: true }), {
+      fireEvent.input(screen.getByLabelText("Text", { exact: true }), {
         target: { value: "New text" },
       });
     const save = screen.getByRole("button", { name: `Save ${kind}` });
@@ -168,7 +170,7 @@ it.each(["text", "checkmark"] as const)("busy Save cannot commit a new %s draft"
     const committed = kind === "text" ? onChange : onCheckmarksChange;
     await waitFor(() => expect(committed).toHaveBeenCalledTimes(1));
     expect(committed.mock.calls[0][1]).toHaveLength(1);
-    expect(committed.mock.calls[0][2]).toBe(`Add ${kind}`);
+    expect(committed.mock.calls[0][2]).toBe(`add ${kind}`);
   } finally {
     view.unmount();
     await runtime.dispose();
@@ -214,19 +216,19 @@ it("reports an open draft until it is saved, canceled, or unmounted", async () =
   const open = () => reports.at(-1);
   try {
     expect(open()).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "Select additions" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Edit added text: Saved" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit text: Saved" }));
     expect(open()).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(open()).toBe(false);
-    fireEvent.click(await screen.findByRole("button", { name: "Edit added text: Saved" }));
-    fireEvent.input(screen.getByLabelText("Added text", { exact: true }), {
+    fireEvent.click(await screen.findByRole("button", { name: "Edit text: Saved" }));
+    fireEvent.input(screen.getByLabelText("Text", { exact: true }), {
       target: { value: "Changed" },
     });
-    fireEvent.submit(screen.getByLabelText("Added text", { exact: true }).closest("form")!);
+    fireEvent.submit(screen.getByLabelText("Text", { exact: true }).closest("form")!);
     await waitFor(() => expect(onChange).toHaveBeenCalledOnce());
     expect(open()).toBe(false);
-    fireEvent.click(await screen.findByRole("button", { name: "Edit added text: Changed" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit text: Changed" }));
     expect(open()).toBe(true);
     view.unmount();
     expect(open()).toBe(false);
@@ -262,8 +264,8 @@ it("names the current page tool and keeps one Read control", async () => {
     />
   ));
   try {
-    fireEvent.click(screen.getByRole("button", { name: "Page tool: Read" }));
-    expect(screen.getAllByRole("button", { name: "Read" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Page tool: View" }));
+    expect(screen.getAllByRole("button", { name: "View" })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Add text" }));
     expect(screen.getByRole("button", { name: "Page tool: Add text" })).toHaveAttribute(
       "aria-expanded",
@@ -311,10 +313,10 @@ it.each(["text", "checkmark"] as const)(
       />
     ));
     try {
-      fireEvent.click(screen.getByRole("button", { name: "Select additions" }));
+      fireEvent.click(screen.getByRole("button", { name: "Edit" }));
       fireEvent.click(
         await screen.findByRole("button", {
-          name: kind === "text" ? "Edit added text: Saved" : "Edit added checkmark",
+          name: kind === "text" ? "Edit text: Saved" : "Edit checkmark",
         })
       );
       const size = screen.getByLabelText<HTMLInputElement>(

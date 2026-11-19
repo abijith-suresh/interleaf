@@ -123,7 +123,9 @@ it("held field validation cannot publish during a real export; draft retries ato
       true
     );
     expect(screen.getByRole("textbox")).toHaveValue("After");
-    expect(screen.getByRole("alert")).toHaveTextContent("Save your answer when it finishes");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Another task is running. Save when it finishes."
+    );
     resume.resolve();
     const completed = await completion;
     if (!("result" in completed)) throw completed.error;

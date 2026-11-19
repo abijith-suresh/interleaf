@@ -94,11 +94,11 @@ interface LoadedWorkspaceFile {
 const deletionActionCopy: Record<DeletionAction, { label: string; ariaLabel: string }> = {
   mark: {
     label: "Mark for deletion",
-    ariaLabel: "Mark selected pages for deletion",
+    ariaLabel: "Mark for deletion",
   },
   restore: {
     label: "Restore",
-    ariaLabel: "Restore selected pages",
+    ariaLabel: "Restore",
   },
 };
 
@@ -167,7 +167,7 @@ export default function Editor() {
   const pageCountLabel = () => {
     if (pages.length === 0) return "No pages";
     if (markedPageCount() === 0) return formatPageCount(pages.length);
-    return `${activePageCount()} of ${pages.length} pages exportable`;
+    return `${pages.length} pages, ${markedPageCount()} marked`;
   };
   const pageStatusSummary = () => `${pageCountLabel()}.`;
   const selectedActivePageCount = () =>
@@ -343,7 +343,7 @@ export default function Editor() {
                 releaseWorkspaceFiles(
                   service,
                   committed ? obsolete : attempted,
-                  committed ? "Workspace restored" : "Restoration canceled"
+                  committed ? "Workspace updated" : "Change canceled"
                 )
               ),
               Effect.onExit(() =>
@@ -360,12 +360,9 @@ export default function Editor() {
             );
           })
         )
-      ).catch((error) => {
+      ).catch(() => {
         if (!disposed)
-          dispatchToast(
-            error instanceof Error ? error.message : "Could not restore files.",
-            "error"
-          );
+          dispatchToast("Could not restore the files. Add them again with Add files.", "error");
       });
     }
     return true;
@@ -438,17 +435,16 @@ export default function Editor() {
 
   function compressionDisabledReason(): string {
     if (pages.length === 0 || activePageCount() === 0) {
-      return "Restore marked pages to compress the original PDF";
+      return "No pages to compress";
     }
     if (new Set(pages.map((page) => page.sourceFile)).size > 1) {
-      return "Compress works on one untouched PDF";
+      return "Works on one PDF at a time";
     }
-    return "Compress only before page edits";
+    return "Works only before page edits";
   }
 
   const workspaceFiles = createMemo<WorkspaceFile[]>(() => groupWorkspaceFiles(pages));
-  const filesButtonLabel = () =>
-    `View ${workspaceFiles().length} file${workspaceFiles().length === 1 ? "" : "s"}`;
+  const filesButtonLabel = () => `Files (${workspaceFiles().length})`;
 
   function setReadyStatus() {
     if (disposed) return;
@@ -604,7 +600,10 @@ export default function Editor() {
     return {
       kind: "load-error",
       name: file.name,
-      message: error instanceof Error ? error.message : "",
+      message:
+        error instanceof PDFProcessingError && error.operation === "read-file"
+          ? "the file could not be read. Choose it again"
+          : "",
     };
   }
 
@@ -653,11 +652,11 @@ export default function Editor() {
       files,
       (file) =>
         Effect.suspend(() => service.releaseFile(file)).pipe(
-          Effect.catch((error) =>
+          Effect.catch(() =>
             Effect.sync(() => {
               if (!disposed)
                 dispatchToast(
-                  `${result}, but could not release ${file.name}: ${error.message}`,
+                  `${result}, but memory for ${file.name} was not freed. Reload the page if the editor slows down.`,
                   "error"
                 );
             })
@@ -679,7 +678,7 @@ export default function Editor() {
       });
       return;
     }
-    organize("source addition", () => {
+    organize("add files", () => {
       setPages(
         produce((draftPages) => {
           draftPages.push(...nextPages);
@@ -759,13 +758,17 @@ export default function Editor() {
                     ),
                     Effect.catch((error) =>
                       Effect.sync(() => {
+                        const failed = error instanceof PDFProcessingError ? error : undefined;
+                        const name = failed?.file?.name ?? "an image";
                         skipped.push({
                           kind: "image-error",
                           count: group.files.length,
                           message:
-                            error instanceof PDFProcessingError
-                              ? error.message
-                              : "Failed to create a PDF from the selected images.",
+                            failed?.operation === "read-image"
+                              ? `Could not read ${name}. Choose it again.`
+                              : failed?.operation === "embed-image"
+                                ? `${name} isn't a valid PNG or JPEG image. Re-save it and try again.`
+                                : "Could not create a PDF from the images. Try fewer images at a time.",
                         });
                         return null;
                       })
@@ -788,7 +791,7 @@ export default function Editor() {
                   skipped.push({
                     kind: "image-error",
                     count: group.files.length,
-                    message: "Failed to create a PDF from the selected images.",
+                    message: "Could not create a PDF from the images. Try fewer images at a time.",
                   });
                 } else {
                   skipped.push(result);
@@ -1023,7 +1026,7 @@ export default function Editor() {
       if (selection.has(oldIndex)) nextSelection.add(remainingPages.length);
       remainingPages.push(page);
     });
-    organize("source removal", () => {
+    organize("remove file", () => {
       setPages(reconcile(copyOrganizationPages(remainingPages), { key: "id" }));
       setSelectedIndices(nextSelection);
       setDragSourceIndex(null);
@@ -1049,12 +1052,12 @@ export default function Editor() {
     );
     try {
       await runPDF(
-        PDFProcessing.use((service) => releaseWorkspaceFiles(service, [file], "Source removed"))
+        PDFProcessing.use((service) => releaseWorkspaceFiles(service, [file], "File removed"))
       );
-    } catch (error) {
+    } catch {
       if (!disposed)
         dispatchToast(
-          `Source removed, but cleanup failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+          `File removed, but memory for ${removedFileName} was not freed. Reload the page if the editor slows down.`,
           "error"
         );
     } finally {
@@ -1101,7 +1104,7 @@ export default function Editor() {
     if (!page) return;
     const copy = duplicatePageState(page);
     // Keep Extract targeting the same originals when a copy is inserted.
-    organize("page duplication", () => {
+    organize("duplicate page", () => {
       setPages(produce((draft) => draft.splice(index + 1, 0, copy)));
       setSelectedIndices((selection) => remapSelectionAfterInsert(selection, index + 1));
       if (selectedIndices().size === 0) setActivePageId(copy.id);
@@ -1123,7 +1126,7 @@ export default function Editor() {
 
   function rotatePage(index: number): void {
     if (isBusy() || !pages[index]) return;
-    organize("page rotation", () => setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360));
+    organize("rotate page", () => setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360));
     setStatusMessage(`Rotated page ${index + 1}.`);
   }
 
@@ -1137,7 +1140,7 @@ export default function Editor() {
 
     if (!pages[index]) return;
     const markedForDeletion = pages[index].markedForDeletion;
-    organize(markedForDeletion ? "page restoration" : "deletion marking", () =>
+    organize(markedForDeletion ? "restore" : "mark for deletion", () =>
       setPages(index, "markedForDeletion", !markedForDeletion)
     );
     setStatusMessage(
@@ -1148,7 +1151,7 @@ export default function Editor() {
   function handleRotateSelected(direction: "left" | "right"): void {
     if (isBusy() || selectedIndices().size === 0) return;
     const step = direction === "right" ? ROTATION_STEP : 360 - ROTATION_STEP;
-    organize("selected page rotation", () => {
+    organize("rotate pages", () => {
       for (const index of selectedIndices()) {
         setPages(index, "rotation", (r) => (r + step) % 360);
       }
@@ -1162,7 +1165,7 @@ export default function Editor() {
     if (isBusy() || selectedIndices().size === 0) return;
     const indices = Array.from(selectedIndices()).sort((a, b) => a - b);
     const copies = indices.map((index) => duplicatePageState(pages[index]));
-    organize("selected page duplication", () => {
+    organize("duplicate pages", () => {
       setPages(
         produce((draft) => {
           for (let k = indices.length - 1; k >= 0; k--) draft.splice(indices[k] + 1, 0, copies[k]);
@@ -1186,7 +1189,7 @@ export default function Editor() {
   function handleDocumentRotate(pageId: string): void {
     const index = documentPageIndex(pageId);
     if (index < 0) return;
-    organize("page rotation", () => setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360));
+    organize("rotate page", () => setPages(index, "rotation", (r) => (r + ROTATION_STEP) % 360));
     setStatusMessage(`Rotated page ${index + 1}.`);
   }
 
@@ -1194,7 +1197,7 @@ export default function Editor() {
     const index = documentPageIndex(pageId);
     if (index < 0) return;
     const copy = duplicatePageState(pages[index]);
-    organize("page duplication", () => {
+    organize("duplicate page", () => {
       setPages(produce((draft) => draft.splice(index + 1, 0, copy)));
       setSelectedIndices(
         (selection) => new Set(Array.from(selection, (i) => (i > index ? i + 1 : i)))
@@ -1208,7 +1211,7 @@ export default function Editor() {
     const index = documentPageIndex(pageId);
     if (index < 0) return;
     const marked = pages[index].markedForDeletion;
-    organize(marked ? "page restoration" : "deletion marking", () =>
+    organize(marked ? "restore" : "mark for deletion", () =>
       setPages(index, "markedForDeletion", !marked)
     );
     setStatusMessage(
@@ -1223,7 +1226,7 @@ export default function Editor() {
     const action = selectedDeletionAction();
     const markForDeletion = action === "mark";
 
-    organize(markForDeletion ? "selected deletion marking" : "selected page restoration", () => {
+    organize(markForDeletion ? "mark for deletion" : "restore", () => {
       for (const index of selectedIndices()) {
         setPages(index, "markedForDeletion", markForDeletion);
       }
@@ -1268,7 +1271,7 @@ export default function Editor() {
       const constraintMessage = exportConstraint
         ? `${error.file ? `${error.file.name}: ` : ""}${error.message} Extract pages from other files, or remove this file, then try again.`
         : undefined;
-      dispatchToast(constraintMessage ?? "Failed to export the PDF.", "error");
+      dispatchToast(constraintMessage ?? "Could not export the PDF. Try again.", "error");
       setStatusMessage(constraintMessage ?? "Export failed. Try again.");
     } finally {
       if (!disposed) setOperation("idle");
@@ -1317,7 +1320,7 @@ export default function Editor() {
       const message =
         error instanceof PDFProcessingError && error.operation === "image-export-limit"
           ? error.message
-          : "Failed to export images.";
+          : "Could not export PNG. Try fewer pages at a time.";
       dispatchToast(message, "error");
       setStatusMessage(message);
     } finally {
@@ -1326,18 +1329,18 @@ export default function Editor() {
   }
 
   function handleExportImages(): Promise<void> {
-    return exportImages(undefined, "Exporting images");
+    return exportImages(undefined, "Exporting PNG");
   }
 
   function handleExportSelectedImages(): Promise<void> {
     if (selectedIndices().size === 0) return Promise.resolve();
-    return exportImages(sortedSelection(), "Exporting selected images");
+    return exportImages(sortedSelection(), "Exporting PNG");
   }
 
   function handleExportPageImage(pageId: string): Promise<void> {
     const index = documentPageIndex(pageId);
     if (index < 0 || pages[index].markedForDeletion) return Promise.resolve();
-    return exportImages([index], `Exporting page ${index + 1} image`);
+    return exportImages([index], `Exporting page ${index + 1} as PNG`);
   }
 
   async function handleCompress(): Promise<void> {
@@ -1359,12 +1362,12 @@ export default function Editor() {
     } catch (error) {
       if (disposed) return;
       dispatchToast(
-        error instanceof QpdfProcessingError
-          ? `Failed to compress the PDF: ${error.message}`
-          : "Failed to compress the PDF.",
+        error instanceof QpdfProcessingError && error.operation === "create-worker"
+          ? "Could not start compression. Reload the page and try again."
+          : "Could not compress this PDF. Use Download PDF to save it as is.",
         "error"
       );
-      setStatusMessage("Compression failed. Try again.");
+      setStatusMessage("Compression failed.");
     } finally {
       if (!disposed) setOperation("idle");
     }
@@ -1381,7 +1384,7 @@ export default function Editor() {
   function movePage(from: number, to: number): void {
     if (from === to || from < 0 || to < 0 || from >= pages.length || to >= pages.length) return;
 
-    organize("page reorder", () => {
+    organize("move page", () => {
       setPages(
         produce((currentPages) => {
           const [moved] = currentPages.splice(from, 1);
@@ -1636,14 +1639,10 @@ export default function Editor() {
             </div>
             <h1 class="sr-only">Interleaf PDF editor</h1>
             <div class="editor-header-right">
-              <a
-                href={base}
-                class="editor-button editor-button-plain"
-                aria-label="Return to Interleaf home"
-              >
+              <a href={base} class="editor-button editor-button-plain">
                 <EditorIcon name="back" />
                 <span class="editor-back-wide">Back</span>
-                <span class="editor-back-compact">Exit</span>
+                <span class="editor-back-compact">Back</span>
               </a>
             </div>
           </header>
@@ -1735,7 +1734,7 @@ export default function Editor() {
               }}
               id="editor-workspace-content"
               class="editor-workspace-main"
-              aria-label={workspaceView() === "pages" ? "Pages workspace" : "Document workspace"}
+              aria-label={workspaceView() === "pages" ? "Pages view" : "Document view"}
             >
               <input
                 ref={addPdfInput}
@@ -1744,7 +1743,7 @@ export default function Editor() {
                 accept="application/pdf,image/png,image/jpeg,.pdf,.png,.jpg,.jpeg"
                 multiple
                 name="additional-files"
-                aria-label="Choose additional PDF or image files"
+                aria-label="Add files"
                 class="hidden"
                 disabled={isBusy()}
                 onChange={handleAddFilesInput}
@@ -1781,7 +1780,7 @@ export default function Editor() {
                       })
                     }
                     onFieldChange={(pageId, fieldRef, value, originalValue) =>
-                      organize("Fill text field", () =>
+                      organize("fill field", () =>
                         setPages(
                           reconcile(answerField(pages, pageId, fieldRef, value, originalValue), {
                             key: "id",
