@@ -1,6 +1,5 @@
 import type { TransitionBeforePreparationEvent } from "astro:transitions/client";
-
-export const LEAVE_EDITOR_MESSAGE = "Leave the editor? Your changes will be lost.";
+import { confirmLeave } from "./leave-prompt";
 
 /**
  * Leaves an Astro router navigation pending until the router supersedes it.
@@ -22,13 +21,17 @@ function hold(event: TransitionBeforePreparationEvent): void {
 
 /**
  * Asks before the page unloads, or before the client router leaves it, while
- * `shouldAsk` holds. Returns a function that removes the guard.
+ * `shouldAsk` holds. Tab close and reload can only show the browser's own
+ * prompt. Router navigation asks in the page and resumes once confirmed.
+ * Returns a function that removes the guard.
  */
 export function guardLeave(
   shouldAsk: () => boolean,
-  confirm: (message: string) => boolean = (message) => window.confirm(message)
+  confirm: () => Promise<boolean> = confirmLeave
 ): () => void {
   let restoring = false;
+  let leaving = false;
+  let asking = false;
   // The client router numbers its history entries. Without a number, assume one step.
   const entry = (state: unknown) =>
     typeof (state as { index?: unknown } | null)?.index === "number"
@@ -37,7 +40,7 @@ export function guardLeave(
   const home = entry(history.state);
 
   const beforeUnload = (event: BeforeUnloadEvent) => {
-    if (!shouldAsk()) return;
+    if (leaving || !shouldAsk()) return;
     event.preventDefault();
     // Older browsers show the prompt only when returnValue is set.
     event.returnValue = "";
@@ -53,20 +56,30 @@ export function guardLeave(
         return;
       }
     }
-    if (!shouldAsk() || confirm(LEAVE_EDITOR_MESSAGE)) return;
+    if (leaving || !shouldAsk()) return;
     hold(navigation);
     // Back and Forward have already moved the history entry. Return to this one.
+    let step = 0;
     if (navigation.navigationType === "traverse") {
       restoring = true;
       const target = entry(history.state);
-      history.go(
+      step =
         home !== undefined && target !== undefined
           ? home - target
           : navigation.direction === "back"
             ? 1
-            : -1
-      );
+            : -1;
+      history.go(step);
     }
+    if (asking) return;
+    asking = true;
+    void confirm().then((leave) => {
+      asking = false;
+      if (!leave) return;
+      leaving = true;
+      if (step) history.go(-step);
+      else window.location.assign(navigation.to.href);
+    });
   };
 
   window.addEventListener("beforeunload", beforeUnload);

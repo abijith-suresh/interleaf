@@ -63,7 +63,7 @@ export default function EditorToolbar(props: Props) {
       <div class="editor-toolbar-start">
         <a
           href={props.base}
-          class="editor-exit editor-exit-row"
+          class="editor-button editor-button-plain editor-exit editor-exit-row"
           aria-label="Back to Interleaf"
           title="Back to Interleaf"
           data-testid="editor-exit-link"
@@ -102,6 +102,16 @@ export default function EditorToolbar(props: Props) {
       </div>
 
       <div class="editor-toolbar-middle">
+        <EditorButton
+          data-testid="editor-add-pdf-quick-button"
+          aria-label="Add files"
+          title="Add files"
+          class="editor-toolbar-add-quick"
+          variant="plain"
+          onClick={props.onAddFiles}
+          disabled={props.busy}
+          icon="plus"
+        />
         <EditorOverflow
           id="editor-more-actions"
           label="More actions"
@@ -136,7 +146,10 @@ export default function EditorToolbar(props: Props) {
           >
             <span class="editor-toolbar-label">Files</span>
           </EditorButton>
-          <a href={props.base} class="editor-exit editor-exit-overflow">
+          <a
+            href={props.base}
+            class="editor-button editor-button-plain editor-exit editor-exit-overflow"
+          >
             <EditorIcon name="back" />
             <span>Back</span>
           </a>

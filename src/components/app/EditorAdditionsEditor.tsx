@@ -707,7 +707,7 @@ export default function EditorAdditionsEditor(props: Props) {
                   Add checkmark
                 </EditorButton>
                 <EditorButton
-                  icon="page-actions"
+                  icon="fields"
                   aria-pressed={activeTool() === "fields"}
                   disabled={!props.ready || saving() || Boolean(draft()) || !props.onFieldChange}
                   onClick={() => {
@@ -825,50 +825,52 @@ export default function EditorAdditionsEditor(props: Props) {
                     }
                   />
                 </label>
-                <span class="editor-text-font">{checkmark() ? "pt" : "Helvetica · pt"}</span>
-                <EditorButton
-                  icon="rotate"
-                  aria-label={`Rotate ${noun()} 90 degrees`}
-                  disabled={saving()}
-                  onClick={() =>
-                    patch({ rotation: normalizeQuarterTurn((draft()?.rotation ?? 0) - 90) })
-                  }
-                />
-                <EditorButton type="submit" variant="primary" disabled={saving()}>
-                  {saving() ? "Saving…" : `Save ${noun()}`}
-                </EditorButton>
-                <EditorButton disabled={saving()} onClick={finishDraft}>
-                  Cancel
-                </EditorButton>
-                <Show when={additions().some((text) => text.id === draft()?.id)}>
+                <span class="editor-text-font">{checkmark() ? "pt" : "pt · Helvetica"}</span>
+                <div class="editor-text-actions">
                   <EditorButton
-                    icon="delete"
-                    aria-label={`Delete ${noun()}`}
-                    variant="danger"
+                    icon="rotate"
+                    aria-label={`Rotate ${noun()} 90 degrees`}
                     disabled={saving()}
-                    onClick={() => {
-                      const ticket = focusTicket();
-                      const id = draft()?.id;
-                      if (checkmark())
-                        props.onCheckmarksChange?.(
-                          props.page.id,
-                          marks().filter((mark) => mark.id !== id),
-                          "delete checkmark"
-                        );
-                      else
-                        props.onChange(
-                          props.page.id,
-                          texts().filter((text) => text.id !== id),
-                          "delete text"
-                        );
-                      cancel();
-                      setToolsOpen(false);
-                      focusLater(() => completionTarget(), ticket);
-                    }}
-                  >
-                    Delete
+                    onClick={() =>
+                      patch({ rotation: normalizeQuarterTurn((draft()?.rotation ?? 0) - 90) })
+                    }
+                  />
+                  <EditorButton type="submit" variant="primary" disabled={saving()}>
+                    {saving() ? "Saving…" : `Save ${noun()}`}
                   </EditorButton>
-                </Show>
+                  <EditorButton disabled={saving()} onClick={finishDraft}>
+                    Cancel
+                  </EditorButton>
+                  <Show when={additions().some((text) => text.id === draft()?.id)}>
+                    <EditorButton
+                      icon="delete"
+                      aria-label={`Delete ${noun()}`}
+                      variant="danger"
+                      disabled={saving()}
+                      onClick={() => {
+                        const ticket = focusTicket();
+                        const id = draft()?.id;
+                        if (checkmark())
+                          props.onCheckmarksChange?.(
+                            props.page.id,
+                            marks().filter((mark) => mark.id !== id),
+                            "delete checkmark"
+                          );
+                        else
+                          props.onChange(
+                            props.page.id,
+                            texts().filter((text) => text.id !== id),
+                            "delete text"
+                          );
+                        cancel();
+                        setToolsOpen(false);
+                        focusLater(() => completionTarget(), ticket);
+                      }}
+                    >
+                      Delete
+                    </EditorButton>
+                  </Show>
+                </div>
                 <Show when={error()}>
                   <p id="editor-text-error" class="editor-text-error" role="alert">
                     {error()}
@@ -876,7 +878,7 @@ export default function EditorAdditionsEditor(props: Props) {
                 </Show>
               </form>
             </Show>
-            <div ref={fieldPanel} />
+            <div ref={fieldPanel} class="editor-field-draft" />
           </div>
         </fieldset>
       </Portal>

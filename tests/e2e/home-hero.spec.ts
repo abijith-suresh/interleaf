@@ -127,5 +127,5 @@ test("selection clears before the whole-document Download menu opens", async ({ 
     )
     .toBe(true);
   await expect(frame.locator(".demo-download-menu")).toContainText("Download PDF");
-  await expect(frame.locator(".demo-download-menu")).toContainText("2 of 3 pages exportable");
+  await expect(frame.locator(".demo-download-menu")).toContainText("3 pages, 1 marked");
 });

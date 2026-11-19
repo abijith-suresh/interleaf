@@ -321,7 +321,7 @@ export default function EditorFieldsEditor(props: Props) {
         </Portal>
       </Show>
       <Portal mount={props.toolbar}>
-        <div ref={panel}>
+        <div ref={panel} class="editor-field-panel">
           <Show when={selected()}>
             {(widget) => (
               <form
@@ -382,24 +382,30 @@ export default function EditorFieldsEditor(props: Props) {
                 <span id="editor-field-input-help" class="editor-text-font">
                   Helvetica · 12 pt
                 </span>
-                <EditorButton type="submit" variant="primary" disabled={saving() || props.disabled}>
-                  {saving() ? "Saving…" : "Save answer"}
-                </EditorButton>
-                <EditorButton disabled={saving()} onClick={finish}>
-                  Cancel
-                </EditorButton>
-                <EditorButton
-                  icon="previous"
-                  aria-label="Previous field"
-                  disabled={saving() || position() <= 0}
-                  onClick={() => navigate(-1)}
-                />
-                <EditorButton
-                  icon="next"
-                  aria-label="Next field"
-                  disabled={saving() || position() >= navigable().length - 1}
-                  onClick={() => navigate(1)}
-                />
+                <div class="editor-text-actions">
+                  <EditorButton
+                    type="submit"
+                    variant="primary"
+                    disabled={saving() || props.disabled}
+                  >
+                    {saving() ? "Saving…" : "Save answer"}
+                  </EditorButton>
+                  <EditorButton disabled={saving()} onClick={finish}>
+                    Cancel
+                  </EditorButton>
+                  <EditorButton
+                    icon="previous"
+                    aria-label="Previous field"
+                    disabled={saving() || position() <= 0}
+                    onClick={() => navigate(-1)}
+                  />
+                  <EditorButton
+                    icon="next"
+                    aria-label="Next field"
+                    disabled={saving() || position() >= navigable().length - 1}
+                    onClick={() => navigate(1)}
+                  />
+                </div>
               </form>
             )}
           </Show>

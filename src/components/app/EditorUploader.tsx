@@ -70,7 +70,7 @@ export default function EditorUploader(props: Props) {
           }}
         >
           <span class="editor-dropzone-icon" aria-hidden="true">
-            <EditorIcon name="open" />
+            <EditorIcon name="upload" />
           </span>
           <span class="editor-dropzone-copy">
             <strong>{props.busy ? "Preparing PDF…" : "Add files"}</strong>
