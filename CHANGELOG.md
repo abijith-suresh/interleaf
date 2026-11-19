@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.16](https://github.com/abijith-suresh/interleaf/compare/v0.0.15...v0.0.16) (2026-11-19)
+
+
+### Features
+
+* add a 404 page ([#398](https://github.com/abijith-suresh/interleaf/issues/398)) ([ab7b95d](https://github.com/abijith-suresh/interleaf/commit/ab7b95d3a8b47b3d12a92ab025ba63e125cb580b))
+* give the site and editor one visual identity ([#401](https://github.com/abijith-suresh/interleaf/issues/401)) ([e04ff02](https://github.com/abijith-suresh/interleaf/commit/e04ff02a5ac1534a5a8018f637c11066a96f4b5d))
+
+
+### Bug Fixes
+
+* make editor buttons, icons and bars consistent ([#402](https://github.com/abijith-suresh/interleaf/issues/402)) ([5c4630d](https://github.com/abijith-suresh/interleaf/commit/5c4630d2d3adddaea394f2be3a470f238739e60a))
+* use one term per feature and actionable errors in the editor ([#400](https://github.com/abijith-suresh/interleaf/issues/400)) ([623e85f](https://github.com/abijith-suresh/interleaf/commit/623e85f3bebae61004e683d7993c19bcac9f75e0))
+
 ## [0.0.15](https://github.com/abijith-suresh/interleaf/compare/v0.0.14...v0.0.15) (2026-11-11)
 
 
